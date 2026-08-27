@@ -1,0 +1,59 @@
+name: CI - auth-service
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/auth-service/**'
+      - 'modules/common/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'services/auth-service/**'
+      - 'modules/common/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    # DB/메시징 서비스 컨테이너를 여기서 미리 띄우지 않는다 — 통합테스트가
+    # Testcontainers로 필요한 컨테이너를 직접 관리한다(test-convention.md 기준).
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            services/auth-service
+            modules/common
+            build.gradle
+            settings.gradle
+            gradlew
+            gradle
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build and Test
+        run: ./gradlew :services:auth-service:clean :services:auth-service:build :services:auth-service:jacocoTestReport :services:auth-service:jacocoTestCoverageVerification --stacktrace
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-auth-service
+          path: services/auth-service/build/reports/jacoco/test/html/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-service
+          path: services/auth-service/build/libs/*[!plain].jar
