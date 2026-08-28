@@ -1,0 +1,9 @@
+dependencies {
+    // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
+    implementation project(':modules:common-webmvc')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+}
