@@ -1,6 +1,6 @@
 plugins {
-	id 'org.springframework.boot' version '4.1.1'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.springframework.boot' version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 allprojects {
@@ -16,6 +16,7 @@ allprojects {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'jacoco'
 
     java {
         toolchain {
@@ -24,9 +25,13 @@ subprojects {
         }
     }
 
+    jacoco {
+        toolVersion = '0.8.14'
+    }
+
     ext {
         set('springCloudVersion', '2025.1.2')
-		set('springModulithVersion', "2.1.0")
+        set('springModulithVersion', "2.1.0")
     }
 
     // Spring Boot / Spring Cloud BOM으로 의존성 버전을 일괄 관리 (각 서비스에서 버전 명시 불필요)
@@ -53,7 +58,34 @@ subprojects {
 
     tasks.named('test') {
         useJUnitPlatform()
+        finalizedBy tasks.jacocoTestReport
     }
+
+    tasks.named('jacocoTestReport') {
+        dependsOn tasks.test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    tasks.named('check') {
+        dependsOn tasks.jacocoTestReport
+    }
+
+    // -------------------------------------------------------
+    // 주의: Gradle 기본 동작상 check 태스크에 자동으로 안 물리므로,
+    // 켤 때 `tasks.named('check') { dependsOn tasks.jacocoTestCoverageVerification }`도 같이 추가해야 실제로 강제됩니다.
+    // -------------------------------------------------------
+     tasks.named('jacocoTestCoverageVerification') {
+         violationRules {
+             rule {
+                 limit {
+                     minimum = 0.80
+                 }
+             }
+         }
+     }
 }
 
 // Spring Boot 플러그인은 실행 가능한 JAR이 필요한 서비스에만 적용
@@ -62,6 +94,12 @@ configure(subprojects.findAll {
     it.path.startsWith(':services:') || it.path.startsWith(':platform:')
 }) {
     apply plugin: 'org.springframework.boot'
+}
+
+// modules:* 는 다른 프로젝트가 갖다 쓰는 라이브러리이므로 java-library 적용
+// (java 플러그인만으론 api 설정이 없어서, 자기 의존성을 밖으로 노출(api)시킬 수 없음)
+configure(subprojects.findAll { it.path.startsWith(':modules:') }) {
+    apply plugin: 'java-library'
 }
 
 // TestContainers, Flyway, JPA, PostgreSQL은 모든 서비스에 적용

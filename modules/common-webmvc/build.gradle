@@ -1,0 +1,11 @@
+// java 플러그인, lombok, jacoco, dependencyManagement BOM 등은
+// 루트 build.gradle의 subprojects { ... } 블록에서 이미 전체 적용되므로 여기선 의존성만 선언.
+//
+// api로 선언한 이유: 이 모듈을 쓰는 서비스가 AbstractGlobalExceptionHandler를 상속하려면
+// ErrorCode/BusinessException 등(모듈:common)과 ResponseEntity 등(spring-boot-starter-web)이
+// 컴파일 시점에 같이 보여야 한다. implementation으로 선언하면 이 모듈 내부에서만 보이고
+// 밖에서 상속해서 쓸 때 "cannot access class" 에러가 난다.
+dependencies {
+    api project(':modules:common')
+    api 'org.springframework.boot:spring-boot-starter-web'
+}

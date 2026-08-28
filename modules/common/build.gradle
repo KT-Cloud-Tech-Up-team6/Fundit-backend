@@ -2,8 +2,6 @@
 // 루트에서 Spring Boot 플러그인이 적용되지 않으므로 일반 JAR로 자동 빌드됨
 // Lombok, spring-boot-starter-test는 루트 build.gradle에서 자동 적용됨
 
-apply plugin: 'java-library'
-
 dependencies {
     // api 선언 → common에 의존하는 서비스 컴파일 classpath에도 노출됨
     api 'org.springframework.boot:spring-boot-starter-validation'
