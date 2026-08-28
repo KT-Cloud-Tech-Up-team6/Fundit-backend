@@ -10,8 +10,8 @@ feature/* 브랜치 push
 PR → develop 생성
         ↓
 경로 필터(paths)로 변경된 서비스의 CI만 자동 실행
-  - CI 러너 안에서만 sparse-checkout으로 해당 서비스 + modules/common만 클론(속도 최적화, 로컬 개발 정책과는 무관)
-  - ./gradlew :services:{서비스명}:build :services:{서비스명}:jacocoTestReport
+  - CI 러너 안에서만 sparse-checkout으로 해당 서비스 + modules/common + modules/common-webmvc만 클론(속도 최적화, 로컬 개발 정책과는 무관)
+  - ./gradlew :services:{서비스명}:build :services:{서비스명}:jacocoTestReport :services:{서비스명}:jacocoTestCoverageVerification
   - 통합테스트는 Testcontainers가 자체적으로 DB 컨테이너를 띄우고 내림
   - 빌드 성공 + 커버리지 기준(80%, test-convention.md) 통과 시 JAR 아티팩트 저장
         ↓
@@ -38,6 +38,7 @@ Git 브랜치 전략·클론·커밋·PR 흐름 자체는 `docs/development-work
 paths:
   - 'services/{service}/**'
   - 'modules/common/**'
+  - 'modules/common-webmvc/**'
   - 'build.gradle'
   - 'settings.gradle'
 ```
@@ -64,6 +65,7 @@ paths:
 sparse-checkout: |
   services/{service}
   modules/common
+  modules/common-webmvc
   build.gradle
   settings.gradle
   gradlew
@@ -104,6 +106,7 @@ on:
     paths:
       - 'services/{service}/**'
       - 'modules/common/**'
+      - 'modules/common-webmvc/**'
       - 'build.gradle'
       - 'settings.gradle'
   pull_request:
@@ -111,6 +114,7 @@ on:
     paths:
       - 'services/{service}/**'
       - 'modules/common/**'
+      - 'modules/common-webmvc/**'
       - 'build.gradle'
       - 'settings.gradle'
 
@@ -126,6 +130,7 @@ jobs:
           sparse-checkout: |
             services/{service}
             modules/common
+            modules/common-webmvc
             build.gradle
             settings.gradle
             gradlew
