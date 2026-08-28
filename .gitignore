@@ -45,9 +45,8 @@ firebase-service-account.json
 # ===========================
 # Claude Code (개인 로컬 설정)
 # ===========================
-.claude/settings.local.json
-# 팀에서 CLAUDE.local.md(개인 지시사항 오버라이드) 패턴을 쓰게 되면 아래도 추가
-# CLAUDE.local.md
+**/.claude/settings.local.json
+**/CLAUDE.local.md
 
 # ===========================
 # 로컬 인프라 (Kafka/Redis 등)
