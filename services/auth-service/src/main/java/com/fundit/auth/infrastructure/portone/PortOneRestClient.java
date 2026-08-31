@@ -2,6 +2,7 @@ package com.fundit.auth.infrastructure.portone;
 
 import com.fundit.auth.application.identity.PortOneClient;
 import com.fundit.common.error.DependencyFailureException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class PortOneRestClient implements PortOneClient {
     private final String apiSecret;
     private final String storeId;
 
+    @Autowired
     public PortOneRestClient(PortOneProperties properties) {
         this(buildRestClient(properties.getBaseUrl()), properties.getApiSecret(), properties.getStoreId());
     }
