@@ -1,6 +1,5 @@
 package com.fundit.auth.application.login;
 
-import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.Role;
@@ -27,8 +26,6 @@ class LoginServiceTest {
     private AccountRepository accountRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
-    @Mock
-    private TokenIssuer tokenIssuer;
 
     @InjectMocks
     private LoginService loginService;
@@ -48,22 +45,18 @@ class LoginServiceTest {
     }
 
     @Test
-    void 이메일과_비밀번호가_일치하면_토큰을_발급하고_실패카운트를_초기화한다() {
+    void 이메일과_비밀번호가_일치하면_계정을_반환하고_실패카운트를_초기화한다() {
         // given
         Account account = account(3, null, true);
         when(accountRepository.findByEmail("test@fundit.com")).thenReturn(Optional.of(account));
         when(passwordEncoder.matches("correct-pw", "hash")).thenReturn(true);
-        when(tokenIssuer.issue(account.getId(), Role.MEMBER))
-                .thenReturn(new TokenIssuer.IssuedTokens("access-token", "refresh-token"));
 
         // when
-        LoginService.LoginResult result = loginService.login(
-                new LoginService.LoginCommand("test@fundit.com", "correct-pw"));
+        Account result = loginService.authenticate("test@fundit.com", "correct-pw");
 
         // then
-        assertThat(result.accessToken()).isEqualTo("access-token");
-        assertThat(result.refreshToken()).isEqualTo("refresh-token");
-        assertThat(result.mustChangePassword()).isTrue();
+        assertThat(result.getId()).isEqualTo(account.getId());
+        assertThat(result.isMustChangePassword()).isTrue();
         assertThat(account.getFailedLoginCount()).isZero();
         verify(accountRepository).save(account);
     }
@@ -74,14 +67,11 @@ class LoginServiceTest {
         Account account = account(0, Instant.now().minusSeconds(60), false);
         when(accountRepository.findByEmail(any())).thenReturn(Optional.of(account));
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
-        when(tokenIssuer.issue(any(), any()))
-                .thenReturn(new TokenIssuer.IssuedTokens("access-token", "refresh-token"));
 
         // when
-        LoginService.LoginResult result = loginService.login(
-                new LoginService.LoginCommand("test@fundit.com", "correct-pw"));
+        Account result = loginService.authenticate("test@fundit.com", "correct-pw");
 
         // then
-        assertThat(result.accessToken()).isEqualTo("access-token");
+        assertThat(result.getId()).isEqualTo(account.getId());
     }
 }

@@ -58,7 +58,11 @@
 
 ### 회원가입
 
-#### AUTH-004. 휴대폰 인증번호 발송
+#### AUTH-004. (폐기) 휴대폰 인증번호 발송
+
+> **2026-08-31 폐기**: 통합인증(PortOne/KG이니시스)으로 벤더가 확정되면서 서버가 인증번호를 직접 발송·관리할 필요가 없어졌다. 클라이언트가 PortOne JS SDK로 인증창(카카오/네이버/PASS/토스/금융인증서 등 민간인증서)을 직접 열고 인증을 완료하므로, 이 엔드포인트는 만들지 않는다. 서버 역할은 AUTH-005 하나로 통합됐다.
+
+#### AUTH-005. 본인인증(PortOne 통합인증) 결과 조회
 | 항목 | 내용 |
 |---|---|
 | PRD 코드 | FL_C_ME_01_02 |
@@ -66,27 +70,12 @@
 | 우선순위 | **MVP** |
 | 트리거 | API 호출 |
 
-- **요구사항**: 본인인증을 위해 입력한 휴대폰 번호로 인증번호를 발송한다.
-- **처리 내용**: 인증번호 생성 후 SMS 발송 연동, Redis TTL 3분 저장
-- **입력값**: 이름, 생년월일, 휴대폰번호
-- **출력값**: 발송 성공 여부, 재발송 가능 시각
-- **예외 처리**: 60초 내 재발송 제한 / SMS 발송사 장애 → 503 `DEPENDENCY_FAILURE`
-- **보안/권한** (S1·S2·S7·S9·S10): 서버 검증 및 파라미터 바인딩(S1·S2) · SMS 발송사 API Key는 코드와 분리 보관(S7) · 휴대폰번호 저장·전송 시 암호화(S9) · 인증번호는 로그에 남기지 않음(S10)
-
-#### AUTH-005. 휴대폰 인증번호 검증
-| 항목 | 내용 |
-|---|---|
-| PRD 코드 | FL_C_ME_01_02 |
-| 권한 | 비로그인 |
-| 우선순위 | **MVP** |
-| 트리거 | API 호출 |
-
-- **요구사항**: 발송된 인증번호를 검증해 본인인증을 완료한다.
-- **처리 내용**: Redis 저장값과 비교, 일치 시 본인인증 완료 임시 토큰 발급
-- **입력값**: 휴대폰번호, 인증번호
-- **출력값**: 본인인증 완료 임시 토큰
-- **예외 처리**: 불일치 → 401 `TOKEN_INVALID` / TTL초과 → 재발송 유도
-- **보안/권한** (S1·S2·S9·S10): 서버 검증·바인딩(S1·S2) · Redis 저장 인증번호는 평문 노출 최소화(S9) · 실패 사유는 상세 노출 없이 일반 메시지(S10)
+- **요구사항**: 클라이언트에서 PortOne SDK로 완료한 본인인증 건을 서버가 PortOne REST API로 조회·검증하고, 본인인증 완료 임시 토큰을 발급한다.
+- **처리 내용**: `identityVerificationId`로 PortOne 단건조회 API(`GET /identity-verifications/{id}?storeId={PG_STORE_ID}`) 호출(`storeId`를 명시해 다른 상점의 인증 건이 조회되지 않도록 함) → `status`가 `VERIFIED`인지 확인 → `verifiedCustomer`(name/phoneNumber/birthDate)를 Redis에 TTL 30분으로 임시 저장하고 `verificationToken`(UUID) 발급
+- **입력값**: `identityVerificationId`
+- **출력값**: 본인인증 완료 임시 토큰(`verificationToken`), 만료 시각(`expiresAt`)
+- **예외 처리**: 미검증(`status != VERIFIED`) → 401 `TOKEN_INVALID` / PortOne API 호출 실패(네트워크·5xx) → 503 `DEPENDENCY_FAILURE`
+- **보안/권한** (S1·S2·S7·S9·S10): 서버 검증·바인딩(S1·S2) · PortOne API 시크릿(`PG_APIKEY`)은 코드와 분리해 환경변수로 보관(S7) · PortOne 응답값(verifiedCustomer)은 검증 후 사용, 신뢰하지 않음(S7) · Redis 저장 인증정보는 TTL 만료 후 자동 폐기, 1회 소비 후 즉시 삭제(S9) · 실패 사유는 상세 노출 없이 일반 메시지(S10)
 
 #### AUTH-006. 이메일 중복 확인
 | 항목 | 내용 |
@@ -112,10 +101,10 @@
 | 트리거 | API 호출 |
 
 - **요구사항**: 아이디/비밀번호 기반 계정을 생성하고, 프로필 생성을 위해 member-service를 호출한다.
-- **처리 내용**: 이메일 중복 검증 → 비밀번호 BCrypt 해시 저장(`accounts` 테이블) → 본인인증 임시토큰 검증 → member-service에 프로필 생성 동기 호출 — 실패 시 보상 트랜잭션(계정 삭제)으로 처리, AUTH-012가 안전망
+- **처리 내용**: 이메일 중복 검증 → 비밀번호 BCrypt 해시 저장(`accounts` 테이블) → 본인인증 임시토큰(`verificationToken`) 검증(AUTH-005에서 발급된 토큰을 Redis에서 1회 소비하고, 저장된 휴대폰번호와 요청의 휴대폰번호가 일치하는지 대조) → member-service에 프로필 생성 동기 호출 — 실패 시 보상 트랜잭션(계정 삭제)으로 처리, AUTH-012가 안전망
 - **입력값**: 비밀번호, 이메일, 본인인증 임시토큰, (프로필용) 이름, 휴대전화번호, 약관동의 목록, (선택) 주소
 - **출력값**: 생성된 accountId, 가입 완료 회원정보(memberId 포함), 초기 Access/Refresh Token
-- **예외 처리**: 필수값 누락/형식오류 → 400 / 이메일 중복 → 409 / member-service 프로필 생성 실패 → 보상 트랜잭션으로 계정 삭제 후 503
+- **예외 처리**: 필수값 누락/형식오류 → 400 / 이메일 중복 → 409 / 본인인증 임시토큰 만료·미존재·휴대폰번호 불일치 → 401 `TOKEN_INVALID` / member-service 프로필 생성 실패 → 보상 트랜잭션으로 계정 삭제 후 503
 - **보안/권한** (S1·S2·S3·S9·S10): 비밀번호는 솔트 포함 해시로 저장, 복잡도 검증(S3) · 전 입력값 서버 검증·바인딩(S1·S2) · 이메일 등 저장 시 암호화, HTTPS 전송(S9) · 비밀번호 평문 로깅 금지(S10)
 
 #### AUTH-008. 계정(자격증명) 생성 — 소셜가입
@@ -236,11 +225,10 @@
 | 로그인 이메일/비밀번호 불일치 | `AuthErrorCode.INVALID_CREDENTIALS` (신규, 401) | AUTH-001, AUTH-011 |
 | 계정 잠금(5회 로그인 실패) | `AuthErrorCode.ACCOUNT_LOCKED` (신규, 423 권장) | AUTH-001 |
 | 소셜 로그인 미연동 계정 | 에러 아님 — 회원가입 유도 응답으로 구분 | AUTH-002 |
-| 소셜/SMS/이메일 발송 등 외부 연동 실패 | `CommonErrorCode.DEPENDENCY_FAILURE`(503, 기존) | AUTH-002, AUTH-004, AUTH-007, AUTH-008, AUTH-010 |
+| 소셜 로그인/이메일 발송/PortOne 연동 등 외부 연동 실패 | `CommonErrorCode.DEPENDENCY_FAILURE`(503, 기존) | AUTH-002, AUTH-005, AUTH-007, AUTH-008, AUTH-010 |
 | Refresh Token 없음/만료/위조/재사용 | `CommonErrorCode.TOKEN_INVALID` / `TOKEN_EXPIRED`(401, 기존) | AUTH-003, AUTH-014 |
-| SMS 재발송 60초 제한 | `CommonErrorCode.TOO_MANY_REQUESTS`(429, 기존) | AUTH-004 |
-| SMS 인증번호 불일치 | `CommonErrorCode.TOKEN_INVALID`(401, 기존) | AUTH-005 |
-| SMS 인증번호 TTL초과 | `AuthErrorCode.VERIFICATION_CODE_EXPIRED` (신규, 401) — `TOKEN_EXPIRED` 재사용도 가능, 팀 선택 | AUTH-005 |
+| PortOne 본인인증 미검증(`status != VERIFIED`) | `CommonErrorCode.TOKEN_INVALID`(401, 기존) | AUTH-005 |
+| 본인인증 임시토큰 만료·미존재·휴대폰번호 불일치 | `CommonErrorCode.TOKEN_INVALID`(401, 기존) | AUTH-007 |
 | 이메일 형식 오류 / 필수값 누락 | `CommonErrorCode.INVALID_INPUT`(400, 기존) | AUTH-006, AUTH-007, AUTH-008 |
 | 이메일 중복 | `AuthErrorCode.EMAIL_ALREADY_EXISTS` (신규, 409) | AUTH-006, AUTH-007 |
 | 이미 가입된 소셜 계정 | `AuthErrorCode.EMAIL_ALREADY_EXISTS` 재사용 또는 `SOCIAL_ACCOUNT_ALREADY_EXISTS`(신규) | AUTH-008 |

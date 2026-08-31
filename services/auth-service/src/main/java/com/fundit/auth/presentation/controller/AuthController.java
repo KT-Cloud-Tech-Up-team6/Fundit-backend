@@ -1,15 +1,15 @@
 package com.fundit.auth.presentation.controller;
 
 import com.fundit.auth.application.email.EmailAvailabilityService;
-import com.fundit.auth.application.login.LoginService;
+import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.application.token.TokenRefreshService;
 import com.fundit.auth.presentation.RefreshTokenCookieFactory;
 import com.fundit.auth.presentation.dto.CheckEmailResponse;
-import com.fundit.auth.presentation.dto.LoginRequest;
-import com.fundit.auth.presentation.dto.LoginResponse;
+import com.fundit.auth.presentation.dto.IdentityVerificationRequest;
+import com.fundit.auth.presentation.dto.IdentityVerificationResponse;
 import com.fundit.auth.presentation.dto.MessageResponse;
 import com.fundit.auth.presentation.dto.PasswordChangeRequest;
 import com.fundit.auth.presentation.dto.SignupRequest;
@@ -41,8 +41,8 @@ import java.util.UUID;
 public class AuthController {
 
     private final EmailAvailabilityService emailAvailabilityService;
+    private final IdentityVerificationService identityVerificationService;
     private final SignupService signupService;
-    private final LoginService loginService;
     private final TokenRefreshService tokenRefreshService;
     private final PasswordChangeService passwordChangeService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
@@ -52,22 +52,20 @@ public class AuthController {
         return new CheckEmailResponse(emailAvailabilityService.isAvailable(email));
     }
 
+    @PostMapping("/identity-verifications")
+    public IdentityVerificationResponse verifyIdentity(@Valid @RequestBody IdentityVerificationRequest request) {
+        var result = identityVerificationService.verify(request.identityVerificationId());
+        return new IdentityVerificationResponse(result.verificationToken(), result.expiresAt());
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         var result = signupService.signup(new SignupService.SignupCommand(
-                request.email(), request.password(), request.name(), request.phoneNumber(),
-                request.agreedTerms(), request.address()));
+                request.email(), request.password(), request.verificationToken(), request.name(),
+                request.phoneNumber(), request.agreedTerms(), request.address()));
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SignupResponse(result.accountId(), result.memberId(), result.accessToken()));
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        var result = loginService.login(new LoginService.LoginCommand(request.email(), request.password()));
-
-        return withRefreshTokenCookie(result.refreshToken())
-                .body(new LoginResponse(result.accessToken(), result.mustChangePassword()));
     }
 
     @PostMapping("/token/refresh")

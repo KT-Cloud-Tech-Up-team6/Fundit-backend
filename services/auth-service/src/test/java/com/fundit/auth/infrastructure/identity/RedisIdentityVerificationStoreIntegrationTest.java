@@ -1,0 +1,53 @@
+package com.fundit.auth.infrastructure.identity;
+
+import com.fundit.auth.application.identity.IdentityVerificationStore;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * consume()이 실제 Redis에서 원자적 get-and-delete로 동작하는지(1회용 보장) 검증하는 통합 테스트.
+ * Testcontainers에 전용 Redis 모듈이 없어(공식 postgresql 모듈과 달리) GenericContainer +
+ * 이미지명 기반 @ServiceConnection 자동인식을 사용한다.
+ */
+@SpringBootTest
+@Testcontainers(disabledWithoutDocker = true)
+class RedisIdentityVerificationStoreIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
+
+    @Autowired
+    private RedisIdentityVerificationStore store;
+
+    @Test
+    void 저장한_값을_한번_소비하면_이후_조회는_비어있다() {
+        // given
+        var identity = new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1999, 1, 1));
+        store.save("token-1", identity, Duration.ofMinutes(30));
+
+        // when
+        Optional<IdentityVerificationStore.VerifiedIdentity> first = store.consume("token-1");
+        Optional<IdentityVerificationStore.VerifiedIdentity> second = store.consume("token-1");
+
+        // then
+        assertThat(first).contains(identity);
+        assertThat(second).isEmpty();
+    }
+
+    @Test
+    void 저장하지_않은_토큰을_소비하면_빈값을_반환한다() {
+        assertThat(store.consume("no-such-token")).isEmpty();
+    }
+}

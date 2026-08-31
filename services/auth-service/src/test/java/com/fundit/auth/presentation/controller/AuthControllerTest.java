@@ -1,26 +1,30 @@
 package com.fundit.auth.presentation.controller;
 
 import com.fundit.auth.application.email.EmailAvailabilityService;
+import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.application.token.TokenRefreshService;
+import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountLockedException;
 import com.fundit.auth.domain.account.Role;
+import com.fundit.auth.infrastructure.security.AccountAuthenticationProvider;
 import com.fundit.auth.infrastructure.security.JwtAuthenticationFilter;
 import com.fundit.auth.infrastructure.security.JwtProperties;
 import com.fundit.auth.infrastructure.security.JwtTokenProvider;
+import com.fundit.auth.infrastructure.security.LoginFailureHandler;
+import com.fundit.auth.infrastructure.security.LoginSuccessHandler;
 import com.fundit.auth.infrastructure.security.SecurityConfig;
 import com.fundit.auth.presentation.GlobalExceptionHandler;
 import com.fundit.auth.presentation.RefreshTokenCookieFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -37,9 +41,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * jwt.* 는 {@code @ConfigurationProperties}라서 {@code @TestConfiguration}으로 만든 빈에
+ * 값을 수동 세팅해도, 실제 프로필 파일(application-local.yml 등)에 같은 키가 있으면
+ * ConfigurationPropertiesBindingPostProcessor가 그 값으로 다시 덮어써버린다(로컬에만
+ * application-local.yml이 있는 개발자 환경에서 특히 조용히 재현됨). 그래서 빈 오버라이드
+ * 대신 {@code @TestPropertySource}로 최우선순위 프로퍼티를 직접 주입한다.
+ */
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class,
-        RefreshTokenCookieFactory.class, GlobalExceptionHandler.class, AuthControllerTest.TestJwtConfig.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class, JwtProperties.class,
+        AccountAuthenticationProvider.class, LoginSuccessHandler.class, LoginFailureHandler.class,
+        RefreshTokenCookieFactory.class, GlobalExceptionHandler.class})
+@TestPropertySource(properties = {
+        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
+        "jwt.access-token-ttl=30m",
+        "jwt.refresh-token-ttl=14d"
+})
 class AuthControllerTest {
 
     @Autowired
@@ -50,25 +67,17 @@ class AuthControllerTest {
     @MockitoBean
     private EmailAvailabilityService emailAvailabilityService;
     @MockitoBean
+    private IdentityVerificationService identityVerificationService;
+    @MockitoBean
     private SignupService signupService;
     @MockitoBean
     private LoginService loginService;
     @MockitoBean
+    private TokenIssuer tokenIssuer;
+    @MockitoBean
     private TokenRefreshService tokenRefreshService;
     @MockitoBean
     private PasswordChangeService passwordChangeService;
-
-    @TestConfiguration
-    static class TestJwtConfig {
-        @Bean
-        JwtProperties jwtProperties() {
-            JwtProperties properties = new JwtProperties();
-            properties.setSecret("test-only-secret-key-at-least-32-bytes-long!!");
-            properties.setAccessTokenTtl(Duration.ofMinutes(30));
-            properties.setRefreshTokenTtl(Duration.ofDays(14));
-            return properties;
-        }
-    }
 
     @Test
     void 이메일_형식이_올바르면_사용가능여부를_반환한다() throws Exception {
@@ -83,6 +92,21 @@ class AuthControllerTest {
     void 이메일_형식이_잘못되면_400을_반환한다() throws Exception {
         mockMvc.perform(get("/api/v1/auth/check-email").param("email", "not-an-email"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 본인인증_결과조회에_성공하면_인증토큰을_반환한다() throws Exception {
+        Instant expiresAt = Instant.parse("2026-08-26T10:15:00Z");
+        when(identityVerificationService.verify("identity-verification-1")).thenReturn(
+                new IdentityVerificationService.IdentityVerificationResult("verify-token", expiresAt));
+
+        mockMvc.perform(post("/api/v1/auth/identity-verifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"identityVerificationId": "identity-verification-1"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verificationToken").value("verify-token"));
     }
 
     @Test
@@ -110,9 +134,50 @@ class AuthControllerTest {
     }
 
     @Test
+    void 로그인에_성공하면_토큰과_쿠키를_응답한다() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Account account = Account.builder()
+                .id(accountId)
+                .email("test@fundit.com")
+                .passwordHash("hash")
+                .role(Role.MEMBER)
+                .mustChangePassword(false)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+        when(loginService.authenticate("test@fundit.com", "correct-pw")).thenReturn(account);
+        when(tokenIssuer.issue(accountId, Role.MEMBER))
+                .thenReturn(new TokenIssuer.IssuedTokens("access-token", "refresh-token"));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "test@fundit.com", "password": "correct-pw"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("access-token"))
+                .andExpect(header().exists("Set-Cookie"));
+    }
+
+    @Test
+    void 로그인_비밀번호가_틀리면_401_INVALID_CREDENTIALS를_반환한다() throws Exception {
+        when(loginService.authenticate("test@fundit.com", "wrong-pw"))
+                .thenThrow(new com.fundit.common.error.BusinessException(
+                        com.fundit.auth.domain.AuthErrorCode.INVALID_CREDENTIALS));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "test@fundit.com", "password": "wrong-pw"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
+    @Test
     void 계정이_잠겨있으면_423과_해제시각을_응답한다() throws Exception {
         Instant lockedUntil = Instant.now().plusSeconds(600);
-        when(loginService.login(any())).thenThrow(new AccountLockedException(lockedUntil));
+        when(loginService.authenticate("test@fundit.com", "wrong-pw")).thenThrow(new AccountLockedException(lockedUntil));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,13 +207,52 @@ class AuthControllerTest {
     }
 
     @Test
-    void 인증토큰_없이_비밀번호_변경을_요청하면_401을_반환한다() throws Exception {
+    void 인증토큰_없이_비밀번호_변경을_요청하면_401_UNAUTHORIZED를_반환한다() throws Exception {
         mockMvc.perform(patch("/api/v1/auth/password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"currentPassword": "Abcdefg1", "newPassword": "Newpass1!"}
                                 """))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void 만료된_access_token이면_401_TOKEN_EXPIRED를_반환한다() throws Exception {
+        JwtProperties expiredTokenProperties = new JwtProperties();
+        expiredTokenProperties.setSecret("test-only-secret-key-at-least-32-bytes-long!!");
+        expiredTokenProperties.setAccessTokenTtl(Duration.ofSeconds(-1));
+        expiredTokenProperties.setRefreshTokenTtl(Duration.ofDays(14));
+        String expiredToken = new JwtTokenProvider(expiredTokenProperties)
+                .issueAccessToken(UUID.randomUUID(), Role.MEMBER);
+
+        mockMvc.perform(patch("/api/v1/auth/password")
+                        .header("Authorization", "Bearer " + expiredToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "Abcdefg1", "newPassword": "Newpass1!"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"));
+    }
+
+    @Test
+    void 서명이_잘못된_access_token이면_401_TOKEN_INVALID를_반환한다() throws Exception {
+        JwtProperties otherSecretProperties = new JwtProperties();
+        otherSecretProperties.setSecret("a-completely-different-signing-secret-32bytes!!");
+        otherSecretProperties.setAccessTokenTtl(Duration.ofMinutes(30));
+        otherSecretProperties.setRefreshTokenTtl(Duration.ofDays(14));
+        String forgedToken = new JwtTokenProvider(otherSecretProperties)
+                .issueAccessToken(UUID.randomUUID(), Role.MEMBER);
+
+        mockMvc.perform(patch("/api/v1/auth/password")
+                        .header("Authorization", "Bearer " + forgedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"currentPassword": "Abcdefg1", "newPassword": "Newpass1!"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_INVALID"));
     }
 
     @Test

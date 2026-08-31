@@ -1,6 +1,5 @@
 package com.fundit.auth.application.login;
 
-import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountLockedException;
@@ -32,8 +31,6 @@ class LoginServiceExceptionTest {
     private AccountRepository accountRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
-    @Mock
-    private TokenIssuer tokenIssuer;
 
     @InjectMocks
     private LoginService loginService;
@@ -57,7 +54,7 @@ class LoginServiceExceptionTest {
         when(accountRepository.findByEmail(any())).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> loginService.login(new LoginService.LoginCommand("none@fundit.com", "pw")))
+        assertThatThrownBy(() -> loginService.authenticate("none@fundit.com", "pw"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
@@ -70,7 +67,7 @@ class LoginServiceExceptionTest {
         when(accountRepository.findByEmail(any())).thenReturn(Optional.of(account));
 
         // when & then
-        assertThatThrownBy(() -> loginService.login(new LoginService.LoginCommand("test@fundit.com", "pw")))
+        assertThatThrownBy(() -> loginService.authenticate("test@fundit.com", "pw"))
                 .isInstanceOf(AccountLockedException.class);
         verify(passwordEncoder, never()).matches(any(), any());
     }
@@ -83,7 +80,7 @@ class LoginServiceExceptionTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> loginService.login(new LoginService.LoginCommand("test@fundit.com", "wrong-pw")))
+        assertThatThrownBy(() -> loginService.authenticate("test@fundit.com", "wrong-pw"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
@@ -99,7 +96,7 @@ class LoginServiceExceptionTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
         // when & then
-        assertThatThrownBy(() -> loginService.login(new LoginService.LoginCommand("test@fundit.com", "wrong-pw")))
+        assertThatThrownBy(() -> loginService.authenticate("test@fundit.com", "wrong-pw"))
                 .isInstanceOf(AccountLockedException.class);
         assertThat(account.isLocked(Instant.now())).isTrue();
     }

@@ -4,8 +4,7 @@
 
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
-| POST | `/api/v1/auth/phone/verification-code` | X | 휴대폰 인증번호 발송 |
-| POST | `/api/v1/auth/phone/verify` | X | 휴대폰 인증번호 검증 |
+| POST | `/api/v1/auth/identity-verifications` | X | 본인인증(PortOne 통합인증) 결과 조회 |
 | GET | `/api/v1/auth/check-email` | X | 이메일 중복 확인 |
 | POST | `/api/v1/auth/signup` | X | 계정 생성(일반가입) |
 | POST | `/api/v1/auth/signup/social` | X | 계정 생성(소셜가입) |
@@ -38,44 +37,12 @@ Set-Cookie: refreshToken=<value>; HttpOnly; Secure; SameSite=Strict; Path=/api/v
 
 ---
 
-### 휴대폰 인증번호 발송 (AUTH-004)
+### 본인인증(PortOne 통합인증) 결과 조회 (AUTH-005)
+
+> 2026-08-31: 벤더가 PortOne 통합인증(KG이니시스, 카카오/네이버/PASS/토스/금융인증서 등)으로 확정되면서, 기존 "휴대폰 인증번호 발송"(AUTH-004) 엔드포인트는 폐기됐다 — 클라이언트가 PortOne JS SDK(`PortOne.requestIdentityVerification`)로 인증창을 직접 열어 인증을 완료하므로 서버가 인증번호를 발송·관리할 필요가 없다. 서버는 인증 완료 후 발급되는 `identityVerificationId`로 결과를 조회·검증하는 역할만 한다.
 
 ```
-POST /api/v1/auth/phone/verification-code
-```
-
-Auth Required: **X**
-
-Request Body
-
-| 필드 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `name` | String | Y | 이름 |
-| `birthDate` | String | Y | 생년월일 (YYYY-MM-DD) |
-| `phoneNumber` | String | Y | 휴대전화번호 |
-
-Response Body
-
-```json
-{
-  "sent": true,
-  "retryAfterSeconds": 60
-}
-```
-
-Validation / Business Rules
-
-- 인증번호는 6자리, Redis에 TTL 3분으로 저장.
-- 동일 번호 60초 내 재발송 요청 시 400.
-- SMS 발송사 연동 실패 시 503(`DEPENDENCY_FAILURE`).
-- Rate limit 적용(과도한 발송 요청으로 인한 SMS 비용 어뷰징 방지).
-
----
-
-### 휴대폰 인증번호 검증 (AUTH-005)
-
-```
-POST /api/v1/auth/phone/verify
+POST /api/v1/auth/identity-verifications
 ```
 
 Auth Required: **X**
@@ -84,8 +51,7 @@ Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `phoneNumber` | String | Y | 휴대전화번호 |
-| `code` | String | Y | 인증번호 |
+| `identityVerificationId` | String | Y | PortOne SDK 인증 완료 후 발급된 본인인증 건 식별자 |
 
 Response Body
 
@@ -98,10 +64,11 @@ Response Body
 
 Validation / Business Rules
 
-- 인증번호 불일치 시 401(`TOKEN_INVALID`).
-- TTL 초과 시 재발송 유도 안내.
-- 인증 시도 5회 초과 시 일정 시간 재시도 제한.
-- `verificationToken`은 이후 회원가입/이메일찾기/비밀번호재설정 요청에 함께 제출해야 하는 단기 토큰.
+- 서버는 PortOne 단건조회 API(`GET https://api.portone.io/identity-verifications/{id}?storeId={PG_STORE_ID}`, `Authorization: PortOne {PG_APIKEY}`)를 호출해 `status`를 확인한다. `storeId`를 명시해 접근 권한 있는 상점의 인증 건만 조회되도록 한다(다른 상점 소유 건 조회 방지).
+- `status != VERIFIED` 시 401(`TOKEN_INVALID`).
+- PortOne API 호출 실패(네트워크·5xx) 시 503(`DEPENDENCY_FAILURE`).
+- 검증 성공 시 `verifiedCustomer`(name/phoneNumber/birthDate)를 Redis에 TTL 30분으로 저장하고 `verificationToken`(UUID)을 발급한다. CI/DI는 이번 슬라이스에서 저장하지 않는다.
+- `verificationToken`은 이후 회원가입 요청에 함께 제출해야 하는 단기 토큰이며, 1회 소비(get-and-delete) 후 즉시 폐기된다.
 
 ---
 
@@ -168,7 +135,7 @@ Validation / Business Rules
 
 - 이메일 중복 시 409.
 - 비밀번호는 솔트 포함 해시(BCrypt)로 저장, 복잡도 규칙 검증.
-- `verificationToken` 검증 실패/만료 시 401.
+- `verificationToken` 검증 실패/만료/미존재 시 401(`TOKEN_INVALID`). 검증 시 Redis에서 1회 소비(get-and-delete)하고, 저장된 `phoneNumber`가 요청의 `phoneNumber`와 일치하는지 대조한다 — 불일치 시에도 동일하게 401.
 - **계정 생성 및 프로필 생성 처리 순서(보상 트랜잭션)**:
     1. auth-service가 `accounts` 행을 생성하고 **커밋**한다(네트워크 호출 중 트랜잭션을 열어두지 않기 위함).
     2. 커밋 후 회원 도메인의 `POST /api/v1/members`를 동기 호출해 프로필을 생성한다.
@@ -249,7 +216,7 @@ Validation / Business Rules
 
 - 서버에서 비밀번호 해시 비교(평문 비교 금지).
 - 이메일·비밀번호 불일치 시 401 — 어느 쪽이 틀렸는지 구분해 노출하지 않고 통일된 메시지로 응답.
-- **5회 연속 실패 시 계정 30분 자동 잠금**(`locked_until = now() + 30분`). 잠금 중 로그인 시도는 401 + 잠금 해제 예정 시각 안내. 이메일/SMS를 통한 셀프 해제는 P2로 보류(MVP 범위 아님).
+- **5회 연속 실패 시 계정 30분 자동 잠금**(`locked_until = now() + 30분`). 잠금 중 로그인 시도는 423(`AuthErrorCode.ACCOUNT_LOCKED`) + 잠금 해제 예정 시각(`detail.lockedUntil`) 안내. 이메일/SMS를 통한 셀프 해제는 P2로 보류(MVP 범위 아님).
 - `accounts.must_change_password = true`인 계정으로 로그인 성공 시 응답의 `mustChangePassword`를 true로 반환 — 프론트는 이 값을 보고 비밀번호 변경 화면으로 즉시 리다이렉션.
 - 응답에 비밀번호·해시 절대 미포함.
 

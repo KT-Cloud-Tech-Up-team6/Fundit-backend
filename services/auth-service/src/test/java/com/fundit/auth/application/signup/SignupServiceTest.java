@@ -1,5 +1,6 @@
 package com.fundit.auth.application.signup;
 
+import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +31,8 @@ class SignupServiceTest {
     @Mock
     private MemberServiceClient memberServiceClient;
     @Mock
+    private IdentityVerificationStore identityVerificationStore;
+    @Mock
     private TokenIssuer tokenIssuer;
 
     @InjectMocks
@@ -39,6 +43,8 @@ class SignupServiceTest {
         // given
         UUID memberId = UUID.randomUUID();
         when(accountRepository.existsByEmail("test@fundit.com")).thenReturn(false);
+        when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(
+                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", null)));
         when(passwordEncoder.encode("pw")).thenReturn("hashed-pw");
         when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(memberServiceClient.createProfile(any())).thenReturn(new MemberServiceClient.MemberProfile(memberId));
@@ -47,7 +53,7 @@ class SignupServiceTest {
 
         // when
         SignupService.SignupResult result = signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "홍길동", "01012345678", List.of("TOS"), Map.of()));
+                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of()));
 
         // then
         assertThat(result.memberId()).isEqualTo(memberId);
