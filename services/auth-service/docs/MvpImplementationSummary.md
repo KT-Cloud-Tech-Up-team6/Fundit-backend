@@ -140,3 +140,17 @@
 ### 남은 것
 - ~~`AuthDomainApiSpec.md` 219행 "잠금 중 로그인 시도는 401 + 잠금 해제 예정 시각 안내"는 실제 구현(423 `ACCOUNT_LOCKED`)과 다른 기존 문서 오기~~ **→ 사용자 확인 후 423로 정정 완료**.
 - 이 슬라이스에서 발견한 회원가입 전체 흐름(계정 저장→member-service 호출→보상 트랜잭션/토큰 발급) 엔드투엔드 통합테스트 부재, 그리고 CI가 실제로 `@SpringBootTest` 부류를 통과시키는지 미확인 상태는 여전히 남아있다.
+
+## test-convention.md 개정 반영 + 테스트 작성기준 점검 (2026-08-31 추가 세션)
+
+### 단위 테스트 파일명 리네이밍
+`test-convention.md` 개정으로 단위 테스트 접미사가 `XxxTest`/`XxxExceptionTest` → `XxxUnitTest`/`XxxUnitExceptionTest`로 바뀌었다(통합 테스트 `XxxIntegrationTest`/`XxxIntegrationExceptionTest`는 기존 그대로, 변경 없음). auth-service의 기존 단위 테스트 21개 파일을 `git mv` + `class` 선언 동시 수정으로 리네이밍. `AuthControllerTest`(`@WebMvcTest` — Spring 컨텍스트는 뜨지만 DB/Redis 등 실제 인프라 없이 서비스 계층 전부 Mock)는 단위/통합 어느 쪽에도 깔끔히 안 맞아 **사용자 확정으로 이번 리네이밍 대상에서 제외**, 기존 이름 유지. 리네이밍 전후 테스트 69개·통과 개수 동일 확인.
+
+### "테스트 유형별 작성 기준" 표를 실제 코드에 대입해 점검
+- **발견 1(수정 완료)**: `PortOneRestClientUnitTest`가 정상 케이스 2개 + 예외 케이스(`DependencyFailureException`) 1개를 한 파일에 섞어놓고 있었다 — "단위/예외 테스트는 파일로 분리한다" 규칙 위반(지난 세션에 만들면서 놓침). 예외 케이스를 `PortOneRestClientUnitExceptionTest`로 분리.
+- **발견 2(기록만, 미수정 — 사용자 확정)**: "통합 예외 테스트" 작성 기준의 예시("DB 제약조건 위반")에 정확히 해당하는 미검증 지점을 하나 찾았다.
+  - `accounts` 테이블엔 `uq_accounts_email` 유니크 제약(`V1__init_schema.sql:20`)이 있는데, `SignupService.signup()`은 `existsByEmail()` 확인 후 `save()`하는 **확인-후-실행(TOCTOU)** 패턴이다. 동시에 같은 이메일로 가입 요청 2개가 들어오면 하나는 `save()` 성공, 나머지 하나는 DB 유니크 제약 위반으로 `DataIntegrityViolationException`이 발생한다.
+  - `AbstractGlobalExceptionHandler`(`modules:common-webmvc`)를 확인한 결과 이 예외를 **아무도 잡지 않는다** — `BusinessException`도 `DependencyFailureException`도 아니고 `ResponseEntityExceptionHandler`가 인식하는 Spring MVC 표준 예외 목록에도 없어서, 최후 방어선 `handleUnexpectedException`으로 떨어져 의도한 409(`EMAIL_ALREADY_EXISTS`)가 아니라 **500(`INTERNAL_ERROR`)으로 응답된다.**
+  - 즉 이건 테스트 커버리지 공백일 뿐 아니라 **실제 동시 요청 상황에서 재현 가능한 잠재 버그**다(트래픽이 적으면 거의 안 보임). 고치려면: `AccountPersistenceAdapter.save()`(또는 `SignupService`)에서 `DataIntegrityViolationException`을 잡아 `BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS)`로 변환 + `SignupServiceIntegrationExceptionTest`(Testcontainers Postgres, 동시 저장 시도로 제약 위반 재현) 추가.
+  - **이번 세션 범위에서는 수정하지 않기로 사용자 확정** — 다음 슬라이스 후보로 남겨둔다.
+- 나머지는 기준에 부합함을 확인: 예외 없는 서비스(`EmailAvailabilityService`, `TokenIssuer`, `AccountMapper`)는 단위 예외 테스트 미작성이 맞고, 기존 통합 테스트 2개(`RefreshTokenJpaRepositoryIntegrationTest`, `RedisIdentityVerificationStoreIntegrationTest`)는 커스텀 쿼리/원자성처럼 "실제 인프라 배선 검증"이 필요한 지점이라 통합 테스트로 남기는 게 맞다. 동시성 테스트 대상(비관적 락/조건부 UPDATE/재고차감)은 auth-service에 아직 없다.

@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class SignupServiceTest {
+class SignupServiceUnitTest {
 
     @Mock
     private AccountRepository accountRepository;

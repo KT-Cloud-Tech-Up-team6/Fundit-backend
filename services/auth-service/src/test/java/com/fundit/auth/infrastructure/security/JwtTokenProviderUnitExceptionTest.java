@@ -10,7 +10,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class JwtTokenProviderExceptionTest {
+class JwtTokenProviderUnitExceptionTest {
 
     private JwtTokenProvider provider(String secret, Duration accessTtl) {
         JwtProperties properties = new JwtProperties();

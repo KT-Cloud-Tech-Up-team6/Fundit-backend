@@ -9,7 +9,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AccountMapperTest {
+class AccountMapperUnitTest {
 
     private final AccountMapper mapper = new AccountMapper();
 

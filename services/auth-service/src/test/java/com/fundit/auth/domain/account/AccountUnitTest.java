@@ -8,7 +8,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AccountTest {
+class AccountUnitTest {
 
     private Account newAccount() {
         return Account.builder()
