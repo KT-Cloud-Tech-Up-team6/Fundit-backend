@@ -2,6 +2,9 @@ dependencies {
 
     implementation project(':modules:common-webmvc')
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // 펀딩 집계 5분 캐시용 — ConcurrentMapCache에는 TTL이 없어 Caffeine을 쓴다
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }
