@@ -101,7 +101,7 @@ Response Body
 
 
 ```json
-{  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",  "sellerId": 10,  "title": "무선 미니 가습기",  "categoryMajor": "홈·리빙",  "categoryMinor": "인테리어",  "goalAmount": 5000000,  "currentAmount": 3200000,  "achievementRate": 64,  "participantCount": 128,  "fundingStartAt": "2026-07-01T00:00:00",  "fundingDeadline": "2026-08-30T23:59:59",  "status": "ONGOING",  "introContent": { "text": "...", "images": ["..."], "videoUrl": null },  "refundPolicy": { "simpleRefundDisabled": false }}
+{  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",  "sellerId": "01920b7c-8d3e-7f21-a4b5-c6d7e8f90a1b",  "title": "무선 미니 가습기",  "categoryMajor": "홈·리빙",  "categoryMinor": "인테리어",  "goalAmount": 5000000,  "currentAmount": 3200000,  "achievementRate": 64,  "participantCount": 128,  "fundingStartAt": "2026-07-01T00:00:00",  "fundingDeadline": "2026-08-30T23:59:59",  "status": "ONGOING",  "introContent": { "text": "...", "images": ["..."], "videoUrl": null },  "refundPolicy": { "simpleRefundDisabled": false }}
 ```
 
 Validation / Business Rules
@@ -142,6 +142,7 @@ Validation / Business Rules
 - `goalAmount >= 500000`(50만원) 아니면 400(PRD 4.2.4).
 - `privacyAgreed = false`면 저장 거부, 모달 재노출(PRD 4.2.4).
 - `seller_id != CurrentUser.id`면 403.
+- `status=PENDING_REVIEW`인 프로젝트는 수정 불가, 423 `RESOURCE_LOCKED`.
 - 정상 저장 후 클라이언트는 상세페이지 작성 단계로 이동.
 
 ---
@@ -175,7 +176,7 @@ Validation / Business Rules
 - `title`은 40자 초과 시 400(PRD 5.1.4.1, `title VARCHAR(40)` 제약과 매칭).
 - `isDraft=true`이면 필수값 미충족 상태로도 저장 허용(작성 중 정보 유실 방지), `status`는 `DRAFT` 유지.
 - `isDraft=false`(검수 요청)이면 필수 항목(제목/대표이미지/소개/리워드 1개 이상) 누락 시 400과 함께 누락 필드 목록 반환. 통과 시 `projects.status`를 `PENDING_REVIEW`로 전환하고 `project_review_requests`에 `status=SUBMITTED` 행을 생성한다. `[수정]` 기존에는 이 전환을 표현할 상태값이 없었음.
-- `status=PENDING_REVIEW`인 프로젝트는 검수 결과가 나올 때까지 `basic-info`/`detail`/리워드 수정 API 호출 시 409(검수 중에는 수정 불가) — 반려되어 `DRAFT`로 돌아가면 다시 수정 가능.
+- `status=PENDING_REVIEW`인 프로젝트는 검수 결과가 나올 때까지 `basic-info`/`detail`/리워드 수정 API 호출 시 423 `RESOURCE_LOCKED`(검수 중에는 수정 불가) — 반려되어 `DRAFT`로 돌아가면 다시 수정 가능. 단, 같은 상태에서 `isDraft=false`로 **검수를 재요청**하는 경우는 성격이 달라 409 `CONFLICT`(중복 검수요청)로 응답한다.
 - 저장 실패 시 재시도 가능해야 함(PRD 5.1.4.1).
 
 ---
@@ -232,7 +233,7 @@ Response Body
 Validation / Business Rules
 
 - `deleted_at`을 채우는 소프트 삭제로 처리.
-- `status IN ('PENDING_REVIEW','ONGOING')`인 프로젝트는 삭제 불가, 409 응답. `[수정]` 검수 대기 상태도 함께 막도록 보완(기존엔 ONGOING만 막고 있어 검수 중 삭제가 가능한 허점이 있었음).
+- `status IN ('PENDING_REVIEW','ONGOING')`인 프로젝트는 삭제 불가, 422 `PROJECT_NOT_DELETABLE` 응답. `[수정]` 검수 대기 상태도 함께 막도록 보완(기존엔 ONGOING만 막고 있어 검수 중 삭제가 가능한 허점이 있었음).
 - 삭제 전 클라이언트에서 확인 팝업 노출(PRD 3.1.4).
 
 ### 리워드 등록

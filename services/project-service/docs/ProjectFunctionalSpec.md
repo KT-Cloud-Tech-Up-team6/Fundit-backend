@@ -1,10 +1,10 @@
 # Project 기능 명세서
 
-catalog-service(project 도메인)의 상세 기능 명세입니다. 서비스 간 흐름·책임 경계는 루트 `docs/PRD.md`, 공통 규칙(에러코드/보안 등)은 `.claude/rules/`를 참고하세요. 출처: `project-api-spec.md`, `ERD.md`(catalog-service 섹션)
+project-service(project 도메인)의 상세 기능 명세입니다. 서비스 간 흐름·책임 경계는 루트 `docs/PRD.md`, 공통 규칙(에러코드/보안 등)은 `.claude/rules/`를 참고하세요. 출처: `ProjectDomainApiSpec.md`, `ERD.md`(catalog-service 섹션 — ERD 문서상의 원래 명칭)
 
 ## 범위
 
-이 문서는 catalog-service가 담당하는 **프로젝트 생성·관리, 검수, 리워드/옵션, 새소식, 커뮤니티, 서포터 후기, 오픈알림·팔로우**를 다룹니다. 재고 수량·펀딩 참여·결제·쿠폰·환불은 order-service, 회원 프로필·사업자정보는 member-service 담당이라 이 문서에 포함하지 않습니다(PRD.md 2. 도메인/서비스 개요 기준).
+이 문서는 project-service가 담당하는 **프로젝트 생성·관리, 검수, 리워드/옵션, 새소식, 커뮤니티, 서포터 후기, 오픈알림·팔로우**를 다룹니다. 재고 수량·펀딩 참여·결제·쿠폰·환불은 order-service, 회원 프로필·사업자정보는 member-service 담당이라 이 문서에 포함하지 않습니다(PRD.md 2. 도메인/서비스 개요 기준).
 
 ---
 
@@ -72,7 +72,7 @@ catalog-service(project 도메인)의 상세 기능 명세입니다. 서비스 �
 - **입력값**: `businessType`, `categoryMajor`, `categoryMinor`, `goalAmount`, `privacyAgreed`
 - **출력값**: `projectId`, `status`
 - **예외 처리**: `goalAmount < 500000` → 400 / `privacyAgreed=false` → 저장 거부, 동의 모달 재노출 / 카테고리 조합이 마스터에 없음 → 400 `INVALID_CATEGORY`
-- **보안/권한**: `seller_id != CurrentUser.id` → 403 · `status=PENDING_REVIEW`인 프로젝트는 수정 불가(409)
+- **보안/권한**: `seller_id != CurrentUser.id` → 403 · `status=PENDING_REVIEW`인 프로젝트는 수정 불가(423 `RESOURCE_LOCKED`)
 
 ### PROJECT-005. 프로젝트 상세페이지 등록/임시저장
 
@@ -88,7 +88,7 @@ catalog-service(project 도메인)의 상세 기능 명세입니다. 서비스 �
 - **입력값**: `title`(40자 이내), `thumbnailImageUrl`, `introContent`, `isDraft`
 - **출력값**: `projectId`, `savedAt`
 - **예외 처리**: `title` 40자 초과 → 400 / `isDraft=false`인데 필수 항목 누락 → 400과 누락 필드 목록 / 저장 실패 시 재시도 가능
-- **보안/권한**: `seller_id != CurrentUser.id` → 403 · `status=PENDING_REVIEW`인 프로젝트는 재호출 시 409(중복 검수요청 방지)
+- **보안/권한**: `seller_id != CurrentUser.id` → 403 · `status=PENDING_REVIEW`인 프로젝트는 `isDraft=true`(단순 임시저장) 호출 시 423 `RESOURCE_LOCKED`, `isDraft=false`(검수 재요청) 호출 시 409 `CONFLICT`로 구분해 막는다
 
 ### PROJECT-006. 프로젝트 삭제
 
@@ -103,7 +103,7 @@ catalog-service(project 도메인)의 상세 기능 명세입니다. 서비스 �
 - **처리 내용**: `deleted_at`을 채우는 소프트 삭제.
 - **입력값**: `projectId`(path)
 - **출력값**: 처리 결과 메시지
-- **예외 처리**: `status IN ('PENDING_REVIEW','ONGOING')`인 프로젝트는 삭제 불가 → 409 / 클라이언트에서 삭제 전 확인 팝업 노출
+- **예외 처리**: `status IN ('PENDING_REVIEW','ONGOING')`인 프로젝트는 삭제 불가 → 422 `PROJECT_NOT_DELETABLE` / 클라이언트에서 삭제 전 확인 팝업 노출
 - **보안/권한**: `seller_id != CurrentUser.id` → 403
 
 ### PROJECT-007. 프로젝트 검수 승인/반려
