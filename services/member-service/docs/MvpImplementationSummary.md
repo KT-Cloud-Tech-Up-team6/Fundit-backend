@@ -2,6 +2,26 @@
 
 이 문서는 member-service의 **MVP 범위 밖(후순위) 기능의 유일한 소스**입니다. `member-functional-spec.md`·`member-domain-api-spec.md`에는 아래 내용이 존재하지 않습니다 — 재개 시 이 문서 내용을 그대로 두 문서로 옮기면 됩니다.
 
+## MVP 구현 완료 (2026-09-03)
+
+마이그레이션 → (domain 생략) → infrastructure → application → presentation → 테스트 순으로 8개 엔드포인트 전부 구현 완료. `./gradlew :services:member-service:build` 통과(컴파일/테스트/JaCoCo/bootJar), 라인 커버리지 95%.
+
+**구현 범위**: MEMBER-001(약관목록), 002(프로필생성), 004(내 프로필 조회 — 모드전환 없음), 005(찜 등록/해제), 006(찜목록), 009(배송지 목록/등록).
+
+**아키텍처**: `members`/`terms_agreements`/`wishes`/`addresses` 전부 `persistence-convention.md` 기준 "단순 애그리거트"로 분류(불변식·상태전이 없음) — **domain 패키지를 만들지 않고** `infrastructure/persistence/{aggregate}`의 JPA 엔티티를 application이 직접 사용. `MemberErrorCode`도 CLAUDE.md 확인대로 신설하지 않고 `CommonErrorCode` 재사용.
+
+**이번에 새로 확정/발견된 사항** (원본 문서에는 없던 내용, `MemberFunctionalSpec.md`/`MemberDomainApiSpec.md`에 정정 반영 완료):
+
+1. **모드 전환 기능 삭제**: `PATCH /members/me/mode` 및 `currentMode` 필드는 과거 오기로 확인됨(사용자 확인, 2026-09-03) — 실제로 존재한 적 없는 기능이라 두 문서에서 완전히 제거. `GET /members/me` 응답에도 `currentMode` 없음, `isSeller`/`isBuyer`만 반환(둘 다 항상 true).
+2. **임시 인증 방식**: 게이트웨이가 아직 없어 `Auth Required: O` 엔드포인트(내 프로필/찜/배송지)는 `X-Account-Id` 헤더를 서명 검증 없이 그대로 신뢰하는 방식으로 구현(`infrastructure/security/CurrentMemberArgumentResolver`, 사용자 확인). **게이트웨이 구현 시 반드시 실제 JWT 파싱 결과로 교체할 것** — 그 전까지는 내부망 전제(외부에서 헤더 위조 불가한 환경)에서만 안전.
+3. **`POST /members` 요청 계약 정정**: API 문서 원안은 `agreedTerms: [{code, agreed}]`였으나, 실제 auth-service 코드(`MemberServiceClient.CreateMemberProfileCommand`)를 확인한 결과 `agreedTerms: List<String>`(동의한 약관 코드만), `email`도 함께 전달됨을 발견 — 문서를 실제 코드 계약 기준으로 정정하고, `email`은 받되 member-service 스키마에는 저장하지 않도록 구현.
+4. **약관 원문 데이터**: `terms_agreements`(동의 이력)만 있고 약관 원문 테이블이 없어서, DB 테이블 추가 없이 **코드 내 정적 데이터**(`infrastructure/terms/TermsCatalog`)로 관리하기로 확정(사용자 확인). `content` 필드는 현재 자리표시자(placeholder) — 운영팀이 확정한 법무 검수 원문으로 교체 필요.
+5. **`V1__init_schema.sql` 버그 수정**: `trg_members_updated_at` 트리거가 참조하는 `set_updated_at()` 함수가 레포 어디에도 정의돼 있지 않아 Flyway 마이그레이션 자체가 실패하는 것을 통합테스트로 발견. 이 마이그레이션은 로컬에서만 커밋되고 원격/develop에 푸시된 적이 없어(git 이력 확인 완료) 직접 함수 정의를 추가해 수정함(기존 마이그레이션 수정 금지 원칙은 이미 배포된 마이그레이션 보호가 목적이라 해당 없음).
+
+**아직 구현 안 된 것(범위 밖으로 확인됨, 별도 후속작업 필요)**:
+- catalog-service 이벤트 구독(찜 스냅샷 동기화) — 이벤트 스키마 미확정이라 `wishes.project_title`/`project_thumbnail_url`은 등록 시점엔 항상 null.
+- `ProjectWished`/`ProjectUnwished` 이벤트 발행 — 메시지 브로커 연동 자체가 이번 범위에 없었음.
+
 ## 남은 것 (TODO, 2026-09-03 기준 — 설계 확정 시점, 코드 착수 전)
 
 ### 1. 메이커 팔로우/언팔로우 (MEMBER-007)
@@ -184,4 +204,5 @@ Response Body
 
 ## 정책값 확인 필요
 
-- `GET /members/me`의 `currentMode` 응답값이 실제로 세션/토큰 클레임 중 어디서 파생되는지(JWT claim vs 별도 세션스토어) 확정 필요.
+- ~~`GET /members/me`의 `currentMode` 응답값 저장 위치~~ → 모드 전환 기능 자체가 삭제되어 무의미(2026-09-03, 위 "MVP 구현 완료" 참고).
+- **S9(개인정보 저장 시 암호화) 적용 범위**: `members.name`/`phone_number`, `addresses`의 수령인 정보가 현재 평문 컬럼으로 저장됨(`security.md` S9은 저장 시 암호화를 요구). auth-service의 `accounts.email`도 동일하게 평문 컬럼이라 레포 전체가 같은 미해결 상태 — member-service 단독으로 컬럼 암호화(JPA AttributeConverter 등)를 먼저 적용하지 않고, auth-service와 함께 레포 전체 정책으로 한 번에 결정하기로 보류(사용자 확인, 2026-09-03). 결정 시 두 서비스 동시 반영 필요.

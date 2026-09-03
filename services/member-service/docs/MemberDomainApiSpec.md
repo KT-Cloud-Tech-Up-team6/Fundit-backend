@@ -2,6 +2,8 @@
 
 > 이 문서는 **MVP 구현 범위만** 다룹니다. MVP 범위 밖(후순위) 엔드포인트의 전체 스펙은 `MvpImplementationSummary.md`로 이동했습니다 — 여기엔 존재하지 않습니다.
 > 2026-09-03 기준: 스키마 정리(is_foreigner/di_hash/phone_verified_at/business_type/business_info/seller_verified_at/current_mode 제외) 반영.
+> 2026-09-03 구현 착수 시점 정정: 구매자/판매자 모드 전환(`PATCH /members/me/mode`)은 과거 오기로 확인되어 이 문서에서 제거함(사용자 확인) — 실제로 존재한 적 없는 기능. `GET /members/me` 응답에서도 `currentMode` 필드 제거.
+> `Auth Required: O` 엔드포인트는 게이트웨이가 아직 없어 `X-Account-Id` 헤더를 서명 검증 없이 그대로 신뢰하는 임시 방식으로 구현됨(아래 "구현 메모" 참고) — 게이트웨이 완성 후 JWT 파싱 결과로 교체 필요.
 
 ### 회원 도메인 엔드포인트 목록
 
@@ -10,7 +12,6 @@
 | GET | `/api/v1/terms` | X | 약관 목록 조회 |
 | POST | `/api/v1/members` | X (내부 전용 — auth-service만 호출) | 회원 프로필 생성(일반가입) |
 | GET | `/api/v1/members/me` | O | 내 프로필 조회 |
-| PATCH | `/api/v1/members/me/mode` | O | 구매자/판매자 모드 전환 |
 | PUT | `/api/v1/wishes/{projectId}` | O | 찜 등록(idempotent) |
 | DELETE | `/api/v1/wishes/{projectId}` | O | 찜 해제(idempotent) |
 | GET | `/api/v1/wishes` | O | 내 찜 목록 조회 |
@@ -63,10 +64,13 @@ Request Body
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `accountId` | UUID | Y | auth-service가 발급한 계정 ID |
+| `email` | String | N | auth-service가 함께 전달하나 member-service는 저장하지 않음(받고 버림) |
 | `name` | String | Y | 실명 |
 | `phoneNumber` | String | Y | 휴대전화번호 (본인인증 성공 여부와 무관하게 입력값 그대로 저장) |
-| `agreedTerms` | Array | Y | 약관 동의 목록 `[{ "code": "SERVICE_USE", "agreed": true }, ...]` |
+| `agreedTerms` | Array\<String\> | Y | 동의한 약관 코드 목록 `["SERVICE_USE", "PRIVACY", ...]` |
 | `address` | Object | N | 선택 입력 주소 |
+
+> 2026-09-03 정정: `agreedTerms`는 원안(`[{code, agreed}]`)이 아니라 auth-service의 실제 코드 계약(`MemberServiceClient.CreateMemberProfileCommand`)을 기준으로 `List<String>`(동의한 약관 코드만)으로 구현함. `email`도 실제로는 함께 전달되나 member-service 스키마에는 저장하지 않음.
 
 Response Body
 
@@ -96,9 +100,9 @@ Validation / Business Rules
 GET /api/v1/members/me
 ```
 
-Auth Required: **O**
+Auth Required: **O** (`X-Account-Id` 헤더로 사용자 식별 — 구현 메모 참고)
 
-Request Body: 없음 (`@LoginUser`로 주입된 `CurrentUser`로 사용자 식별)
+Request Body: 없음
 
 Response Body
 
@@ -109,7 +113,7 @@ Response Body
   "nickname": "응원왕",
   "phoneNumber": "010-1234-5678",
   "isSeller": true,
-  "currentMode": "BUYER"
+  "isBuyer": true
 }
 ```
 
@@ -117,37 +121,8 @@ Validation / Business Rules
 
 - 인증된 사용자 본인의 프로필만 조회 가능.
 - 비밀번호·계정 자격증명 관련 필드는 포함하지 않음(auth-service 소관).
-- `currentMode`는 `members` 테이블 컬럼이 아니라 세션/토큰 클레임에서 파생되는 값(정확한 저장 계층 미확정).
 
----
-
-### 구매자/판매자 모드 전환 (MEMBER-004)
-
-```
-PATCH /api/v1/members/me/mode
-```
-
-Auth Required: **O**
-
-Request Body
-
-| 필드 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `mode` | Enum | Y | `BUYER` \| `SELLER` |
-
-Response Body
-
-```json
-{
-  "mode": "SELLER"
-}
-```
-
-Validation / Business Rules
-
-- 서버 세션/토큰 기준 본인 계정만 전환 가능. 클라이언트가 보낸 권한값은 신뢰하지 않음.
-- 회원가입 시 구매자·판매자 권한이 모두 부여되므로 별도 자격 확인 없이 모드 값만 전환(확정).
-- `members` 테이블에 이 값을 영속화하지 않는다.
+> 2026-09-03 정정: 구매자/판매자 모드 전환 기능(`PATCH /members/me/mode`) 및 `currentMode` 필드는 과거 오기로 확인되어 제거함(사용자 확인) — 실제로 존재한 적 없는 기능.
 
 ---
 
@@ -314,8 +289,10 @@ Validation / Business Rules
 - **[확정] 찜 목록 프로젝트 정보**: `wishes` 테이블에 스냅샷 컬럼 추가(SQL 스키마 반영 완료), catalog-service 이벤트 구독으로 동기화.
 - **[확정, 2026-09-03] MVP 범위**: MEMBER-003(소셜가입)/007(팔로우)/008(리워드알림) 엔드포인트를 이 문서에서 제거, `MvpImplementationSummary.md`로 이동.
 - **[확정, 2026-09-03] 스키마 정리**: 본인인증·판매자심사 관련 컬럼 제외, `current_mode`는 세션/토큰 클레임으로 관리(DB 미저장).
+- **[확정, 2026-09-03] 모드 전환 기능 삭제**: `PATCH /members/me/mode`, `currentMode` 필드는 과거 오기로 확인되어 문서에서 완전히 제거(사용자 확인).
+- **[확정, 2026-09-03] `POST /members` 요청 계약 정정**: `agreedTerms`는 `List<String>`(동의한 약관 코드만), `email`은 받되 저장하지 않음 — auth-service의 실제 코드(`MemberServiceClient.CreateMemberProfileCommand`) 기준.
+- **[구현 메모, 2026-09-03] 임시 인증 방식**: 게이트웨이가 없어 `Auth Required: O` 엔드포인트는 `X-Account-Id` 헤더를 서명 검증 없이 신뢰하는 방식으로 구현(`CurrentMemberArgumentResolver`). 내부망 전제 하의 임시 조치이며, 게이트웨이가 JWT를 파싱해 이 헤더를 주입하게 되면 그대로 재사용 가능. 자세한 내용은 `MvpImplementationSummary.md` 참고.
 
 ## ⚠️ 남은 확인 필요 사항
 
 - **catalog-service → member-service 이벤트 스키마**: 필드명·발행 시점 미정.
-- **`currentMode`의 정확한 저장 위치**: 세션/토큰 클레임까지는 확정, JWT claim인지 별도 세션스토어인지는 미확정.
