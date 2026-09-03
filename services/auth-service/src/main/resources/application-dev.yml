@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-ttl: 30m
+  refresh-token-ttl: 14d
+
+member-service:
+  base-url: ${MEMBER_SERVICE_BASE_URL}
+
+portone:
+  store-id: ${PG_STORE_ID}
+  api-secret: ${PG_APIKEY}

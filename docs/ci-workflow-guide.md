@@ -9,13 +9,16 @@ feature/* 브랜치 push
         ↓
 PR → develop 생성
         ↓
-경로 필터(paths)로 변경된 서비스의 CI만 자동 실행
-  - CI 러너 안에서만 sparse-checkout으로 해당 서비스 + modules/common + modules/common-webmvc만 클론(속도 최적화, 로컬 개발 정책과는 무관)
+워크플로우는 항상 트리거되고, 그 안의 `changes` job이 경로 필터로
+변경된 서비스인지 판단 (아래 "트리거 경로" 참고 — required check이므로
+워크플로우 자체를 path filter로 막지 않음)
+  - 관련 없으면 build-and-test job은 skip(Success 처리)되고 끝
+  - 관련 있으면 CI 러너 안에서 sparse-checkout으로 해당 서비스 + modules/common + modules/common-webmvc만 클론(속도 최적화, 로컬 개발 정책과는 무관)
   - ./gradlew :services:{서비스명}:build :services:{서비스명}:jacocoTestReport :services:{서비스명}:jacocoTestCoverageVerification
   - 통합테스트는 Testcontainers가 자체적으로 DB 컨테이너를 띄우고 내림
   - 빌드 성공 + 커버리지 기준(80%, test-convention.md) 통과 시 JAR 아티팩트 저장
         ↓
-CI 통과 후 develop 머지 가능
+CI 통과(또는 skip) 후 develop 머지 가능
 ```
 
 Git 브랜치 전략·클론·커밋·PR 흐름 자체는 `docs/development-workflow-guide.md` 참고.
@@ -25,23 +28,56 @@ Git 브랜치 전략·클론·커밋·PR 흐름 자체는 `docs/development-work
 | 항목 | 바꿀 내용 |
 |---|---|
 | 워크플로우 `name`, 파일명 | `CI - {service}`, `ci-{service}.yml` |
-| `on.push/pull_request.paths` | `services/{service}/**` (아래 "트리거 경로" 참고) |
+| `dorny/paths-filter`의 `filters:` 목록 | `services/{service}/**` 등 (아래 "트리거 경로" 참고) |
 | `sparse-checkout` 목록 | `services/{service}` (아래 "sparse-checkout" 참고) |
 | Gradle 태스크의 서비스 경로 | `:services:{service}:...` |
 | Upload Artifact의 `name`, `path` | 서비스명 반영 |
+| job id `build-and-test` | **바꾸지 않는다** — branch protection의 required status check가 이 job id로 매칭되어 있음. 바꾸면 required check가 다시 영원히 pending 상태가 됨. 정말 바꿔야 한다면 Settings → Branches의 required check 등록도 같이 갱신할 것 |
 
-## 트리거 경로(`paths`) — 자기 서비스 폴더만으로는 부족
+## 트리거 경로 — workflow-level `paths:`를 쓰지 않는 이유
 
-자기 서비스 경로만 넣으면, `modules/common`이나 루트 `build.gradle`이 바뀌었을 때 이 워크플로우가 안 돌아갑니다. 공용 모듈 변경도 감지하도록 아래를 항상 같이 넣습니다.
+이 CI는 branch protection에 **required status check**로 등록되어 있습니다. 이 상태에서 워크플로우 트리거에 `on.push.paths` / `on.pull_request.paths`(workflow-level path filter)를 쓰면, 조건에 안 맞는 PR은 워크플로우 자체가 트리거되지 않아 check run이 생성되지 않습니다. required status check는 "실패"와 "애초에 안 생김"을 구분하지 못하고 둘 다 "Expected — waiting for status to be reported"로 남기 때문에, **자기 서비스 폴더를 안 건드리는 PR은 전부 영원히 머지가 막힙니다.**
+
+> GitHub 공식 문서(Troubleshooting required status checks → *Handling skipped but required checks*)에 명시된 내용: workflow-level path filter로 스킵된 워크플로우는 merge를 막지만, job-level `if:` 조건으로 스킵된 job은 "Success"로 보고되어 merge를 막지 않습니다.
+
+그래서 워크플로우는 **항상 트리거**되게 두고, `changes`라는 별도 job에서 `dorny/paths-filter`로 변경 여부만 판단한 뒤, 실제 빌드 job을 `if:` 조건으로 스킵시킵니다. 자기 서비스 경로만 넣으면 `modules/common`이나 루트 `build.gradle`이 바뀌었을 때도 안 걸리니, 공용 모듈 변경도 감지하도록 아래를 항상 같이 넣습니다.
 
 ```yaml
-paths:
-  - 'services/{service}/**'
-  - 'modules/common/**'
-  - 'modules/common-webmvc/**'
-  - 'build.gradle'
-  - 'settings.gradle'
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
+    outputs:
+      relevant: ${{ steps.filter.outputs.service == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service:
+              - 'services/{service}/**'
+              - 'modules/common/**'
+              - 'modules/common-webmvc/**'
+              - 'build.gradle'
+              - 'settings.gradle'
+              - 'gradle/**'
 ```
+
+> ⚠️ `paths-ignore`로 반대 조건의 companion workflow를 하나 더 만드는 방식은 쓰지 않습니다. `paths`와 `paths-ignore`는 서로 여집합이 아니라서, 두 조건에 동시에 걸리는 PR(예: 서비스 코드와 다른 파일을 같이 고친 PR)에서는 워크플로우 두 개가 동시에 트리거되어 동일 이름의 check run이 2개 생기는 문제가 발생할 수 있습니다.
+
+> `dorny/paths-filter`는 서드파티 액션입니다. 조직에 액션 사용 제한(allowlist)이 걸려있다면 먼저 허용 목록에 추가되어 있는지 확인하세요.
+
+> `gradle/**`(wrapper 설정)도 필터에 포함합니다. `build-and-test`가 `sparse-checkout`으로 `gradle` 디렉터리를 실제로 체크아웃해서 쓰기 때문에, Gradle wrapper 버전을 올리는 등의 변경도 감지 대상이어야 합니다. 단, 루트의 `gradlew` 스크립트 자체는 `gradle/` 하위가 아니라 이 패턴으로 안 잡힙니다 — 필요하면 `gradlew`를 filters에 따로 추가하세요.
+
+## permissions — 최소 권한 명시
+
+각 job에는 실제로 필요한 권한만 명시적으로 선언합니다. `permissions` 블록을 안 쓰면 조직/저장소의 기본 토큰 권한 설정을 그대로 물려받는데, 이게 너무 넓을 수도(불필요한 쓰기 권한 보유) 너무 좁을 수도(필요한 읽기 권한 자체가 없어서 실패) 있습니다.
+
+- `changes` job: `contents: read`(checkout용) + `pull-requests: read`. 후자가 필요한 이유는 `dorny/paths-filter`가 `pull_request` 이벤트에서 변경 파일 목록을 GitHub REST API로 조회하기 때문입니다(공식 문서에 명시). 조직 기본 토큰 권한이 read-only로 좁혀져 있으면 `pull-requests` 스코프가 `none`일 수 있어, 명시하지 않으면 API 호출이 실패할 수 있습니다.
+- `build-and-test` job: `contents: read`(checkout용).
 
 ## DB/메시징 서비스 컨테이너: 넣지 않음 (신규 추가 시에도 CI 변경 없음)
 
@@ -93,6 +129,10 @@ sparse-checkout: |
 
 이 CI 워크플로우의 범위는 **빌드 + 테스트 + jar 아티팩트 업로드까지**입니다. Docker 이미지 빌드, ECR push, 배포는 인프라팀 파이프라인 소관입니다(인프라팀 문서 "개발팀: Dockerfile 작성 / 인프라팀: Image Build·ECR·배포" 기준). 예시 문서에 이미지 빌드/푸시 단계가 있어도, 인프라팀과 별도로 확인하기 전까지는 이 워크플로우에 추가하지 않습니다.
 
+## 이 CI를 required check로 걸지 않을 경우
+
+만약 새로 만드는 서비스 CI를 branch protection의 required status check로 등록하지 **않을** 계획이라면, `changes` job 없이 기존처럼 `on.push.paths` / `on.pull_request.paths`에 바로 필터를 걸어도 됩니다 — 이 경우엔 workflow-level path filter의 "영원히 pending" 문제 자체가 발생하지 않습니다. 다만 이 프로젝트는 이미 `build-and-test`를 required check로 쓰고 있으므로, 새 서비스 CI도 같은 방식(required check)으로 갈 계획이라면 처음부터 아래 템플릿대로 작성하는 걸 권장합니다.
+
 ## 복붙 템플릿
 
 `{service}`를 실제 서비스명(예: `auth-service`)으로 전부 치환해서 쓰세요. 위 체크리스트가 전부 반영되어 있습니다.
@@ -103,24 +143,37 @@ name: CI - {service}
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'services/{service}/**'
-      - 'modules/common/**'
-      - 'modules/common-webmvc/**'
-      - 'build.gradle'
-      - 'settings.gradle'
   pull_request:
     branches: [develop, main]
-    paths:
-      - 'services/{service}/**'
-      - 'modules/common/**'
-      - 'modules/common-webmvc/**'
-      - 'build.gradle'
-      - 'settings.gradle'
 
 jobs:
-  build-and-test:
+  changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
+    outputs:
+      relevant: ${{ steps.filter.outputs.service == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service:
+              - 'services/{service}/**'
+              - 'modules/common/**'
+              - 'modules/common-webmvc/**'
+              - 'build.gradle'
+              - 'settings.gradle'
+              - 'gradle/**'
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
     # DB/메시징 서비스 컨테이너를 여기서 미리 띄우지 않는다 — 통합테스트가
     # Testcontainers로 필요한 컨테이너를 직접 관리한다(test-convention.md 기준).
 

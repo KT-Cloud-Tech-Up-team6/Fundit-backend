@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
+
+portone:
+  base-url: https://api.portone.io
+
+identity-verification:
+  token-ttl: 30m
