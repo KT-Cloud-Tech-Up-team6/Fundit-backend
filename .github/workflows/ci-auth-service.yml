@@ -5,16 +5,10 @@ on:
     branches: [main, develop]
     paths:
       - 'services/auth-service/**'
-      - 'modules/common/**'
-      - 'build.gradle'
-      - 'settings.gradle'
   pull_request:
     branches: [develop, main]
     paths:
       - 'services/auth-service/**'
-      - 'modules/common/**'
-      - 'build.gradle'
-      - 'settings.gradle'
 
 jobs:
   build-and-test:
@@ -28,6 +22,7 @@ jobs:
           sparse-checkout: |
             services/auth-service
             modules/common
+            modules/common-webmvc
             build.gradle
             settings.gradle
             gradlew

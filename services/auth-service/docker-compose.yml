@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fundit-auth-service-postgres
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - auth-service_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fundit-auth-service-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: fundit-auth-service-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - auth-service_redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fundit-auth-service-net
+
+volumes:
+  auth-service_postgres_data:
+  auth-service_redis_data:
+
+networks:
+  fundit-auth-service-net:
