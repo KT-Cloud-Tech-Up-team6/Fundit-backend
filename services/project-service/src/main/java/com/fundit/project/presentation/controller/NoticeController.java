@@ -24,7 +24,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}/notices")
+@RequestMapping("/api/v1/projects/{projectId}/notices")
 public class NoticeController {
 
     private final NoticeService noticeService;

@@ -14,7 +14,7 @@ import java.util.UUID;
 /** 팔로우·오픈알림신청. 둘 다 중복 요청을 200으로 흘려보내는 idempotent 엔드포인트다. */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}")
+@RequestMapping("/api/v1/projects/{projectId}")
 public class EngagementController {
 
     private final EngagementService engagementService;

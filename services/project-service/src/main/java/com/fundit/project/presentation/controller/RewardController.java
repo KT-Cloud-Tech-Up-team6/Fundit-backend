@@ -33,7 +33,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}")
+@RequestMapping("/api/v1/projects/{projectId}")
 public class RewardController {
 
     private final RewardService rewardService;

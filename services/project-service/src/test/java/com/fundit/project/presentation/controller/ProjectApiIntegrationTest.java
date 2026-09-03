@@ -55,7 +55,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         assertThat(readStatus(projectId)).isEqualTo("DRAFT");
 
         // when & then — 기본정보를 채워도 작성중을 유지한다
-        mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -74,7 +74,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         createReward(projectId);
 
         // when & then — 상세페이지를 채워 검수를 요청하면 검수중으로 넘어간다
-        mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -89,7 +89,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         assertThat(readStatus(projectId)).isEqualTo("PENDING_REVIEW");
 
         // when & then — 관리자가 승인하면 진행중이 되고 펀딩 일정이 확정된다
-        mockMvc.perform(patch("/api/projects/{projectId}/review", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/review", projectId)
                         .header(USER_ID_HEADER, adminId)
                         .header(USER_ROLE_HEADER, "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +110,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         UUID projectId = createOngoingProject();
 
         // when & then
-        mockMvc.perform(get("/api/projects/{projectId}", projectId))
+        mockMvc.perform(get("/api/v1/projects/{projectId}", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("무선 미니 가습기"))
                 .andExpect(jsonPath("$.goalAmount").value(5000000));
@@ -122,7 +122,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         UUID projectId = createPendingReviewProject();
 
         // when
-        mockMvc.perform(patch("/api/projects/{projectId}/review", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/review", projectId)
                         .header(USER_ID_HEADER, adminId)
                         .header(USER_ROLE_HEADER, "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,7 +133,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.status").value("DRAFT"));
 
         // then — 잠금이 풀려 임시저장이 다시 통과한다
-        mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -147,11 +147,11 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         // given
         createProject();
         UUID otherSeller = UUID.randomUUID();
-        mockMvc.perform(post("/api/projects").header(USER_ID_HEADER, otherSeller))
+        mockMvc.perform(post("/api/v1/projects").header(USER_ID_HEADER, otherSeller))
                 .andExpect(status().isCreated());
 
         // when & then
-        mockMvc.perform(get("/api/projects").header(USER_ID_HEADER, sellerId))
+        mockMvc.perform(get("/api/v1/projects").header(USER_ID_HEADER, sellerId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
@@ -162,7 +162,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
         UUID projectId = createProject();
 
         // when
-        String response = mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+        String response = mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -177,14 +177,14 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private UUID createProject() throws Exception {
-        String response = mockMvc.perform(post("/api/projects").header(USER_ID_HEADER, sellerId))
+        String response = mockMvc.perform(post("/api/v1/projects").header(USER_ID_HEADER, sellerId))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(response).get("projectId").asText());
     }
 
     private void createReward(UUID projectId) throws Exception {
-        mockMvc.perform(post("/api/projects/{projectId}/rewards", projectId)
+        mockMvc.perform(post("/api/v1/projects/{projectId}/rewards", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -195,7 +195,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
 
     private UUID createPendingReviewProject() throws Exception {
         UUID projectId = createProject();
-        mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -209,7 +209,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
                                 """))
                 .andExpect(status().isOk());
         createReward(projectId);
-        mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -226,7 +226,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
 
     private UUID createOngoingProject() throws Exception {
         UUID projectId = createPendingReviewProject();
-        mockMvc.perform(patch("/api/projects/{projectId}/review", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/review", projectId)
                         .header(USER_ID_HEADER, adminId)
                         .header(USER_ROLE_HEADER, "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -242,7 +242,7 @@ class ProjectApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private String readStatus(UUID projectId) throws Exception {
-        String response = mockMvc.perform(get("/api/projects/{projectId}", projectId)
+        String response = mockMvc.perform(get("/api/v1/projects/{projectId}", projectId)
                         .header(USER_ID_HEADER, sellerId))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();

@@ -20,7 +20,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}/reviews")
+@RequestMapping("/api/v1/projects/{projectId}/reviews")
 public class SupporterReviewController {
 
     private final SupporterReviewService supporterReviewService;

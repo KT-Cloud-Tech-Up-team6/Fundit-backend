@@ -24,7 +24,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}/community")
+@RequestMapping("/api/v1/projects/{projectId}/community")
 public class CommunityController {
 
     private final CommunityService communityService;

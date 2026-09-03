@@ -64,14 +64,14 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
         @Test
         void 로그인하지_않고_개설하면_401이다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects"))
+            mockMvc.perform(post("/api/v1/projects"))
                     .andExpect(status().isUnauthorized());
         }
 
         @Test
         void 식별자_형식이_아닌_헤더로_요청하면_401이다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects").header(USER_ID_HEADER, "not-a-uuid"))
+            mockMvc.perform(post("/api/v1/projects").header(USER_ID_HEADER, "not-a-uuid"))
                     .andExpect(status().isUnauthorized());
         }
 
@@ -81,7 +81,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                             .header(USER_ID_HEADER, otherMemberId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(BASIC_INFO_BODY))
@@ -94,7 +94,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createPendingReviewProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/review", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/review", projectId)
                             .header(USER_ID_HEADER, otherMemberId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -110,7 +110,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
         @Test
         void 없는_프로젝트를_조회하면_404다() throws Exception {
             // given & when & then
-            mockMvc.perform(get("/api/projects/{projectId}", UUID.randomUUID()))
+            mockMvc.perform(get("/api/v1/projects/{projectId}", UUID.randomUUID()))
                     .andExpect(status().isNotFound());
         }
 
@@ -120,7 +120,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}", projectId)
+            mockMvc.perform(get("/api/v1/projects/{projectId}", projectId)
                             .header(USER_ID_HEADER, otherMemberId))
                     .andExpect(status().isNotFound());
         }
@@ -129,11 +129,11 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
         void 삭제한_프로젝트는_404다() throws Exception {
             // given
             UUID projectId = createProject();
-            mockMvc.perform(delete("/api/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
+            mockMvc.perform(delete("/api/v1/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isOk());
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isNotFound());
         }
     }
@@ -147,7 +147,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -162,7 +162,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -183,7 +183,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then — 무엇을 더 채워야 하는지 알려주지 않으면 판매자가 헤맨다
-            mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -203,7 +203,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createPendingReviewProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -218,7 +218,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createPendingReviewProject();
 
             // when & then — 같은 엔드포인트지만 "잠김"과 "중복 요청"은 구분해서 응답한다
-            mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -233,7 +233,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createPendingReviewProject();
 
             // when & then
-            mockMvc.perform(post("/api/projects/{projectId}/rewards", projectId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/rewards", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -248,7 +248,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createPendingReviewProject();
 
             // when & then
-            mockMvc.perform(delete("/api/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
+            mockMvc.perform(delete("/api/v1/projects/{projectId}", projectId).header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isUnprocessableEntity());
         }
 
@@ -258,7 +258,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             UUID projectId = createProject();
 
             // when & then
-            mockMvc.perform(patch("/api/projects/{projectId}/review", projectId)
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/review", projectId)
                             .header(USER_ID_HEADER, adminId)
                             .header(USER_ROLE_HEADER, "ADMIN")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -285,7 +285,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             createOption(projectId, rewardId, "화이트", sku);
 
             // when & then
-            mockMvc.perform(post("/api/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -301,7 +301,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             Long rewardId = createReward(projectId);
 
             // when & then
-            mockMvc.perform(post("/api/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -318,21 +318,21 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
             Long rewardId = createReward(otherProjectId);
 
             // when & then
-            mockMvc.perform(delete("/api/projects/{projectId}/rewards/{rewardId}", projectId, rewardId)
+            mockMvc.perform(delete("/api/v1/projects/{projectId}/rewards/{rewardId}", projectId, rewardId)
                             .header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isNotFound());
         }
     }
 
     private UUID createProject() throws Exception {
-        String response = mockMvc.perform(post("/api/projects").header(USER_ID_HEADER, sellerId))
+        String response = mockMvc.perform(post("/api/v1/projects").header(USER_ID_HEADER, sellerId))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(objectMapper.readTree(response).get("projectId").asText());
     }
 
     private Long createReward(UUID projectId) throws Exception {
-        String response = mockMvc.perform(post("/api/projects/{projectId}/rewards", projectId)
+        String response = mockMvc.perform(post("/api/v1/projects/{projectId}/rewards", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -344,7 +344,7 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
     }
 
     private void createOption(UUID projectId, Long rewardId, String optionName, String sku) throws Exception {
-        mockMvc.perform(post("/api/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
+        mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -355,13 +355,13 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
 
     private UUID createPendingReviewProject() throws Exception {
         UUID projectId = createProject();
-        mockMvc.perform(patch("/api/projects/{projectId}/basic-info", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/basic-info", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BASIC_INFO_BODY))
                 .andExpect(status().isOk());
         createReward(projectId);
-        mockMvc.perform(patch("/api/projects/{projectId}/detail", projectId)
+        mockMvc.perform(patch("/api/v1/projects/{projectId}/detail", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

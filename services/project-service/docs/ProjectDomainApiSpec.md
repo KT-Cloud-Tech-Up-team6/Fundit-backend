@@ -2,40 +2,40 @@
 
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
-| POST | /api/projects | O(판매자) | 신규 프로젝트 생성 |
-| GET | /api/projects | O(판매자) | 판매자 본인 프로젝트 목록 조회 |
-| GET | /api/projects/{projectId} | X | 프로젝트 상세 조회(공개 전엔 판매자 본인만) |
-| PATCH | /api/projects/{projectId}/basic-info | O(판매자) | 기본정보 등록/수정 |
-| PATCH | /api/projects/{projectId}/detail | O(판매자) | 상세페이지 등록/임시저장 |
-| DELETE | /api/projects/{projectId} | O(판매자) | 프로젝트 삭제 |
-| POST | /api/projects/{projectId}/rewards | O(판매자) | 리워드 등록 |
-| PATCH | /api/projects/{projectId}/rewards/{rewardId} | O(판매자) | 리워드 수정 |
-| DELETE | /api/projects/{projectId}/rewards/{rewardId} | O(판매자) | 리워드 삭제 `[신규]` |
-| POST | /api/projects/{projectId}/rewards/{rewardId}/options | O(판매자) | 리워드 옵션 등록 |
-| PATCH | /api/projects/{projectId}/rewards/{rewardId}/options/{optionId} | O(판매자) | 리워드 옵션 수정 `[신규]` |
-| DELETE | /api/projects/{projectId}/rewards/{rewardId}/options/{optionId} | O(판매자) | 리워드 옵션 삭제 `[신규]` |
-| GET | /api/projects/{projectId}/rewards | X | 리워드 목록 조회(옵션 포함) |
-| GET | /api/projects/{projectId}/reward-info | X | 리워드 정보고시(전자상거래법) 조회 |
-| PATCH | /api/projects/{projectId}/review | O(관리자) | 프로젝트 검수 승인/반려 `[신규]` |
-| POST | /api/projects/{projectId}/notices | O(판매자) | 새소식 등록 |
-| GET | /api/projects/{projectId}/notices | X | 새소식 목록 조회 |
-| POST | /api/projects/{projectId}/notices/{noticeId}/comments | O(구매자) | 새소식 댓글 등록 `[신규]` |
-| GET | /api/projects/{projectId}/notices/{noticeId}/comments | X | 새소식 댓글 목록 조회 `[신규]` |
-| POST | /api/projects/{projectId}/follow | O(구매자) | 프로젝트 팔로우 `[신규]` |
-| DELETE | /api/projects/{projectId}/follow | O(구매자) | 프로젝트 팔로우 취소 `[신규]` |
-| GET | /api/projects/{projectId}/funding-summary | O(판매자) | 펀딩 현황 조회(판매자용) |
-| GET | /api/projects/{projectId}/community | X | 커뮤니티(질문/응원) 목록 조회 |
-| POST | /api/projects/{projectId}/community/questions | O(구매자) | 질문/응원 등록 |
-| POST | /api/projects/{projectId}/community/{postId}/answers | O(판매자) | 질문 답변 등록/수정 |
-| GET | /api/projects/{projectId}/reviews | X | 서포터 후기 목록 조회 |
-| POST | /api/projects/{projectId}/reviews | O(구매자) | 후기 작성 |
-| POST | /api/projects/{projectId}/notify | O(구매자) | 오픈알림신청 |
-| DELETE | /api/projects/{projectId}/notify | O(구매자) | 오픈알림신청 취소 |
+| POST | /api/v1/projects | O(판매자) | 신규 프로젝트 생성 |
+| GET | /api/v1/projects | O(판매자) | 판매자 본인 프로젝트 목록 조회 |
+| GET | /api/v1/projects/{projectId} | X | 프로젝트 상세 조회(공개 전엔 판매자 본인만) |
+| PATCH | /api/v1/projects/{projectId}/basic-info | O(판매자) | 기본정보 등록/수정 |
+| PATCH | /api/v1/projects/{projectId}/detail | O(판매자) | 상세페이지 등록/임시저장 |
+| DELETE | /api/v1/projects/{projectId} | O(판매자) | 프로젝트 삭제 |
+| POST | /api/v1/projects/{projectId}/rewards | O(판매자) | 리워드 등록 |
+| PATCH | /api/v1/projects/{projectId}/rewards/{rewardId} | O(판매자) | 리워드 수정 |
+| DELETE | /api/v1/projects/{projectId}/rewards/{rewardId} | O(판매자) | 리워드 삭제 `[신규]` |
+| POST | /api/v1/projects/{projectId}/rewards/{rewardId}/options | O(판매자) | 리워드 옵션 등록 |
+| PATCH | /api/v1/projects/{projectId}/rewards/{rewardId}/options/{optionId} | O(판매자) | 리워드 옵션 수정 `[신규]` |
+| DELETE | /api/v1/projects/{projectId}/rewards/{rewardId}/options/{optionId} | O(판매자) | 리워드 옵션 삭제 `[신규]` |
+| GET | /api/v1/projects/{projectId}/rewards | X | 리워드 목록 조회(옵션 포함) |
+| GET | /api/v1/projects/{projectId}/reward-info | X | 리워드 정보고시(전자상거래법) 조회 |
+| PATCH | /api/v1/projects/{projectId}/review | O(관리자) | 프로젝트 검수 승인/반려 `[신규]` |
+| POST | /api/v1/projects/{projectId}/notices | O(판매자) | 새소식 등록 |
+| GET | /api/v1/projects/{projectId}/notices | X | 새소식 목록 조회 |
+| POST | /api/v1/projects/{projectId}/notices/{noticeId}/comments | O(구매자) | 새소식 댓글 등록 `[신규]` |
+| GET | /api/v1/projects/{projectId}/notices/{noticeId}/comments | X | 새소식 댓글 목록 조회 `[신규]` |
+| POST | /api/v1/projects/{projectId}/follow | O(구매자) | 프로젝트 팔로우 `[신규]` |
+| DELETE | /api/v1/projects/{projectId}/follow | O(구매자) | 프로젝트 팔로우 취소 `[신규]` |
+| GET | /api/v1/projects/{projectId}/funding-summary | O(판매자) | 펀딩 현황 조회(판매자용) |
+| GET | /api/v1/projects/{projectId}/community | X | 커뮤니티(질문/응원) 목록 조회 |
+| POST | /api/v1/projects/{projectId}/community/questions | O(구매자) | 질문/응원 등록 |
+| POST | /api/v1/projects/{projectId}/community/{postId}/answers | O(판매자) | 질문 답변 등록/수정 |
+| GET | /api/v1/projects/{projectId}/reviews | X | 서포터 후기 목록 조회 |
+| POST | /api/v1/projects/{projectId}/reviews | O(구매자) | 후기 작성 |
+| POST | /api/v1/projects/{projectId}/notify | O(구매자) | 오픈알림신청 |
+| DELETE | /api/v1/projects/{projectId}/notify | O(구매자) | 오픈알림신청 취소 |
 
 ### 신규 프로젝트 생성
 
 ```
-POST /api/projects
+POST /api/v1/projects
 ```
 
 Auth Required: **O** (판매자)
@@ -60,7 +60,7 @@ Validation / Business Rules
 ### 프로젝트 목록 조회 (판매자)
 
 ```
-GET /api/projects
+GET /api/v1/projects
 ```
 
 Auth Required: **O** (판매자)
@@ -92,7 +92,7 @@ Validation / Business Rules
 ### 프로젝트 상세 조회
 
 ```
-GET /api/projects/{projectId}
+GET /api/v1/projects/{projectId}
 ```
 
 Auth Required: **X** (단, 비공개(DRAFT) 프로젝트는 판매자 본인만 조회 가능)
@@ -115,7 +115,7 @@ Validation / Business Rules
 ### 프로젝트 기본정보 등록/수정
 
 ```
-PATCH /api/projects/{projectId}/basic-info
+PATCH /api/v1/projects/{projectId}/basic-info
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -150,7 +150,7 @@ Validation / Business Rules
 ### 프로젝트 상세페이지 등록/임시저장
 
 ```
-PATCH /api/projects/{projectId}/detail
+PATCH /api/v1/projects/{projectId}/detail
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -184,7 +184,7 @@ Validation / Business Rules
 ### 프로젝트 검수 승인/반려 `[신규 작성]`
 
 ```
-PATCH /api/projects/{projectId}/review
+PATCH /api/v1/projects/{projectId}/review
 ```
 
 Auth Required: **O** (관리자, `accounts.role=ADMIN`)
@@ -218,7 +218,7 @@ Validation / Business Rules
 ### 프로젝트 삭제
 
 ```
-DELETE /api/projects/{projectId}
+DELETE /api/v1/projects/{projectId}
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -239,7 +239,7 @@ Validation / Business Rules
 ### 리워드 등록
 
 ```
-POST /api/projects/{projectId}/rewards
+POST /api/v1/projects/{projectId}/rewards
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -276,7 +276,7 @@ Validation / Business Rules
 ### 리워드 수정 `[신규 작성]`
 
 ```
-PATCH /api/projects/{projectId}/rewards/{rewardId}
+PATCH /api/v1/projects/{projectId}/rewards/{rewardId}
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -313,7 +313,7 @@ Validation / Business Rules
 ### 리워드 삭제 `[신규 작성]`
 
 ```
-DELETE /api/projects/{projectId}/rewards/{rewardId}
+DELETE /api/v1/projects/{projectId}/rewards/{rewardId}
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -336,7 +336,7 @@ Validation / Business Rules
 ### 리워드 옵션 등록
 
 ```
-POST /api/projects/{projectId}/rewards/{rewardId}/options
+POST /api/v1/projects/{projectId}/rewards/{rewardId}/options
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -367,7 +367,7 @@ Validation / Business Rules
 ### 리워드 옵션 수정 `[신규 작성]`
 
 ```
-PATCH /api/projects/{projectId}/rewards/{rewardId}/options/{optionId}
+PATCH /api/v1/projects/{projectId}/rewards/{rewardId}/options/{optionId}
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -395,7 +395,7 @@ Validation / Business Rules
 ### 리워드 옵션 삭제 `[신규 작성]`
 
 ```
-DELETE /api/projects/{projectId}/rewards/{rewardId}/options/{optionId}
+DELETE /api/v1/projects/{projectId}/rewards/{rewardId}/options/{optionId}
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -418,7 +418,7 @@ Validation / Business Rules
 ### 리워드 목록 조회(옵션 포함)
 
 ```
-GET /api/projects/{projectId}/rewards
+GET /api/v1/projects/{projectId}/rewards
 ```
 
 Auth Required: **X**
@@ -441,7 +441,7 @@ Validation / Business Rules
 ### 리워드 정보고시 조회
 
 ```
-GET /api/projects/{projectId}/reward-info
+GET /api/v1/projects/{projectId}/reward-info
 ```
 
 Auth Required: **X**
@@ -463,7 +463,7 @@ Validation / Business Rules
 ### 새소식 등록
 
 ```
-POST /api/projects/{projectId}/notices
+POST /api/v1/projects/{projectId}/notices
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -492,7 +492,7 @@ Validation / Business Rules
 ### 새소식 목록 조회
 
 ```
-GET /api/projects/{projectId}/notices
+GET /api/v1/projects/{projectId}/notices
 ```
 
 Auth Required: **X**
@@ -520,7 +520,7 @@ Validation / Business Rules
 ### 새소식 댓글 등록 `[신규 작성]`
 
 ```
-POST /api/projects/{projectId}/notices/{noticeId}/comments
+POST /api/v1/projects/{projectId}/notices/{noticeId}/comments
 ```
 
 Auth Required: **O** (구매자, 로그인 회원이면 누구나)
@@ -548,7 +548,7 @@ Validation / Business Rules
 ### 새소식 댓글 목록 조회 `[신규 작성]`
 
 ```
-GET /api/projects/{projectId}/notices/{noticeId}/comments
+GET /api/v1/projects/{projectId}/notices/{noticeId}/comments
 ```
 
 Auth Required: **X**
@@ -569,8 +569,8 @@ Validation / Business Rules
 ### 프로젝트 팔로우 / 팔로우 취소 `[신규 작성]`
 
 ```
-POST /api/projects/{projectId}/follow
-DELETE /api/projects/{projectId}/follow
+POST /api/v1/projects/{projectId}/follow
+DELETE /api/v1/projects/{projectId}/follow
 ```
 
 Auth Required: **O** (구매자)
@@ -595,7 +595,7 @@ Validation / Business Rules
 ### 펀딩 현황 조회(판매자)
 
 ```
-GET /api/projects/{projectId}/funding-summary
+GET /api/v1/projects/{projectId}/funding-summary
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -618,7 +618,7 @@ Validation / Business Rules
 ### 커뮤니티 목록 조회
 
 ```
-GET /api/projects/{projectId}/community
+GET /api/v1/projects/{projectId}/community
 ```
 
 Auth Required: **X**
@@ -646,7 +646,7 @@ Validation / Business Rules
 ### 질문/응원 등록
 
 ```
-POST /api/projects/{projectId}/community/questions
+POST /api/v1/projects/{projectId}/community/questions
 ```
 
 Auth Required: **O** (구매자)
@@ -674,7 +674,7 @@ Validation / Business Rules
 ### 질문 답변 등록/수정
 
 ```
-POST /api/projects/{projectId}/community/{postId}/answers
+POST /api/v1/projects/{projectId}/community/{postId}/answers
 ```
 
 Auth Required: **O** (판매자 본인)
@@ -703,7 +703,7 @@ Validation / Business Rules
 ### 서포터 후기 목록 조회
 
 ```
-GET /api/projects/{projectId}/reviews
+GET /api/v1/projects/{projectId}/reviews
 ```
 
 Auth Required: **X**
@@ -720,7 +720,7 @@ Response Body
 ### 후기 작성
 
 ```
-POST /api/projects/{projectId}/reviews
+POST /api/v1/projects/{projectId}/reviews
 ```
 
 Auth Required: **O** (구매자)
@@ -749,8 +749,8 @@ Validation / Business Rules
 ### 오픈알림신청 / 취소
 
 ```
-POST /api/projects/{projectId}/notify
-DELETE /api/projects/{projectId}/notify
+POST /api/v1/projects/{projectId}/notify
+DELETE /api/v1/projects/{projectId}/notify
 ```
 
 Auth Required: **O** (구매자)

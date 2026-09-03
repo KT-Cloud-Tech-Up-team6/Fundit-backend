@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects/{projectId}/funding-summary")
+@RequestMapping("/api/v1/projects/{projectId}/funding-summary")
 public class FundingSummaryController {
 
     private final FundingSummaryService fundingSummaryService;

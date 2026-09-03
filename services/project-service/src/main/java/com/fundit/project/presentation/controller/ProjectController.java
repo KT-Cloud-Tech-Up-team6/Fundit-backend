@@ -32,7 +32,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/projects")
+@RequestMapping("/api/v1/projects")
 public class ProjectController {
 
     private final ProjectCommandService projectCommandService;

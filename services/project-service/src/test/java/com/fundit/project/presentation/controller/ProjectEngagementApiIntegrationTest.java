@@ -65,7 +65,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             createNotice("제작과정", "1차 생산 완료");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/notices", projectId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/notices", projectId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.content[0].noticeType").value("제작과정"))
@@ -79,7 +79,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             createNotice("이벤트", "얼리버드 마감 임박");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/notices", projectId).param("noticeType", "이벤트"))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/notices", projectId).param("noticeType", "이벤트"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.content[0].title").value("얼리버드 마감 임박"));
@@ -93,7 +93,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             addComment(popular, "기대돼요");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/notices", projectId).param("sort", "POPULAR"))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/notices", projectId).param("sort", "POPULAR"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].title").value("댓글 달린 새소식"));
         }
@@ -105,7 +105,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             addComment(noticeId, "기대돼요");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/notices/{noticeId}/comments", projectId, noticeId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/notices/{noticeId}/comments", projectId, noticeId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.content[0].content").value("기대돼요"));
@@ -114,7 +114,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 지원하지_않는_유형이면_400이다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects/{projectId}/notices", projectId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/notices", projectId)
                             .header(USER_ID_HEADER, sellerId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -133,7 +133,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             createQuestion("배송은 언제 되나요?");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/community", projectId).param("answered", "false"))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/community", projectId).param("answered", "false"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.content[0].content").value("배송은 언제 되나요?"));
@@ -146,7 +146,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             answerQuestion(postId, "다음 주에 발송됩니다");
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/community", projectId).param("answered", "true"))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/community", projectId).param("answered", "true"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.content[0].answer.content").value("다음 주에 발송됩니다"));
@@ -162,7 +162,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             answerQuestion(postId, "이번 주로 앞당겨졌습니다");
 
             // then
-            mockMvc.perform(get("/api/projects/{projectId}/community", projectId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/community", projectId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].answer.content").value("이번 주로 앞당겨졌습니다"));
         }
@@ -173,7 +173,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             Long postId = createQuestion("배송은 언제 되나요?");
 
             // when & then
-            mockMvc.perform(post("/api/projects/{projectId}/community/{postId}/answers", projectId, postId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/community/{postId}/answers", projectId, postId)
                             .header(USER_ID_HEADER, memberId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -189,7 +189,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 후기가_없으면_빈_목록이다() throws Exception {
             // given & when & then
-            mockMvc.perform(get("/api/projects/{projectId}/reviews", projectId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/reviews", projectId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(0));
         }
@@ -197,7 +197,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 배송이_확인되지_않으면_422다() throws Exception {
             // given & when & then — order-service 미연동 상태에서는 자격을 확인할 수 없어 통과시키지 않는다
-            mockMvc.perform(post("/api/projects/{projectId}/reviews", projectId)
+            mockMvc.perform(post("/api/v1/projects/{projectId}/reviews", projectId)
                             .header(USER_ID_HEADER, memberId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -213,32 +213,32 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 팔로우는_두_번_눌러도_성공한다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(post("/api/v1/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
-            mockMvc.perform(post("/api/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(post("/api/v1/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
         }
 
         @Test
         void 팔로우하지_않은_상태에서_해제해도_성공한다() throws Exception {
             // given & when & then
-            mockMvc.perform(delete("/api/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(delete("/api/v1/projects/{projectId}/follow", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
         }
 
         @Test
         void 오픈알림_신청과_취소가_모두_통과한다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(post("/api/v1/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
-            mockMvc.perform(delete("/api/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(delete("/api/v1/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
         }
 
         @Test
         void 로그인하지_않으면_팔로우할_수_없다() throws Exception {
             // given & when & then
-            mockMvc.perform(post("/api/projects/{projectId}/follow", projectId))
+            mockMvc.perform(post("/api/v1/projects/{projectId}/follow", projectId))
                     .andExpect(status().isUnauthorized());
         }
     }
@@ -253,7 +253,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             createOption(rewardId);
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/rewards", projectId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/rewards", projectId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.rewards.length()").value(1))
                     .andExpect(jsonPath("$.rewards[0].options.length()").value(1))
@@ -266,7 +266,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
             createReward();
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/reward-info", projectId))
+            mockMvc.perform(get("/api/v1/projects/{projectId}/reward-info", projectId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.rewards.length()").value(1));
         }
@@ -278,7 +278,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 판매자는_집계값을_볼_수_있다() throws Exception {
             // given & when & then
-            mockMvc.perform(get("/api/projects/{projectId}/funding-summary", projectId)
+            mockMvc.perform(get("/api/v1/projects/{projectId}/funding-summary", projectId)
                             .header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.currentAmount").value(0))
@@ -288,11 +288,11 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 오픈알림_신청_수가_반영된다() throws Exception {
             // given
-            mockMvc.perform(post("/api/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
+            mockMvc.perform(post("/api/v1/projects/{projectId}/notify", projectId).header(USER_ID_HEADER, memberId))
                     .andExpect(status().isOk());
 
             // when & then
-            mockMvc.perform(get("/api/projects/{projectId}/funding-summary", projectId)
+            mockMvc.perform(get("/api/v1/projects/{projectId}/funding-summary", projectId)
                             .header(USER_ID_HEADER, sellerId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.openNotifyCount").value(1));
@@ -301,14 +301,14 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         @Test
         void 판매자가_아니면_볼_수_없다() throws Exception {
             // given & when & then
-            mockMvc.perform(get("/api/projects/{projectId}/funding-summary", projectId)
+            mockMvc.perform(get("/api/v1/projects/{projectId}/funding-summary", projectId)
                             .header(USER_ID_HEADER, memberId))
                     .andExpect(status().isForbidden());
         }
     }
 
     private Long createNotice(String noticeType, String title) throws Exception {
-        String response = mockMvc.perform(post("/api/projects/{projectId}/notices", projectId)
+        String response = mockMvc.perform(post("/api/v1/projects/{projectId}/notices", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -320,7 +320,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private void addComment(Long noticeId, String content) throws Exception {
-        mockMvc.perform(post("/api/projects/{projectId}/notices/{noticeId}/comments", projectId, noticeId)
+        mockMvc.perform(post("/api/v1/projects/{projectId}/notices/{noticeId}/comments", projectId, noticeId)
                         .header(USER_ID_HEADER, memberId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -330,7 +330,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private Long createQuestion(String content) throws Exception {
-        String response = mockMvc.perform(post("/api/projects/{projectId}/community/questions", projectId)
+        String response = mockMvc.perform(post("/api/v1/projects/{projectId}/community/questions", projectId)
                         .header(USER_ID_HEADER, memberId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -342,7 +342,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private void answerQuestion(Long postId, String content) throws Exception {
-        mockMvc.perform(post("/api/projects/{projectId}/community/{postId}/answers", projectId, postId)
+        mockMvc.perform(post("/api/v1/projects/{projectId}/community/{postId}/answers", projectId, postId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -352,7 +352,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private Long createReward() throws Exception {
-        String response = mockMvc.perform(post("/api/projects/{projectId}/rewards", projectId)
+        String response = mockMvc.perform(post("/api/v1/projects/{projectId}/rewards", projectId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -365,7 +365,7 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private void createOption(Long rewardId) throws Exception {
-        mockMvc.perform(post("/api/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
+        mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
