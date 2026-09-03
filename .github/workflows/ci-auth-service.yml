@@ -9,6 +9,9 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
     outputs:
       relevant: ${{ steps.filter.outputs.service == 'true' }}
     steps:
@@ -23,11 +26,14 @@ jobs:
               - 'modules/common-webmvc/**'
               - 'build.gradle'
               - 'settings.gradle'
+              - 'gradle/**'
 
   build-and-test:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
     # DB/메시징 서비스 컨테이너를 여기서 미리 띄우지 않는다 — 통합테스트가
     # Testcontainers로 필요한 컨테이너를 직접 관리한다(test-convention.md 기준).
 
