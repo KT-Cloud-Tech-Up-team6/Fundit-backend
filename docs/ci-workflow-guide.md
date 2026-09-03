@@ -46,6 +46,9 @@ Git 브랜치 전략·클론·커밋·PR 흐름 자체는 `docs/development-work
 jobs:
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
     outputs:
       relevant: ${{ steps.filter.outputs.service == 'true' }}
     steps:
@@ -60,11 +63,21 @@ jobs:
               - 'modules/common-webmvc/**'
               - 'build.gradle'
               - 'settings.gradle'
+              - 'gradle/**'
 ```
 
 > ⚠️ `paths-ignore`로 반대 조건의 companion workflow를 하나 더 만드는 방식은 쓰지 않습니다. `paths`와 `paths-ignore`는 서로 여집합이 아니라서, 두 조건에 동시에 걸리는 PR(예: 서비스 코드와 다른 파일을 같이 고친 PR)에서는 워크플로우 두 개가 동시에 트리거되어 동일 이름의 check run이 2개 생기는 문제가 발생할 수 있습니다.
 
 > `dorny/paths-filter`는 서드파티 액션입니다. 조직에 액션 사용 제한(allowlist)이 걸려있다면 먼저 허용 목록에 추가되어 있는지 확인하세요.
+
+> `gradle/**`(wrapper 설정)도 필터에 포함합니다. `build-and-test`가 `sparse-checkout`으로 `gradle` 디렉터리를 실제로 체크아웃해서 쓰기 때문에, Gradle wrapper 버전을 올리는 등의 변경도 감지 대상이어야 합니다. 단, 루트의 `gradlew` 스크립트 자체는 `gradle/` 하위가 아니라 이 패턴으로 안 잡힙니다 — 필요하면 `gradlew`를 filters에 따로 추가하세요.
+
+## permissions — 최소 권한 명시
+
+각 job에는 실제로 필요한 권한만 명시적으로 선언합니다. `permissions` 블록을 안 쓰면 조직/저장소의 기본 토큰 권한 설정을 그대로 물려받는데, 이게 너무 넓을 수도(불필요한 쓰기 권한 보유) 너무 좁을 수도(필요한 읽기 권한 자체가 없어서 실패) 있습니다.
+
+- `changes` job: `contents: read`(checkout용) + `pull-requests: read`. 후자가 필요한 이유는 `dorny/paths-filter`가 `pull_request` 이벤트에서 변경 파일 목록을 GitHub REST API로 조회하기 때문입니다(공식 문서에 명시). 조직 기본 토큰 권한이 read-only로 좁혀져 있으면 `pull-requests` 스코프가 `none`일 수 있어, 명시하지 않으면 API 호출이 실패할 수 있습니다.
+- `build-and-test` job: `contents: read`(checkout용).
 
 ## DB/메시징 서비스 컨테이너: 넣지 않음 (신규 추가 시에도 CI 변경 없음)
 
@@ -136,6 +149,9 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
     outputs:
       relevant: ${{ steps.filter.outputs.service == 'true' }}
     steps:
@@ -150,11 +166,14 @@ jobs:
               - 'modules/common-webmvc/**'
               - 'build.gradle'
               - 'settings.gradle'
+              - 'gradle/**'
 
   build-and-test:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
     # DB/메시징 서비스 컨테이너를 여기서 미리 띄우지 않는다 — 통합테스트가
     # Testcontainers로 필요한 컨테이너를 직접 관리한다(test-convention.md 기준).
 
