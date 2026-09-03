@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 /**
  * PortOne 본인인증 단건조회 어댑터. MemberServiceRestClient와 동일하게 connect/read 타임아웃을
@@ -68,13 +69,18 @@ public class PortOneRestClient implements PortOneClient {
         }
 
         VerifiedCustomer customer = response.verifiedCustomer();
-        return new VerifiedIdentityResult(
-                true,
-                customer.name(),
-                customer.phoneNumber(),
-                customer.birthDate() == null ? null : LocalDate.parse(customer.birthDate()),
-                customer.ci(),
-                customer.di());
+        if (customer.phoneNumber() == null) {
+            // 회원가입에서 휴대폰번호 대조가 필수라, 값이 없으면 검증됐다고 볼 수 없다(security.md S7).
+            return new VerifiedIdentityResult(false, null, null, null, null, null);
+        }
+
+        try {
+            LocalDate birthDate = customer.birthDate() == null ? null : LocalDate.parse(customer.birthDate());
+            return new VerifiedIdentityResult(
+                    true, customer.name(), customer.phoneNumber(), birthDate, customer.ci(), customer.di());
+        } catch (DateTimeParseException e) {
+            throw new DependencyFailureException(e);
+        }
     }
 
     private record PortOneIdentityVerificationResponse(String status, VerifiedCustomer verifiedCustomer) {

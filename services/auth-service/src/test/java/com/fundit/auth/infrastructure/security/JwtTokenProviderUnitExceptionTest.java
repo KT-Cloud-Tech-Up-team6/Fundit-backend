@@ -58,4 +58,30 @@ class JwtTokenProviderUnitExceptionTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOKEN_INVALID);
     }
+
+    @Test
+    void refresh_token을_access_token_파서에_넣으면_TOKEN_INVALID_예외가_발생한다() {
+        // given
+        JwtTokenProvider provider = provider("type-confusion-secret-key-at-least-32-bytes", Duration.ofMinutes(30));
+        String refreshToken = provider.issueRefreshToken(UUID.randomUUID(), UUID.randomUUID());
+
+        // when & then
+        assertThatThrownBy(() -> provider.parseAccessToken(refreshToken))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOKEN_INVALID);
+    }
+
+    @Test
+    void access_token을_refresh_token_파서에_넣으면_TOKEN_INVALID_예외가_발생한다() {
+        // given
+        JwtTokenProvider provider = provider("type-confusion-secret-key-at-least-32-bytes", Duration.ofMinutes(30));
+        String accessToken = provider.issueAccessToken(UUID.randomUUID(), Role.MEMBER);
+
+        // when & then
+        assertThatThrownBy(() -> provider.parseRefreshToken(accessToken))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOKEN_INVALID);
+    }
 }

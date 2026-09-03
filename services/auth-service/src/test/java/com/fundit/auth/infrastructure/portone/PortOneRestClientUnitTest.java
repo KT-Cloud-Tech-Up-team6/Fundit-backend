@@ -69,4 +69,30 @@ class PortOneRestClientUnitTest {
         // then
         assertThat(result.verified()).isFalse();
     }
+
+    @Test
+    void 휴대폰번호가_없으면_미검증으로_반환한다() {
+        // given
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://api.portone.io");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        PortOneRestClient client = new PortOneRestClient(builder.build(), API_SECRET, STORE_ID);
+
+        server.expect(requestTo("https://api.portone.io/identity-verifications/identity-verification-4?storeId=" + STORE_ID))
+                .andRespond(withSuccess("""
+                        {
+                          "status": "VERIFIED",
+                          "verifiedCustomer": {
+                            "name": "홍길동",
+                            "phoneNumber": null,
+                            "birthDate": "1999-01-01"
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        // when
+        PortOneClient.VerifiedIdentityResult result = client.fetchVerification("identity-verification-4");
+
+        // then
+        assertThat(result.verified()).isFalse();
+    }
 }

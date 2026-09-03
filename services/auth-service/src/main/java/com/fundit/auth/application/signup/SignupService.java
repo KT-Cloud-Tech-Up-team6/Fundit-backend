@@ -35,7 +35,8 @@ public class SignupService {
 
         var verifiedIdentity = identityVerificationStore.consume(command.verificationToken())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_INVALID));
-        if (!verifiedIdentity.phoneNumber().equals(command.phoneNumber())) {
+        if (!verifiedIdentity.phoneNumber().equals(command.phoneNumber())
+                || !verifiedIdentity.name().equals(command.name())) {
             throw new BusinessException(CommonErrorCode.TOKEN_INVALID);
         }
 
@@ -59,7 +60,7 @@ public class SignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), command.email(), command.name(), command.phoneNumber(),
+                    account.getId(), command.email(), verifiedIdentity.name(), verifiedIdentity.phoneNumber(),
                     command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             // 보상 트랜잭션: 방금 커밋한 계정을 삭제하고 원래 예외(503 DEPENDENCY_FAILURE)를 그대로 전파

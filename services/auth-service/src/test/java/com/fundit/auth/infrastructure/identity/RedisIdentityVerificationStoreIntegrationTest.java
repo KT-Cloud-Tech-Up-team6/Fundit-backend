@@ -58,6 +58,7 @@ class RedisIdentityVerificationStoreIntegrationTest {
 
     @Test
     void 저장하지_않은_토큰을_소비하면_빈값을_반환한다() {
+        // when & then
         assertThat(store.consume("no-such-token")).isEmpty();
     }
 }

@@ -111,7 +111,8 @@ class RefreshTokenJpaRepositoryIntegrationTest {
         // when
         refreshTokenJpaRepository.deleteAllByAccountId(accountId);
 
-        // then
-        assertThat(refreshTokenJpaRepository.findAll()).isEmpty();
+        // then (다른 테스트가 남겨둔, 무관한 계정의 토큰까지 비었을 필요는 없다 — 이 계정 것만 확인)
+        assertThat(refreshTokenJpaRepository.findAll())
+                .noneMatch(token -> token.getAccountId().equals(accountId));
     }
 }

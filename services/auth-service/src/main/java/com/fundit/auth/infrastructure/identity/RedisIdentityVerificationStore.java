@@ -1,6 +1,8 @@
 package com.fundit.auth.infrastructure.identity;
 
 import com.fundit.auth.application.identity.IdentityVerificationStore;
+import com.fundit.common.error.DependencyFailureException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -23,12 +25,21 @@ public class RedisIdentityVerificationStore implements IdentityVerificationStore
 
     @Override
     public void save(String verificationToken, VerifiedIdentity identity, Duration ttl) {
-        redisTemplate.opsForValue().set(key(verificationToken), objectMapper.writeValueAsString(identity), ttl);
+        try {
+            redisTemplate.opsForValue().set(key(verificationToken), objectMapper.writeValueAsString(identity), ttl);
+        } catch (DataAccessException e) {
+            throw new DependencyFailureException(e);
+        }
     }
 
     @Override
     public Optional<VerifiedIdentity> consume(String verificationToken) {
-        String json = redisTemplate.opsForValue().getAndDelete(key(verificationToken));
+        String json;
+        try {
+            json = redisTemplate.opsForValue().getAndDelete(key(verificationToken));
+        } catch (DataAccessException e) {
+            throw new DependencyFailureException(e);
+        }
         if (json == null) {
             return Optional.empty();
         }

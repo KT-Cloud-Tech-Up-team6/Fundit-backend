@@ -85,9 +85,12 @@ class AccountPersistenceAdapterUnitTest {
         UUID id = UUID.randomUUID();
         when(jpaRepository.existsByEmail("test@fundit.com")).thenReturn(true);
 
-        // when & then
-        assertThat(adapter().existsByEmail("test@fundit.com")).isTrue();
+        // when
+        boolean exists = adapter().existsByEmail("test@fundit.com");
         adapter().deleteById(id);
+
+        // then
+        assertThat(exists).isTrue();
         org.mockito.Mockito.verify(jpaRepository).deleteById(id);
     }
 }

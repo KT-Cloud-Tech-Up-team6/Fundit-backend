@@ -85,6 +85,22 @@ class SignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 본인인증된_이름과_요청_이름이_다르면_예외가_발생한다() {
+        // given
+        when(accountRepository.existsByEmail(any())).thenReturn(false);
+        when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(
+                new IdentityVerificationStore.VerifiedIdentity("김철수", "01012345678", null)));
+
+        // when & then
+        assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
+                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.TOKEN_INVALID);
+        verify(accountRepository, never()).save(any());
+    }
+
+    @Test
     void member_service_호출이_실패하면_계정을_삭제하고_예외를_그대로_전파한다() {
         // given
         when(accountRepository.existsByEmail(any())).thenReturn(false);

@@ -21,6 +21,9 @@ import java.util.UUID;
 public class JwtTokenProvider {
 
     private static final String ROLE_CLAIM = "role";
+    private static final String TYPE_CLAIM = "typ";
+    private static final String ACCESS_TYPE = "access";
+    private static final String REFRESH_TYPE = "refresh";
 
     private final JwtProperties properties;
 
@@ -33,6 +36,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(accountId.toString())
                 .claim(ROLE_CLAIM, role.name())
+                .claim(TYPE_CLAIM, ACCESS_TYPE)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(properties.getAccessTokenTtl())))
                 .signWith(key())
@@ -44,6 +48,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .id(tokenId.toString())
                 .subject(accountId.toString())
+                .claim(TYPE_CLAIM, REFRESH_TYPE)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(properties.getRefreshTokenTtl())))
                 .signWith(key())
@@ -52,6 +57,7 @@ public class JwtTokenProvider {
 
     public AccessTokenClaims parseAccessToken(String token) {
         var claims = parse(token);
+        requireType(claims, ACCESS_TYPE);
         return new AccessTokenClaims(
                 UUID.fromString(claims.getSubject()),
                 Role.valueOf(claims.get(ROLE_CLAIM, String.class)));
@@ -64,9 +70,17 @@ public class JwtTokenProvider {
      */
     public RefreshTokenClaims parseRefreshToken(String token) {
         var claims = parse(token);
+        requireType(claims, REFRESH_TYPE);
         return new RefreshTokenClaims(
                 UUID.fromString(claims.getId()),
                 UUID.fromString(claims.getSubject()));
+    }
+
+    /** access/refresh 토큰이 서로의 파서에 제출돼도 통과되지 않도록 타입 클레임을 확인한다. */
+    private void requireType(io.jsonwebtoken.Claims claims, String expectedType) {
+        if (!expectedType.equals(claims.get(TYPE_CLAIM, String.class))) {
+            throw new BusinessException(CommonErrorCode.TOKEN_INVALID);
+        }
     }
 
     private io.jsonwebtoken.Claims parse(String token) {
