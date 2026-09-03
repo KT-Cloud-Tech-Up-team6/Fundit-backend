@@ -8,6 +8,14 @@
 -- 관리, DB 미저장). 근거·후순위 항목은 MvpImplementationSummary.md 참고.
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE members (
                          id                UUID NOT NULL PRIMARY KEY,  -- accounts.id 참조값, FK 아님(서비스 분리)
                          name              VARCHAR(50) NOT NULL,             -- 실명, PRD 1.3.4 필수정보
