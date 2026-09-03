@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -25,9 +26,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 뜬다 — Postgres Testcontainer를 같이 안 띄우면 application-local.yml의 하드코딩된
  * localhost:5432로 접속을 시도하다 연결 거부로 컨텍스트 로딩 자체가 실패한다(실기동으로 확인,
  * 2026-08-31). RefreshTokenJpaRepositoryIntegrationTest와 동일하게 Postgres도 같이 띄운다.
+ * jwt.secret/member-service.base-url을 {@code @TestPropertySource}로 고정하는 이유도 동일 —
+ * CI엔 application-local.yml이 없어 이 값들이 미해석 상태로 컨텍스트 로딩이 실패한다(CI에서 재현됨).
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = {
+        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
+        "jwt.access-token-ttl=30m",
+        "jwt.refresh-token-ttl=14d",
+        "member-service.base-url=http://localhost:8082"
+})
 class RedisIdentityVerificationStoreIntegrationTest {
 
     @Container
