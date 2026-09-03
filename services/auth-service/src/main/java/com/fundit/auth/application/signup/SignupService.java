@@ -9,6 +9,7 @@ import com.fundit.auth.domain.account.Role;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.error.DependencyFailureException;
+import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,7 +43,7 @@ public class SignupService {
 
         Instant now = Instant.now();
         Account account = Account.builder()
-                .id(UUID.randomUUID())
+                .id(UuidCreator.getTimeOrderedEpoch())
                 .email(command.email())
                 .passwordHash(passwordEncoder.encode(command.password()))
                 .role(Role.MEMBER)

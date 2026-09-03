@@ -5,6 +5,7 @@ import com.fundit.auth.infrastructure.persistence.refreshtoken.RefreshTokenJpaEn
 import com.fundit.auth.infrastructure.persistence.refreshtoken.RefreshTokenJpaRepository;
 import com.fundit.auth.infrastructure.security.JwtProperties;
 import com.fundit.auth.infrastructure.security.JwtTokenProvider;
+import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +25,7 @@ public class TokenIssuer {
         Instant now = Instant.now();
         String accessToken = jwtTokenProvider.issueAccessToken(accountId, role);
 
-        UUID tokenId = UUID.randomUUID();
+        UUID tokenId = UuidCreator.getTimeOrderedEpoch();
         String refreshToken = jwtTokenProvider.issueRefreshToken(tokenId, accountId);
         refreshTokenJpaRepository.save(RefreshTokenJpaEntity.builder()
                 .tokenId(tokenId)
