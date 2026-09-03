@@ -14,4 +14,7 @@ public interface AccountRepository {
     boolean existsByEmail(String email);
 
     void deleteById(UUID id);
+
+    /** 계정 행에 pessimistic write lock을 건다(존재하지 않으면 잠글 행이 없어 no-op). */
+    void lockForUpdate(UUID id);
 }

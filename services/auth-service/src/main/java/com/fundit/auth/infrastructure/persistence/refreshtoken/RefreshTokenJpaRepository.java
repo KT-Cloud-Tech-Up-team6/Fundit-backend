@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -29,8 +30,14 @@ public interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenJpa
      * or delete query"로 실패한다(실기동/통합테스트로 확인, 2026-08-31). 호출부(TokenRefreshService)를
      * @Transactional로 감싸는 것과 별개로, 이 메서드 자체도 트랜잭션을 보장해 어디서 호출해도
      * 안전하게 만든다.
+     *
+     * REQUIRES_NEW인 이유: TokenRefreshService.refresh()가 계정 단위 락을 걸기 위해
+     * 자체적으로 @Transactional이 됐다(동시성 회귀 수정, PR 리뷰 지적 반영) — 이 메서드가
+     * REQUIRES_NEW가 아니면 그 트랜잭션에 합류해버려서, 재사용 탐지 후 던지는 예외로
+     * 바깥 트랜잭션이 롤백될 때 방금 실행한 전체 세션 삭제까지 같이 취소된다(버그3 재발).
+     * 어떤 예외가 나든 이 삭제만은 독립적으로 즉시 커밋되어야 한다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying
     @Query(value = "DELETE FROM refresh_tokens WHERE account_id = :accountId", nativeQuery = true)
     void deleteAllByAccountId(@Param("accountId") UUID accountId);

@@ -39,4 +39,9 @@ public class AccountPersistenceAdapter implements AccountRepository {
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }
+
+    @Override
+    public void lockForUpdate(UUID id) {
+        jpaRepository.findByIdForUpdate(id);
+    }
 }

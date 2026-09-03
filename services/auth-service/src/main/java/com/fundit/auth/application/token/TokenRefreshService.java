@@ -8,6 +8,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,16 +23,24 @@ public class TokenRefreshService {
     private final TokenIssuer tokenIssuer;
 
     /**
-     * 이 메서드 자체를 @Transactional로 감싸지 않는다 — 감싸면 재사용 탐지 시 던지는
-     * BusinessException 때문에 트랜잭션이 롤백되면서, 방금 실행한 전체 세션 무효화
-     * (deleteAllByAccountId)까지 같이 취소돼버린다(실기동으로 재현·확인, 2026-08-31:
-     * 탈취된 토큰은 막히는데 정상 로테이션된 토큰은 살아남는 상태였음). 대신
-     * deleteAllByAccountId는 RefreshTokenJpaRepository 쪽에 자체 @Transactional을 둬서,
-     * 이후 무슨 예외가 나든 그 삭제만은 독립적으로 즉시 커밋되게 한다.
+     * 계정 단위 pessimistic lock으로 동시 refresh 요청을 직렬화한다 — 그래야 "재사용 탐지 시
+     * 전체 세션 무효화" 보장이 동시성 상황에서도 깨지지 않는다(PR 리뷰 지적, 2026-09-03: 락 없이는
+     * 요청 A가 로테이션에 성공해 새 토큰을 저장하는 도중 요청 B가 같은 옛 토큰으로 재사용 탐지를
+     * 트리거하면, B의 deleteAllByAccountId가 A의 저장보다 먼저 커밋될 수 있어 A의 새 세션이
+     * 무효화를 피해 살아남을 수 있었다).
+     *
+     * 이 메서드를 @Transactional로 감싸도 안전한 이유: 재사용 탐지 시 실행하는
+     * deleteAllByAccountId가 RefreshTokenJpaRepository 쪽에서 REQUIRES_NEW로 독립 커밋되므로,
+     * 아래에서 던지는 BusinessException으로 이 메서드의 트랜잭션이 롤백돼도 그 삭제는 살아남는다
+     * (이 트랜잭션 자체는 락 획득/해제 범위로만 쓰인다 — 버그3 때와 같은 함정이 아니다).
      */
+    @Transactional
     public TokenIssuer.IssuedTokens refresh(String refreshToken) {
         // 서명 무효/만료는 여기서 즉시 예외 — DB 조회 없이 401
         var claims = jwtTokenProvider.parseRefreshToken(refreshToken);
+
+        // 계정 행을 잠가서, 같은 계정에 대한 동시 refresh 요청은 이 트랜잭션이 끝날 때까지 대기한다.
+        accountRepository.lockForUpdate(claims.accountId());
 
         Optional<UUID> rotatedAccountId = refreshTokenJpaRepository.deleteAndReturnAccountId(claims.tokenId());
         if (rotatedAccountId.isEmpty()) {
