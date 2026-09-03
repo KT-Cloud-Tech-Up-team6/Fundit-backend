@@ -105,18 +105,10 @@ on:
     branches: [main, develop]
     paths:
       - 'services/{service}/**'
-      - 'modules/common/**'
-      - 'modules/common-webmvc/**'
-      - 'build.gradle'
-      - 'settings.gradle'
   pull_request:
     branches: [develop, main]
     paths:
       - 'services/{service}/**'
-      - 'modules/common/**'
-      - 'modules/common-webmvc/**'
-      - 'build.gradle'
-      - 'settings.gradle'
 
 jobs:
   build-and-test:
