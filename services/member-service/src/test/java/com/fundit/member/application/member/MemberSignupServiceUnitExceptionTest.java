@@ -70,7 +70,7 @@ class MemberSignupServiceUnitExceptionTest {
     }
 
     @Test
-    void existsById_통과후_동시가입으로_유니크제약이_깨지면_409로_변환된다() {
+    void 동시_가입으로_유니크제약이_깨지면_충돌_예외로_변환된다() {
         // given: existsById 체크와 저장 사이에 동시 요청이 끼어든 상황(TOCTOU)을 흉내낸다.
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);

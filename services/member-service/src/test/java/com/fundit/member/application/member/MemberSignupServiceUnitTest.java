@@ -82,7 +82,7 @@ class MemberSignupServiceUnitTest {
     }
 
     @Test
-    void 주소에_recipientName이_없으면_저장하지_않는다() {
+    void 주소에_수령인_이름이_없으면_저장하지_않는다() {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);

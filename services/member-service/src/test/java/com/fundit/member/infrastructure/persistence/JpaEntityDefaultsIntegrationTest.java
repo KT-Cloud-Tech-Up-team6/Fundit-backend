@@ -92,7 +92,7 @@ class JpaEntityDefaultsIntegrationTest {
     }
 
     @Test
-    void 배송지_저장시_isDefault를_지정하면_그대로_유지된다() {
+    void 배송지_저장시_기본_배송지_여부를_지정하면_그대로_유지된다() {
         // given
         UUID memberId = createMember();
 
