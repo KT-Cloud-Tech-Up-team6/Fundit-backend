@@ -7,7 +7,11 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.UUID;
 
-/** notification-service 미연동 상태의 임시 어댑터. 발송 대상만 로그로 남긴다. */
+/**
+ * notification-service 미연동 상태의 임시 어댑터. 발송 대상만 로그로 남긴다.
+ * 실제 연동 어댑터는 실패 시 {@code DependencyFailureException}을 던질 수 있다.
+ * 호출측이 커밋 후 처리로 격리하므로, 그 예외가 본래 작업을 롤백하면 안 된다.
+ */
 @Slf4j
 @Component
 public class LoggingNotificationAdapter implements NotificationPort {

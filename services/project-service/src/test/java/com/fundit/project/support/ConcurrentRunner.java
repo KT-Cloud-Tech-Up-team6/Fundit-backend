@@ -15,6 +15,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class ConcurrentRunner {
 
     private static final int TIMEOUT_SECONDS = 30;
+    private static final int SHUTDOWN_SECONDS = 5;
 
     private ConcurrentRunner() {
     }
@@ -25,7 +26,8 @@ public final class ConcurrentRunner {
         AtomicInteger successCount = new AtomicInteger();
         List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        try (ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        try {
             for (int i = 0; i < threadCount; i++) {
                 executor.submit(() -> {
                     try {
@@ -41,10 +43,15 @@ public final class ConcurrentRunner {
             }
             startGate.countDown();
             if (!finishGate.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                executor.awaitTermination(SHUTDOWN_SECONDS, TimeUnit.SECONDS);
                 throw new IllegalStateException("동시 실행이 %d초 안에 끝나지 않았습니다.".formatted(TIMEOUT_SECONDS));
             }
+            return new Result(successCount.get(), List.copyOf(failures));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(SHUTDOWN_SECONDS, TimeUnit.SECONDS);
         }
-        return new Result(successCount.get(), List.copyOf(failures));
     }
 
     public record Result(int successCount, List<Throwable> failures) {

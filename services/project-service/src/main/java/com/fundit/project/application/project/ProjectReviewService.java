@@ -3,7 +3,8 @@ package com.fundit.project.application.project;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.port.CurrentUserProvider;
-import com.fundit.project.application.port.NotificationPort;
+import com.fundit.project.application.project.event.ProjectOpenedEvent;
+import com.fundit.project.application.project.event.ProjectRejectedEvent;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectReviewRequestRepository;
@@ -14,6 +15,7 @@ import com.fundit.project.infrastructure.persistence.engagement.OpenNotifyReques
 import com.fundit.project.infrastructure.persistence.engagement.ProjectFollowJpaEntity;
 import com.fundit.project.infrastructure.persistence.engagement.ProjectFollowJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +36,7 @@ public class ProjectReviewService {
     private final ProjectReviewRequestRepository reviewRequestRepository;
     private final ProjectAccessGuard accessGuard;
     private final CurrentUserProvider currentUserProvider;
-    private final NotificationPort notificationPort;
+    private final ApplicationEventPublisher eventPublisher;
     private final OpenNotifyRequestJpaRepository openNotifyRequestJpaRepository;
     private final ProjectFollowJpaRepository projectFollowJpaRepository;
 
@@ -56,7 +58,7 @@ public class ProjectReviewService {
             Project saved = projectRepository.save(project);
             reviewRequestRepository.resolveLatest(
                     saved.getId(), ReviewRequestStatus.APPROVED, null, currentUser.id(), now);
-            notificationPort.notifyProjectOpened(saved.getId(), openAlertTargets(saved.getId()));
+            eventPublisher.publishEvent(new ProjectOpenedEvent(saved.getId(), openAlertTargets(saved.getId())));
             return saved;
         }
 
@@ -67,7 +69,8 @@ public class ProjectReviewService {
         Project saved = projectRepository.save(project);
         reviewRequestRepository.resolveLatest(
                 saved.getId(), ReviewRequestStatus.REJECTED, rejectReason, currentUser.id(), now);
-        notificationPort.notifyProjectRejected(saved.getId(), saved.getSellerId(), rejectReason);
+        eventPublisher.publishEvent(
+                new ProjectRejectedEvent(saved.getId(), saved.getSellerId(), rejectReason));
         return saved;
     }
 

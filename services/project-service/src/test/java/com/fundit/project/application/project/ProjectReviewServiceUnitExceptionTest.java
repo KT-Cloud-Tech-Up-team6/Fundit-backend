@@ -4,7 +4,6 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.port.CurrentUserProvider;
 import com.fundit.project.application.port.CurrentUserProvider.CurrentUser;
 import com.fundit.project.application.port.CurrentUserProvider.Role;
-import com.fundit.project.application.port.NotificationPort;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
@@ -20,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -49,7 +49,7 @@ class ProjectReviewServiceUnitExceptionTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
     @Mock
-    private NotificationPort notificationPort;
+    private ApplicationEventPublisher eventPublisher;
     @Mock
     private OpenNotifyRequestJpaRepository openNotifyRequestJpaRepository;
     @Mock
@@ -166,7 +166,7 @@ class ProjectReviewServiceUnitExceptionTest {
                     CommonErrorCode.INVALID_INPUT);
 
             // then
-            verifyNoInteractions(notificationPort);
+            verifyNoInteractions(eventPublisher);
         }
     }
 

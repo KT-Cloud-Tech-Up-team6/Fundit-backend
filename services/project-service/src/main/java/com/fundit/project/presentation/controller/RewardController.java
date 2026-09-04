@@ -60,7 +60,7 @@ public class RewardController {
     @PatchMapping("/rewards/{rewardId}")
     public RewardIdResponse updateReward(@PathVariable UUID projectId,
                                          @PathVariable Long rewardId,
-                                         @RequestBody RewardUpdateRequest request) {
+                                         @Valid @RequestBody RewardUpdateRequest request) {
         Reward reward = rewardService.update(
                 projectId,
                 rewardId,
@@ -97,7 +97,7 @@ public class RewardController {
     public RewardOptionIdResponse updateOption(@PathVariable UUID projectId,
                                                @PathVariable Long rewardId,
                                                @PathVariable Long optionId,
-                                               @RequestBody RewardOptionUpdateRequest request) {
+                                               @Valid @RequestBody RewardOptionUpdateRequest request) {
         RewardOption option = rewardOptionService.rename(projectId, rewardId, optionId, request.optionName());
         return new RewardOptionIdResponse(option.getId());
     }

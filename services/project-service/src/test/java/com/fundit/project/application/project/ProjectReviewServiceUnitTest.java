@@ -3,7 +3,8 @@ package com.fundit.project.application.project;
 import com.fundit.project.application.port.CurrentUserProvider;
 import com.fundit.project.application.port.CurrentUserProvider.CurrentUser;
 import com.fundit.project.application.port.CurrentUserProvider.Role;
-import com.fundit.project.application.port.NotificationPort;
+import com.fundit.project.application.project.event.ProjectOpenedEvent;
+import com.fundit.project.application.project.event.ProjectRejectedEvent;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectReviewRequestRepository;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.List;
@@ -52,7 +54,7 @@ class ProjectReviewServiceUnitTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
     @Mock
-    private NotificationPort notificationPort;
+    private ApplicationEventPublisher eventPublisher;
     @Mock
     private OpenNotifyRequestJpaRepository openNotifyRequestJpaRepository;
     @Mock
@@ -120,10 +122,10 @@ class ProjectReviewServiceUnitTest {
             projectReviewService.review(ProjectFixture.PUBLIC_ID, ReviewDecision.APPROVE, null, START_AT, DEADLINE);
 
             // then
-            @SuppressWarnings("unchecked")
-            ArgumentCaptor<List<UUID>> captor = ArgumentCaptor.forClass(List.class);
-            verify(notificationPort).notifyProjectOpened(eq(ProjectFixture.PROJECT_ID), captor.capture());
-            assertThat(captor.getValue()).containsExactlyInAnyOrder(notifyMember, follower);
+            ArgumentCaptor<ProjectOpenedEvent> captor = ArgumentCaptor.forClass(ProjectOpenedEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().projectId()).isEqualTo(ProjectFixture.PROJECT_ID);
+            assertThat(captor.getValue().memberIds()).containsExactlyInAnyOrder(notifyMember, follower);
         }
 
         @Test
@@ -141,10 +143,9 @@ class ProjectReviewServiceUnitTest {
             projectReviewService.review(ProjectFixture.PUBLIC_ID, ReviewDecision.APPROVE, null, START_AT, DEADLINE);
 
             // then
-            @SuppressWarnings("unchecked")
-            ArgumentCaptor<List<UUID>> captor = ArgumentCaptor.forClass(List.class);
-            verify(notificationPort).notifyProjectOpened(eq(ProjectFixture.PROJECT_ID), captor.capture());
-            assertThat(captor.getValue()).containsExactly(member);
+            ArgumentCaptor<ProjectOpenedEvent> captor = ArgumentCaptor.forClass(ProjectOpenedEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().memberIds()).containsExactly(member);
         }
     }
 
@@ -189,8 +190,8 @@ class ProjectReviewServiceUnitTest {
             projectReviewService.review(ProjectFixture.PUBLIC_ID, ReviewDecision.REJECT, "서류 미비", null, null);
 
             // then
-            verify(notificationPort).notifyProjectRejected(
-                    ProjectFixture.PROJECT_ID, ProjectFixture.SELLER_ID, "서류 미비");
+            verify(eventPublisher).publishEvent(
+                    new ProjectRejectedEvent(ProjectFixture.PROJECT_ID, ProjectFixture.SELLER_ID, "서류 미비"));
         }
     }
 }

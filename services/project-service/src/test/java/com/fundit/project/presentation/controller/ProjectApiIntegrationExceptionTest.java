@@ -311,6 +311,56 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
         }
 
         @Test
+        void 표시_순서가_음수면_400이다() throws Exception {
+            // given
+            UUID projectId = createProject();
+            Long rewardId = createReward(projectId);
+
+            // when & then
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/rewards/{rewardId}", projectId, rewardId)
+                            .header(USER_ID_HEADER, sellerId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"displayOrder": -1}
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void 리워드_이름만_공백이면_400이다() throws Exception {
+            // given
+            UUID projectId = createProject();
+            Long rewardId = createReward(projectId);
+
+            // when & then
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/rewards/{rewardId}", projectId, rewardId)
+                            .header(USER_ID_HEADER, sellerId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"name": "   "}
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void 옵션_이름이_공백이면_400이다() throws Exception {
+            // given
+            UUID projectId = createProject();
+            Long rewardId = createReward(projectId);
+            Long optionId = createOption(projectId, rewardId, "화이트", "SKU-BLANK-001");
+
+            // when & then
+            mockMvc.perform(patch("/api/v1/projects/{projectId}/rewards/{rewardId}/options/{optionId}",
+                            projectId, rewardId, optionId)
+                            .header(USER_ID_HEADER, sellerId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"optionName": "   "}
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void 다른_프로젝트의_리워드를_지우려_하면_404다() throws Exception {
             // given
             UUID projectId = createProject();
@@ -343,14 +393,17 @@ class ProjectApiIntegrationExceptionTest extends IntegrationTestSupport {
         return objectMapper.readTree(response).get("rewardId").asLong();
     }
 
-    private void createOption(UUID projectId, Long rewardId, String optionName, String sku) throws Exception {
-        mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options", projectId, rewardId)
+    private Long createOption(UUID projectId, Long rewardId, String optionName, String sku) throws Exception {
+        String response = mockMvc.perform(post("/api/v1/projects/{projectId}/rewards/{rewardId}/options",
+                        projectId, rewardId)
                         .header(USER_ID_HEADER, sellerId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"optionName": "%s", "sku": "%s", "initialStock": 10}
                                 """.formatted(optionName, sku)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("rewardOptionId").asLong();
     }
 
     private UUID createPendingReviewProject() throws Exception {

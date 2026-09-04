@@ -1,5 +1,9 @@
 name: CI - project-service
 
+# GITHUB_TOKEN 권한을 읽기 전용으로 최소화
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, develop]
