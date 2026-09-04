@@ -195,15 +195,15 @@ class ProjectEngagementApiIntegrationTest extends IntegrationTestSupport {
         }
 
         @Test
-        void 배송이_확인되지_않으면_422다() throws Exception {
-            // given & when & then — order-service 미연동 상태에서는 자격을 확인할 수 없어 통과시키지 않는다
+        void 자격을_확인할_수_없으면_403이다() throws Exception {
+            // given & when & then — 스텁은 소유/배송을 둘 다 false로 두므로 소유권 검사에서 403이 난다
             mockMvc.perform(post("/api/v1/projects/{projectId}/reviews", projectId)
                             .header(USER_ID_HEADER, memberId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"fundingId": 7001, "content": "잘 받았습니다"}
                                     """))
-                    .andExpect(status().isUnprocessableEntity());
+                    .andExpect(status().isForbidden());
         }
     }
 
