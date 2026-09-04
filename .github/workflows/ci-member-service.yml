@@ -1,0 +1,78 @@
+name: CI - member-service
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
+    outputs:
+      relevant: ${{ steps.filter.outputs.service == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service:
+              - 'services/member-service/**'
+              - 'modules/common/**'
+              - 'modules/common-webmvc/**'
+              - 'build.gradle'
+              - 'settings.gradle'
+              - 'gradle/**'
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
+    # DB/메시징 서비스 컨테이너를 여기서 미리 띄우지 않는다 — 통합테스트가
+    # Testcontainers로 필요한 컨테이너를 직접 관리한다(test-convention.md 기준).
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            services/member-service
+            modules/common
+            modules/common-webmvc
+            build.gradle
+            settings.gradle
+            gradlew
+            gradle
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build and Test
+        run: ./gradlew :services:member-service:clean :services:member-service:build :services:member-service:jacocoTestReport :services:member-service:jacocoTestCoverageVerification --stacktrace
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-member-service
+          path: services/member-service/build/reports/jacoco/test/html/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: member-service
+          path: services/member-service/build/libs/*[!plain].jar

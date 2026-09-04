@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: member-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
