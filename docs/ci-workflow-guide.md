@@ -53,6 +53,8 @@ jobs:
       relevant: ${{ steps.filter.outputs.service == 'true' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -78,6 +80,18 @@ jobs:
 
 - `changes` job: `contents: read`(checkout용) + `pull-requests: read`. 후자가 필요한 이유는 `dorny/paths-filter`가 `pull_request` 이벤트에서 변경 파일 목록을 GitHub REST API로 조회하기 때문입니다(공식 문서에 명시). 조직 기본 토큰 권한이 read-only로 좁혀져 있으면 `pull-requests` 스코프가 `none`일 수 있어, 명시하지 않으면 API 호출이 실패할 수 있습니다.
 - `build-and-test` job: `contents: read`(checkout용).
+
+## checkout 자격증명 — persist-credentials: false
+
+`actions/checkout`은 기본적으로 체크아웃 후 git 자격증명(임시 토큰)을 워크스페이스의 `.git/config`에 남겨둡니다. 이후 스텝(Gradle 빌드, 서드파티 액션 등— 신뢰 여부를 완전히 통제할 수 없는 코드가 포함됨)이 그 토큰에 접근할 수 있는 상태로 남는다는 뜻이라, 토큰이 유출되면 레포에 임의로 push하거나 API를 호출하는 공급망 공격 경로가 될 수 있습니다.
+
+이 CI들은 체크아웃 이후 git 인증이 필요한 작업(push 등)을 전혀 하지 않으므로, 모든 잡의 `actions/checkout`에 `persist-credentials: false`를 추가해 체크아웃 직후 자격증명을 지웁니다.
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    persist-credentials: false
+```
 
 ## DB/메시징 서비스 컨테이너: 넣지 않음 (신규 추가 시에도 CI 변경 없음)
 
@@ -156,6 +170,8 @@ jobs:
       relevant: ${{ steps.filter.outputs.service == 'true' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -180,6 +196,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           sparse-checkout: |
             services/{service}
             modules/common
