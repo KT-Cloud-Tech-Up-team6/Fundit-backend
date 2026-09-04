@@ -1,0 +1,5 @@
+dependencies {
+    // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
+    implementation project(':modules:common-webmvc')
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+}
