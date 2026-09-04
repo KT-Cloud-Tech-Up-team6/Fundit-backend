@@ -50,7 +50,10 @@ public class MemberSignupService {
 
         MemberJpaEntity member;
         try {
-            member = memberJpaRepository.save(MemberJpaEntity.builder()
+            // saveAndFlush로 즉시 INSERT를 실행해야 한다 — 기본 flush 모드에서는 save()가
+            // 실제 INSERT를 트랜잭션 커밋 시점까지 미뤄서, PK 충돌이 이 메서드가 반환된
+            // 뒤(트랜잭션 커밋 중)에야 터져 아래 catch가 잡을 수 없었다.
+            member = memberJpaRepository.saveAndFlush(MemberJpaEntity.builder()
                     .id(command.accountId())
                     .name(command.name())
                     .phoneNumber(command.phoneNumber())

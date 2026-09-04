@@ -41,7 +41,7 @@ class MemberSignupServiceUnitTest {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);
-        when(memberJpaRepository.save(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
+        when(memberJpaRepository.saveAndFlush(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
             MemberJpaEntity entity = invocation.getArgument(0);
             return MemberJpaEntity.builder()
                     .id(entity.getId()).name(entity.getName()).phoneNumber(entity.getPhoneNumber())
@@ -64,7 +64,7 @@ class MemberSignupServiceUnitTest {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);
-        when(memberJpaRepository.save(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
+        when(memberJpaRepository.saveAndFlush(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
             MemberJpaEntity entity = invocation.getArgument(0);
             return MemberJpaEntity.builder()
                     .id(entity.getId()).name(entity.getName()).phoneNumber(entity.getPhoneNumber())
@@ -86,7 +86,7 @@ class MemberSignupServiceUnitTest {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);
-        when(memberJpaRepository.save(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
+        when(memberJpaRepository.saveAndFlush(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
             MemberJpaEntity entity = invocation.getArgument(0);
             return MemberJpaEntity.builder()
                     .id(entity.getId()).name(entity.getName()).phoneNumber(entity.getPhoneNumber())

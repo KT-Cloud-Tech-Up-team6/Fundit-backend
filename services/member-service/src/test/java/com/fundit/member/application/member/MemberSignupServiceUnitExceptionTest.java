@@ -71,11 +71,11 @@ class MemberSignupServiceUnitExceptionTest {
 
     @Test
     void existsById_통과후_동시가입으로_유니크제약이_깨지면_409로_변환된다() {
-        // given: existsById 체크와 save() 사이에 동시 요청이 끼어든 상황(TOCTOU)을 흉내낸다.
+        // given: existsById 체크와 저장 사이에 동시 요청이 끼어든 상황(TOCTOU)을 흉내낸다.
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);
         doThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"))
-                .when(memberJpaRepository).save(any(MemberJpaEntity.class));
+                .when(memberJpaRepository).saveAndFlush(any(MemberJpaEntity.class));
 
         // when & then
         assertThatThrownBy(() -> memberSignupService.signup(new MemberSignupService.SignupCommand(
