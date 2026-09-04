@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,9 +70,8 @@ class MemberSignupServiceUnitTest {
                     .id(entity.getId()).name(entity.getName()).phoneNumber(entity.getPhoneNumber())
                     .createdAt(Instant.now()).updatedAt(Instant.now()).build();
         });
-        Map<String, Object> address = Map.of(
-                "recipientName", "홍길동", "phoneNumber", "01012345678", "zipcode", "12345",
-                "addressLine1", "테헤란로 1", "isDefault", true);
+        MemberSignupService.AddressPayload address = new MemberSignupService.AddressPayload(
+                "홍길동", "01012345678", "12345", "테헤란로 1", null, true);
 
         // when
         memberSignupService.signup(new MemberSignupService.SignupCommand(
@@ -84,7 +82,7 @@ class MemberSignupServiceUnitTest {
     }
 
     @Test
-    void 주소가_빈_맵이면_저장하지_않는다() {
+    void 주소에_recipientName이_없으면_저장하지_않는다() {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberJpaRepository.existsById(accountId)).thenReturn(false);
@@ -94,10 +92,12 @@ class MemberSignupServiceUnitTest {
                     .id(entity.getId()).name(entity.getName()).phoneNumber(entity.getPhoneNumber())
                     .createdAt(Instant.now()).updatedAt(Instant.now()).build();
         });
+        MemberSignupService.AddressPayload emptyAddress =
+                new MemberSignupService.AddressPayload(null, null, null, null, null, null);
 
         // when
         memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), Map.of()));
+                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), emptyAddress));
 
         // then
         verify(addressJpaRepository, org.mockito.Mockito.never()).save(any());

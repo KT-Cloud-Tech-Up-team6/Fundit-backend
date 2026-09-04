@@ -10,12 +10,12 @@ import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreemen
 import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreementJpaRepository;
 import com.fundit.member.infrastructure.terms.TermsCatalog;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -48,11 +48,18 @@ public class MemberSignupService {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "필수 약관에 동의해야 합니다.");
         }
 
-        MemberJpaEntity member = memberJpaRepository.save(MemberJpaEntity.builder()
-                .id(command.accountId())
-                .name(command.name())
-                .phoneNumber(command.phoneNumber())
-                .build());
+        MemberJpaEntity member;
+        try {
+            member = memberJpaRepository.save(MemberJpaEntity.builder()
+                    .id(command.accountId())
+                    .name(command.name())
+                    .phoneNumber(command.phoneNumber())
+                    .build());
+        } catch (DataIntegrityViolationException e) {
+            // existsById 체크 이후 동시 요청으로 인한 PK 충돌(TOCTOU) — 유니크 제약 위반을
+            // 500 대신 동일한 409로 정리한다.
+            throw new BusinessException(CommonErrorCode.CONFLICT, "이미 생성된 회원 프로필입니다.");
+        }
 
         List<TermsAgreementJpaEntity> agreements = command.agreedTerms().stream()
                 .map(this::findTerms)
@@ -65,7 +72,7 @@ public class MemberSignupService {
                 .toList();
         termsAgreementJpaRepository.saveAll(agreements);
 
-        if (command.address() != null && !command.address().isEmpty()) {
+        if (command.address() != null && command.address().recipientName() != null) {
             addressJpaRepository.save(toAddressEntity(member.getId(), command.address()));
         }
 
@@ -79,15 +86,15 @@ public class MemberSignupService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.INVALID_INPUT, "존재하지 않는 약관 코드입니다: " + code));
     }
 
-    private AddressJpaEntity toAddressEntity(UUID memberId, Map<String, Object> address) {
+    private AddressJpaEntity toAddressEntity(UUID memberId, AddressPayload address) {
         return AddressJpaEntity.builder()
                 .memberId(memberId)
-                .recipientName((String) address.get("recipientName"))
-                .phoneNumber((String) address.get("phoneNumber"))
-                .zipcode((String) address.get("zipcode"))
-                .addressLine1((String) address.get("addressLine1"))
-                .addressLine2((String) address.get("addressLine2"))
-                .isDefault(Boolean.TRUE.equals(address.get("isDefault")))
+                .recipientName(address.recipientName())
+                .phoneNumber(address.phoneNumber())
+                .zipcode(address.zipcode())
+                .addressLine1(address.addressLine1())
+                .addressLine2(address.addressLine2())
+                .isDefault(Boolean.TRUE.equals(address.isDefault()))
                 .build();
     }
 
@@ -96,10 +103,26 @@ public class MemberSignupService {
             String name,
             String phoneNumber,
             List<String> agreedTerms,
-            Map<String, Object> address
+            AddressPayload address
     ) {
     }
 
     public record SignupResult(UUID memberId, Instant createdAt) {
+    }
+
+    /**
+     * auth-service가 보내는 address는 주소 미입력 시 빈 객체({})로 오므로 필드 검증
+     * 애노테이션을 붙이지 않는다 — recipientName 존재 여부로 "실제 주소 입력됨"을 판단한다.
+     * presentation의 MemberCreateRequest가 이 타입을 그대로 JSON 역직렬화 대상으로 쓴다
+     * (Map&lt;String, Object&gt; 원시 캐스팅 제거).
+     */
+    public record AddressPayload(
+            String recipientName,
+            String phoneNumber,
+            String zipcode,
+            String addressLine1,
+            String addressLine2,
+            Boolean isDefault
+    ) {
     }
 }
