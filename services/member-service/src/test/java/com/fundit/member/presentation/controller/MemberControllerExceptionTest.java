@@ -59,6 +59,24 @@ class MemberControllerExceptionTest {
     }
 
     @Test
+    void 주소를_일부_필드만_입력하면_400을_반환한다() throws Exception {
+        // when & then (recipientName만 있고 나머지 필수 필드 누락)
+        mockMvc.perform(post("/api/v1/members")
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountId": "%s",
+                                  "name": "홍길동",
+                                  "phoneNumber": "01012345678",
+                                  "agreedTerms": ["SERVICE_USE", "PRIVACY", "AGE_OVER_14"],
+                                  "address": {"recipientName": "홍길동"}
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 잘못된_내부API키로_요청하면_401을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(post("/api/v1/members")

@@ -114,11 +114,13 @@ public class MemberSignupService {
     }
 
     /**
-     * auth-service가 보내는 address는 주소 미입력 시 빈 객체({})로 오므로 필드 검증
-     * 애노테이션을 붙이지 않는다 — recipientName 존재 여부로 "실제 주소 입력됨"을 판단한다.
-     * presentation의 MemberCreateRequest가 이 타입을 그대로 JSON 역직렬화 대상으로 쓴다
-     * (Map&lt;String, Object&gt; 원시 캐스팅 제거).
+     * auth-service가 보내는 address는 주소 미입력 시 빈 객체({})로 오므로, 필드별
+     * @NotBlank 대신 클래스 레벨 @CompleteAddress로 "비어있거나(주소 없음) 전부
+     * 채워져 있거나(주소 있음)"만 강제한다 — 부분 입력(예: recipientName만 있음)은
+     * 검증 실패로 막는다. presentation의 MemberCreateRequest가 이 타입을 그대로
+     * JSON 역직렬화 대상으로 쓴다(Map&lt;String, Object&gt; 원시 캐스팅 제거).
      */
+    @CompleteAddress
     public record AddressPayload(
             String recipientName,
             String phoneNumber,
