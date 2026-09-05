@@ -1,5 +1,7 @@
 dependencies {
     // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
     implementation project(':modules:common-webmvc')
+    // public_id(UUID v7) 생성용 — auth-service accounts.id 생성과 동일 라이브러리
+    implementation 'com.github.f4b6a3:uuid-creator:6.1.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }
