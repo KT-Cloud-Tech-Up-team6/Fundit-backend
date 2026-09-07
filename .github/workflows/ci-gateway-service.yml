@@ -1,0 +1,77 @@
+name: CI - gateway-service
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
+    outputs:
+      relevant: ${{ steps.filter.outputs.service == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service:
+              - 'platform/gateway-service/**'
+              - 'modules/common/**'
+              - 'modules/common-webmvc/**'
+              - 'build.gradle'
+              - 'settings.gradle'
+              - 'gradle/**'
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
+    # 게이트웨이는 DB가 없어 Testcontainers도 쓰지 않는다 — 테스트는 전부 순수 단위 테스트다.
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            platform/gateway-service
+            modules/common
+            modules/common-webmvc
+            build.gradle
+            settings.gradle
+            gradlew
+            gradle
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build and Test
+        run: ./gradlew :platform:gateway-service:clean :platform:gateway-service:build :platform:gateway-service:jacocoTestReport :platform:gateway-service:jacocoTestCoverageVerification --stacktrace
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-gateway-service
+          path: platform/gateway-service/build/reports/jacoco/test/html/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-service
+          path: platform/gateway-service/build/libs/*[!plain].jar
