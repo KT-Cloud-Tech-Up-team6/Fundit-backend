@@ -197,9 +197,9 @@ Response Body
 - `is_foreigner`/`di_hash`/`phone_verified_at` → **제거**. 본인인증 관련은 전부 auth-service 소관으로 이관. `phone_number`는 인증 여부와 무관하게 회원가입 시 입력값 그대로 저장.
 - `business_type`/`business_info`/`seller_verified_at` → **제거**. PRD 서비스 경계표(member-service = 프로필/모드/약관/찜/팔로우/배송지)에 판매자 심사·사업자정보가 없음 — member-service 소관 아님.
 
-## 참고 — auth-service 쪽 관련 진행 상황 (auth-service TODO 기준 2026-08-31~09-03)
+## 참고 — auth-service 쪽 관련 진행 상황 (auth-service TODO 기준 2026-08-31~09-03, 2026-09-07 갱신)
 
-- member-service가 아직 레포에 없어(코드 미착수) auth-service의 회원가입 호출은 항상 503(`DEPENDENCY_FAILURE`)으로 떨어지고 보상 트랜잭션(계정 삭제)이 실행되는 게 현재는 의도된 동작 — member-service 구현 후 AUTH-007 엔드투엔드 재검증 필요.
+- ~~member-service가 아직 레포에 없어(코드 미착수) auth-service의 회원가입 호출은 항상 503(`DEPENDENCY_FAILURE`)으로 떨어지고 보상 트랜잭션(계정 삭제)이 실행되는 게 현재는 의도된 동작~~ **→ 2026-09-07 해결됨(`feat/auth-member-sign-up#19`).** auth-service `MemberServiceRestClient`가 `InternalApiKeyFilter`가 요구하는 `X-Internal-Api-Key` 헤더를 이제 전송한다. `MemberControllerTest`의 요청 JSON이 auth-service `MemberServiceRestClientUnitTest`(짝 테스트)와 필드가 맞아야 한다는 주석을 양쪽에 추가함 — 한쪽만 계약을 바꾸면 다른 쪽 테스트가 깨지도록 의도함. 다만 두 서비스를 실제로 함께 기동해 AUTH-007을 엔드투엔드로 검증한 적은 아직 없음 — 자동화 테스트로만 계약을 고정한 상태.
 - auth-service `SignupService`의 이메일 중복 체크에 TOCTOU 이슈(동시 가입 시 409 대신 500)가 있다고 알려져 있음. member-service엔 직접 영향 없지만, 회원가입 전체 흐름 통합테스트를 짤 때 이 케이스도 함께 고려할 것.
 
 ## 정책값 확인 필요

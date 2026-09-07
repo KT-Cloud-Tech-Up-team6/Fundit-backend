@@ -19,6 +19,9 @@ jwt:
 member-service:
   base-url: ${MEMBER_SERVICE_BASE_URL}
 
+internal-api:
+  key: ${INTERNAL_API_KEY}
+
 portone:
   store-id: ${PG_STORE_ID}
   api-secret: ${PG_APIKEY}

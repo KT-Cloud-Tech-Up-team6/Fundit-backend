@@ -27,6 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * InternalApiKeyFilter/CurrentMemberArgumentResolver가 실제로 MockMvc 필터 체인·
  * 인자 리졸버로 붙는지까지 함께 검증한다(WebConfig import).
+ * 요청 JSON은 auth-service MemberServiceRestClientUnitTest(짝 테스트)와 필드가 맞아야 한다 —
+ * 한쪽만 필드명을 바꾸지 말 것.
  */
 @WebMvcTest(MemberController.class)
 @Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})

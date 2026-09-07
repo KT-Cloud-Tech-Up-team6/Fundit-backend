@@ -14,8 +14,8 @@
 - **AUTH-012/013(배치)** — 미구현, P2.
 
 ### 검증/실기동 필요
-- **member-service가 레포에 아직 없다** — `MemberServiceRestClient`는 `http://localhost:8082`로 호출하는데 대상이 없어 회원가입 시도 시 항상 503(`DEPENDENCY_FAILURE`) + 보상 트랜잭션(계정 삭제)이 실행된다(의도된 동작). member-service가 붙기 전까진 AUTH-007을 엔드투엔드로 성공시켜볼 수 없다.
-- **회원가입 전체 흐름(계정 저장 → member-service 호출 → 보상 트랜잭션/토큰 발급) 엔드투엔드 통합테스트가 없다** — 지금은 `SignupServiceTest`가 Mockito로 각 분기만 검증, 실제 Postgres 커밋/삭제까지 검증하는 Testcontainers 기반 테스트 부재.
+- ~~**member-service가 레포에 아직 없다**~~ **→ 2026-09-07 해결됨.** member-service가 붙었고, `MemberServiceRestClient`가 `X-Internal-Api-Key` 헤더를 전송하도록 수정 + `internal-api.key` 설정 추가(`feat/auth-member-sign-up#19`, member-service의 `InternalApiKeyFilter`가 이 헤더를 요구함에도 auth-service가 지금까지 보내지 않고 있던 게 원인 — 회원가입 시도 시 항상 401→503+보상 트랜잭션이었음). `MemberServiceRestClientUnitTest`/`UnitExceptionTest`로 요청 바디 계약(양쪽 서비스 테스트가 같은 JSON을 검증하도록 짝지어둠)과 401/5xx 예외 변환을 확인. 단, 두 서비스를 실제로 함께 기동해 검증한 적은 아직 없음 — 바로 아래 항목 참고.
+- **회원가입 전체 흐름(계정 저장 → member-service 호출 → 보상 트랜잭션/토큰 발급) 엔드투엔드 통합테스트가 없다** — 지금은 `SignupServiceTest`가 Mockito로 각 분기만 검증, 실제 Postgres 커밋/삭제까지 검증하는 Testcontainers 기반 테스트 부재. 두 서비스를 함께 로컬 기동해 `curl`로 1회 확인하는 것도 아직 안 함(2026-08-31 트러블슈팅 절의 "부수 발견" 참고 — 그때는 member-service가 없어 SQL로 계정을 직접 INSERT해 우회했음).
 - ~~Docker 없는 환경에서 실제 기동(Flyway 적용, `bootRun`) 미검증~~ **→ 2026-08-31 실제로 기동해서 확인함 — 그 과정에서 심각한 버그 3건을 발견·수정했다. 아래 "트러블슈팅 — 실기동 검증에서 발견한 버그 3건" 절 참고.**
 - **CI(GitHub Actions)에서 `@SpringBootTest` 계열이 실제로 통과하는지 여전히 미확인** — `application-local.yml`이 `.gitignore` 대상이라 CI 체크아웃 트리엔 없는데, 공통 `application.yml`의 `spring.profiles.active: local`은 그대로 활성화된다. `member-service.base-url`처럼 로컬/dev/prod 프로필에만 있고 공통 파일엔 기본값이 없는 `@Value` 플레이스홀더가 있는 채로 컨텍스트가 뜨면 미해석으로 실패할 수 있다(기존부터 있던 잠재 이슈). 참고: `AuthControllerTest`에서 실제로 재현된 유사 버그는 방향이 반대였다 — local 파일이 있으면 오히려 테스트가 깨지는 쪽이었음(해결됨). 즉 이 항목은 케이스마다 위험 방향이 다를 수 있어, 실제 CI 실행 로그로 직접 확인 필요.
 - **`application-prod.yml`에 이번 세션들의 변경분(`portone.*`, `spring.data.redis.*`) 반영 필요** — CLAUDE.md 규칙상 직접 수정 불가, 배포 파이프라인 쪽에서 진행.
@@ -24,7 +24,8 @@
 ### 알려진 버그 / 개선 후보
 - ~~**Refresh Token 재사용 탐지(전체 세션 무효화) 시나리오를 고정하는 자동화 테스트가 없다**~~ **→ 2026-09-03 해결됨.** PR 리뷰(@semolu99)에서 "같은 refresh token이 거의 동시에 두 번 제출되면(탈취된 토큰이 정상 로테이션과 경합하는 시나리오), 재사용 탐지의 전체 세션 무효화가 방금 로테이션된 새 토큰보다 먼저 커밋될 수 있어 그 새 세션이 살아남을 수 있다"는 구체적 인터리빙을 지적받음 — 처음엔 "정상 클라이언트 중복 제출 정도의 좁은 엣지케이스"로 심각도를 낮게 평가했으나, 재검토 결과 지적이 정확했고 "재사용 탐지 시 무조건 전체 로그아웃"이라는 보안 계약이 실제로 깨질 수 있는 문제였음을 인정. `TokenRefreshService.refresh()`에 계정 단위 pessimistic lock(`AccountRepository.lockForUpdate`)을 걸어 회전/재사용탐지/신규토큰저장을 계정 단위로 직렬화하고, `RefreshTokenJpaRepository.deleteAllByAccountId`를 `REQUIRES_NEW`로 명시해 독립 커밋을 유지. `TokenRefreshServiceConcurrencyTest`(Testcontainers)로 "동시 재사용 후 해당 계정의 refresh token이 0건"임을 회귀 테스트로 고정.
 - **`SignupService`의 이메일 중복 체크가 TOCTOU라 동시 요청 시 500이 샐 수 있다** — `existsByEmail()` 확인 후 `save()`하는 구조라, 동시에 같은 이메일로 가입 요청이 오면 하나는 성공하고 나머지 하나는 `accounts.uq_accounts_email` 유니크 제약 위반으로 `DataIntegrityViolationException`이 발생한다. 이 예외를 잡는 핸들러가 없어 의도한 409(`EMAIL_ALREADY_EXISTS`)가 아니라 500(`INTERNAL_ERROR`)으로 응답된다(트래픽 적으면 거의 안 보임). 고치려면: `AccountPersistenceAdapter.save()`(또는 `SignupService`)에서 `DataIntegrityViolationException` → `BusinessException(EMAIL_ALREADY_EXISTS)` 변환 + Testcontainers 기반 통합 예외 테스트 추가. **사용자 확정으로 이번 세션 범위에서는 수정하지 않음** — 다음 슬라이스 후보.
-- **`MemberServiceRestClient`, `AccountJpaEntity`(`@PrePersist`/`@PreUpdate`)는 여전히 약하게 커버됨** — Docker 기반 통합 테스트 없이는 완전히 검증 안 됨(전체 커버리지는 80% 기준을 넉넉히 넘음). `PortOneRestClient`에 적용한 `MockRestServiceServer` 패턴을 `MemberServiceRestClient`에도 그대로 적용하면 커버리지를 채울 수 있음(다음 슬라이스 후보).
+- ~~**`MemberServiceRestClient`가 약하게 커버됨**~~ **→ 2026-09-07 해결됨.** `PortOneRestClient`와 동일한 테스트 전용 생성자 + `MockRestServiceServer` 패턴 적용, `MemberServiceRestClientUnitTest`/`UnitExceptionTest` 추가.
+- **`AccountJpaEntity`(`@PrePersist`/`@PreUpdate`)는 여전히 약하게 커버됨** — Docker 기반 통합 테스트 없이는 완전히 검증 안 됨(전체 커버리지는 80% 기준을 넉넉히 넘음).
 
 ### 정책값 확인 필요 (가정치로 구현됨)
 - 비밀번호 복잡도 규칙(최소 8자+3종류 이상)과 토큰 수명(Access 30분/Refresh 14일)은 스펙에 구체 기준이 없어 가정한 값. 실제 정책이 다르면 `PasswordComplexityValidator`/`application-*.yml`의 `jwt.access-token-ttl`/`jwt.refresh-token-ttl`만 고치면 됨.
@@ -36,7 +37,7 @@
 
 ### 범위 변경 (원래 계획 대비)
 - **인증 방식은 커스텀 필터가 아니라 Spring Security(`spring-boot-starter-security`)**를 쓴다(작업 중 사용자 확정). Redis 의존성은 빼고, `spring-security-crypto` 대신 `spring-boot-starter-security` 전체를 사용.
-- **AUTH-001 로그인 응답에서 `member.nickname`을 생략**한다(`AuthDomainApiSpec.md` 문서 스펙과 의도적으로 다름) — member-service가 아직 레포에 없어 로그인 경로에 불필요한 동기 결합을 만들지 않기 위함(사용자 확정). 응답은 `{accessToken, mustChangePassword}`만.
+- **AUTH-001 로그인 응답에서 `member.nickname`을 생략**한다(`AuthDomainApiSpec.md` 문서 스펙과 의도적으로 다름) — 로그인 경로에 member-service로의 불필요한 동기 결합을 만들지 않기 위함(개발 판단, PM 미확인 — `docs/pm-pending-decisions.md` 참고). 응답은 `{accessToken, mustChangePassword}`만. member-service가 2026-09-07 기준 실제로 붙었지만 이 결정 자체는 재검토하지 않음(범위 밖).
 - **Refresh Token은 opaque 값이 아니라 JWT**다 — `AuthDomainApiSpec.md` AUTH-003 설명 중 "서명은 유효하지만 DB에 없는 토큰의 account_id 클레임 사용"이라는 문구를 근거로 확정. 클레임: `jti`=`refresh_tokens.token_id`, `sub`=`account_id`.
 - **`V1__init_schema.sql`의 `set_updated_at()` 트리거 참조** 버그(정의 안 된 함수 참조) — 사용자가 직접 V1에서 트리거를 제거하고 `updated_at` 갱신을 JPA 엔티티(`@PreUpdate`)가 담당하는 방향으로 확정함(`persistence-convention.md` 예시와 동일 패턴).
 
@@ -106,3 +107,14 @@
 **최종 재검증**: 위 수정을 전부 반영한 뒤 `curl`로 로그인 → 재발급(로테이션 성공, HTTP 200) → 옛 토큰 재사용(401 확인) → 방금까지 유효했던 로테이션된 토큰 재시도(**401로 정상 차단 — 전체 세션 무효화가 실제로 동작함을 확인**)까지 전 구간을 직접 확인했다. `./gradlew test`도 69개 전부 통과(Docker가 떠 있어 두 통합테스트도 스킵 없이 실제로 실행됨, JaCoCo 기준 통과). 스모크 테스트에 쓴 계정(`smoketest@fundit.com`, member-service가 없어 signup 대신 SQL로 직접 INSERT)과 `docker compose` 리소스는 검증 후 전부 정리함.
 
 **교훈**: 세 버그 전부 "단위/슬라이스 테스트는 전부 통과, 커버리지도 기준 이상"인 상태에서 실기동으로만 드러났다. 특히 버그 3은 이 서비스의 핵심 보안 요구사항이 실제로는 지켜지지 않고 있었던 경우다. 근본 원인은 두 가지: ① `@WebMvcTest`/`@InjectMocks` 기반 테스트는 실제 빈 그래프 순환이나 생성자 주입 모호성을 재현하지 못한다(전체 컨텍스트를 실제로 띄우는 테스트가 없으면 못 잡음), ② 트랜잭션 경계와 예외 처리의 상호작용(롤백이 의도한 부수효과를 지워버리는 것)은 Mockito 기반 단위 테스트로는 원천적으로 검증 불가능하고 실제 트랜잭션 매니저가 동작하는 통합 테스트가 있어야 잡힌다. 전체 컨텍스트 기동 + 실제 공격 시나리오 재현 같은 검증을 정기적으로 반복할 가치가 있다.
+
+### auth-member 회원가입 연동 (2026-09-07, `feat/auth-member-sign-up#19`)
+
+member-service가 레포에 붙은 뒤 처음으로 두 서비스 간 실제 연동 작업을 진행. 회원가입(`POST /api/v1/auth/signup` → `POST /api/v1/members`)이 지금까지 한 번도 성공한 적이 없었다는 걸 재점검 과정에서 확인 — auth-service가 member-service의 `InternalApiKeyFilter`가 요구하는 `X-Internal-Api-Key` 헤더를 아예 보내지 않고 있었다(원인: member-service가 레포에 없던 시절 만든 코드가 그대로 남아 있었음).
+
+- **`MemberServiceRestClient`에 `X-Internal-Api-Key` 헤더 추가**: `internal-api.key` 설정값을 생성자로 주입받아 `RestClient.builder().defaultHeader(...)`로 고정 전송. `application-dev.yml`/`application-local.yml`에 `internal-api.key` 추가(member-service와 값 일치 필요 — `application-local.yml`은 `.gitignore` 대상이라 팀원에게 별도 전달함). `application-prod.yml`은 CLAUDE.md 규칙상 손대지 않고 배포 파이프라인 쪽에 인수인계.
+- **테스트 가능하게 리팩터링**: `PortOneRestClient`가 쓰던 "운영용 생성자(`@Autowired`) → 테스트 전용 package-private 생성자(`RestClient` 직접 주입)" 패턴을 그대로 적용. 위 "버그 2"(생성자 모호성)를 반복하지 않기 위해 운영용 생성자에 `@Autowired`를 명시적으로 붙임.
+- **계약 테스트**: 공유 DTO 모듈을 새로 만들지 않고, `MemberServiceRestClientUnitTest`(요청 헤더/바디 JSON 검증 + 응답 `memberId` 파싱)와 member-service `MemberControllerTest`가 **같은 필드 구성의 JSON**을 검증하도록 맞추고 서로를 가리키는 주석을 달아 계약이 깨지면 양쪽 테스트가 함께 실패하도록 함. `MemberServiceRestClientUnitExceptionTest`로 401/5xx → `DependencyFailureException` 변환도 확인. 응답 JSON의 `nickname`/`isSeller`/`isBuyer`/`createdAt` 필드는 `MemberProfile` 레코드가 `memberId`만 가지고 있어 정상 무시됨을 확인(테스트에서 그 필드들을 아예 안 보내는 방식으로 검증 — 클라이언트 쪽 미지정 Jackson `ObjectMapper`가 알 수 없는 필드에 예외를 던질 수 있어 리스크를 피함).
+- **보상 트랜잭션 경로는 이미 커버돼 있었음** — `SignupServiceUnitExceptionTest`의 `member_service_호출이_실패하면_계정을_삭제하고_예외를_그대로_전파한다`가 기존에 이미 이 케이스를 검증하고 있어 추가 작업 없음.
+- **범위 밖으로 명시적으로 남긴 것**: 게이트웨이/JWT 헤더 주입(별도 이슈), AUTH-009/소셜가입/탈퇴 흐름/PII 암호화(이미 PM이 후순위 확정했거나 스펙 자체가 없음, 이번 세션에 재검토해서 확인함), 로그인 응답 `member.nickname` 복원(건드리면 로그인 경로에 새 동기 결합이 생김 — 위 "범위 변경" 절 참고).
+- 두 서비스를 실제로 함께 기동해 `curl`로 확인하는 절차는 이번엔 수행하지 않음(선택 사항으로 남겨둠) — 위 "남은 것 > 검증/실기동 필요" 참고.

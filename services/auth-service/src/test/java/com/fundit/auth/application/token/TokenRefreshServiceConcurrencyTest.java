@@ -33,11 +33,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+// jwt.secret/member-service.base-url/internal-api.key를 고정하는 이유: CI 체크아웃 트리엔
+// application-local.yml이 없어(.gitignore 대상) 이 값들이 미해석 상태로 컨텍스트 로딩이
+// PlaceholderResolutionException으로 실패한다(CI에서 재현됨).
 @TestPropertySource(properties = {
         "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
         "jwt.access-token-ttl=30m",
         "jwt.refresh-token-ttl=14d",
-        "member-service.base-url=http://localhost:8082"
+        "member-service.base-url=http://localhost:8082",
+        "internal-api.key=test-only-internal-api-key"
 })
 class TokenRefreshServiceConcurrencyTest {
 
