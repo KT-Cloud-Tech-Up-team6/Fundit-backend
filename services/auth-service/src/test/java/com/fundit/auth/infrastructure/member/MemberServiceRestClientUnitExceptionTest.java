@@ -43,7 +43,7 @@ class MemberServiceRestClientUnitExceptionTest {
     }
 
     @Test
-    void member_service가_5xx를_반환하면_DependencyFailureException으로_감싼다() {
+    void MemberService가_5xx를_반환하면_DependencyFailureException으로_감싼다() {
         // given
         RestClient.Builder builder = RestClient.builder()
                 .baseUrl("http://localhost:8082")
