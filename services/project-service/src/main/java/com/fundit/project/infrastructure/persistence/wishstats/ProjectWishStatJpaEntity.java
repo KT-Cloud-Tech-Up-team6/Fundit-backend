@@ -11,9 +11,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 단순 애그리거트 — member-service가 발행하는 ProjectWished/ProjectUnwished 이벤트를 구독해
- * 채우는 읽기 모델(PROJECT-016). FundingStatusSnapshotJpaEntity와 동일한 이유로 현재는
- * 구독자가 없어 값이 없으면 0으로 조회된다.
+ * 단순 애그리거트 — member-service가 발행하는 ProjectWished/ProjectUnwished 이벤트를
+ * {@code ProjectWishStatsEventSubscriber}가 구독해 채우는 읽기 모델(PROJECT-016).
+ * 행이 없으면 조회 시 0으로 본다.
  */
 @Getter
 @Entity

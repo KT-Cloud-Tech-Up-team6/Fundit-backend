@@ -52,9 +52,7 @@ public class NoticeService {
 
     @Transactional
     public ProjectNoticeCommentJpaEntity createComment(UUID memberId, Long noticeId, String content) {
-        if (!noticeJpaRepository.existsById(noticeId)) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        }
+        requirePublicNotice(noticeId);
         return commentJpaRepository.save(ProjectNoticeCommentJpaEntity.builder()
                 .noticeId(noticeId)
                 .memberId(memberId)
@@ -64,9 +62,7 @@ public class NoticeService {
 
     @Transactional(readOnly = true)
     public Page<ProjectNoticeCommentJpaEntity> listComments(Long noticeId, Pageable pageable) {
-        if (!noticeJpaRepository.existsById(noticeId)) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        }
+        requirePublicNotice(noticeId);
         return commentJpaRepository.findByNoticeIdAndDeletedAtIsNull(noticeId, withCreatedAtDesc(pageable));
     }
 
@@ -74,6 +70,15 @@ public class NoticeService {
         return pageable.getSort().isSorted() ? pageable
                 : org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
                         Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    /** 공개 목록과 동일 — 새소식 없음/소속 프로젝트 비공개는 존재 여부를 구분하지 않고 404. */
+    private void requirePublicNotice(Long noticeId) {
+        ProjectNoticeJpaEntity notice = noticeJpaRepository.findById(noticeId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        projectRepository.findById(notice.getProjectId())
+                .filter(Project::isPublic)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 
     private Project loadOwnedProject(UUID sellerId, UUID projectPublicId) {

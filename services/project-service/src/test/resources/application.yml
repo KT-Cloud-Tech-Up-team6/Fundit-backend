@@ -1,0 +1,10 @@
+spring:
+  profiles:
+    active: test
+  datasource:
+    url: jdbc:postgresql://localhost/unused
+    username: test
+    password: test
+
+reward-event-outbox:
+  worker-enabled: false

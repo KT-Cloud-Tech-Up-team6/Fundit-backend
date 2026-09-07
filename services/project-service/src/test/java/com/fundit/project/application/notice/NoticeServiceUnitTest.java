@@ -78,10 +78,10 @@ class NoticeServiceUnitTest {
     }
 
     @Test
-    void 댓글을_등록한다() {
+    void 공개_프로젝트_새소식에_댓글을_등록한다() {
         // given
         UUID memberId = UUID.randomUUID();
-        when(noticeJpaRepository.existsById(1L)).thenReturn(true);
+        stubPublicNotice(1L);
         when(commentJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
@@ -93,9 +93,9 @@ class NoticeServiceUnitTest {
     }
 
     @Test
-    void 댓글_목록을_조회한다() {
+    void 공개_프로젝트_새소식의_댓글_목록을_조회한다() {
         // given
-        when(noticeJpaRepository.existsById(1L)).thenReturn(true);
+        stubPublicNotice(1L);
         when(commentJpaRepository.findByNoticeIdAndDeletedAtIsNull(anyLong(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
@@ -104,5 +104,12 @@ class NoticeServiceUnitTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    private void stubPublicNotice(Long noticeId) {
+        ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
+                .id(noticeId).projectId(1L).noticeType("FAQ").title("제목").content("내용").build();
+        when(noticeJpaRepository.findById(noticeId)).thenReturn(Optional.of(notice));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(publicProject(UUID.randomUUID(), UUID.randomUUID())));
     }
 }

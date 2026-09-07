@@ -76,13 +76,9 @@ public class CommunityService {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
 
+        answerJpaRepository.upsert(postId, sellerId, content);
         return answerJpaRepository.findByPostId(postId)
-                .map(existing -> {
-                    existing.changeContent(content);
-                    return answerJpaRepository.save(existing);
-                })
-                .orElseGet(() -> answerJpaRepository.save(CommunityAnswerJpaEntity.builder()
-                        .postId(postId).sellerId(sellerId).content(content).build()));
+                .orElseThrow(() -> new IllegalStateException("답변 UPSERT 이후 행을 찾지 못했습니다. postId=" + postId));
     }
 
     public record CommunityPostView(

@@ -94,4 +94,23 @@ class CommunityServiceUnitExceptionTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
     }
+
+    @Test
+    void UPSERT_이후_행을_찾지_못하면_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        CommunityPostJpaEntity post = CommunityPostJpaEntity.builder()
+                .id(7001L).projectId(1L).memberId(UUID.randomUUID()).postType("QUESTION")
+                .content("질문").createdAt(Instant.now()).build();
+        Project project = Project.builder()
+                .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.ONGOING)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(postJpaRepository.findById(7001L)).thenReturn(Optional.of(post));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(answerJpaRepository.findByPostId(7001L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> communityService.upsertAnswer(sellerId, 7001L, "답변"))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

@@ -138,9 +138,14 @@ class ProjectUnitTest {
     class 심사_제출 {
 
         @Test
-        void DRAFT면_PENDING_REVIEW로_전환된다() {
+        void 필수항목이_완료된_DRAFT면_PENDING_REVIEW로_전환된다() {
             // given
-            Project project = draftProject();
+            Project project = draftProject().toBuilder()
+                    .businessType(BusinessType.SOLE)
+                    .categoryMajor("테크·가전").categoryMinor("생활가전")
+                    .title("제목").goalAmount(1_000_000L)
+                    .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "본문")))
+                    .build();
 
             // when
             project.submit();

@@ -3,8 +3,8 @@ package com.fundit.project.presentation.controller;
 import com.fundit.project.application.ai.FundingStoryService;
 import com.fundit.project.domain.aifundingstory.FundingStoryAnswer;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
+import com.fundit.project.domain.aifundingstory.FundingStorySession;
 import com.fundit.project.domain.project.Project;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaEntity;
 import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.FundingStoryAdditionalQuestionResponse;
 import com.fundit.project.presentation.dto.FundingStoryApplyRequest;
@@ -48,15 +48,15 @@ public class FundingStoryController {
         List<FundingStoryAnswer> answers = request.answers() == null ? null : request.answers().stream()
                 .map(a -> new FundingStoryAnswer(a.questionId(), a.answer()))
                 .toList();
-        AiFundingStorySessionJpaEntity session = fundingStoryService.createSession(
+        FundingStorySession session = fundingStoryService.createSession(
                 sellerId, projectId, request.productDescription(), request.productImageUrls(), answers);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(new FundingStorySessionCreateResponse(session.getId(), session.getStatus()));
+                .body(new FundingStorySessionCreateResponse(session.getId(), session.getStatus().name()));
     }
 
     @GetMapping("/ai/funding-story/sessions/{sessionId}")
     public FundingStorySessionResponse getSession(@CurrentMember UUID sellerId, @PathVariable UUID sessionId) {
-        AiFundingStorySessionJpaEntity session = fundingStoryService.getSession(sellerId, sessionId);
+        FundingStorySession session = fundingStoryService.getSession(sellerId, sessionId);
         return toResponse(session);
     }
 
@@ -70,7 +70,7 @@ public class FundingStoryController {
         return new FundingStoryApplyResponse(project.getPublicId(), project.getUpdatedAt());
     }
 
-    private FundingStorySessionResponse toResponse(AiFundingStorySessionJpaEntity session) {
+    private FundingStorySessionResponse toResponse(FundingStorySession session) {
         List<FundingStoryAdditionalQuestionResponse> additionalQuestions = session.getAdditionalQuestions() == null
                 ? List.of()
                 : session.getAdditionalQuestions().stream()
@@ -82,6 +82,6 @@ public class FundingStoryController {
                 result.imagesSource().stream().map(i -> new FundingStoryImageSourceResponse(i.url(), i.source())).toList(),
                 result.warnings().stream().map(w -> new FundingStoryWarningResponse(w.field(), w.reason())).toList());
 
-        return new FundingStorySessionResponse(session.getId(), session.getStatus(), additionalQuestions, resultResponse);
+        return new FundingStorySessionResponse(session.getId(), session.getStatus().name(), additionalQuestions, resultResponse);
     }
 }

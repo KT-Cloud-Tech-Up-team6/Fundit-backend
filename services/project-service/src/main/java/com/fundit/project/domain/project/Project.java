@@ -93,7 +93,7 @@ public class Project {
 
     /** 필수 작성 항목이 모두 채워진 DRAFT 상태에서만 심사 제출 가능. */
     public void submit() {
-        if (status != ProjectStatus.DRAFT) {
+        if (status != ProjectStatus.DRAFT || !hasCompletedBasicInfo() || !hasStory()) {
             throw new BusinessException(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
         }
         this.status = ProjectStatus.PENDING_REVIEW;

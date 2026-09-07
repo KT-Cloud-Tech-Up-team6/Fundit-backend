@@ -9,8 +9,8 @@ import com.fundit.project.domain.fundingstatus.RewardStat;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaEntity;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaRepository;
+import com.fundit.project.infrastructure.persistence.aifundingstory.FundingStorySessionJpaEntity;
+import com.fundit.project.infrastructure.persistence.aifundingstory.FundingStorySessionJpaRepository;
 import com.fundit.project.infrastructure.persistence.fundingstatus.FundingStatusSnapshotJpaEntity;
 import com.fundit.project.infrastructure.persistence.fundingstatus.FundingStatusSnapshotJpaRepository;
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaEntity;
@@ -51,7 +51,7 @@ class ExtendedSlicePersistenceIntegrationTest {
     @Autowired
     private LiveVerificationJpaRepository liveVerificationJpaRepository;
     @Autowired
-    private AiFundingStorySessionJpaRepository sessionJpaRepository;
+    private FundingStorySessionJpaRepository sessionJpaRepository;
     @Autowired
     private FundingStatusSnapshotJpaRepository fundingStatusSnapshotJpaRepository;
     @Autowired
@@ -89,22 +89,24 @@ class ExtendedSlicePersistenceIntegrationTest {
                 List.of(new FundingStoryImageSource("http://img1.jpg", "UPLOADED")),
                 List.of(new FundingStoryWarning("body", "근거 없는 주장으로 식별됨")));
 
-        AiFundingStorySessionJpaEntity session = AiFundingStorySessionJpaEntity.builder()
+        FundingStorySessionJpaEntity session = FundingStorySessionJpaEntity.builder()
                 .id(UuidCreator.getTimeOrderedEpoch())
                 .projectId(projectId)
                 .sellerId(sellerId)
                 .productDescription("캠핑용 프라이팬")
                 .productImageUrls(List.of("http://img1.jpg"))
                 .answers(List.of(new FundingStoryAnswer("Q1", "캠핑 초보자입니다.")))
+                .status("COMPLETED")
+                .result(result)
+                .additionalQuestions(List.of())
                 .build();
-        session.completeWith(result, List.of());
 
         // when
-        AiFundingStorySessionJpaEntity saved = sessionJpaRepository.save(session);
-        AiFundingStorySessionJpaEntity reloaded = sessionJpaRepository.findById(saved.getId()).orElseThrow();
+        FundingStorySessionJpaEntity saved = sessionJpaRepository.save(session);
+        FundingStorySessionJpaEntity reloaded = sessionJpaRepository.findById(saved.getId()).orElseThrow();
 
         // then
-        assertThat(reloaded.getStatus()).isEqualTo(AiFundingStorySessionJpaEntity.STATUS_COMPLETED);
+        assertThat(reloaded.getStatus()).isEqualTo("COMPLETED");
         assertThat(reloaded.getAnswers()).containsExactly(new FundingStoryAnswer("Q1", "캠핑 초보자입니다."));
         assertThat(reloaded.getResult().sections()).hasSize(1);
         assertThat(reloaded.getResult().sections().get(0).body()).isEqualTo("본문");

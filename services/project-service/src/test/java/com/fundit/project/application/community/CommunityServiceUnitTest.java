@@ -111,45 +111,25 @@ class CommunityServiceUnitTest {
     class 답변_등록 {
 
         @Test
-        void 답변이_없으면_새로_생성한다() {
+        void 판매자가_답변을_등록하면_UPSERT_후_저장된_답변을_반환한다() {
             // given
             UUID sellerId = UUID.randomUUID();
             CommunityPostJpaEntity post = CommunityPostJpaEntity.builder()
                     .id(7001L).projectId(1L).memberId(UUID.randomUUID()).postType("QUESTION")
                     .content("질문").createdAt(Instant.now()).build();
             Project project = publicProject(sellerId, UUID.randomUUID());
+            CommunityAnswerJpaEntity saved = CommunityAnswerJpaEntity.builder()
+                    .id(1L).postId(7001L).sellerId(sellerId).content("답변입니다").build();
             when(postJpaRepository.findById(7001L)).thenReturn(Optional.of(post));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-            when(answerJpaRepository.findByPostId(7001L)).thenReturn(Optional.empty());
-            when(answerJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            when(answerJpaRepository.findByPostId(7001L)).thenReturn(Optional.of(saved));
 
             // when
             CommunityAnswerJpaEntity result = communityService.upsertAnswer(sellerId, 7001L, "답변입니다");
 
             // then
+            org.mockito.Mockito.verify(answerJpaRepository).upsert(7001L, sellerId, "답변입니다");
             assertThat(result.getContent()).isEqualTo("답변입니다");
-        }
-
-        @Test
-        void 기존_답변이_있으면_내용을_수정한다() {
-            // given
-            UUID sellerId = UUID.randomUUID();
-            CommunityPostJpaEntity post = CommunityPostJpaEntity.builder()
-                    .id(7001L).projectId(1L).memberId(UUID.randomUUID()).postType("QUESTION")
-                    .content("질문").createdAt(Instant.now()).build();
-            Project project = publicProject(sellerId, UUID.randomUUID());
-            CommunityAnswerJpaEntity existing = CommunityAnswerJpaEntity.builder()
-                    .id(1L).postId(7001L).sellerId(sellerId).content("기존답변").build();
-            when(postJpaRepository.findById(7001L)).thenReturn(Optional.of(post));
-            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-            when(answerJpaRepository.findByPostId(7001L)).thenReturn(Optional.of(existing));
-            when(answerJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-            // when
-            CommunityAnswerJpaEntity result = communityService.upsertAnswer(sellerId, 7001L, "수정된답변");
-
-            // then
-            assertThat(result.getContent()).isEqualTo("수정된답변");
         }
     }
 }

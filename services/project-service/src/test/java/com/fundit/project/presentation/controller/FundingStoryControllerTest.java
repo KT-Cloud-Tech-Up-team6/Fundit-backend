@@ -3,9 +3,10 @@ package com.fundit.project.presentation.controller;
 import com.fundit.project.application.ai.FundingStoryService;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
 import com.fundit.project.domain.aifundingstory.FundingStorySection;
+import com.fundit.project.domain.aifundingstory.FundingStorySession;
+import com.fundit.project.domain.aifundingstory.FundingStorySessionStatus;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaEntity;
 import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
 import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
 import com.fundit.project.infrastructure.security.WebConfig;
@@ -46,9 +47,9 @@ class FundingStoryControllerTest {
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        AiFundingStorySessionJpaEntity session = AiFundingStorySessionJpaEntity.builder()
+        FundingStorySession session = FundingStorySession.builder()
                 .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(AiFundingStorySessionJpaEntity.STATUS_COMPLETED).build();
+                .status(FundingStorySessionStatus.COMPLETED).build();
         when(fundingStoryService.createSession(eq(sellerId), eq(projectId), eq("설명"), any(), any())).thenReturn(session);
 
         // when & then
@@ -67,9 +68,9 @@ class FundingStoryControllerTest {
         UUID sessionId = UUID.randomUUID();
         FundingStoryResult result = new FundingStoryResult(
                 List.of(new FundingStorySection("INTRO", "제목", "본문", List.of())), List.of(), List.of());
-        AiFundingStorySessionJpaEntity session = AiFundingStorySessionJpaEntity.builder()
+        FundingStorySession session = FundingStorySession.builder()
                 .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(AiFundingStorySessionJpaEntity.STATUS_COMPLETED).result(result).additionalQuestions(List.of()).build();
+                .status(FundingStorySessionStatus.COMPLETED).result(result).additionalQuestions(List.of()).build();
         when(fundingStoryService.getSession(sellerId, sessionId)).thenReturn(session);
 
         // when & then

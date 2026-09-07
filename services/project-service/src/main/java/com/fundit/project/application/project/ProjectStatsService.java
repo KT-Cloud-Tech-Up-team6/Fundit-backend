@@ -47,6 +47,20 @@ public class ProjectStatsService {
                 openNotifyCount, wishCount, rewardStats, remainingDays, lastSyncedAt);
     }
 
+    @Transactional
+    public void applyProjectWished(Long projectId, UUID memberId) {
+        if (wishStatJpaRepository.insertMemberIfAbsent(projectId, memberId) > 0) {
+            wishStatJpaRepository.incrementOrCreate(projectId);
+        }
+    }
+
+    @Transactional
+    public void applyProjectUnwished(Long projectId, UUID memberId) {
+        if (wishStatJpaRepository.deleteMember(projectId, memberId) > 0) {
+            wishStatJpaRepository.decrementIfPresent(projectId);
+        }
+    }
+
     @Transactional(readOnly = true)
     public WishStatsView getWishStats(UUID sellerId, UUID projectPublicId) {
         Project project = loadOwnedProject(sellerId, projectPublicId);

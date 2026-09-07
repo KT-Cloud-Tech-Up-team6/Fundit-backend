@@ -8,6 +8,7 @@ import com.fundit.project.infrastructure.persistence.fundingstatus.FundingStatus
 import com.fundit.project.infrastructure.persistence.opennotify.ProjectOpenNotifyRequestJpaRepository;
 import com.fundit.project.infrastructure.persistence.wishstats.ProjectWishStatJpaEntity;
 import com.fundit.project.infrastructure.persistence.wishstats.ProjectWishStatJpaRepository;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,6 +20,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -97,5 +100,61 @@ class ProjectStatsServiceUnitTest {
         // then
         assertThat(result.wishCount()).isEqualTo(210);
         assertThat(result.openNotifyCount()).isEqualTo(40L);
+    }
+
+    @Nested
+    class 찜_이벤트 {
+
+        @Test
+        void 처음_찜하면_카운트를_올린다() {
+            // given
+            UUID memberId = UUID.randomUUID();
+            when(wishStatJpaRepository.insertMemberIfAbsent(1L, memberId)).thenReturn(1);
+
+            // when
+            projectStatsService.applyProjectWished(1L, memberId);
+
+            // then
+            verify(wishStatJpaRepository).incrementOrCreate(1L);
+        }
+
+        @Test
+        void 같은_회원_찜_이벤트는_카운트를_다시_올리지_않는다() {
+            // given
+            UUID memberId = UUID.randomUUID();
+            when(wishStatJpaRepository.insertMemberIfAbsent(1L, memberId)).thenReturn(0);
+
+            // when
+            projectStatsService.applyProjectWished(1L, memberId);
+
+            // then
+            verify(wishStatJpaRepository, never()).incrementOrCreate(1L);
+        }
+
+        @Test
+        void 찜을_해제하면_카운트를_내린다() {
+            // given
+            UUID memberId = UUID.randomUUID();
+            when(wishStatJpaRepository.deleteMember(1L, memberId)).thenReturn(1);
+
+            // when
+            projectStatsService.applyProjectUnwished(1L, memberId);
+
+            // then
+            verify(wishStatJpaRepository).decrementIfPresent(1L);
+        }
+
+        @Test
+        void 이미_해제된_찜_이벤트는_카운트를_내리지_않는다() {
+            // given
+            UUID memberId = UUID.randomUUID();
+            when(wishStatJpaRepository.deleteMember(1L, memberId)).thenReturn(0);
+
+            // when
+            projectStatsService.applyProjectUnwished(1L, memberId);
+
+            // then
+            verify(wishStatJpaRepository, never()).decrementIfPresent(1L);
+        }
     }
 }

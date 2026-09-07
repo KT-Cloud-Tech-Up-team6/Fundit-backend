@@ -47,6 +47,18 @@ class ProjectUnitExceptionTest {
     }
 
     @Test
+    void 필수항목이_미완료인_DRAFT는_제출할_수_없다() {
+        // given
+        Project project = draftProject();
+
+        // when & then
+        assertThatThrownBy(project::submit)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
+    }
+
+    @Test
     void DRAFT가_아니면_제출할_수_없다() {
         // given
         Project project = draftProject().toBuilder().status(ProjectStatus.PENDING_REVIEW).build();

@@ -5,12 +5,12 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.domain.aifundingstory.FundingStoryAnswer;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
 import com.fundit.project.domain.aifundingstory.FundingStorySection;
+import com.fundit.project.domain.aifundingstory.FundingStorySession;
+import com.fundit.project.domain.aifundingstory.FundingStorySessionRepository;
 import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaEntity;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaRepository;
 import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,7 +27,7 @@ import java.util.UUID;
 public class FundingStoryService {
 
     private final ProjectRepository projectRepository;
-    private final AiFundingStorySessionJpaRepository sessionJpaRepository;
+    private final FundingStorySessionRepository sessionRepository;
     private final FundingStoryAiClient fundingStoryAiClient;
 
     /**
@@ -37,34 +37,29 @@ public class FundingStoryService {
      * 붙으면 그 시점에 재요청 차단 로직을 추가한다.
      */
     @Transactional
-    public AiFundingStorySessionJpaEntity createSession(UUID sellerId, UUID projectPublicId,
-                                                         String productDescription, List<String> productImageUrls,
-                                                         List<FundingStoryAnswer> answers) {
+    public FundingStorySession createSession(UUID sellerId, UUID projectPublicId,
+                                              String productDescription, List<String> productImageUrls,
+                                              List<FundingStoryAnswer> answers) {
         Project project = loadOwnedProject(sellerId, projectPublicId);
 
-        AiFundingStorySessionJpaEntity session = sessionJpaRepository.save(AiFundingStorySessionJpaEntity.builder()
-                .id(UuidCreator.getTimeOrderedEpoch())
-                .projectId(project.getId())
-                .sellerId(sellerId)
-                .productDescription(productDescription)
-                .productImageUrls(productImageUrls)
-                .answers(answers)
-                .build());
+        FundingStorySession session = sessionRepository.save(FundingStorySession.create(
+                UuidCreator.getTimeOrderedEpoch(), project.getId(), sellerId,
+                productDescription, productImageUrls, answers));
 
         FundingStoryResult result = fundingStoryAiClient.generate(productDescription, productImageUrls, answers);
         session.completeWith(result, List.of());
-        return sessionJpaRepository.save(session);
+        return sessionRepository.save(session);
     }
 
     @Transactional(readOnly = true)
-    public AiFundingStorySessionJpaEntity getSession(UUID sellerId, UUID sessionId) {
+    public FundingStorySession getSession(UUID sellerId, UUID sessionId) {
         return loadOwnedSession(sellerId, sessionId);
     }
 
     @Transactional
     public Project applyToProject(UUID sellerId, UUID sessionId, String mode, Map<String, String> editsBySectionType) {
-        AiFundingStorySessionJpaEntity session = loadOwnedSession(sellerId, sessionId);
-        if (!AiFundingStorySessionJpaEntity.STATUS_COMPLETED.equals(session.getStatus())) {
+        FundingStorySession session = loadOwnedSession(sellerId, sessionId);
+        if (!session.isCompleted()) {
             throw new BusinessException(CommonErrorCode.BUSINESS_RULE_VIOLATION, "생성이 아직 완료되지 않았습니다.");
         }
 
@@ -99,10 +94,10 @@ public class FundingStoryService {
         return blocks;
     }
 
-    private AiFundingStorySessionJpaEntity loadOwnedSession(UUID sellerId, UUID sessionId) {
-        AiFundingStorySessionJpaEntity session = sessionJpaRepository.findById(sessionId)
+    private FundingStorySession loadOwnedSession(UUID sellerId, UUID sessionId) {
+        FundingStorySession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        if (!session.getSellerId().equals(sellerId)) {
+        if (!session.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
         return session;

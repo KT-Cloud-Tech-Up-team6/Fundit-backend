@@ -21,22 +21,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 단순 애그리거트(persistence-convention.md §2) — 상태(GENERATING/COMPLETED/FAILED)는 있지만
- * 이 슬라이스에서는 목(mock) 생성기가 동기적으로 즉시 완료 처리하므로 복잡한 전이 규칙이 없다.
- * 실제 외부 AI 비동기 연동이 붙으면 그때 복잡 애그리거트로 전환을 검토한다.
- */
+/** DB 컬럼 매핑 전용. 상태 전이는 {@code FundingStorySession} 도메인이 담당한다. */
 @Getter
 @Entity
 @Builder
 @Table(name = "ai_funding_story_sessions")
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AiFundingStorySessionJpaEntity {
-
-    public static final String STATUS_GENERATING = "GENERATING";
-    public static final String STATUS_COMPLETED = "COMPLETED";
-    public static final String STATUS_FAILED = "FAILED";
+public class FundingStorySessionJpaEntity {
 
     @Id
     private UUID id;
@@ -80,21 +72,10 @@ public class AiFundingStorySessionJpaEntity {
         Instant now = Instant.now();
         if (this.createdAt == null) this.createdAt = now;
         if (this.updatedAt == null) this.updatedAt = now;
-        if (this.status == null) this.status = STATUS_GENERATING;
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = Instant.now();
-    }
-
-    public void completeWith(FundingStoryResult result, List<FundingStoryAdditionalQuestion> additionalQuestions) {
-        this.result = result;
-        this.additionalQuestions = additionalQuestions;
-        this.status = STATUS_COMPLETED;
-    }
-
-    public void fail() {
-        this.status = STATUS_FAILED;
     }
 }

@@ -6,6 +6,7 @@ import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeCommentJpaRepository;
+import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeJpaEntity;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,12 +70,58 @@ class NoticeServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_새소식에_댓글등록시_404_예외가_발생한다() {
         // given
-        when(noticeJpaRepository.existsById(99L)).thenReturn(false);
+        when(noticeJpaRepository.findById(99L)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> noticeService.createComment(UUID.randomUUID(), 99L, "내용"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void 존재하지_않는_새소식의_댓글목록조회는_404를_반환한다() {
+        // given
+        when(noticeJpaRepository.findById(99L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> noticeService.listComments(99L, PageRequest.of(0, 20)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void 비공개_프로젝트_새소식에_댓글등록시_404_예외가_발생한다() {
+        // given
+        stubPrivateNotice(1L);
+
+        // when & then
+        assertThatThrownBy(() -> noticeService.createComment(UUID.randomUUID(), 1L, "내용"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void 비공개_프로젝트_새소식의_댓글목록조회는_404를_반환한다() {
+        // given
+        stubPrivateNotice(1L);
+
+        // when & then
+        assertThatThrownBy(() -> noticeService.listComments(1L, PageRequest.of(0, 20)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    private void stubPrivateNotice(Long noticeId) {
+        ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
+                .id(noticeId).projectId(1L).noticeType("FAQ").title("제목").content("내용").build();
+        Project project = Project.builder()
+                .id(1L).publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(noticeJpaRepository.findById(noticeId)).thenReturn(Optional.of(notice));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
     }
 }

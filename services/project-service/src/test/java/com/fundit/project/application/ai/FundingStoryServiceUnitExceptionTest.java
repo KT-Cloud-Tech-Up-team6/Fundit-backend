@@ -2,8 +2,9 @@ package com.fundit.project.application.ai;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaEntity;
-import com.fundit.project.infrastructure.persistence.aifundingstory.AiFundingStorySessionJpaRepository;
+import com.fundit.project.domain.aifundingstory.FundingStorySession;
+import com.fundit.project.domain.aifundingstory.FundingStorySessionRepository;
+import com.fundit.project.domain.aifundingstory.FundingStorySessionStatus;
 import com.fundit.project.domain.project.ProjectRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +25,7 @@ class FundingStoryServiceUnitExceptionTest {
     @Mock
     private ProjectRepository projectRepository;
     @Mock
-    private AiFundingStorySessionJpaRepository sessionJpaRepository;
+    private FundingStorySessionRepository sessionRepository;
     @Mock
     private FundingStoryAiClient fundingStoryAiClient;
 
@@ -35,10 +36,10 @@ class FundingStoryServiceUnitExceptionTest {
     void 타인_세션을_조회하면_403_예외가_발생한다() {
         // given
         UUID sessionId = UUID.randomUUID();
-        AiFundingStorySessionJpaEntity session = AiFundingStorySessionJpaEntity.builder()
+        FundingStorySession session = FundingStorySession.builder()
                 .id(sessionId).projectId(1L).sellerId(UUID.randomUUID()).productDescription("설명")
-                .status(AiFundingStorySessionJpaEntity.STATUS_COMPLETED).build();
-        when(sessionJpaRepository.findById(sessionId)).thenReturn(Optional.of(session));
+                .status(FundingStorySessionStatus.COMPLETED).build();
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 
         // when & then
         assertThatThrownBy(() -> fundingStoryService.getSession(UUID.randomUUID(), sessionId))
@@ -52,10 +53,10 @@ class FundingStoryServiceUnitExceptionTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        AiFundingStorySessionJpaEntity session = AiFundingStorySessionJpaEntity.builder()
+        FundingStorySession session = FundingStorySession.builder()
                 .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(AiFundingStorySessionJpaEntity.STATUS_GENERATING).build();
-        when(sessionJpaRepository.findById(sessionId)).thenReturn(Optional.of(session));
+                .status(FundingStorySessionStatus.GENERATING).build();
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 
         // when & then
         assertThatThrownBy(() -> fundingStoryService.applyToProject(sellerId, sessionId, "OVERWRITE", Map.of()))
