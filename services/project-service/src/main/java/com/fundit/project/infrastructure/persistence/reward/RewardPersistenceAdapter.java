@@ -27,6 +27,9 @@ public class RewardPersistenceAdapter implements RewardRepository {
     @Override
     @Transactional
     public void replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups) {
+        if (rewardJpaRepository.findByIdForUpdate(rewardId).isEmpty()) {
+            return;
+        }
         for (RewardOptionGroupJpaEntity existingGroup : optionGroupJpaRepository.findByRewardId(rewardId)) {
             optionValueJpaRepository.deleteByOptionGroupId(existingGroup.getId());
         }
