@@ -12,19 +12,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtTokenProviderUnitExceptionTest {
 
-    private JwtTokenProvider provider(String secret, Duration accessTtl) {
-        JwtProperties properties = new JwtProperties();
-        properties.setSecret(secret);
-        properties.setAccessTokenTtl(accessTtl);
-        properties.setRefreshTokenTtl(Duration.ofDays(14));
-        return new JwtTokenProvider(properties);
+    private JwtTokenProvider provider(Duration accessTtl) {
+        return JwtTestKeys.provider(JwtTestKeys.PRIVATE_KEY, accessTtl);
     }
 
     @Test
-    void 서명이_다른_키로_발급된_토큰이면_TOKEN_INVALID_예외가_발생한다() {
+    void 다른_키페어로_발급된_토큰이면_TOKEN_INVALID_예외가_발생한다() {
         // given
-        JwtTokenProvider issuer = provider("issuer-secret-key-at-least-32-bytes-long!!!", Duration.ofMinutes(30));
-        JwtTokenProvider verifier = provider("verifier-secret-key-at-least-32-bytes-long!", Duration.ofMinutes(30));
+        JwtTokenProvider issuer = JwtTestKeys.provider(JwtTestKeys.OTHER_PRIVATE_KEY, Duration.ofMinutes(30));
+        JwtTokenProvider verifier = provider(Duration.ofMinutes(30));
         String token = issuer.issueAccessToken(UUID.randomUUID(), Role.MEMBER);
 
         // when & then
@@ -37,7 +33,7 @@ class JwtTokenProviderUnitExceptionTest {
     @Test
     void 만료된_토큰이면_TOKEN_EXPIRED_예외가_발생한다() {
         // given
-        JwtTokenProvider provider = provider("expired-token-secret-key-at-least-32-bytes!", Duration.ofSeconds(-1));
+        JwtTokenProvider provider = provider(Duration.ofSeconds(-1));
         String token = provider.issueAccessToken(UUID.randomUUID(), Role.MEMBER);
 
         // when & then
@@ -50,7 +46,7 @@ class JwtTokenProviderUnitExceptionTest {
     @Test
     void 형식이_깨진_토큰이면_TOKEN_INVALID_예외가_발생한다() {
         // given
-        JwtTokenProvider provider = provider("malformed-token-secret-key-at-least-32-bytes", Duration.ofMinutes(30));
+        JwtTokenProvider provider = provider(Duration.ofMinutes(30));
 
         // when & then
         assertThatThrownBy(() -> provider.parseAccessToken("not-a-jwt"))
@@ -62,7 +58,7 @@ class JwtTokenProviderUnitExceptionTest {
     @Test
     void refresh_token을_access_token_파서에_넣으면_TOKEN_INVALID_예외가_발생한다() {
         // given
-        JwtTokenProvider provider = provider("type-confusion-secret-key-at-least-32-bytes", Duration.ofMinutes(30));
+        JwtTokenProvider provider = provider(Duration.ofMinutes(30));
         String refreshToken = provider.issueRefreshToken(UUID.randomUUID(), UUID.randomUUID());
 
         // when & then
@@ -75,7 +71,7 @@ class JwtTokenProviderUnitExceptionTest {
     @Test
     void access_token을_refresh_token_파서에_넣으면_TOKEN_INVALID_예외가_발생한다() {
         // given
-        JwtTokenProvider provider = provider("type-confusion-secret-key-at-least-32-bytes", Duration.ofMinutes(30));
+        JwtTokenProvider provider = provider(Duration.ofMinutes(30));
         String accessToken = provider.issueAccessToken(UUID.randomUUID(), Role.MEMBER);
 
         // when & then

@@ -4,10 +4,13 @@ import com.fundit.auth.domain.account.Role;
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaEntity;
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaRepository;
 import com.fundit.auth.infrastructure.persistence.refreshtoken.RefreshTokenJpaRepository;
+import com.fundit.auth.infrastructure.security.JwtTestKeys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -33,17 +36,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-// jwt.secret/member-service.base-url/internal-api.key를 고정하는 이유: CI 체크아웃 트리엔
+// member-service.base-url/internal-api.key와 RSA 개인키를 고정하는 이유: CI 체크아웃 트리엔
 // application-local.yml이 없어(.gitignore 대상) 이 값들이 미해석 상태로 컨텍스트 로딩이
 // PlaceholderResolutionException으로 실패한다(CI에서 재현됨).
 @TestPropertySource(properties = {
-        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
-        "jwt.access-token-ttl=30m",
-        "jwt.refresh-token-ttl=14d",
         "member-service.base-url=http://localhost:8082",
         "internal-api.key=test-only-internal-api-key"
 })
 class TokenRefreshServiceConcurrencyTest {
+
+    @DynamicPropertySource
+    static void jwtKey(DynamicPropertyRegistry registry) {
+        JwtTestKeys.register(registry);
+    }
 
     @Container
     @ServiceConnection

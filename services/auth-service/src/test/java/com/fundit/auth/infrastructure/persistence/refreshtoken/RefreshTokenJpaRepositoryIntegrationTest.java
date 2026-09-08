@@ -2,10 +2,13 @@ package com.fundit.auth.infrastructure.persistence.refreshtoken;
 
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaEntity;
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaRepository;
+import com.fundit.auth.infrastructure.security.JwtTestKeys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -23,21 +26,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (Hibernate가 executeQuery()로 실행해 RETURNING 결과를 읽게 하기 위함), 이 트릭이
  * 실제 Postgres에서 정말 동작하는지는 실행해보기 전까진 확신할 수 없어 별도로 검증한다.
  *
- * jwt.secret/member-service.base-url/internal-api.key를 {@code @TestPropertySource}로 고정하는
- * 이유: 공통 application.yml의 spring.profiles.active=local이 CI 체크아웃 트리에 없는
+ * member-service.base-url/internal-api.key를 {@code @TestPropertySource}로,
+ * RSA 개인키를 {@code @DynamicPropertySource}로 고정하는 이유: 공통 application.yml의 spring.profiles.active=local이 CI 체크아웃 트리에 없는
  * application-local.yml을 가리켜서, 이 값들을 채워줄 프로필 파일이 없으면 전체 컨텍스트
  * 로딩 자체가 PlaceholderResolutionException으로 실패한다(CI에서 실제로 재현됨).
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
-        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
-        "jwt.access-token-ttl=30m",
-        "jwt.refresh-token-ttl=14d",
         "member-service.base-url=http://localhost:8082",
         "internal-api.key=test-only-internal-api-key"
 })
 class RefreshTokenJpaRepositoryIntegrationTest {
+
+    @DynamicPropertySource
+    static void jwtKey(DynamicPropertyRegistry registry) {
+        JwtTestKeys.register(registry);
+    }
 
     @Container
     @ServiceConnection

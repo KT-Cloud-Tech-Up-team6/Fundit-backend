@@ -15,11 +15,7 @@ class JwtTokenProviderUnitTest {
 
     @BeforeEach
     void setUp() {
-        JwtProperties properties = new JwtProperties();
-        properties.setSecret("test-only-secret-key-at-least-32-bytes-long!!");
-        properties.setAccessTokenTtl(Duration.ofMinutes(30));
-        properties.setRefreshTokenTtl(Duration.ofDays(14));
-        jwtTokenProvider = new JwtTokenProvider(properties);
+        jwtTokenProvider = JwtTestKeys.provider(JwtTestKeys.PRIVATE_KEY, Duration.ofMinutes(30));
     }
 
     @Test
