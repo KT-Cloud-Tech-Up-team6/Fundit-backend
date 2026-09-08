@@ -147,5 +147,14 @@ member-service가 레포에 붙은 뒤 처음으로 두 서비스 간 실제 연
 RS256 토큰(`alg=RS256`, `kid` 일치) 발급 → 게이트웨이가 JWKS로 검증해 보호 엔드포인트 통과 →
 위조 서명 401 `TOKEN_INVALID` → 내부 전용 엔드포인트 404. 검증 후 계정·컨테이너 정리 완료.
 
-> `application-prod.yml`은 규칙상 손대지 않았다. 운영에는 `JWT_PRIVATE_KEY`가 추가로 필요하다
-> (기존 `JWT_SECRET`은 더 이상 쓰지 않는다) — 인수인계 항목.
+**`application-prod.yml` 처리(사용자 확정)**: 처음엔 "직접 수정 금지" 규칙 때문에 손대지 않았는데,
+그러면 코드가 `jwt.private-key`를 요구하는 상태에서 yml은 `jwt.secret`을 들고 있어 **운영에서 기동
+자체가 안 된다.** 게다가 게이트웨이 prod는 고치고 auth prod만 안 고쳐 서비스 간 처리도 어긋나 있었다.
+
+논의 끝에 규칙의 취지를 "**값을 쓰지 말 것**"으로 정리했다 — prod yml은 `${ENV}` 참조만 담고 실제
+값은 파이프라인이 주입하되, **코드가 읽는 프로퍼티 이름이 바뀌면 yml도 같이 고친다**(참조 이름은
+값이 아니라 코드 계약의 일부다). `CLAUDE.md`와 `config-convention.md` 문구도 그렇게 갱신했다.
+
+> 운영에 주입할 환경변수: `JWT_PRIVATE_KEY`(신규, base64 PKCS#8). 기존 `JWT_SECRET`은 더 이상 쓰지 않는다.
+> auth-service prod에 여전히 빠져 있는 `INTERNAL_API_KEY`/`REDIS_*`/`PG_*`는 이전부터 누적된 별개 건으로
+> 이번 범위 밖 — 같은 논리로 채울 수 있으니 별도 이슈 권장.

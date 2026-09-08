@@ -8,7 +8,7 @@ spring:
       ddl-auto: validate
 
 jwt:
-  secret: ${JWT_SECRET}
+  private-key: ${JWT_PRIVATE_KEY}
   access-token-ttl: 30m
   refresh-token-ttl: 14d
 

@@ -15,7 +15,7 @@ paths:
 | `application.yml` | O | 프로필 전환, 공통 설정(Jackson, actuator 등) |
 | `application-local.yml` | **X** (`.gitignore` 등록됨) | 로컬 개발자 PC |
 | `application-dev.yml` | O | 공유 개발서버 |
-| `application-prod.yml` | O, **직접 수정 금지**(CLAUDE.md 참고, 배포 파이프라인에서만 관리) | 운영 |
+| `application-prod.yml` | O, **값은 쓰지 않음**(`${ENV}` 참조만 — 실제 값은 배포 파이프라인이 주입). 코드가 읽는 프로퍼티 이름이 바뀌면 이 파일도 같이 고친다(CLAUDE.md 참고) | 운영 |
 
 ## 시크릿 하드코딩 금지 (security.md S9 연동)
 `application-dev.yml`/`application-prod.yml`에는 실제 비밀번호·키 값을 절대 커밋하지 않는다. `${DB_PASSWORD}` 같은 환경변수 참조만 커밋하고, 실제 값은 K8s Secret(CNPG 접속정보 포함) 또는 배포 파이프라인이 주입한다.
