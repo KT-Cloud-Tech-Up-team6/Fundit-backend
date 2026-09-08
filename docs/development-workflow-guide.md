@@ -100,6 +100,16 @@ Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어�
 }
 ```
 
+`platform/` 아래 모듈(게이트웨이 등)은 별도 배열을 씁니다 — 루트 `build.gradle`의 `:services:` 전용 블록(JPA/Flyway/Testcontainers)이 붙지 않아 DB 없는 모듈에 맞습니다.
+
+```groovy
+['gateway-service'].each { svc ->
+    if (file("platform/${svc}").exists()) {
+        include "platform:${svc}"
+    }
+}
+```
+
 추가 후 `./gradlew projects`로 실제로 인식됐는지 확인합니다.
 
 ### 3. `build.gradle` 작성 (아래 "서비스 build.gradle 작성 규칙" 참고)
@@ -168,4 +178,6 @@ dependencies {
 }
 ```
 
-> `platform:gateway-service`는 예외입니다 — 리액티브 스택(`spring-cloud-starter-gateway`)을 쓰므로 `spring-boot-starter-web`을 선언하면 안 됩니다(이전 대화에서 확정, MVC와 리액티브 스택 충돌).
+> `platform:gateway-service`는 예외입니다 — 리액티브 스택(`spring-cloud-starter-gateway-server-webflux`)을 쓰므로 `spring-boot-starter-web`도, 그걸 `api`로 노출하는 `modules:common-webmvc`도 선언하면 안 됩니다(MVC와 리액티브 스택 충돌). 대신 웹 프레임워크를 모르는 `modules:common`만 의존합니다.
+>
+> Spring Cloud 2025.1.x에서 게이트웨이 아티팩트명이 `spring-cloud-starter-gateway` → `spring-cloud-starter-gateway-server-webflux`로 바뀌었습니다(실제 해석 확인 완료: 5.0.2).

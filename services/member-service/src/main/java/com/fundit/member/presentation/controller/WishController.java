@@ -3,7 +3,8 @@ package com.fundit.member.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.member.application.wish.WishService;
-import com.fundit.member.infrastructure.security.CurrentMember;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.member.presentation.dto.PageResponse;
 import com.fundit.member.presentation.dto.WishListItemResponse;
 import com.fundit.member.presentation.dto.WishResponse;
@@ -18,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -30,27 +30,27 @@ public class WishController {
     private final WishService wishService;
 
     @PutMapping("/wishes/{projectId}")
-    public WishResponse wish(@CurrentMember UUID accountId, @PathVariable Long projectId) {
-        wishService.wish(accountId, projectId);
+    public WishResponse wish(@LoginUser CurrentUser user, @PathVariable Long projectId) {
+        wishService.wish(user.id(), projectId);
         return new WishResponse(projectId, true);
     }
 
     @DeleteMapping("/wishes/{projectId}")
-    public ResponseEntity<Void> unwish(@CurrentMember UUID accountId, @PathVariable Long projectId) {
-        wishService.unwish(accountId, projectId);
+    public ResponseEntity<Void> unwish(@LoginUser CurrentUser user, @PathVariable Long projectId) {
+        wishService.unwish(user.id(), projectId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/wishes")
     public PageResponse<WishListItemResponse> getWishes(
-            @CurrentMember UUID accountId,
+            @LoginUser CurrentUser user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT,
                     "page는 0 이상, size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
-        var result = wishService.getWishes(accountId, PageRequest.of(page, size))
+        var result = wishService.getWishes(user.id(), PageRequest.of(page, size))
                 .map(w -> new WishListItemResponse(w.projectId(), w.projectTitle(), w.projectThumbnailUrl(), w.createdAt()));
         return PageResponse.from(result);
     }

@@ -22,7 +22,7 @@
 - `addresses` — 회원당 다건 등록 가능.
 
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
-- **내부 전용 엔드포인트 방어**: `POST /members`, `POST /members/social`은 게이트웨이 라우팅에서 제외 + `X-Internal-Api-Key` 헤더로 auth-service만 호출 가능하도록 검증한다(`security.md` S7). `accountId`는 auth-service가 발급한 값이라는 전제로 신뢰하고 별도 검증하지 않는다.
+- **내부 전용 엔드포인트 방어**: `POST /members`, `POST /members/social`은 두 겹으로 막는다 — ① 게이트웨이가 이 경로+메서드를 404로 끊어 외부 노출을 차단하고, ② `InternalGatewaySecretFilter`(modules:common-webmvc)가 `X-Internal-Api-Key`로 게이트웨이 우회 직접 호출을 차단한다(`security.md` S7). 어느 한쪽만으로는 뚫린다 — 게이트웨이가 모든 프록시 요청에 내부 키를 주입하므로 ①이 없으면 외부에서 그냥 통과된다. 내부 전용 경로는 `InternalEndpointConfig`에 빈으로 선언한다(설정 파일에 두면 특정 프로필에서 누락될 수 있어서). `accountId`는 auth-service가 발급한 값이라는 전제로 신뢰하고 별도 검증하지 않는다.
 - **구매자/판매자는 별도로 지정하지 않는다**: 가입 완료 시 둘 다 자동 부여되며, member-service는 이를 위한 별도 저장 상태를 갖지 않는다. 화면 전환이 필요하면 세션/토큰 클레임 수준에서만 다룬다 — `members` 테이블에 모드 값을 영속화하지 않는다.
 - **찜은 idempotent**: 등록은 `PUT`(`INSERT ... ON CONFLICT DO NOTHING`), 해제는 `DELETE`(이미 목표 상태면 204). 중복 요청·네트워크 재시도를 실패로 처리하지 않는다.
 - **찜 목록의 프로젝트 정보는 스냅샷**: catalog-service를 실시간 호출하지 않는다.

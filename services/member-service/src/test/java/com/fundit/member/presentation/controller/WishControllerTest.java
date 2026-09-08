@@ -1,8 +1,8 @@
 package com.fundit.member.presentation.controller;
 
 import com.fundit.member.application.wish.WishService;
-import com.fundit.member.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.member.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(WishController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class WishControllerTest {
 
@@ -42,7 +42,8 @@ class WishControllerTest {
         UUID accountId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(put("/api/v1/wishes/1").header("X-Account-Id", accountId.toString()))
+        mockMvc.perform(put("/api/v1/wishes/1").header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.projectId").value(1))
                 .andExpect(jsonPath("$.wished").value(true));
@@ -55,7 +56,8 @@ class WishControllerTest {
         UUID accountId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(delete("/api/v1/wishes/1").header("X-Account-Id", accountId.toString()))
+        mockMvc.perform(delete("/api/v1/wishes/1").header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isNoContent());
         verify(wishService).unwish(accountId, 1L);
     }
@@ -75,7 +77,8 @@ class WishControllerTest {
                 .thenReturn(new PageImpl<>(List.of(new WishService.WishItem(1L, "프로젝트A", null, null))));
 
         // when & then
-        mockMvc.perform(get("/api/v1/wishes").header("X-Account-Id", accountId.toString()))
+        mockMvc.perform(get("/api/v1/wishes").header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].projectTitle").value("프로젝트A"))
                 .andExpect(jsonPath("$.totalElements").value(1));

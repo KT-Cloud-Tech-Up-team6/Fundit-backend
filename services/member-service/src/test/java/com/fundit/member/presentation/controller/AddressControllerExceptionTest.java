@@ -1,8 +1,8 @@
 package com.fundit.member.presentation.controller;
 
 import com.fundit.member.application.address.AddressService;
-import com.fundit.member.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.member.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 정상 흐름은 {@link AddressControllerTest} 참고. */
 @WebMvcTest(AddressController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class AddressControllerExceptionTest {
 
@@ -37,7 +37,8 @@ class AddressControllerExceptionTest {
 
         // when & then (recipientName 누락)
         mockMvc.perform(post("/api/v1/addresses")
-                        .header("X-Account-Id", accountId.toString())
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

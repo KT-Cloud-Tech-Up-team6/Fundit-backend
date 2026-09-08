@@ -1,8 +1,8 @@
 package com.fundit.member.presentation.controller;
 
 import com.fundit.member.application.wish.WishService;
-import com.fundit.member.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.member.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 정상 흐름은 {@link WishControllerTest} 참고. */
 @WebMvcTest(WishController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class WishControllerExceptionTest {
 
@@ -33,7 +33,8 @@ class WishControllerExceptionTest {
     void page가_음수이면_400을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/wishes")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("page", "-1"))
                 .andExpect(status().isBadRequest());
     }
@@ -42,7 +43,8 @@ class WishControllerExceptionTest {
     void size가_0이면_400을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/wishes")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("size", "0"))
                 .andExpect(status().isBadRequest());
     }
@@ -51,7 +53,8 @@ class WishControllerExceptionTest {
     void size가_최대값을_초과하면_400을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/wishes")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("size", "101"))
                 .andExpect(status().isBadRequest());
     }

@@ -3,7 +3,7 @@
 > 이 문서는 **MVP 구현 범위만** 다룹니다. MVP 범위 밖(후순위) 엔드포인트의 전체 스펙은 `MvpImplementationSummary.md`로 이동했습니다 — 여기엔 존재하지 않습니다.
 > 2026-09-03 기준: 스키마 정리(is_foreigner/di_hash/phone_verified_at/business_type/business_info/seller_verified_at/current_mode 제외) 반영.
 > 2026-09-03 구현 착수 시점 정정: 구매자/판매자 모드 전환(`PATCH /members/me/mode`)은 과거 오기로 확인되어 이 문서에서 제거함(사용자 확인) — 실제로 존재한 적 없는 기능. `GET /members/me` 응답에서도 `currentMode` 필드 제거.
-> `Auth Required: O` 엔드포인트는 게이트웨이가 아직 없어 `X-Account-Id` 헤더를 서명 검증 없이 그대로 신뢰하는 임시 방식으로 구현됨(아래 "구현 메모" 참고) — 게이트웨이 완성 후 JWT 파싱 결과로 교체 필요.
+> `Auth Required: O` 엔드포인트는 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 주입한 `X-User-Id` 헤더로 사용자를 식별합니다. 서비스는 이 헤더를 직접 파싱하지 않고 `@LoginUser CurrentUser`로 주입받습니다. 게이트웨이를 우회한 직접 호출은 `X-Internal-Api-Key`가 없어 401로 차단됩니다.
 
 ### 회원 도메인 엔드포인트 목록
 
@@ -100,7 +100,7 @@ Validation / Business Rules
 GET /api/v1/members/me
 ```
 
-Auth Required: **O** (`X-Account-Id` 헤더로 사용자 식별 — 구현 메모 참고)
+Auth Required: **O** (`X-User-Id` 헤더로 사용자 식별 — 구현 메모 참고)
 
 Request Body: 없음
 
@@ -291,7 +291,7 @@ Validation / Business Rules
 - **[확정, 2026-09-03] 스키마 정리**: 본인인증·판매자심사 관련 컬럼 제외, `current_mode`는 세션/토큰 클레임으로 관리(DB 미저장).
 - **[확정, 2026-09-03] 모드 전환 기능 삭제**: `PATCH /members/me/mode`, `currentMode` 필드는 과거 오기로 확인되어 문서에서 완전히 제거(사용자 확인).
 - **[확정, 2026-09-03] `POST /members` 요청 계약 정정**: `agreedTerms`는 `List<String>`(동의한 약관 코드만), `email`은 받되 저장하지 않음 — auth-service의 실제 코드(`MemberServiceClient.CreateMemberProfileCommand`) 기준.
-- **[구현 메모, 2026-09-03] 임시 인증 방식**: 게이트웨이가 없어 `Auth Required: O` 엔드포인트는 `X-Account-Id` 헤더를 서명 검증 없이 신뢰하는 방식으로 구현(`CurrentMemberArgumentResolver`). 내부망 전제 하의 임시 조치이며, 게이트웨이가 JWT를 파싱해 이 헤더를 주입하게 되면 그대로 재사용 가능. 자세한 내용은 `MvpImplementationSummary.md` 참고.
+- ~~**[구현 메모, 2026-09-03] 임시 인증 방식**: 게이트웨이가 없어 `X-Account-Id` 헤더를 서명 검증 없이 신뢰~~ **→ 2026-09-07 해소됨.** 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 `X-User-Id`/`X-User-Roles`를 주입하고, 클라이언트가 보낸 같은 이름의 헤더는 게이트웨이에서 제거된다. 서비스 쪽 리졸버는 `modules:common-webmvc`의 `LoginUserArgumentResolver`로 이전됐고(`CurrentMemberArgumentResolver` 삭제), 게이트웨이 우회 직접 호출은 `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`로 차단한다. 설계 근거는 `platform/gateway-service/docs/` 참고.
 
 ## ⚠️ 남은 확인 필요 사항
 
