@@ -10,7 +10,7 @@ import java.util.List;
 public record OrderPreviewRequest(
         @NotNull Long projectId,
         @NotEmpty @Valid List<OrderLineItemRequestDto> lineItems,
-        @Valid ShippingAddressRequest shippingAddress,
+        @NotNull @Valid ShippingAddressRequest shippingAddress,
         List<String> couponCodes
 ) {
 }

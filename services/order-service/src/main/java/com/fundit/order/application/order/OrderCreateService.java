@@ -3,6 +3,7 @@ package com.fundit.order.application.order;
 import com.fundit.common.error.BusinessException;
 import com.fundit.order.application.catalog.ProjectSummaryClient;
 import com.fundit.order.domain.OrderErrorCode;
+import com.fundit.order.domain.coupon.CouponRepository;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingLineItemOption;
@@ -32,6 +33,7 @@ public class OrderCreateService {
     private final InventoryRepository inventoryRepository;
     private final FundingRepository fundingRepository;
     private final FundingCouponApplicationJpaRepository couponApplicationJpaRepository;
+    private final CouponRepository couponRepository;
     private final ProjectSummaryClient projectSummaryClient;
     private final long paymentExpiryMinutes;
 
@@ -39,12 +41,14 @@ public class OrderCreateService {
                                InventoryRepository inventoryRepository,
                                FundingRepository fundingRepository,
                                FundingCouponApplicationJpaRepository couponApplicationJpaRepository,
+                               CouponRepository couponRepository,
                                ProjectSummaryClient projectSummaryClient,
                                @Value("${order.policy.payment-expiry-minutes}") long paymentExpiryMinutes) {
         this.orderPricingService = orderPricingService;
         this.inventoryRepository = inventoryRepository;
         this.fundingRepository = fundingRepository;
         this.couponApplicationJpaRepository = couponApplicationJpaRepository;
+        this.couponRepository = couponRepository;
         this.projectSummaryClient = projectSummaryClient;
         this.paymentExpiryMinutes = paymentExpiryMinutes;
     }
@@ -69,13 +73,16 @@ public class OrderCreateService {
         Funding saved = fundingRepository.save(funding);
 
         // 쿠폰 사용확정(coupon_issuances.status 변경)은 아직 하지 않는다 — ORDER-015가 결제완료
-        // 이벤트로 처리한다. 여기서는 "이 주문에 이 쿠폰이 적용됐다"는 사실만 기록한다.
+        // 이벤트로 처리한다. 여기서는 "이 주문에 이 쿠폰이 적용됐다"는 사실을 기록하고,
+        // 쿠폰의 예산 사용액(used_budget_amount)을 함께 갱신한다(CLAUDE.md "예산 한도와 발급
+        // 수량은 별개로 관리" — 정률 할인 쿠폰은 적용 시점에 예산이 먼저 소진될 수 있다).
         for (OrderPricingService.AppliedCoupon applied : pricing.appliedCoupons()) {
             couponApplicationJpaRepository.save(FundingCouponApplicationJpaEntity.builder()
                     .fundingId(saved.getId())
                     .couponIssuanceId(applied.couponIssuanceId())
                     .discountAmount(applied.discountAmount())
                     .build());
+            couponRepository.increaseUsedBudget(applied.couponCode(), applied.discountAmount());
         }
 
         return new OrderCreateResult(saved, pricing.finalAmount());

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,7 +37,10 @@ public class CouponPersistenceAdapter implements CouponRepository {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(coupon)));
     }
 
+    // InventoryPersistenceAdapter와 동일한 이유로 트랜잭션 경계를 어댑터가 직접 보장한다
+    // (@Modifying 쿼리의 flush()는 활성 트랜잭션이 필요 — 호출부에 의존하지 않는다).
     @Override
+    @Transactional
     public boolean decreaseRemainingQuantity(String couponCode) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             Optional<CouponJpaEntity> currentOpt = jpaRepository.findByCouponCode(couponCode);
@@ -54,6 +58,7 @@ public class CouponPersistenceAdapter implements CouponRepository {
     }
 
     @Override
+    @Transactional
     public boolean increaseUsedBudget(String couponCode, long amount) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             Optional<CouponJpaEntity> currentOpt = jpaRepository.findByCouponCode(couponCode);

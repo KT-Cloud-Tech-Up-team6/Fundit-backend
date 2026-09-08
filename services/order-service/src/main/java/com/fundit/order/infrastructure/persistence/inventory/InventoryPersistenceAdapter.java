@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,7 +41,14 @@ public class InventoryPersistenceAdapter implements InventoryRepository {
         jpaRepository.deleteByRewardId(rewardId);
     }
 
+    // 조건부 UPDATE(@Modifying) 쿼리는 flush()에 활성 트랜잭션이 필요하다 — 호출부(application
+    // 서비스)가 이미 @Transactional인 경우가 대부분이지만, 이 조건부 UPDATE 자체가 어댑터의
+    // 계약이므로 호출부에 의존하지 않도록 여기서 직접 트랜잭션 경계를 보장한다. 재시도 루프 전체를
+    // 하나의 트랜잭션으로 묶어도 안전한 이유: @Modifying(clearAutomatically = true)가 매 시도마다
+    // 영속성 컨텍스트를 비워 다음 조회가 항상 최신 커밋 값을 다시 읽는다(Postgres 기본 격리수준인
+    // READ COMMITTED에서 동시 트랜잭션의 커밋을 즉시 볼 수 있음).
     @Override
+    @Transactional
     public boolean decreaseStock(Long rewardId, int quantity) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             Optional<InventoryJpaEntity> currentOpt = jpaRepository.findByRewardId(rewardId);
@@ -62,6 +70,7 @@ public class InventoryPersistenceAdapter implements InventoryRepository {
     }
 
     @Override
+    @Transactional
     public void increaseStock(Long rewardId, int quantity) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             Optional<InventoryJpaEntity> currentOpt = jpaRepository.findByRewardId(rewardId);
@@ -81,6 +90,7 @@ public class InventoryPersistenceAdapter implements InventoryRepository {
     }
 
     @Override
+    @Transactional
     public InventoryDeltaResult applyQuantityDelta(Long rewardId, int delta, int newInitialQuantity) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             InventoryJpaEntity current = jpaRepository.findByRewardId(rewardId)
