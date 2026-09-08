@@ -28,7 +28,7 @@ Phase 1까지 auth-service와 member-service는 붙어 동작했지만, 인증 �
     ▼
 [gateway-service :8080]  JwtHeaderGlobalFilter
     │  1. 클라이언트가 보낸 X-User-Id / X-User-Roles / X-Internal-Api-Key 제거
-    │  2. POST /api/v1/members 면 404 (내부 전용)
+    │  2. POST /api/v1/members, /api/v1/members/social 이면 404 (내부 전용)
     │  3. X-Internal-Api-Key 주입 (게이트웨이를 거쳤다는 증명)
     │  4. 토큰 없으면 → 사용자 헤더 없이 통과 (인증 필요 여부는 다운스트림이 판단)
     │  5. 토큰 있으면 → HS256 서명 검증 → sub → X-User-Id, role → X-User-Roles
@@ -136,7 +136,7 @@ auth-service는 jjwt를 쓰지만 게이트웨이는 `spring-security-oauth2-jos
 | 게이트웨이 경유로 `X-User-Id` 위조 | — | 게이트웨이가 클라이언트 헤더를 **무조건 제거** |
 | 유효한 본인 토큰 + 남의 `X-User-Id` 동시 전송 | — | 토큰의 `sub` 값으로 **덮어씀** |
 | 서비스 포트 직접 호출 + 헤더 위조 | **뚫림** | `X-Internal-Api-Key` 없어 401 |
-| 내부 전용 `POST /api/v1/members` 외부 호출 | **뚫림** | 게이트웨이 404 + 서비스 필터 401 |
+| 내부 전용 `POST /api/v1/members(/social)` 외부 호출 | **뚫림** | 게이트웨이 404 + 서비스 필터 401 |
 | refresh 토큰으로 일반 API 호출 | — | `typ` 클레임 확인 후 401 |
 | 위조 서명 / 만료 토큰 | — | 게이트웨이가 401 (`TOKEN_INVALID`/`TOKEN_EXPIRED`) |
 
@@ -178,8 +178,8 @@ auth-service는 jjwt를 쓰지만 게이트웨이는 `spring-security-oauth2-jos
 
 | 테스트 | 검증 |
 |---|---|
-| `JwtHeaderGlobalFilterUnitTest` | 정상 주입, 토큰 없음 통과, `Authorization` 보존 |
-| `JwtHeaderGlobalFilterUnitExceptionTest` | 헤더 위조 제거, 토큰+위조헤더 동시, 내부 경로 404, 위조 서명, 만료, refresh 토큰 |
+| `JwtHeaderGlobalFilterUnitTest` | 정상 주입, 토큰 없음 통과, `Authorization` 보존, 위조 헤더 제거, 토큰+위조헤더 동시 |
+| `JwtHeaderGlobalFilterUnitExceptionTest` | 내부 경로 404(회원생성·소셜가입), 위조 서명, 만료, refresh 토큰 |
 | `LoginUserArgumentResolverUnitTest`/`UnitExceptionTest` | `CurrentUser` 조립, 다중 role, 헤더 없음/형식 오류 401 |
 | `InternalGatewaySecretFilterUnitTest`/`UnitExceptionTest` | 공개 API 통과, 키 일치/불일치, 내부 경로 |
 

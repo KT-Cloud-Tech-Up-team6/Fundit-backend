@@ -11,6 +11,7 @@ import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,6 +24,7 @@ import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -31,7 +33,8 @@ import java.util.Locale;
  * <ol>
  *   <li>클라이언트가 보낸 신뢰 헤더를 무조건 제거한다 — 이 단계가 없으면 게이트웨이를 세워도
  *       {@code X-User-Id} 위조가 그대로 통한다.</li>
- *   <li>내부 전용 엔드포인트({@code POST /api/v1/members})는 즉시 404로 막는다. 아래 3번에서
+ *   <li>내부 전용 엔드포인트({@code POST /api/v1/members}, {@code POST /api/v1/members/social})는
+ *       즉시 404로 막는다. 아래 3번에서
  *       게이트웨이가 <b>모든</b> 프록시 요청에 내부 키를 주입하기 때문에, 이 차단이 없으면
  *       외부 클라이언트가 게이트웨이를 통해 내부 키 검증을 그냥 통과해버린다.</li>
  *   <li>내부 키를 주입한다(게이트웨이를 거쳤다는 증명).</li>
@@ -53,16 +56,24 @@ public class JwtHeaderGlobalFilter implements GlobalFilter, Ordered {
     private static final String ACCESS_TYPE = "access";
     private static final String ROLE_CLAIM = "role";
 
+    private static final PathPatternParser PATH_PARSER = new PathPatternParser();
+
     /**
-     * 게이트웨이 라우팅에서 제외해야 하는 내부 전용 엔드포인트.
-     * 라우트 predicate가 아니라 여기서 막는 이유: Spring Cloud Gateway에 "즉시 404 응답" 필터가 없고,
-     * {@code /api/v1/members/**} 패턴이 {@code /api/v1/members}까지 매칭하기 때문에
-     * 라우트 정의만으로는 이 한 조합(POST + 정확히 이 경로)을 떼어낼 수 없다.
-     * 라우트 predicate와 같은 PathPattern 매칭을 써서 인코딩 우회(예: {@code /api/v1/me%6dbers})로
-     * 두 판정이 어긋나는 일이 없게 한다.
+     * 게이트웨이 라우팅에서 제외해야 하는 내부 전용 엔드포인트(전부 POST).
+     * 목록은 member-service {@code CLAUDE.md}의 "내부 전용 엔드포인트 방어"와 짝을 이룬다 —
+     * 여기에 없으면 게이트웨이가 내부 키를 붙여 그대로 통과시켜 버린다.
+     *
+     * <p>라우트 predicate가 아니라 여기서 막는 이유: Spring Cloud Gateway에 "즉시 404 응답" 필터가 없고,
+     * {@code /api/v1/members/**} 패턴이 이 경로들까지 전부 매칭하기 때문에 라우트 정의만으로는
+     * "POST + 정확히 이 경로"라는 조합을 떼어낼 수 없다. 라우트 predicate와 같은 PathPattern 매칭을 써서
+     * 인코딩 우회(예: {@code /api/v1/me%6dbers})로 두 판정이 어긋나는 일이 없게 한다.
      */
-    private static final PathPattern INTERNAL_MEMBER_CREATE_PATH =
-            new PathPatternParser().parse("/api/v1/members");
+    private static final List<PathPattern> INTERNAL_ONLY_POST_PATHS = List.of(
+            // 회원 프로필 생성 — auth-service 회원가입(AUTH-007)만 호출
+            PATH_PARSER.parse("/api/v1/members"),
+            // 소셜 회원가입(MEMBER-003) — 아직 미구현이지만 내부 전용으로 확정돼 있어 미리 막아둔다.
+            // 나중에 구현하는 사람이 게이트웨이 차단을 빠뜨려도 외부에 노출되지 않게 하기 위함
+            PATH_PARSER.parse("/api/v1/members/social"));
 
     private final ReactiveJwtDecoder jwtDecoder;
     private final ObjectMapper objectMapper;
@@ -128,8 +139,11 @@ public class JwtHeaderGlobalFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isInternalOnlyEndpoint(ServerHttpRequest request) {
-        return HttpMethod.POST.equals(request.getMethod())
-                && INTERNAL_MEMBER_CREATE_PATH.matches(request.getPath().pathWithinApplication());
+        if (!HttpMethod.POST.equals(request.getMethod())) {
+            return false;
+        }
+        PathContainer path = request.getPath().pathWithinApplication();
+        return INTERNAL_ONLY_POST_PATHS.stream().anyMatch(pattern -> pattern.matches(path));
     }
 
     private String bearerToken(ServerHttpRequest request) {
