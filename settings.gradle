@@ -6,7 +6,7 @@ include 'modules:common-webmvc'
 
 // 마이크로서비스 — 폴더가 아직 스캐폴딩되지 않은 서비스는 자동 스킵됨
 // 서비스 추가 시 아래 배열에 이름만 추가하면 include 됨
-['auth-service', 'member-service', 'order-service', 'payment-service'].each { svc ->
+['auth-service', 'member-service', 'project-service', 'order-service', 'payment-service'].each { svc ->
     if (file("services/${svc}").exists()) {
         include "services:${svc}"
     }
