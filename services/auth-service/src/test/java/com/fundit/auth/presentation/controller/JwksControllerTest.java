@@ -52,18 +52,19 @@ class JwksControllerTest {
 
     @Test
     void 개인키_파라미터는_노출하지_않는다() {
-        // given — 공개키 JWK에 d/p/q 같은 개인 파라미터가 섞이면 개인키가 그대로 유출된다
+        // when
         Map<String, Object> jwk = firstKey(serializeAndParse());
 
-        // then
+        // then — 공개키 JWK에 d/p/q 같은 개인 파라미터가 섞이면 개인키가 그대로 유출된다
         assertThat(jwk).doesNotContainKeys("d", "p", "q", "dp", "dq", "qi");
     }
 
     @Test
     void 공개된_키로_실제_발급_토큰의_서명을_검증할_수_있고_kid도_일치한다() {
-        // given — 게이트웨이가 하는 일을 그대로 재현한다: JWKS의 n/e로 공개키를 만들어 검증
-        Map<String, Object> jwk = firstKey(serializeAndParse());
+        // given
         String token = jwtTokenProvider.issueAccessToken(UUID.randomUUID(), Role.MEMBER);
+        // 게이트웨이가 하는 일을 그대로 재현한다: JWKS의 n/e로 공개키를 만들어 검증
+        Map<String, Object> jwk = firstKey(serializeAndParse());
 
         // when
         String tokenKid = Jwts.parser()
