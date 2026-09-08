@@ -31,7 +31,7 @@ Phase 1까지 auth-service와 member-service는 붙어 동작했지만, 인증 �
     │  2. POST /api/v1/members, /api/v1/members/social 이면 404 (내부 전용)
     │  3. X-Internal-Api-Key 주입 (게이트웨이를 거쳤다는 증명)
     │  4. 토큰 없으면 → 사용자 헤더 없이 통과 (인증 필요 여부는 다운스트림이 판단)
-    │  5. 토큰 있으면 → HS256 서명 검증 → sub → X-User-Id, role → X-User-Roles
+    │  5. 토큰 있으면 → RS256 서명 검증(JWKS 공개키) → sub → X-User-Id, role → X-User-Roles
     │     무효/만료 → 여기서 401 (TOKEN_INVALID / TOKEN_EXPIRED)
     ▼
 [member-service :8082]  InternalGatewaySecretFilter (modules:common-webmvc)
@@ -88,13 +88,22 @@ Phase 1까지 auth-service와 member-service는 붙어 동작했지만, 인증 �
 
 ## 4. 설계 판단과 근거
 
-### 4-1. JWT 서명: RS256이 아니라 HS256 유지 (한시적)
+### 4-1. JWT 서명: RS256 + JWKS
 
-레퍼런스 아키텍처는 RS256 + JWKS였다. 이번엔 **HS256 대칭키 공유**로 가고, RS256 전환은 별도 이슈로 뺐다(사용자 확정).
+auth-service가 RSA 개인키로 서명하고, 게이트웨이는 auth-service의 JWKS 엔드포인트
+(`GET /api/v1/auth/jwks`)에서 **공개키만** 가져와 검증한다. 개인키는 auth-service 밖으로 나가지 않는다.
 
-- **이유**: RS256으로 가려면 auth-service의 `JwtTokenProvider` 재작성 + 키페어 생성·보관 + JWKS 엔드포인트 신설 + 운영 키 주입 체계까지 따라온다. 게이트웨이의 본래 목적(헤더 위조 차단)과는 독립된 작업량이라 한 이슈에 묶으면 둘 다 늦어진다.
-- **감수한 단점**: `jwt.secret`이 auth-service와 게이트웨이 **두 곳**에 존재한다. 대칭키라 게이트웨이가 유출되면 토큰 위조까지 가능하다(RS256이면 공개키만 있어 검증만 가능).
-- **완화**: 검증기를 `JwtDecoderConfig` 한 클래스로 격리했다. RS256 전환은 `withSecretKey(...)` → `withJwkSetUri(...)` 한 줄 교체로 끝나고 필터는 손대지 않는다.
+처음(#21)에는 HS256 대칭키를 두 서비스가 공유했다 — 게이트웨이가 유출되면 검증뿐 아니라
+**토큰 위조까지** 가능한 상태였다. 게이트웨이를 어디에도 배포하기 전에 전환해서, 그 대칭키가
+실제 환경에 존재한 적이 없게 만들었다.
+
+- **개인키 하나만 배포한다**: 공개키는 따로 주입받지 않고 개인키에서 유도한다. RSA PKCS#8 개인키는
+  CRT 파라미터를 포함하므로 modulus/publicExponent만 있으면 공개키를 만들 수 있다
+  (`JwtTokenProvider.derivePublicKey`). 덕분에 운영이 관리할 시크릿은 `JWT_PRIVATE_KEY` 하나다.
+- **형식은 base64(PKCS#8 DER) 한 줄**: PEM 원문은 여러 줄이라 yml 플레이스홀더/환경변수에서 개행 때문에 깨진다.
+- **`kid`는 설정이 아니라 공개키 지문(RFC 7638)에서 뽑는다**: 키가 바뀌면 kid도 자동으로 따라가므로
+  로테이션 시 코드·설정을 고칠 게 없다.
+- **새 의존성 없음**: auth-service의 jjwt 0.12.6에 JWK/JWKS 빌더가 이미 들어 있다.
 
 ### 4-2. 검증 라이브러리: jjwt가 아니라 Nimbus
 
@@ -163,7 +172,7 @@ auth-service는 jjwt를 쓰지만 게이트웨이는 `spring-security-oauth2-jos
 
 | 항목 | 내용 |
 |---|---|
-| **대칭키 공유** | `jwt.secret`이 두 서비스에 존재. RS256+JWKS 전환 시 해소 (별도 이슈) |
+| **JWKS 조회가 런타임 의존성** | 게이트웨이 재기동 시점에 auth-service가 죽어 있으면 공개키 캐시가 비어 전체 401이 된다. 정상 운영 중 auth가 잠시 죽는 건 Nimbus 캐시로 버틴다. 기동 시 프리페치/재시도 대신 K8s readiness probe로 다룰 문제로 본다 |
 | **내부 키 = 단일 공유 시크릿** | 서비스가 늘어날수록 유출 반경이 커진다. 서비스별 키나 mTLS는 이번 범위 밖 |
 | **개인정보 평문 저장** | `members.name`/`phone_number`, `addresses` 수령인 정보 — 레포 전체 정책 결정 대기(`security.md` S9) |
 | **ADMIN 권한 검사 없음** | `X-User-Roles`를 전파하지만 이를 실제로 검사하는 코드는 아직 없다(`hasRole`/`@PreAuthorize` 0건). project-service 착수와 맞물림 |
@@ -174,7 +183,7 @@ auth-service는 jjwt를 쓰지만 게이트웨이는 `spring-security-oauth2-jos
 
 ## 6. 테스트
 
-전부 **스프링 컨텍스트를 띄우지 않는 순수 단위 테스트**다. `application-local.yml`이 `.gitignore` 대상이라 CI 체크아웃 트리에 없는데, `@SpringBootTest`를 쓰면 `jwt.secret`/`internal-api.key`가 미해석 상태로 `PlaceholderResolutionException`이 난다 — Phase 1에서 실제로 CI가 이 이유로 깨졌다.
+전부 **스프링 컨텍스트를 띄우지 않는 순수 단위 테스트**다. `application-local.yml`이 `.gitignore` 대상이라 CI 체크아웃 트리에 없는데, `@SpringBootTest`를 쓰면 `jwt.jwk-set-uri`/`internal-api.key`가 미해석 상태로 `PlaceholderResolutionException`이 난다 — Phase 1에서 실제로 CI가 이 이유로 깨졌다.
 
 | 테스트 | 검증 |
 |---|---|
