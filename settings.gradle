@@ -11,3 +11,11 @@ include 'modules:common-webmvc'
         include "services:${svc}"
     }
 }
+
+// 플랫폼 모듈 — 도메인 서비스가 아닌 인프라성 애플리케이션(게이트웨이 등).
+// 루트 build.gradle의 :services: 전용 블록(JPA/Flyway/Testcontainers)은 적용되지 않는다 — DB가 없다.
+['gateway-service'].each { svc ->
+    if (file("platform/${svc}").exists()) {
+        include "platform:${svc}"
+    }
+}

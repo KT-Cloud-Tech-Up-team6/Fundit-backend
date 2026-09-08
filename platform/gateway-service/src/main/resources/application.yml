@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: ${downstream.auth-service-base-url}
+              predicates:
+                - Path=/api/v1/auth/**
+            # POST /api/v1/members(내부 전용)는 이 패턴에 걸리지만 JwtHeaderGlobalFilter가 404로 끊는다.
+            # 라우트 정의만으로는 분리가 안 된다 — 필터 주석 참고.
+            - id: member-service
+              uri: ${downstream.member-service-base-url}
+              predicates:
+                - Path=/api/v1/members/**,/api/v1/wishes/**,/api/v1/addresses/**,/api/v1/terms/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

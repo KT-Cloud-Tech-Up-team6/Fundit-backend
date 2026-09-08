@@ -1,0 +1,23 @@
+package com.fundit.member.infrastructure.security;
+
+import com.fundit.common.webmvc.auth.InternalEndpoint;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 외부에 노출되면 안 되는 이 서비스의 엔드포인트 선언.
+ * modules:common-webmvc의 InternalGatewaySecretFilter가 이 빈들을 모아 X-Internal-Api-Key를 요구한다.
+ *
+ * <p>게이트웨이의 라우팅 차단(404)과 짝을 이루는 두 번째 방어선이다 — 게이트웨이만 믿으면
+ * 서비스 포트로 직접 들어오는 호출이 뚫리고, 이 필터만 믿으면 게이트웨이가 내부 키를 주입하는
+ * 순간 외부에서도 통과되어 버린다.
+ */
+@Configuration
+public class InternalEndpointConfig {
+
+    /** auth-service의 회원가입(AUTH-007)만 호출하는 프로필 생성 엔드포인트. */
+    @Bean
+    public InternalEndpoint memberCreateInternalEndpoint() {
+        return new InternalEndpoint("POST", "/api/v1/members");
+    }
+}

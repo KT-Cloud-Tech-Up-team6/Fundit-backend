@@ -1,8 +1,8 @@
 package com.fundit.member.presentation.controller;
 
 import com.fundit.member.application.address.AddressService;
-import com.fundit.member.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.member.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AddressController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class AddressControllerTest {
 
@@ -43,7 +43,8 @@ class AddressControllerTest {
                 new AddressService.AddressItem(1L, "홍길동", "01012345678", "12345", "테헤란로 1", null, true)));
 
         // when & then
-        mockMvc.perform(get("/api/v1/addresses").header("X-Account-Id", accountId.toString()))
+        mockMvc.perform(get("/api/v1/addresses").header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].recipientName").value("홍길동"))
                 .andExpect(jsonPath("$[0].isDefault").value(true));
@@ -58,7 +59,8 @@ class AddressControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/addresses")
-                        .header("X-Account-Id", accountId.toString())
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

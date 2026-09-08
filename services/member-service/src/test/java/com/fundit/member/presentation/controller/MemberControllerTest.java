@@ -2,8 +2,8 @@ package com.fundit.member.presentation.controller;
 
 import com.fundit.member.application.member.MemberQueryService;
 import com.fundit.member.application.member.MemberSignupService;
-import com.fundit.member.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.member.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,13 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * InternalApiKeyFilter/CurrentMemberArgumentResolver가 실제로 MockMvc 필터 체인·
- * 인자 리졸버로 붙는지까지 함께 검증한다(WebConfig import).
+ * modules:common-webmvc의 공통 인증 플러밍(InternalGatewaySecretFilter/LoginUserArgumentResolver)이
+ * 실제로 MockMvc 필터 체인·인자 리졸버로 붙는지까지 함께 검증한다(CommonWebConfig import).
  * 요청 JSON은 auth-service MemberServiceRestClientUnitTest(짝 테스트)와 필드가 맞아야 한다 —
  * 한쪽만 필드명을 바꾸지 말 것.
  */
 @WebMvcTest(MemberController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class MemberControllerTest {
 
@@ -80,21 +80,22 @@ class MemberControllerTest {
     }
 
     @Test
-    void X_Account_Id_헤더가_있으면_내_프로필을_반환한다() throws Exception {
+    void X_User_Id_헤더가_있으면_내_프로필을_반환한다() throws Exception {
         // given
         UUID accountId = UUID.randomUUID();
         when(memberQueryService.getMe(accountId)).thenReturn(
                 new MemberQueryService.MemberProfile(accountId, "홍길동", null, "01012345678"));
 
         // when & then
-        mockMvc.perform(get("/api/v1/members/me").header("X-Account-Id", accountId.toString()))
+        mockMvc.perform(get("/api/v1/members/me").header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("홍길동"))
                 .andExpect(jsonPath("$.currentMode").doesNotExist());
     }
 
     @Test
-    void X_Account_Id_헤더가_없으면_401을_반환한다() throws Exception {
+    void X_User_Id_헤더가_없으면_401을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/members/me"))
                 .andExpect(status().isUnauthorized());
