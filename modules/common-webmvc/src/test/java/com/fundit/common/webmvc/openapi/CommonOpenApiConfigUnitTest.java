@@ -9,9 +9,11 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.method.HandlerMethod;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,7 +66,7 @@ class CommonOpenApiConfigUnitTest {
                 .addPathItem("/internal-only", new PathItem().post(new Operation())));
 
         // when
-        config.internalEndpointHidingCustomizer(List.of(
+        config.internalEndpointHidingCustomizer(provider(
                 new InternalEndpoint("POST", "/api/v1/members"),
                 new InternalEndpoint("POST", "/internal-only"))).customise(openApi);
 
@@ -89,6 +91,50 @@ class CommonOpenApiConfigUnitTest {
         assertThat(openApi.getInfo().getTitle()).isEqualTo("member-service API");
         assertThat(openApi.getComponents().getSchemas()).containsKey("ErrorResponse");
         assertThat(openApi.getComponents().getSecuritySchemes()).containsKey("bearerAuth");
+    }
+
+    @Test
+    void 내부_전용_엔드포인트를_선언하지_않은_서비스에서도_동작한다() {
+        // given — InternalEndpoint 빈을 하나도 두지 않는 서비스가 있다(auth-service).
+        // List로 주입받으면 후보 빈이 없을 때 컨텍스트 기동 자체가 실패한다.
+        OpenAPI openApi = new OpenAPI().paths(new Paths()
+                .addPathItem("/api/v1/auth/login", new PathItem().post(new Operation())));
+
+        // when
+        config.internalEndpointHidingCustomizer(provider()).customise(openApi);
+
+        // then — 아무것도 지우지 않고 그대로 통과해야 한다
+        assertThat(openApi.getPaths()).containsKey("/api/v1/auth/login");
+    }
+
+    /** ObjectProvider는 인터페이스라 테스트에선 stream()만 채워 쓴다. */
+    private ObjectProvider<InternalEndpoint> provider(InternalEndpoint... endpoints) {
+        return new ObjectProvider<>() {
+            @Override
+            public Stream<InternalEndpoint> stream() {
+                return Stream.of(endpoints);
+            }
+
+            @Override
+            public InternalEndpoint getObject() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InternalEndpoint getObject(Object... args) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InternalEndpoint getIfAvailable() {
+                return null;
+            }
+
+            @Override
+            public InternalEndpoint getIfUnique() {
+                return null;
+            }
+        };
     }
 
     private HandlerMethod handlerMethod(String methodName) throws NoSuchMethodException {

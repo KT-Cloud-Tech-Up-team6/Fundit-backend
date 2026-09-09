@@ -19,13 +19,13 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.customizers.GlobalOperationCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.HandlerMethod;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -85,9 +85,12 @@ public class CommonOpenApiConfig {
      *
      * <p>경로 목록을 여기에 다시 적지 않고 서비스가 이미 선언한 {@link InternalEndpoint} 빈을 그대로 읽는다 —
      * 목록이 두 곳에 생기면 언젠가 어긋난다.
+     *
+     * <p>{@code List}가 아니라 {@code ObjectProvider}로 받는다 — 내부 전용 엔드포인트가 없는 서비스도 있고,
+     * 필수 컬렉션 주입은 후보 빈이 하나도 없으면 컨텍스트 기동이 실패한다. {@code CommonWebConfig}와 같은 이유.
      */
     @Bean
-    public GlobalOpenApiCustomizer internalEndpointHidingCustomizer(List<InternalEndpoint> internalEndpoints) {
+    public GlobalOpenApiCustomizer internalEndpointHidingCustomizer(ObjectProvider<InternalEndpoint> internalEndpoints) {
         return openApi -> internalEndpoints.forEach(endpoint -> {
             PathItem pathItem = openApi.getPaths() == null ? null : openApi.getPaths().get(endpoint.path());
             if (pathItem != null) {
@@ -122,11 +125,7 @@ public class CommonOpenApiConfig {
     }
 
     private ApiResponse errorApiResponse() {
-        String codes = Arrays.stream(CommonErrorCode.values())
-                .map(code -> code.getCode() + "(" + code.getHttpStatus() + ")")
-                .collect(Collectors.joining(", "));
-        return errorResponseWithDescription("오류 응답. 공통 코드: " + codes
-                + ". 서비스별 코드는 각 서비스의 ErrorCode enum 참고.");
+        return errorResponseWithDescription("오류 응답 — 형태와 공통 코드 목록은 ErrorResponse 스키마 참고");
     }
 
     private ApiResponse unauthorizedResponse() {
@@ -141,12 +140,19 @@ public class CommonOpenApiConfig {
                         new MediaType().schema(new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA))));
     }
 
+    private String commonErrorCodes() {
+        return Arrays.stream(CommonErrorCode.values())
+                .map(code -> code.getCode() + "(" + code.getHttpStatus() + ")")
+                .collect(Collectors.joining(", "));
+    }
+
     /** ErrorResponse는 컨트롤러 시그니처에 안 나타나서 자동 수집되지 않는다 — 직접 변환해 등록한다. */
     private Schema<?> errorResponseSchema() {
         return ModelConverters.getInstance()
                 .readAllAsResolvedSchema(ErrorResponse.class)
                 .schema
                 .description("모든 서비스가 공유하는 에러 응답 형태. detail은 오류 종류에 따라 모양이 다르다 "
-                        + "(검증 실패는 [{field, reason}] 배열, 그 외는 대부분 null).");
+                        + "(검증 실패는 [{field, reason}] 배열, 그 외는 대부분 null). "
+                        + "공통 코드: " + commonErrorCodes() + ". 서비스별 코드는 각 서비스의 ErrorCode enum 참고.");
     }
 }
