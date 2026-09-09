@@ -76,8 +76,14 @@ class CommonOpenApiConfigUnitTest {
         assertThat(openApi.getPaths()).doesNotContainKey("/internal-only");
     }
 
+    /**
+     * servers를 비우지 않고 상대경로로 "덮어쓰는" 게 핵심이다 — 비워두면 springdoc이 캐시된 문서에
+     * 기본 서버를 매 요청 다시 채워 넣어서, 부팅 후 첫 요청에만 사라지고 두 번째부터 되살아난다.
+     * 그 되살아나는 동작은 springdoc 쪽이라 이 격리 테스트로는 잡히지 않는다(실기동으로 확인함).
+     * 여기서 고정하는 건 "비우지 않는다"는 우리 쪽 계약이다.
+     */
     @Test
-    void 자동_생성된_servers는_제거된다() {
+    void servers는_직접_포트가_아니라_상대경로로_덮어쓴다() {
         // given — springdoc 기본값은 서비스의 직접 포트라 게이트웨이를 통해 부르는 쪽엔 거짓 정보다
         OpenAPI openApi = new OpenAPI();
         openApi.addServersItem(new io.swagger.v3.oas.models.servers.Server().url("http://localhost:8082"));
@@ -86,7 +92,7 @@ class CommonOpenApiConfigUnitTest {
         config.commonSchemaCustomizer("member-service").customise(openApi);
 
         // then
-        assertThat(openApi.getServers()).isNull();
+        assertThat(openApi.getServers()).extracting("url").containsExactly("/");
         assertThat(openApi.getInfo().getTitle()).isEqualTo("member-service API");
         assertThat(openApi.getComponents().getSchemas()).containsKey("ErrorResponse");
         assertThat(openApi.getComponents().getSecuritySchemes()).containsKey("bearerAuth");
