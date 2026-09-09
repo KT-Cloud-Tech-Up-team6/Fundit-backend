@@ -1,16 +1,8 @@
 ## 회원(Member) 도메인
 
-> **기계가 읽는 스펙**: 실행 중인 서비스가 `GET /api/v1/members/api-docs.yaml`로 OpenAPI 3 문서를 제공합니다.
-> **구현 현황은 이쪽이 기준입니다** — 이 문서는 설계 의도와 비즈니스 규칙을 담고, 생성 스펙은 실제 구현만 담습니다.
->
-> 프론트에 전달할 파일 뽑기(dev 배포 전까지는 수동):
-> ```bash
-> docker compose -f services/member-service/docker-compose.yml up -d
-> ./gradlew :services:member-service:bootRun
-> curl -s localhost:8082/api/v1/members/api-docs.yaml > member-api.yaml
-> ```
-> 게이트웨이(8080)를 통해서도 같은 경로로 받을 수 있습니다. 운영 프로필에서는 닫혀 있습니다.
-
+> 실행 중인 서비스가 `GET /api/v1/members/api-docs.yaml`로 OpenAPI 3 문서를 제공합니다.
+> **구현 현황은 생성 스펙이 기준입니다** — 이 문서는 설계 의도와 비즈니스 규칙, 생성 스펙은 실제 구현만 담습니다.
+> 파일로 뽑아 프론트에 전달하는 방법은 `docs/development-workflow-guide.md`의 "API 스펙(OpenAPI) 전달" 참고.
 
 > 이 문서는 **MVP 구현 범위만** 다룹니다. MVP 범위 밖(후순위) 엔드포인트의 전체 스펙은 `MvpImplementationSummary.md`로 이동했습니다 — 여기엔 존재하지 않습니다.
 > 2026-09-03 기준: 스키마 정리(is_foreigner/di_hash/phone_verified_at/business_type/business_info/seller_verified_at/current_mode 제외) 반영.
