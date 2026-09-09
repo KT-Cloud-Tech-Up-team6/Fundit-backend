@@ -38,6 +38,7 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
                 new LoginResponseBody(tokens.accessToken(), account.isMustChangePassword()));
     }
 
-    private record LoginResponseBody(String accessToken, boolean mustChangePassword) {
+    /** package-private: AuthOpenApiCustomizer가 스펙 스키마로 그대로 읽는다. */
+    record LoginResponseBody(String accessToken, boolean mustChangePassword) {
     }
 }

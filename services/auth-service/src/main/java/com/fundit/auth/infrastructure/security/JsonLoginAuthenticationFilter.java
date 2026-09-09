@@ -52,6 +52,7 @@ public class JsonLoginAuthenticationFilter extends UsernamePasswordAuthenticatio
         return getAuthenticationManager().authenticate(authRequest);
     }
 
-    private record LoginRequestBody(String email, String password) {
+    /** package-private: AuthOpenApiCustomizer가 스펙 스키마로 그대로 읽는다. */
+    record LoginRequestBody(String email, String password) {
     }
 }
