@@ -56,6 +56,8 @@ public class SecurityConfig {
                         // 공개키만 담기므로 인증 없이 연다 — 게이트웨이가 서명 검증에 쓴다
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/jwks").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/check-email").permitAll()
+                        // OpenAPI 스펙(운영 프로필에서는 아예 비활성) — .yaml까지 걸리도록 * 사용
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/api-docs*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup",
                                 "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications").permitAll()
                         .anyRequest().authenticated())

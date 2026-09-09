@@ -17,6 +17,7 @@ import com.fundit.auth.presentation.dto.SignupResponse;
 import com.fundit.auth.presentation.dto.TokenRefreshResponse;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -35,6 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+// 태그를 명시하는 이유: 기본값은 클래스명에서 파생된 "auth-controller"인데,
+// 필터가 처리하는 로그인(AuthOpenApiCustomizer)도 같은 그룹에 넣어야 프론트 클라이언트가 쪼개지지 않는다.
+@Tag(name = "auth")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

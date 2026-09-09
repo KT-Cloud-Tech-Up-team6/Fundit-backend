@@ -14,3 +14,8 @@ jwt:
 
 member-service:
   base-url: ${MEMBER_SERVICE_BASE_URL}
+
+# 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
+springdoc:
+  api-docs:
+    enabled: false
