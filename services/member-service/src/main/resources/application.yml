@@ -8,3 +8,7 @@ spring:
     active: local
   jackson:
     default-property-inclusion: non_null
+
+springdoc:
+  api-docs:
+    path: /api/v1/members/api-docs
