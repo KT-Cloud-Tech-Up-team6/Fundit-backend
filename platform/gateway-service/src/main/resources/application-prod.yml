@@ -3,7 +3,8 @@ downstream:
   member-service-base-url: ${MEMBER_SERVICE_BASE_URL}
 
 jwt:
-  secret: ${JWT_SECRET}
+  # auth-service가 공개키를 노출하는 곳. downstream 주소를 재사용해 환경변수를 늘리지 않는다.
+  jwk-set-uri: ${downstream.auth-service-base-url}/api/v1/auth/jwks
 
 internal-api:
   key: ${INTERNAL_API_KEY}

@@ -15,6 +15,7 @@
 | POST | `/api/v1/auth/reset-password` | X | 비밀번호 재설정 링크 발송 |
 | POST | `/api/v1/auth/reset-password/confirm` | X (재설정 토큰이 인증 수단) | 재설정 토큰으로 비밀번호 설정 |
 | PATCH | `/api/v1/auth/password` | O | 비밀번호 변경(마이페이지, 로그인 상태) |
+| GET | `/api/v1/auth/jwks` | X | 토큰 서명 검증용 공개키(JWKS) — 게이트웨이 전용 |
 
 > 회원가입 관련 두 엔드포인트를 하나로 합치지 않은 이유는 회원 도메인 문서 참고. 로그인은 "아이디" 없이 이메일 단일 식별자로 통일한다(요구사항정의서 확인, `accounts.login_id` 컬럼 제거).
 
@@ -429,6 +430,36 @@ Validation / Business Rules
 
 ---
 
+### 공개키 조회 (JWKS, 신규)
+
+`GET /api/v1/auth/jwks`
+
+Auth Required: **X** — 담기는 건 **공개키뿐**이라 인증을 걸지 않는다. 이 값으로 할 수 있는 건 서명 검증이고, 토큰 발급(서명)에는 개인키가 필요한데 그건 auth-service 밖으로 나가지 않는다.
+
+호출 주체는 사실상 게이트웨이 하나다. 게이트웨이가 기동/키 갱신 시 이 엔드포인트에서 공개키를 가져와 캐싱하고, 이후 들어오는 Access Token의 RS256 서명을 검증한다.
+
+**응답 200**
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "n": "<modulus, base64url>",
+      "e": "AQAB",
+      "kid": "<공개키 지문(RFC 7638)>"
+    }
+  ]
+}
+```
+
+- `kid`는 발급 토큰의 JWS 헤더 `kid`와 일치한다. 키를 교체하면 지문이 바뀌므로 `kid`도 자동으로 따라간다(로테이션 시 설정 변경 불필요).
+- 개인 파라미터(`d`/`p`/`q` 등)는 포함되지 않는다.
+
+> **경로가 표준 `/oauth2/jwks`나 `/.well-known/jwks.json`이 아닌 이유**: `api-convention.md`가 `/api/v1/` 프리픽스를 고정으로 두고 있고, 이 JWKS는 외부 표준 클라이언트가 아니라 우리 게이트웨이만 읽는다(URI를 게이트웨이 설정으로 직접 주므로 표준 경로일 이점이 없다).
+
+---
+
 ### 고아 계정 정리 배치 (AUTH-012, 신규 — 안전망)
 
 ```
@@ -473,6 +504,8 @@ Validation / Business Rules
 - **[확정] 소셜 로그인 미가입 처리**: `needsSignup` + `signupToken` 패턴. `POST /api/v1/auth/signup/social`에 `signupToken` 필드 추가.
 - **[확정] 계정 잠금**: 5회 실패 시 30분 고정 자동 잠금. 셀프 해제(이메일/SMS)는 P2로 보류.
 - **[확정] 비밀번호 변경 강제**: `accounts.must_change_password` 컬럼 신규 추가(SQL 반영 완료), 로그인 응답에 `mustChangePassword` 플래그 포함, `PATCH /api/v1/auth/password` 신규 엔드포인트 추가.
+
+- **[확정] JWT 서명 RS256 전환 + JWKS 엔드포인트 신설**(2026.09.08): 게이트웨이 도입 초기에는 HS256 대칭키를 게이트웨이와 공유했으나(게이트웨이가 유출되면 토큰 위조까지 가능), 게이트웨이를 어디에도 배포하기 전에 RS256으로 전환. 개인키는 auth-service만 갖고 게이트웨이는 `GET /api/v1/auth/jwks`로 공개키만 가져가 검증한다. 공개키는 개인키에서 유도하므로 운영이 관리할 시크릿은 `JWT_PRIVATE_KEY` 하나다. **클라이언트 계약은 바뀌지 않았다** — 토큰 클레임(`sub`/`role`/`typ`/`iat`/`exp`)은 그대로고 `alg`와 `kid` 헤더만 달라져 프론트가 고칠 건 없다(단, 전환 시점에 기존 발급 토큰은 전부 무효화되어 재로그인이 필요하다).
 
 ## ⚠️ 남은 확인 필요 사항
 

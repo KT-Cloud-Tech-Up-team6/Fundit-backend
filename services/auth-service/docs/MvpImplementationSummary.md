@@ -118,3 +118,43 @@ member-service가 레포에 붙은 뒤 처음으로 두 서비스 간 실제 연
 - **보상 트랜잭션 경로는 이미 커버돼 있었음** — `SignupServiceUnitExceptionTest`의 `member_service_호출이_실패하면_계정을_삭제하고_예외를_그대로_전파한다`가 기존에 이미 이 케이스를 검증하고 있어 추가 작업 없음.
 - **범위 밖으로 명시적으로 남긴 것**: 게이트웨이/JWT 헤더 주입(별도 이슈), AUTH-009/소셜가입/탈퇴 흐름/PII 암호화(이미 PM이 후순위 확정했거나 스펙 자체가 없음, 이번 세션에 재검토해서 확인함), 로그인 응답 `member.nickname` 복원(건드리면 로그인 경로에 새 동기 결합이 생김 — 위 "범위 변경" 절 참고).
 - 두 서비스를 실제로 함께 기동해 `curl`로 확인하는 절차는 이번엔 수행하지 않음(선택 사항으로 남겨둠) — 위 "남은 것 > 검증/실기동 필요" 참고.
+
+
+### RS256 + JWKS 전환 (2026-09-08, `feat/rs256-jwks#24`)
+
+게이트웨이(#21)가 머지된 직후, 게이트웨이를 **어디에도 배포하기 전에** HS256 대칭키 공유 상태를 없앴다.
+그 상태에서는 게이트웨이가 유출되면 검증뿐 아니라 토큰 위조까지 가능했고, 배포 후로 미뤘다면
+곧 회수할 시크릿을 운영에 뿌렸다가 빼는 낭비가 생겼을 것이다.
+
+- **`JwtTokenProvider`**: `Keys.hmacShaKeyFor` → RSA 개인키 로드 + `Jwts.SIG.RS256` 서명 + `kid` 헤더.
+  검증은 `verifyWith(publicKey)`.
+- **공개키는 개인키에서 유도한다** — `RSAPrivateCrtKey`의 modulus/publicExponent로 만든다.
+  운영이 관리할 시크릿이 `JWT_PRIVATE_KEY` 하나로 유지된다.
+- **`kid`는 공개키 지문(RFC 7638)에서** — 설정값이 하나 줄고, 로테이션 시 코드/설정 변경이 없다.
+- **`GET /api/v1/auth/jwks` 신설**(`JwksController`, `SecurityConfig`에서 permitAll).
+  경로가 표준 `/oauth2/jwks`가 아닌 이유는 `api-convention.md`의 `/api/v1/` 프리픽스 고정 때문이고,
+  이 JWKS는 우리 게이트웨이만 읽으므로 표준 경로일 이점이 없다.
+- **새 의존성 없음** — jjwt 0.12.6에 JWK 빌더가 이미 있다.
+- **테스트 키는 `@DynamicPropertySource`로 생성 주입** — `@TestPropertySource`는 컴파일 상수만 받아
+  생성한 키를 못 넣는다. 덕분에 레포에 개인키를 커밋하지 않는다(`JwtTestKeys`).
+
+**실기동에서만 나온 버그 1건**: jjwt의 `JwkSet`/`Jwk`는 `Map`을 구현하지만 Jackson에 그대로 넘기면
+`{"keys":{}}`로 **비어서 나간다**. 단위 테스트는 Java 객체(`getKeys()`)를 봐서 통과했고, 실제로 앱을
+띄워 `curl` 했을 때만 드러났다. 평범한 `Map`/`List`로 복사해 반환하도록 수정.
+이 레포에서 실기동 검증으로만 발견된 버그가 이걸로 4건째다.
+
+**E2E 확인**(auth 8081 + gateway 8080): JWKS 응답 정상(kid 포함) → 게이트웨이 경유 로그인으로
+RS256 토큰(`alg=RS256`, `kid` 일치) 발급 → 게이트웨이가 JWKS로 검증해 보호 엔드포인트 통과 →
+위조 서명 401 `TOKEN_INVALID` → 내부 전용 엔드포인트 404. 검증 후 계정·컨테이너 정리 완료.
+
+**`application-prod.yml` 처리(사용자 확정)**: 처음엔 "직접 수정 금지" 규칙 때문에 손대지 않았는데,
+그러면 코드가 `jwt.private-key`를 요구하는 상태에서 yml은 `jwt.secret`을 들고 있어 **운영에서 기동
+자체가 안 된다.** 게다가 게이트웨이 prod는 고치고 auth prod만 안 고쳐 서비스 간 처리도 어긋나 있었다.
+
+논의 끝에 규칙의 취지를 "**값을 쓰지 말 것**"으로 정리했다 — prod yml은 `${ENV}` 참조만 담고 실제
+값은 파이프라인이 주입하되, **코드가 읽는 프로퍼티 이름이 바뀌면 yml도 같이 고친다**(참조 이름은
+값이 아니라 코드 계약의 일부다). `CLAUDE.md`와 `config-convention.md` 문구도 그렇게 갱신했다.
+
+> 운영에 주입할 환경변수: `JWT_PRIVATE_KEY`(신규, base64 PKCS#8). 기존 `JWT_SECRET`은 더 이상 쓰지 않는다.
+> auth-service prod에 여전히 빠져 있는 `INTERNAL_API_KEY`/`REDIS_*`/`PG_*`는 이전부터 누적된 별개 건으로
+> 이번 범위 밖 — 같은 논리로 채울 수 있으니 별도 이슈 권장.

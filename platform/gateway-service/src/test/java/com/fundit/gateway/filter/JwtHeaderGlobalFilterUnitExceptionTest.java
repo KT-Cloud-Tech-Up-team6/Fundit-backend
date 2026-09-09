@@ -63,8 +63,8 @@ class JwtHeaderGlobalFilterUnitExceptionTest {
     @Test
     void 서명이_위조된_토큰이면_401_TOKEN_INVALID를_반환한다() {
         // given
-        String forged = GatewayFilterFixture.tokenSignedWith(
-                "another-secret-key-at-least-32-bytes-long!", UUID.randomUUID(), Instant.now().plusSeconds(600));
+        String forged = GatewayFilterFixture.tokenSignedWithOtherKey(
+                UUID.randomUUID(), Instant.now().plusSeconds(600));
         ServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/v1/members/me").header("Authorization", "Bearer " + forged));
 
