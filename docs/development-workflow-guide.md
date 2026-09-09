@@ -96,7 +96,7 @@ curl -s localhost:{로컬 앱 포트}/api/v1/{도메인}/api-docs.yaml > {도메
 
 ## common 모듈 수정 시 주의사항
 
-`modules/common` 변경은 **모든 서비스 빌드에 영향**을 줍니다. 수정 전 팀원에게 공유하고, 변경 후 각 서비스 담당자가 빌드 이상 여부를 확인해야 합니다. `modules:common`에는 응답 포맷 계약 클래스(`ApiResponse`, `ErrorCode` 등)만 두고 도메인/비즈니스 로직은 넣지 않습니다(CLAUDE.md 규칙).
+`modules/common` 변경은 **모든 서비스 빌드에 영향**을 줍니다. 수정 전 팀원에게 공유하고, 변경 후 각 서비스 담당자가 빌드 이상 여부를 확인해야 합니다. `modules:common`에는 **서비스 경계를 넘는 계약 클래스만** 두고 도메인/비즈니스 로직은 넣지 않습니다 — 무엇이 해당하는지는 CLAUDE.md의 세 조건 참고. `modules:common-webmvc`(Servlet 전용) 변경도 같은 영향 범위입니다.
 
 ---
 
@@ -134,7 +134,27 @@ Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어�
 `docs/ci-workflow-guide.md`의 템플릿 사용.
 
 ### 5. `application.yml`에 스펙 경로 선언
-`springdoc.api-docs.path: /api/v1/{도메인}/api-docs` — 게이트웨이 라우트(`/api/v1/{도메인}/**`)를 그대로 타므로 라우트 추가가 필요 없습니다. `application-prod.yml`에는 `springdoc.api-docs.enabled: false`를 둡니다.
+`springdoc.api-docs.path: /api/v1/{도메인}/api-docs` — 아래 7번에서 추가하는 서비스 라우트(`/api/v1/{도메인}/**`)에 그대로 포함되므로 **스펙 전용 라우트는 따로 만들지 않습니다.** `application-prod.yml`에는 `springdoc.api-docs.enabled: false`를 둡니다.
+
+### 6. 메인 클래스 스캔 범위 넓히기
+```java
+@SpringBootApplication(scanBasePackages = "com.fundit")
+```
+기본 스캔 범위는 메인 클래스 패키지 하위뿐이라 `modules:common-webmvc`의 `com.fundit.common.webmvc.*`가 통째로 빠집니다 — `@LoginUser`가 주입되지 않고 `InternalGatewaySecretFilter`도 안 걸립니다.
+
+> `auth-service`는 예외로 `@Import(CommonOpenApiConfig.class)`만 씁니다 — 게이트웨이가 넣는 `X-User-Id`를 쓰지 않고(자체 Security 필터가 JWT를 검증) 내부 전용 엔드포인트도 없어서, 넓히면 안 쓰는 설정만 딸려옵니다.
+
+### 7. 게이트웨이에 라우트 추가 — 빠뜨리면 외부에서 호출 자체가 안 됨
+`platform/gateway-service/src/main/resources/application.yml`의 `routes` 배열에 추가하고, **프로필별 yml마다** 주소를 넣습니다(`application-{dev,prod}.yml`의 `downstream`, 로컬은 `application-local.yml`).
+
+```yaml
+- id: {서비스명}
+  uri: ${downstream.{서비스명}-base-url}
+  predicates:
+    - Path=/api/v1/{도메인}/**
+```
+
+내부 전용 엔드포인트가 있다면 라우트만으로는 막히지 않습니다 — `JwtHeaderGlobalFilter`에서 차단하고, 서비스 쪽에는 `InternalEndpoint` 빈을 선언해야 합니다.
 
 > Node.js 등 Gradle을 쓰지 않는 서비스는 현재 계획에 없습니다. 실제로 필요해지면 그때 별도 규칙을 추가합니다(지금 미리 만들지 않음).
 
@@ -170,16 +190,17 @@ Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어�
 | Lombok(`compileOnly` + `annotationProcessor`) | 루트 `build.gradle` |
 | Spring Boot 플러그인(`bootJar`) | 루트 `build.gradle` (`services/*`, `platform/*`에 자동 적용) |
 | JPA/Flyway/PostgreSQL 드라이버, Testcontainers(postgresql·junit-jupiter) | 루트 `build.gradle` (`:services:` 전체 공통 블록) |
-| 응답 포맷 계약 클래스(`ErrorResponse`, `PageResponse`, `ErrorCode` 인터페이스, `BusinessException`) | `modules:common` (Spring 의존성 전혀 없는 순수 Java) |
+| 에러·응답 계약(`ErrorCode`/`CommonErrorCode`/`ErrorResponse`/`BusinessException`/`DependencyFailureException`), 인증 헤더 계약(`AuthHeaders`) | `modules:common` (Spring 의존성 전혀 없는 순수 Java) |
+| `spring-boot-starter-web`, springdoc, `AbstractGlobalExceptionHandler`, 공통 인증 플러밍(`@LoginUser`/`CurrentUser`/`InternalGatewaySecretFilter`), `CommonOpenApiConfig` | `modules:common-webmvc` (`api`로 위 `modules:common`까지 같이 노출) |
 
-> ⚠️ `modules:common`은 Spring을 전혀 의존하지 않습니다 — `spring-web`조차 없습니다. `ErrorCode.getHttpStatus()`가 `int`를 반환하도록 확정하면서 Spring 타입 자체가 필요 없어졌기 때문입니다(성공 응답도 래퍼 없이 DTO 그대로 반환하기로 했으니 `ApiResponse<T>` 같은 것도 없습니다). 그래서 REST 컨트롤러가 필요한 서비스는 아래처럼 **`spring-boot-starter-web`을 직접 선언해야** 합니다 — `common`을 통해 전파되는 게 하나도 없습니다.
+> ⚠️ `modules:common`은 Spring을 전혀 의존하지 않습니다 — `spring-web`조차 없습니다. 그래서 REST 서비스는 `modules:common`이 아니라 **`modules:common-webmvc`에 의존합니다.** 이 모듈이 `api`로 `modules:common`과 `spring-boot-starter-web`을 같이 노출하므로 **둘을 따로 선언하지 않습니다**(선언하면 중복입니다).
 
 ### 필수 선언 항목
 
 ```groovy
 dependencies {
-    implementation project(':modules:common')          // 항상 포함
-    implementation 'org.springframework.boot:spring-boot-starter-web'  // REST 서비스는 직접 선언
+    implementation project(':modules:common-webmvc')   // 이 한 줄이면 common + starter-web까지 딸려옴
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }
 ```
 
@@ -188,8 +209,8 @@ dependencies {
 ```groovy
 // services/auth-service/build.gradle
 dependencies {
-    implementation project(':modules:common')
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation project(':modules:common-webmvc')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'  // 이 서비스만 필요하면 여기에
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'

@@ -15,6 +15,7 @@ import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.customizers.GlobalOperationCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
@@ -25,6 +26,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.HandlerMethod;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -60,9 +62,13 @@ public class CommonOpenApiConfig {
             openApi.setInfo(new Info().title(applicationName + " API").version("v1"));
 
             // springdoc이 자동으로 넣는 servers는 이 서비스의 직접 포트(예: localhost:8082)라
-            // 게이트웨이를 통해 호출하는 클라이언트에게는 거짓 정보다. 비워두면 OpenAPI 규약상
+            // 게이트웨이를 통해 호출하는 클라이언트에게는 거짓 정보다. 상대 URL "/"는 OpenAPI 규약상
             // "스펙을 받아온 곳과 같은 origin"을 뜻해서, 어디서 받아가든 맞는 값이 된다.
-            openApi.setServers(null);
+            //
+            // 비우지(setServers(null)) 않는 이유: springdoc은 캐시된 OpenAPI에 매 요청 기본 서버를
+            // 다시 채워 넣는다. 그래서 부팅 후 첫 요청에만 servers가 없고 두 번째부터 되살아난다
+            // — 실기동으로 확인했다. 비어 있지 않으면 건드리지 않으므로 값을 넣어 고정한다.
+            openApi.setServers(List.of(new Server().url("/").description("스펙을 받아온 곳과 같은 origin")));
 
             Components components = openApi.getComponents() != null ? openApi.getComponents() : new Components();
 

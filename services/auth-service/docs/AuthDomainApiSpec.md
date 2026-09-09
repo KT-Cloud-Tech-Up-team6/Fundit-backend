@@ -1,5 +1,9 @@
 ## 인증(Auth) 도메인
 
+> 실행 중인 서비스가 `GET /api/v1/auth/api-docs.yaml`로 OpenAPI 3 문서를 제공합니다.
+> **구현 현황은 생성 스펙이 기준입니다** — 이 문서는 설계 의도와 비즈니스 규칙, 생성 스펙은 실제 구현만 담습니다.
+> 파일로 뽑아 프론트에 전달하는 방법은 `docs/development-workflow-guide.md`의 "API 스펙(OpenAPI) 전달" 참고.
+
 ### 인증 도메인 엔드포인트 목록
 
 | method | path | auth required | 설명 |
