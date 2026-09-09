@@ -12,6 +12,7 @@ import com.fundit.auth.domain.account.Role;
 import com.fundit.auth.infrastructure.security.AccountAuthenticationProvider;
 import com.fundit.auth.infrastructure.security.JwtAuthenticationFilter;
 import com.fundit.auth.infrastructure.security.JwtProperties;
+import com.fundit.auth.infrastructure.security.JwtTestKeys;
 import com.fundit.auth.infrastructure.security.JwtTokenProvider;
 import com.fundit.auth.infrastructure.security.LoginFailureHandler;
 import com.fundit.auth.infrastructure.security.LoginSuccessHandler;
@@ -23,6 +24,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -51,12 +54,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class, JwtProperties.class,
         AccountAuthenticationProvider.class, LoginSuccessHandler.class, LoginFailureHandler.class,
         RefreshTokenCookieFactory.class, GlobalExceptionHandler.class})
-@TestPropertySource(properties = {
-        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
-        "jwt.access-token-ttl=30m",
-        "jwt.refresh-token-ttl=14d"
-})
 class AuthControllerTest {
+
+    @DynamicPropertySource
+    static void jwtKey(DynamicPropertyRegistry registry) {
+        JwtTestKeys.register(registry);
+    }
 
     @Autowired
     private MockMvc mockMvc;

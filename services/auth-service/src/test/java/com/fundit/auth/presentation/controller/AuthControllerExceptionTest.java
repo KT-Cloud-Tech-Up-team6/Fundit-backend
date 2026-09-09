@@ -11,6 +11,7 @@ import com.fundit.auth.domain.account.AccountLockedException;
 import com.fundit.auth.infrastructure.security.AccountAuthenticationProvider;
 import com.fundit.auth.infrastructure.security.JwtAuthenticationFilter;
 import com.fundit.auth.infrastructure.security.JwtProperties;
+import com.fundit.auth.infrastructure.security.JwtTestKeys;
 import com.fundit.auth.infrastructure.security.JwtTokenProvider;
 import com.fundit.auth.infrastructure.security.LoginFailureHandler;
 import com.fundit.auth.infrastructure.security.LoginSuccessHandler;
@@ -23,6 +24,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,18 +43,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 예외/실패 흐름만 검증한다. 정상 흐름은 {@link AuthControllerTest} 참고.
- * jwt.* 를 {@code @TestPropertySource}로 고정하는 이유는 {@link AuthControllerTest} 클래스 주석 참고.
+ * RSA 개인키를 테스트에서 직접 주입하는 이유는 {@link AuthControllerTest} 클래스 주석 참고.
  */
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTokenProvider.class, JwtProperties.class,
         AccountAuthenticationProvider.class, LoginSuccessHandler.class, LoginFailureHandler.class,
         RefreshTokenCookieFactory.class, GlobalExceptionHandler.class})
-@TestPropertySource(properties = {
-        "jwt.secret=test-only-secret-key-at-least-32-bytes-long!!",
-        "jwt.access-token-ttl=30m",
-        "jwt.refresh-token-ttl=14d"
-})
 class AuthControllerExceptionTest {
+
+    @DynamicPropertySource
+    static void jwtKey(DynamicPropertyRegistry registry) {
+        JwtTestKeys.register(registry);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -133,10 +136,9 @@ class AuthControllerExceptionTest {
     @Test
     void 만료된_access_token이면_401_TOKEN_EXPIRED를_반환한다() throws Exception {
         // given
-        JwtProperties expiredTokenProperties = new JwtProperties();
-        expiredTokenProperties.setSecret("test-only-secret-key-at-least-32-bytes-long!!");
-        expiredTokenProperties.setAccessTokenTtl(Duration.ofSeconds(-1));
-        expiredTokenProperties.setRefreshTokenTtl(Duration.ofDays(14));
+        // 컨텍스트와 같은 키로 서명해야 서명 검증은 통과하고 '만료' 경로를 탄다
+        JwtProperties expiredTokenProperties =
+                JwtTestKeys.properties(JwtTestKeys.PRIVATE_KEY, Duration.ofSeconds(-1));
         String expiredToken = new JwtTokenProvider(expiredTokenProperties)
                 .issueAccessToken(UUID.randomUUID(), com.fundit.auth.domain.account.Role.MEMBER);
 
@@ -154,10 +156,9 @@ class AuthControllerExceptionTest {
     @Test
     void 서명이_잘못된_access_token이면_401_TOKEN_INVALID를_반환한다() throws Exception {
         // given
-        JwtProperties otherSecretProperties = new JwtProperties();
-        otherSecretProperties.setSecret("a-completely-different-signing-secret-32bytes!!");
-        otherSecretProperties.setAccessTokenTtl(Duration.ofMinutes(30));
-        otherSecretProperties.setRefreshTokenTtl(Duration.ofDays(14));
+        // 컨텍스트와 다른 키페어로 서명 → 서명 검증에서 걸려야 한다
+        JwtProperties otherSecretProperties =
+                JwtTestKeys.properties(JwtTestKeys.OTHER_PRIVATE_KEY, Duration.ofMinutes(30));
         String forgedToken = new JwtTokenProvider(otherSecretProperties)
                 .issueAccessToken(UUID.randomUUID(), com.fundit.auth.domain.account.Role.MEMBER);
 

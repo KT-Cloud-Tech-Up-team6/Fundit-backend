@@ -53,6 +53,8 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 공개키만 담기므로 인증 없이 연다 — 게이트웨이가 서명 검증에 쓴다
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/jwks").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/check-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup",
                                 "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications").permitAll()

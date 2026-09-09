@@ -12,7 +12,7 @@ spring:
       port: ${REDIS_PORT:6379}
 
 jwt:
-  secret: ${JWT_SECRET}
+  private-key: ${JWT_PRIVATE_KEY}
   access-token-ttl: 30m
   refresh-token-ttl: 14d
 

@@ -78,6 +78,22 @@ PR 생성 시 변경된 서비스의 CI가 자동 실행됩니다. 흐름·작�
 
 ---
 
+## API 스펙(OpenAPI) 전달
+
+각 서비스는 `GET /api/v1/{도메인}/api-docs.yaml`로 OpenAPI 3 문서를 제공합니다(예: member는 `/api/v1/members/api-docs.yaml`). `*DomainApiSpec.md`는 설계 의도, 생성 스펙은 실제 구현을 담으므로 **구현 현황은 생성 스펙이 기준**입니다.
+
+dev 배포 전까지는 수동으로 뽑아 전달합니다(포트는 아래 "서비스별 빠른 참조" 표):
+
+```bash
+docker compose -f services/{서비스}/docker-compose.yml up -d
+./gradlew :services:{서비스}:bootRun
+curl -s localhost:{로컬 앱 포트}/api/v1/{도메인}/api-docs.yaml > {도메인}-api.yaml
+```
+
+게이트웨이(8080)를 통해서도 같은 경로로 받을 수 있습니다. **운영 프로필에서는 닫혀 있습니다**(`application-prod.yml`의 `springdoc.api-docs.enabled: false`).
+
+---
+
 ## common 모듈 수정 시 주의사항
 
 `modules/common` 변경은 **모든 서비스 빌드에 영향**을 줍니다. 수정 전 팀원에게 공유하고, 변경 후 각 서비스 담당자가 빌드 이상 여부를 확인해야 합니다. `modules:common`에는 응답 포맷 계약 클래스(`ApiResponse`, `ErrorCode` 등)만 두고 도메인/비즈니스 로직은 넣지 않습니다(CLAUDE.md 규칙).
@@ -116,6 +132,9 @@ Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어�
 
 ### 4. `.github/workflows/ci-{서비스명}.yml` 생성
 `docs/ci-workflow-guide.md`의 템플릿 사용.
+
+### 5. `application.yml`에 스펙 경로 선언
+`springdoc.api-docs.path: /api/v1/{도메인}/api-docs` — 게이트웨이 라우트(`/api/v1/{도메인}/**`)를 그대로 타므로 라우트 추가가 필요 없습니다. `application-prod.yml`에는 `springdoc.api-docs.enabled: false`를 둡니다.
 
 > Node.js 등 Gradle을 쓰지 않는 서비스는 현재 계획에 없습니다. 실제로 필요해지면 그때 별도 규칙을 추가합니다(지금 미리 만들지 않음).
 
