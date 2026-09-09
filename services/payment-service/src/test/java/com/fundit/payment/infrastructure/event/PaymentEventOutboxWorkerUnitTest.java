@@ -78,4 +78,65 @@ class PaymentEventOutboxWorkerUnitTest {
         assertThat(event.getAttemptCount()).isEqualTo(1);
         assertThat(event.getLastError()).contains("브로커 미구성");
     }
+
+    @Test
+    void 환불완료_이벤트는_Integer_쿠폰ID도_Long으로_변환한다() {
+        setUp();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("couponIssuanceId", 7);
+        payload.put("refundReason", "CANCELLED_BY_MEMBER");
+        payload.put("fullRefund", true);
+        PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
+                .eventType(PaymentEventOutboxJpaEntity.TYPE_REFUND_COMPLETED)
+                .fundingId(2048L)
+                .payload(payload)
+                .build();
+        when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
+
+        worker.publishPending();
+
+        ArgumentCaptor<PaymentEventTransport.RefundCompletedTransportEvent> captor =
+                ArgumentCaptor.forClass(PaymentEventTransport.RefundCompletedTransportEvent.class);
+        verify(transport).sendRefundCompleted(captor.capture());
+        assertThat(captor.getValue().fundingId()).isEqualTo(2048L);
+        assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
+        assertThat(captor.getValue().refundReason()).isEqualTo("CANCELLED_BY_MEMBER");
+        assertThat(captor.getValue().fullRefund()).isTrue();
+        assertThat(event.getPublishedAt()).isNotNull();
+    }
+
+    @Test
+    void 쿠폰ID가_문자열이면_Long으로_파싱한다() {
+        setUp();
+        PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
+                .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
+                .fundingId(1L)
+                .payload(Map.of("couponIssuanceId", "9"))
+                .build();
+        when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
+
+        worker.publishPending();
+
+        ArgumentCaptor<PaymentEventTransport.PaymentCompletedTransportEvent> captor =
+                ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
+        verify(transport).sendPaymentCompleted(captor.capture());
+        assertThat(captor.getValue().couponIssuanceId()).isEqualTo(9L);
+    }
+
+    @Test
+    void 알_수_없는_이벤트_타입은_실패로_기록한다() {
+        setUp();
+        PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
+                .eventType("UnknownType")
+                .fundingId(1L)
+                .payload(Map.of())
+                .build();
+        when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
+
+        worker.publishPending();
+
+        assertThat(event.getPublishedAt()).isNull();
+        assertThat(event.getAttemptCount()).isEqualTo(1);
+        assertThat(event.getLastError()).contains("알 수 없는 결제 이벤트 타입");
+    }
 }
