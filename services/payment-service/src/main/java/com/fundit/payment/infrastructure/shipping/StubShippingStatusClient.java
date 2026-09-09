@@ -1,0 +1,23 @@
+package com.fundit.payment.infrastructure.shipping;
+
+import com.fundit.payment.application.refund.ShippingStatusClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+/**
+ * shipping-service가 아직 로드맵상의 예정 서비스라(루트 CLAUDE.md 서비스 목록 참고) 실제 발송
+ * 상태를 조회할 방법이 없다. 항상 "미발송"으로 응답해 PAYMENT-008이 최소한 동작은 하게 해둔다 —
+ * shipping-service가 생기면 이 구현체를 실제 HTTP 클라이언트로 교체해야 한다.
+ */
+@Component
+public class StubShippingStatusClient implements ShippingStatusClient {
+
+    private static final Logger log = LoggerFactory.getLogger(StubShippingStatusClient.class);
+
+    @Override
+    public boolean isAlreadyShipped(Long fundingId) {
+        log.warn("[STUB] shipping-service 미구현 — 항상 미발송으로 간주합니다. fundingId={}", fundingId);
+        return false;
+    }
+}

@@ -9,3 +9,18 @@ spring:
 
 internal-api:
   key: ${INTERNAL_API_KEY}
+
+toss:
+  payments:
+    secret-key: ${TOSS_WIDGET_SECRET_KEY}
+    base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
+
+payment:
+  encryption:
+    key: ${PAYMENT_ENCRYPTION_KEY}
+
+order:
+  integration:
+    funding-client:
+      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+    base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}

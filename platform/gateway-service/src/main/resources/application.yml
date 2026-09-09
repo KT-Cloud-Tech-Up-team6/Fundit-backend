@@ -23,6 +23,14 @@ spring:
               uri: ${downstream.member-service-base-url}
               predicates:
                 - Path=/api/v1/members/**,/api/v1/wishes/**,/api/v1/addresses/**,/api/v1/terms/**
+            # 웹훅(/api/v1/payments/webhook/toss)은 토스 서버가 Authorization 헤더 없이 직접
+            # 호출한다 — 위 필터가 토큰이 없으면 X-User-Id 없이 그대로 통과시키므로 별도 예외
+            # 처리가 필요 없다(payment-service InternalGatewaySecretFilter가 서명 검증 없이
+            # 통과시키고, 실제 위조 방지는 TossWebhookService의 secret 대조가 담당).
+            - id: payment-service
+              uri: ${downstream.payment-service-base-url}
+              predicates:
+                - Path=/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**
 
 management:
   endpoints:

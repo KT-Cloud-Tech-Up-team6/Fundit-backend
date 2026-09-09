@@ -1,6 +1,7 @@
 downstream:
   auth-service-base-url: ${AUTH_SERVICE_BASE_URL}
   member-service-base-url: ${MEMBER_SERVICE_BASE_URL}
+  payment-service-base-url: ${PAYMENT_SERVICE_BASE_URL}
 
 # auth-service와 동일한 값이어야 한다(HS256 대칭키 공유 — RS256 전환 시 제거 예정).
 jwt:
