@@ -142,7 +142,7 @@ class SocialSignupServiceUnitExceptionTest {
 
     private SocialSignupService.SocialSignupCommand command(String signupToken, String email) {
         return new SocialSignupService.SocialSignupCommand(
-                signupToken, "verify", email, List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
+                signupToken, "verify", email, null, List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
     }
 
     private Account account() {
@@ -152,5 +152,73 @@ class SocialSignupServiceUnitExceptionTest {
                 .role(Role.MEMBER).failedLoginCount(0).mustChangePassword(false)
                 .createdAt(Instant.now()).updatedAt(Instant.now())
                 .build();
+    }
+
+    @Test
+    void 제공자_닉네임이_있으면_그것을_쓰고_요청값은_무시한다() {
+        // given — 카카오/구글이 준 닉네임이 우선이다
+        givenSignupReady();
+
+        // when
+        service().signup(commandWithNickname("사용자가입력"));
+
+        // then
+        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
+                c -> "응원왕".equals(c.nickname())));
+    }
+
+    @Test
+    void 제공자가_닉네임을_안_주면_요청값을_쓴다() {
+        // given — 카카오는 동의항목 설정에 따라 닉네임을 안 줄 수 있다
+        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
+                new SocialTokenStore.PendingSocialSignup(
+                        SocialProvider.KAKAO, "kakao-1", "user@kakao.com", null)));
+        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
+                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
+        givenAccountCreatable();
+
+        // when
+        service().signup(commandWithNickname("사용자가입력"));
+
+        // then
+        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
+                c -> "사용자가입력".equals(c.nickname())));
+    }
+
+    @Test
+    void 둘_다_없으면_실명으로_채우지_않고_null로_넘긴다() {
+        // given — 실명이 닉네임 칸에 들어가면 공개 화면에 실명이 노출된다(security.md S9)
+        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
+                new SocialTokenStore.PendingSocialSignup(
+                        SocialProvider.KAKAO, "kakao-1", "user@kakao.com", null)));
+        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
+                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
+        givenAccountCreatable();
+
+        // when
+        service().signup(command("token", null));
+
+        // then
+        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
+                c -> c.nickname() == null && "홍길동".equals(c.name())));
+    }
+
+    private void givenSignupReady() {
+        givenValidTokens();
+        givenAccountCreatable();
+    }
+
+    private void givenAccountCreatable() {
+        when(accountRepository.findBySocial(SocialProvider.KAKAO, "kakao-1")).thenReturn(Optional.empty());
+        when(accountRepository.findByEmail("user@kakao.com")).thenReturn(Optional.empty());
+        when(accountRepository.save(any())).thenReturn(account());
+        when(memberServiceClient.createProfile(any()))
+                .thenReturn(new MemberServiceClient.MemberProfile(UUID.randomUUID()));
+        when(tokenIssuer.issue(any(), any())).thenReturn(new TokenIssuer.IssuedTokens("access", "refresh"));
+    }
+
+    private SocialSignupService.SocialSignupCommand commandWithNickname(String nickname) {
+        return new SocialSignupService.SocialSignupCommand(
+                "token", "verify", null, nickname, List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
     }
 }

@@ -78,7 +78,7 @@ public class AuthController {
     public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         var result = signupService.signup(new SignupService.SignupCommand(
                 request.email(), request.password(), request.verificationToken(), request.name(),
-                request.phoneNumber(), request.agreedTerms(), request.address()));
+                request.nickname(), request.phoneNumber(), request.agreedTerms(), request.address()));
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SignupResponse(result.accountId(), result.memberId(), result.accessToken()));
@@ -101,7 +101,7 @@ public class AuthController {
     public ResponseEntity<SocialSignupResponse> signupSocial(@Valid @RequestBody SocialSignupRequest request) {
         var result = socialSignupService.signup(new SocialSignupService.SocialSignupCommand(
                 request.signupToken(), request.verificationToken(), request.email(),
-                request.agreedTerms(), request.address()));
+                request.nickname(), request.agreedTerms(), request.address()));
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SocialSignupResponse(result.accountId(), result.memberId(), result.accessToken()));

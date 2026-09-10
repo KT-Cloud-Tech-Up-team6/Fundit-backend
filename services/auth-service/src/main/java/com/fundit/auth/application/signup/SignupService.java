@@ -65,8 +65,8 @@ public class SignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), command.email(), verifiedIdentity.name(), verifiedIdentity.phoneNumber(),
-                    command.agreedTerms(), command.address()));
+                    account.getId(), command.email(), verifiedIdentity.name(), command.nickname(),
+                    verifiedIdentity.phoneNumber(), command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             // 보상 트랜잭션: 방금 커밋한 계정을 삭제하고 원래 예외(503 DEPENDENCY_FAILURE)를 그대로 전파
             accountRepository.deleteById(account.getId());
@@ -82,6 +82,7 @@ public class SignupService {
             String password,
             String verificationToken,
             String name,
+            String nickname,
             String phoneNumber,
             List<String> agreedTerms,
             Map<String, Object> address

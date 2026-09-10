@@ -52,7 +52,7 @@ class SignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
-                "dup@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                "dup@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AuthErrorCode.EMAIL_ALREADY_EXISTS);
@@ -66,7 +66,7 @@ class SignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "expired-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                "test@fundit.com", "pw", "expired-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOKEN_INVALID);
@@ -81,7 +81,7 @@ class SignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOKEN_INVALID);
@@ -96,7 +96,7 @@ class SignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOKEN_INVALID);
@@ -115,7 +115,7 @@ class SignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of())))
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
                 .isInstanceOf(DependencyFailureException.class)
                 .extracting(e -> ((DependencyFailureException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.DEPENDENCY_FAILURE);

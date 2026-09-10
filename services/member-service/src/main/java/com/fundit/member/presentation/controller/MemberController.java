@@ -36,7 +36,7 @@ public class MemberController {
     @PostMapping
     public MemberCreateResponse create(@Valid @RequestBody MemberCreateRequest request) {
         var result = memberSignupService.signup(new MemberSignupService.SignupCommand(
-                request.accountId(), request.name(), request.phoneNumber(),
+                request.accountId(), request.name(), request.nickname(), request.phoneNumber(),
                 request.agreedTerms(), request.address()));
         return new MemberCreateResponse(result.memberId(), null, true, true, result.createdAt());
     }

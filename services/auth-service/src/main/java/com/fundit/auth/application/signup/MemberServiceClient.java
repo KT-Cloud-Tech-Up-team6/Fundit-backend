@@ -16,10 +16,15 @@ public interface MemberServiceClient {
      */
     boolean phoneMatches(UUID accountId, String phoneNumber);
 
+    /**
+     * {@code nickname}은 없을 수 있다 — 사용자가 입력하지 않았거나 소셜 제공자가 주지 않은 경우.
+     * <b>실명({@code name})으로 대신 채우지 않는다</b>: 닉네임은 타인에게 보이는 값이다(security.md S9).
+     */
     record CreateMemberProfileCommand(
             UUID accountId,
             String email,
             String name,
+            String nickname,
             String phoneNumber,
             List<String> agreedTerms,
             Map<String, Object> address

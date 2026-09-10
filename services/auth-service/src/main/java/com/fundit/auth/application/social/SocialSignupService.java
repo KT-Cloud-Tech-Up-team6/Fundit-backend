@@ -58,6 +58,9 @@ public class SocialSignupService {
         // 제공자가 이메일을 안 준 경우(카카오 미동의) 여기서 사용자가 입력한 이메일로 판정한다 —
         // 로그인 시점에는 이메일이 없어 판정할 수 없었다. 두 진입점이 같은 판정을 쓴다.
         String email = pending.email() != null ? pending.email() : command.email();
+        // 닉네임도 같은 규칙: 제공자가 준 값이 우선, 없으면 사용자가 입력한 값.
+        // 둘 다 없으면 null로 둔다 — 실명으로 채우면 공개 화면에 실명이 나간다(security.md S9).
+        String nickname = pending.name() != null ? pending.name() : command.nickname();
         if (email == null || email.isBlank()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "이메일이 필요합니다.");
         }
@@ -86,8 +89,8 @@ public class SocialSignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), email, verifiedIdentity.name(), verifiedIdentity.phoneNumber(),
-                    command.agreedTerms(), command.address()));
+                    account.getId(), email, verifiedIdentity.name(), nickname,
+                    verifiedIdentity.phoneNumber(), command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             accountRepository.deleteById(account.getId());
             throw e;
@@ -102,6 +105,7 @@ public class SocialSignupService {
             String signupToken,
             String verificationToken,
             String email,
+            String nickname,
             List<String> agreedTerms,
             Map<String, Object> address
     ) {

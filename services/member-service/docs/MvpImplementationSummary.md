@@ -159,9 +159,11 @@ Response Body
 
 ### 4. 닉네임 수정
 
-**후순위 사유**: `GET /members/me` 응답엔 `nickname`이 있지만 이를 설정/수정하는 엔드포인트가 어떤 명세서에도 없었음. 컬럼(`members.nickname`, nullable)은 이미 존재하므로 스키마 변경 없이 API만 추가하면 됨.
+**2026-09-10 진행**: 저장 경로는 생겼다(이슈 #39). 가입 시 `nickname`을 받아 저장하고, 소셜가입은 제공자가 준 닉네임을 자동으로 채운다. 제공자가 안 주면 사용자 입력값을 쓰고, 둘 다 없으면 null로 둔다 — **실명으로 대신 채우지 않는다**(공개 화면에 실명이 노출되면 `security.md` S9 위반).
 
-**남은 일**: `PATCH /api/v1/members/me/nickname` 정도의 엔드포인트 스펙을 처음부터 새로 작성해야 함(원안 자체가 없었음).
+**남은 일**: 가입 후 변경하는 `PATCH /api/v1/members/me/nickname` 엔드포인트. 스펙 원안이 없어 처음부터 작성해야 함. 중복 허용 여부도 이때 정한다(현재 컬럼은 유니크 제약 없음 — 필요해지면 `V2` 마이그레이션).
+
+**표시 연동**: order-service ORDER-001(서포터 활동 목록)이 `MemberDisclosureClient`를 통해 표시명을 가져가야 완결된다 — 현재 `NoopMemberDisclosureClient`가 항상 비공개로 응답해 `"익명"`으로 표시된다. order-service 담당자 범위.
 
 ---
 

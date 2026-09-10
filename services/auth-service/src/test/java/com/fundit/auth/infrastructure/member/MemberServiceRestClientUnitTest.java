@@ -37,7 +37,7 @@ class MemberServiceRestClientUnitTest {
 
         UUID accountId = UUID.randomUUID();
         var command = new MemberServiceClient.CreateMemberProfileCommand(
-                accountId, "test@example.com", "홍길동", "01012345678",
+                accountId, "test@example.com", "홍길동", "응원왕", "01012345678",
                 List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"),
                 Map.of(
                         "recipientName", "홍길동",
@@ -55,6 +55,7 @@ class MemberServiceRestClientUnitTest {
                           "accountId": "%s",
                           "email": "test@example.com",
                           "name": "홍길동",
+                          "nickname": "응원왕",
                           "phoneNumber": "01012345678",
                           "agreedTerms": ["SERVICE_USE", "PRIVACY", "AGE_OVER_14"],
                           "address": {

@@ -56,6 +56,7 @@ public class MemberSignupService {
             member = memberJpaRepository.saveAndFlush(MemberJpaEntity.builder()
                     .id(command.accountId())
                     .name(command.name())
+                    .nickname(command.nickname())
                     .phoneNumber(command.phoneNumber())
                     .build());
         } catch (DataIntegrityViolationException e) {
@@ -101,9 +102,15 @@ public class MemberSignupService {
                 .build();
     }
 
+    /**
+     * {@code nickname}은 없을 수 있다 — 컬럼이 nullable이고, 소셜 제공자가 안 주는 경우도 있다.
+     * <b>실명({@code name})으로 대신 채우지 않는다</b>: 닉네임은 타인에게 보이는 값이라
+     * 실명이 흘러 들어가면 공개 화면에 실명이 노출된다(security.md S9).
+     */
     public record SignupCommand(
             UUID accountId,
             String name,
+            String nickname,
             String phoneNumber,
             List<String> agreedTerms,
             AddressPayload address

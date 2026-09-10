@@ -122,6 +122,7 @@ Request Body
 | `email` | String | Y | 이메일 |
 | `verificationToken` | String | Y | 휴대폰 인증 완료 토큰 |
 | `name` | String | Y | 실명 (프로필용) |
+| `nickname` | String | N | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — 없으면 null이고 **실명으로 대신 채우지 않는다**(security.md S9) |
 | `phoneNumber` | String | Y | 휴대전화번호 (프로필용) |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `address` | Object | N | 선택 입력 주소 |
@@ -167,6 +168,7 @@ Request Body
 | `signupToken` | String | N | 소셜 로그인 시도 중 미가입으로 판정되며 발급된 토큰(하단 로그인 API 참고). `authorizationCode` 대신 제출 가능 |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `name` | String | N | 제공자 응답에 이름이 없을 경우 추가 입력 |
+| `nickname` | String | N | 제공자가 닉네임을 주면 그 값이 우선. 안 주는 경우(카카오 동의항목 미설정)에만 이 값을 쓴다 |
 | `phoneNumber` | String | N | 제공자 응답에 없을 경우 추가 입력 |
 
 Response Body (Set-Cookie로 refreshToken 발급됨)

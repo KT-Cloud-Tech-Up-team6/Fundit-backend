@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +51,7 @@ class MemberSignupServiceUnitTest {
 
         // when
         MemberSignupService.SignupResult result = memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678",
+                accountId, "홍길동", "응원왕", "01012345678",
                 List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
 
         // then
@@ -75,7 +76,7 @@ class MemberSignupServiceUnitTest {
 
         // when
         memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), address));
+                accountId, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), address));
 
         // then
         verify(addressJpaRepository).save(any());
@@ -97,9 +98,50 @@ class MemberSignupServiceUnitTest {
 
         // when
         memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), emptyAddress));
+                accountId, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), emptyAddress));
 
         // then
         verify(addressJpaRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void 닉네임을_받으면_그대로_저장한다() {
+        // given — 공개 화면에 실명 대신 쓰이는 표시명이다(security.md S9)
+        UUID accountId = UUID.randomUUID();
+        givenSavedMember(accountId);
+
+        // when
+        memberSignupService.signup(new MemberSignupService.SignupCommand(
+                accountId, "홍길동", "응원왕", "01012345678",
+                List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
+
+        // then
+        verify(memberJpaRepository).saveAndFlush(argThat(e -> "응원왕".equals(e.getNickname())));
+    }
+
+    @Test
+    void 닉네임이_없으면_null로_저장하고_실명으로_대신_채우지_않는다() {
+        // given — 실명이 닉네임 칸에 들어가면 공개 화면에 실명이 노출된다
+        UUID accountId = UUID.randomUUID();
+        givenSavedMember(accountId);
+
+        // when
+        memberSignupService.signup(new MemberSignupService.SignupCommand(
+                accountId, "홍길동", null, "01012345678",
+                List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
+
+        // then
+        verify(memberJpaRepository).saveAndFlush(argThat(e -> e.getNickname() == null));
+    }
+
+    private void givenSavedMember(UUID accountId) {
+        when(memberJpaRepository.existsById(accountId)).thenReturn(false);
+        when(memberJpaRepository.saveAndFlush(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
+            MemberJpaEntity entity = invocation.getArgument(0);
+            return MemberJpaEntity.builder()
+                    .id(entity.getId()).name(entity.getName()).nickname(entity.getNickname())
+                    .phoneNumber(entity.getPhoneNumber())
+                    .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        });
     }
 }

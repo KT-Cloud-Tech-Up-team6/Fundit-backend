@@ -56,7 +56,7 @@ class SignupServiceUnitTest {
 
         // when
         SignupService.SignupResult result = signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of()));
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of()));
 
         // then
         assertThat(result.memberId()).isEqualTo(memberId);
