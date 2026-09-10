@@ -168,7 +168,7 @@ Request Body
 | `signupToken` | String | N | 소셜 로그인 시도 중 미가입으로 판정되며 발급된 토큰(하단 로그인 API 참고). `authorizationCode` 대신 제출 가능 |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `name` | String | N | 제공자 응답에 이름이 없을 경우 추가 입력 |
-| `nickname` | String | N | 제공자가 닉네임을 주면 그 값이 우선. 안 주는 경우(카카오 동의항목 미설정)에만 이 값을 쓴다 |
+| `nickname` | String | N | **입력값이 우선**(이메일과 반대). 프론트가 제공자 닉네임으로 폼을 미리 채우므로 사용자가 고친 값이 곧 선택이다. 비어 있으면 제공자 값, 그것도 없으면 null |
 | `phoneNumber` | String | N | 제공자 응답에 없을 경우 추가 입력 |
 
 Response Body (Set-Cookie로 refreshToken 발급됨)

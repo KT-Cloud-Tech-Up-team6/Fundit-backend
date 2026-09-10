@@ -155,12 +155,26 @@ class SocialSignupServiceUnitExceptionTest {
     }
 
     @Test
-    void 제공자_닉네임이_있으면_그것을_쓰고_요청값은_무시한다() {
-        // given — 카카오/구글이 준 닉네임이 우선이다
+    void 입력한_닉네임이_제공자_값보다_우선한다() {
+        // given — 프론트가 제공자 닉네임("응원왕")으로 폼을 미리 채우고 사용자가 고쳐 보낸 경우.
+        // 제공자 값을 우선하면 사용자의 수정이 조용히 사라진다
         givenSignupReady();
 
         // when
-        service().signup(commandWithNickname("사용자가입력"));
+        service().signup(commandWithNickname("펀딩왕"));
+
+        // then
+        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
+                c -> "펀딩왕".equals(c.nickname())));
+    }
+
+    @Test
+    void 입력값이_비어있으면_제공자_닉네임으로_채운다() {
+        // given — 폼을 비워 보낸 경우. 빈 문자열을 그대로 저장하면 DB에 ""가 남는다
+        givenSignupReady();
+
+        // when
+        service().signup(commandWithNickname("   "));
 
         // then
         verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(

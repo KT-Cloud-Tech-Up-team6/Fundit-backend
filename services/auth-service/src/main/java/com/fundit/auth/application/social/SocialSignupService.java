@@ -13,6 +13,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,12 +56,17 @@ public class SocialSignupService {
                     Map.of("provider", pending.provider()));
         }
 
-        // 제공자가 이메일을 안 준 경우(카카오 미동의) 여기서 사용자가 입력한 이메일로 판정한다 —
-        // 로그인 시점에는 이메일이 없어 판정할 수 없었다. 두 진입점이 같은 판정을 쓴다.
+        // 이메일은 제공자 값이 우선이다 — 로그인 식별자라, 사용자가 다른 값을 넣으면
+        // 소셜 계정과 로그인 이메일이 갈라진다(요구사항 1.3.4 "제공되는 범위 내 연동").
+        // 제공자가 안 준 경우(카카오는 비즈니스 앱 전환 없이는 불가)에만 입력값을 쓰고,
+        // 그때 비로소 충돌 판정이 가능해진다 — 로그인 시점에는 이메일이 없어 못 했다.
         String email = pending.email() != null ? pending.email() : command.email();
-        // 닉네임도 같은 규칙: 제공자가 준 값이 우선, 없으면 사용자가 입력한 값.
-        // 둘 다 없으면 null로 둔다 — 실명으로 채우면 공개 화면에 실명이 나간다(security.md S9).
-        String nickname = pending.name() != null ? pending.name() : command.nickname();
+        // 닉네임은 이메일과 우선순위가 <b>반대</b>다 — 사용자가 입력한 값이 우선이다.
+        // 프론트는 login/social 응답의 name으로 가입 폼을 미리 채우므로, 사용자가 고쳐 보냈다면
+        // 그게 사용자의 선택이다. 제공자 값을 우선하면 그 수정이 조용히 사라진다.
+        // 비어 있으면(폼을 비운 경우 포함) 제공자 값으로 채우고, 그것도 없으면 null —
+        // 실명으로 채우지 않는다. 닉네임 칸에 실명이 들어가면 공개 화면에 실명이 나간다(security.md S9).
+        String nickname = StringUtils.hasText(command.nickname()) ? command.nickname() : pending.name();
         if (email == null || email.isBlank()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "이메일이 필요합니다.");
         }
