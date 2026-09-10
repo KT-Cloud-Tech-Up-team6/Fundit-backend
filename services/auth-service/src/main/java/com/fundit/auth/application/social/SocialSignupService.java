@@ -13,7 +13,6 @@ import com.fundit.common.error.DependencyFailureException;
 import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +23,11 @@ import java.util.UUID;
  * 소셜 회원가입(AUTH-008). 계정 생성 → member-service 동기 호출 → 실패 시 보상 삭제까지
  * {@code SignupService}와 같은 흐름이다. 다른 점은 비밀번호가 없고 소셜 식별자가 붙는다는 것뿐이라
  * member-service는 기존 {@code POST /api/v1/members}를 그대로 쓴다(요청 본문이 provider와 무관하다).
+ *
+ * <p>닉네임은 요청에 실려 온 값만 쓴다 — 제공자 닉네임은 프론트가 폼을 미리 채우는 용도이고
+ * ({@code login/social} 응답의 {@code name}), 사용자가 고칠 수 있어야 하므로 서버가 덮어쓰지 않는다.
+ * 값이 없으면 {@code @NotBlank}가 400으로 끊는다 — <b>실명으로 대신 채우지 않는다.</b>
+ * 닉네임 칸에 실명이 들어가면 공개 화면에 실명이 나간다(security.md S9).
  *
  * <p><b>본인인증을 요구한다.</b> API 명세서 AUTH-008 표에는 {@code verificationToken}이 없지만,
  * 일반가입(AUTH-007)은 요구하고 member-service는 {@code phone_number}를 NOT NULL로 저장한다.
@@ -61,12 +65,6 @@ public class SocialSignupService {
         // 제공자가 안 준 경우(카카오는 비즈니스 앱 전환 없이는 불가)에만 입력값을 쓰고,
         // 그때 비로소 충돌 판정이 가능해진다 — 로그인 시점에는 이메일이 없어 못 했다.
         String email = pending.email() != null ? pending.email() : command.email();
-        // 닉네임은 이메일과 우선순위가 <b>반대</b>다 — 사용자가 입력한 값이 우선이다.
-        // 프론트는 login/social 응답의 name으로 가입 폼을 미리 채우므로, 사용자가 고쳐 보냈다면
-        // 그게 사용자의 선택이다. 제공자 값을 우선하면 그 수정이 조용히 사라진다.
-        // 비어 있으면(폼을 비운 경우 포함) 제공자 값으로 채우고, 그것도 없으면 null —
-        // 실명으로 채우지 않는다. 닉네임 칸에 실명이 들어가면 공개 화면에 실명이 나간다(security.md S9).
-        String nickname = StringUtils.hasText(command.nickname()) ? command.nickname() : pending.name();
         if (email == null || email.isBlank()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "이메일이 필요합니다.");
         }
@@ -95,7 +93,7 @@ public class SocialSignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), email, verifiedIdentity.name(), nickname,
+                    account.getId(), email, verifiedIdentity.name(), command.nickname(),
                     verifiedIdentity.phoneNumber(), command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             accountRepository.deleteById(account.getId());

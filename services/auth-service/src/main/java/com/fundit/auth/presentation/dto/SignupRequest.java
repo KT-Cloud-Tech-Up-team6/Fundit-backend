@@ -14,7 +14,7 @@ public record SignupRequest(
         @NotBlank @Email String email,
         @NotBlank String verificationToken,
         @NotBlank String name,
-        @Size(max = 50) String nickname,
+        @NotBlank @Size(max = 50) String nickname,
         @NotBlank String phoneNumber,
         @NotEmpty List<String> agreedTerms,
         Map<String, Object> address

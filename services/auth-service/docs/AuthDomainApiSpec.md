@@ -122,7 +122,7 @@ Request Body
 | `email` | String | Y | 이메일 |
 | `verificationToken` | String | Y | 휴대폰 인증 완료 토큰 |
 | `name` | String | Y | 실명 (프로필용) |
-| `nickname` | String | N | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — 없으면 null이고 **실명으로 대신 채우지 않는다**(security.md S9) |
+| `nickname` | String | **Y** | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — **실명으로 대신 채우지 않는다**(security.md S9) |
 | `phoneNumber` | String | Y | 휴대전화번호 (프로필용) |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `address` | Object | N | 선택 입력 주소 |
@@ -168,7 +168,7 @@ Request Body
 | `signupToken` | String | N | 소셜 로그인 시도 중 미가입으로 판정되며 발급된 토큰(하단 로그인 API 참고). `authorizationCode` 대신 제출 가능 |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `name` | String | N | 제공자 응답에 이름이 없을 경우 추가 입력 |
-| `nickname` | String | N | **입력값이 우선**(이메일과 반대). 프론트가 제공자 닉네임으로 폼을 미리 채우므로 사용자가 고친 값이 곧 선택이다. 비어 있으면 제공자 값, 그것도 없으면 null |
+| `nickname` | String | **Y** | 표시명. 프론트가 제공자 닉네임(`login/social` 응답의 `name`)으로 폼을 미리 채우고 사용자가 고칠 수 있다. **서버는 제공자 값을 쓰지 않는다** — 요청값이 유일한 출처다(이메일과 반대) |
 | `phoneNumber` | String | N | 제공자 응답에 없을 경우 추가 입력 |
 
 Response Body (Set-Cookie로 refreshToken 발급됨)

@@ -105,8 +105,9 @@ class MemberSignupServiceUnitTest {
     }
 
     @Test
-    void 닉네임을_받으면_그대로_저장한다() {
-        // given — 공개 화면에 실명 대신 쓰이는 표시명이다(security.md S9)
+    void 닉네임을_받으면_실명과_별개로_그대로_저장한다() {
+        // given — 공개 화면에 실명 대신 쓰이는 표시명이다. 실명이 닉네임 칸에 흘러들면
+        // 인증 없이 열리는 서포터 목록에 실명이 노출된다(security.md S9)
         UUID accountId = UUID.randomUUID();
         givenSavedMember(accountId);
 
@@ -116,22 +117,8 @@ class MemberSignupServiceUnitTest {
                 List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
 
         // then
-        verify(memberJpaRepository).saveAndFlush(argThat(e -> "응원왕".equals(e.getNickname())));
-    }
-
-    @Test
-    void 닉네임이_없으면_null로_저장하고_실명으로_대신_채우지_않는다() {
-        // given — 실명이 닉네임 칸에 들어가면 공개 화면에 실명이 노출된다
-        UUID accountId = UUID.randomUUID();
-        givenSavedMember(accountId);
-
-        // when
-        memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", null, "01012345678",
-                List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
-
-        // then
-        verify(memberJpaRepository).saveAndFlush(argThat(e -> e.getNickname() == null));
+        verify(memberJpaRepository).saveAndFlush(argThat(
+                e -> "응원왕".equals(e.getNickname()) && "홍길동".equals(e.getName())));
     }
 
     private void givenSavedMember(UUID accountId) {

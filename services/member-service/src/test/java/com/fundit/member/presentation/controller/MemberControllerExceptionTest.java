@@ -51,6 +51,7 @@ class MemberControllerExceptionTest {
                                 {
                                   "accountId": "%s",
                                   "name": "홍길동",
+                                  "nickname": "응원왕",
                                   "phoneNumber": "01012345678",
                                   "agreedTerms": ["MARKETING"]
                                 }
@@ -68,6 +69,7 @@ class MemberControllerExceptionTest {
                                 {
                                   "accountId": "%s",
                                   "name": "홍길동",
+                                  "nickname": "응원왕",
                                   "phoneNumber": "01012345678",
                                   "agreedTerms": ["SERVICE_USE", "PRIVACY", "AGE_OVER_14"],
                                   "address": {"recipientName": "홍길동"}
@@ -83,7 +85,7 @@ class MemberControllerExceptionTest {
                         .header("X-Internal-Api-Key", "wrong-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"accountId": "%s", "name": "홍길동", "phoneNumber": "01012345678", "agreedTerms": ["SERVICE_USE"]}
+                                {"accountId": "%s", "name": "홍길동", "nickname": "응원왕", "phoneNumber": "01012345678", "agreedTerms": ["SERVICE_USE"]}
                                 """.formatted(UUID.randomUUID())))
                 .andExpect(status().isUnauthorized());
     }
@@ -102,6 +104,7 @@ class MemberControllerExceptionTest {
                                 {
                                   "accountId": "%s",
                                   "name": "홍길동",
+                                  "nickname": "응원왕",
                                   "phoneNumber": "01012345678",
                                   "agreedTerms": ["SERVICE_USE", "PRIVACY", "AGE_OVER_14"]
                                 }

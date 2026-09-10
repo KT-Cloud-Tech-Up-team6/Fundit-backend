@@ -22,7 +22,7 @@ public record MemberCreateRequest(
         @NotNull UUID accountId,
         String email,
         @NotBlank String name,
-        @Size(max = 50) String nickname,
+        @NotBlank @Size(max = 50) String nickname,
         @NotBlank String phoneNumber,
         @NotEmpty List<String> agreedTerms,
         @Valid MemberSignupService.AddressPayload address

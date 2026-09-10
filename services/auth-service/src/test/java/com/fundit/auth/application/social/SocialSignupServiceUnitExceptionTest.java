@@ -142,7 +142,7 @@ class SocialSignupServiceUnitExceptionTest {
 
     private SocialSignupService.SocialSignupCommand command(String signupToken, String email) {
         return new SocialSignupService.SocialSignupCommand(
-                signupToken, "verify", email, null, List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
+                signupToken, "verify", email, "응원왕", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
     }
 
     private Account account() {
@@ -155,9 +155,10 @@ class SocialSignupServiceUnitExceptionTest {
     }
 
     @Test
-    void 입력한_닉네임이_제공자_값보다_우선한다() {
-        // given — 프론트가 제공자 닉네임("응원왕")으로 폼을 미리 채우고 사용자가 고쳐 보낸 경우.
-        // 제공자 값을 우선하면 사용자의 수정이 조용히 사라진다
+    void 닉네임은_요청값만_쓰고_제공자_값이나_실명으로_덮어쓰지_않는다() {
+        // given — 제공자가 "응원왕"을 줬지만 사용자가 "펀딩왕"으로 고쳐 보낸 경우.
+        // 제공자 값이나 실명("홍길동")이 대신 들어가면 사용자의 선택이 사라지거나
+        // 공개 화면에 실명이 노출된다(security.md S9)
         givenSignupReady();
 
         // when
@@ -165,56 +166,7 @@ class SocialSignupServiceUnitExceptionTest {
 
         // then
         verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
-                c -> "펀딩왕".equals(c.nickname())));
-    }
-
-    @Test
-    void 입력값이_비어있으면_제공자_닉네임으로_채운다() {
-        // given — 폼을 비워 보낸 경우. 빈 문자열을 그대로 저장하면 DB에 ""가 남는다
-        givenSignupReady();
-
-        // when
-        service().signup(commandWithNickname("   "));
-
-        // then
-        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
-                c -> "응원왕".equals(c.nickname())));
-    }
-
-    @Test
-    void 제공자가_닉네임을_안_주면_요청값을_쓴다() {
-        // given — 카카오는 동의항목 설정에 따라 닉네임을 안 줄 수 있다
-        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
-                new SocialTokenStore.PendingSocialSignup(
-                        SocialProvider.KAKAO, "kakao-1", "user@kakao.com", null)));
-        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
-                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
-        givenAccountCreatable();
-
-        // when
-        service().signup(commandWithNickname("사용자가입력"));
-
-        // then
-        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
-                c -> "사용자가입력".equals(c.nickname())));
-    }
-
-    @Test
-    void 둘_다_없으면_실명으로_채우지_않고_null로_넘긴다() {
-        // given — 실명이 닉네임 칸에 들어가면 공개 화면에 실명이 노출된다(security.md S9)
-        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
-                new SocialTokenStore.PendingSocialSignup(
-                        SocialProvider.KAKAO, "kakao-1", "user@kakao.com", null)));
-        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
-                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
-        givenAccountCreatable();
-
-        // when
-        service().signup(command("token", null));
-
-        // then
-        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
-                c -> c.nickname() == null && "홍길동".equals(c.name())));
+                c -> "펀딩왕".equals(c.nickname()) && "홍길동".equals(c.name())));
     }
 
     private void givenSignupReady() {

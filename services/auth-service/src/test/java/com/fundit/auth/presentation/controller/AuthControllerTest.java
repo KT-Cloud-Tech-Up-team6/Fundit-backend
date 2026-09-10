@@ -135,6 +135,7 @@ class AuthControllerTest {
                                   "email": "new@fundit.com",
                                   "verificationToken": "ignored",
                                   "name": "홍길동",
+                                  "nickname": "응원왕",
                                   "phoneNumber": "01012345678",
                                   "agreedTerms": ["TOS"]
                                 }
