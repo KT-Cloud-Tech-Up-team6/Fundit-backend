@@ -58,7 +58,10 @@ public abstract class AbstractGlobalExceptionHandler extends ResponseEntityExcep
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
         log.warn("BusinessException: code={}, message={}", errorCode.getCode(), e.getMessage());
-        return respond(errorCode);
+        // errorCode의 기본 메시지가 아니라 예외 메시지를 쓴다 —
+        // BusinessException(errorCode, message) 생성자가 "기본 메시지 대신 상황별 메시지"라고
+        // 문서화돼 있는데도 응답엔 기본 메시지가 나가고 있었다(로그에만 남음).
+        return respond(errorCode, e.getMessage(), e.getDetail());
     }
 
     @ExceptionHandler(DependencyFailureException.class)
@@ -119,9 +122,13 @@ public abstract class AbstractGlobalExceptionHandler extends ResponseEntityExcep
     }
 
     private ResponseEntity<ErrorResponse> respond(ErrorCode errorCode) {
+        return respond(errorCode, errorCode.getMessage(), null);
+    }
+
+    private ResponseEntity<ErrorResponse> respond(ErrorCode errorCode, String message, Object detail) {
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(ErrorResponse.of(errorCode));
+                .body(new ErrorResponse(errorCode.getCode(), message, detail));
     }
 
     private List<Map<String, String>> extractFieldErrors(MethodArgumentNotValidException e) {
