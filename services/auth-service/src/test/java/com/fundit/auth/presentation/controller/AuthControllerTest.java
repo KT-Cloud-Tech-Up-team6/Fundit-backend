@@ -202,4 +202,24 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists());
     }
+
+    @Test
+    void 연동이_필요한_소셜_로그인은_refreshToken_쿠키를_내리지_않는다() throws Exception {
+        // given — 아직 인증이 끝나지 않은 응답이다. 쿠키를 내리면 빈 값이 세팅되고,
+        // 로그인 중인 사용자가 연동을 시도하면 기존 refreshToken이 덮어써진다
+        when(socialLoginService.login(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new SocialLoginService.SocialLoginResult(
+                        false, true, "link-token", null, null, false,
+                        com.fundit.auth.domain.account.SocialProvider.KAKAO, null, null, null));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/login/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "KAKAO", "authorizationCode": "code"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.needsLink").value(true))
+                .andExpect(header().doesNotExist("Set-Cookie"));
+    }
 }

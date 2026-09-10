@@ -4,6 +4,7 @@ import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.signup.MemberServiceClient;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.account.Account;
+import com.fundit.auth.domain.account.AccountLockedException;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.auth.domain.account.SocialProvider;
@@ -20,7 +21,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -90,24 +90,24 @@ class SocialLinkServiceUnitExceptionTest {
     }
 
     @Test
-    void 본인_확인을_통과하면_소셜을_붙이고_비밀번호는_그대로_둔다() {
-        // given — 연동 후에도 일반 로그인과 소셜 로그인이 둘 다 되어야 한다
+    void 잠긴_계정에는_연동을_통과시켜도_토큰을_내주지_않는다() {
+        // given — 소셜 로그인은 잠금을 막는데 연동 경로만 열어두면 우회가 된다.
+        // 본인인증을 통과했더라도 locked_until은 계정 상태다
         givenValidTokens();
         when(memberServiceClient.phoneMatches(ACCOUNT_ID, "01012345678")).thenReturn(true);
-        Account account = localAccount();
-        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
-        when(tokenIssuer.issue(ACCOUNT_ID, Role.MEMBER))
-                .thenReturn(new TokenIssuer.IssuedTokens("access", "refresh"));
+        Account locked = Account.builder()
+                .id(ACCOUNT_ID).email("user@fundit.com").passwordHash("hashed")
+                .role(Role.MEMBER).failedLoginCount(0).mustChangePassword(false)
+                .lockedUntil(Instant.now().plusSeconds(600))
+                .createdAt(Instant.now()).updatedAt(Instant.now())
+                .build();
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(locked));
 
-        // when
-        var tokens = service.link("link-token", "verify-token");
-
-        // then
-        assertThat(tokens.accessToken()).isEqualTo("access");
-        assertThat(account.getSocialProvider()).isEqualTo("KAKAO");
-        assertThat(account.getSocialId()).isEqualTo("kakao-1");
-        assertThat(account.getPasswordHash()).isEqualTo("hashed");
-        verify(accountRepository).save(account);
+        // when & then
+        assertThatThrownBy(() -> service.link("link-token", "verify-token"))
+                .isInstanceOf(AccountLockedException.class);
+        verify(accountRepository, never()).save(any());
+        verify(tokenIssuer, never()).issue(any(), any());
     }
 
     private void givenValidTokens() {
@@ -118,13 +118,5 @@ class SocialLinkServiceUnitExceptionTest {
 
     private SocialTokenStore.PendingSocialLink pendingLink() {
         return new SocialTokenStore.PendingSocialLink(SocialProvider.KAKAO, "kakao-1", ACCOUNT_ID);
-    }
-
-    private Account localAccount() {
-        return Account.builder()
-                .id(ACCOUNT_ID).email("user@fundit.com").passwordHash("hashed")
-                .role(Role.MEMBER).failedLoginCount(0).mustChangePassword(false)
-                .createdAt(Instant.now()).updatedAt(Instant.now())
-                .build();
     }
 }

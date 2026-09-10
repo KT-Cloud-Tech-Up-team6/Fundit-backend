@@ -4,11 +4,14 @@ import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.signup.MemberServiceClient;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.account.Account;
+import com.fundit.auth.domain.account.AccountLockedException;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
 
 /**
  * 기존 자체가입 계정에 소셜 로그인을 붙인다(PM 확정 정책 A).
@@ -49,6 +52,12 @@ public class SocialLinkService {
 
         Account account = accountRepository.findById(pending.accountId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+
+        // 잠긴 계정에는 토큰을 내주지 않는다 — 일반 로그인/소셜 로그인과 같은 규칙이다.
+        // 본인인증을 통과했더라도 locked_until은 계정 상태라, 여기만 열어두면 잠금을 우회할 수 있다.
+        if (account.isLocked(Instant.now())) {
+            throw new AccountLockedException(account.getLockedUntil());
+        }
 
         account.linkSocial(pending.provider(), pending.socialId());
         accountRepository.save(account);

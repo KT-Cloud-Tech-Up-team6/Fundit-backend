@@ -91,7 +91,9 @@ public class AuthController {
     @PostMapping("/login/social")
     public ResponseEntity<SocialLoginResponse> loginSocial(@Valid @RequestBody SocialLoginRequest request) {
         var result = socialLoginService.login(request.provider(), request.authorizationCode());
-        if (result.needsSignup()) {
+        // 로그인이 끝난 경우에만 쿠키를 내린다. 가입·연동이 필요한 응답은 아직 인증이 아니라
+        // refreshToken이 null이고, 그대로 쿠키를 만들면 빈 값이 기존 refreshToken을 덮어쓴다.
+        if (result.refreshToken() == null) {
             return ResponseEntity.ok(SocialLoginResponse.from(result));
         }
         return withRefreshTokenCookie(result.refreshToken()).body(SocialLoginResponse.from(result));
