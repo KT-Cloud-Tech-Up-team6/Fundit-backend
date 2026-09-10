@@ -1,16 +1,16 @@
 package com.fundit.auth.application.social;
 
 import com.fundit.auth.application.token.TokenIssuer;
-import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
+import com.fundit.auth.domain.account.AccountLockedException;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.SocialProvider;
-import com.fundit.common.error.BusinessException;
 import com.github.f4b6a3.uuid.UuidCreator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -32,23 +32,23 @@ public class SocialLoginService {
     private final Map<SocialProvider, SocialProviderClient> clients = new EnumMap<>(SocialProvider.class);
     private final AccountRepository accountRepository;
     private final EmailConflictChecker emailConflictChecker;
-    private final SocialSignupTokenStore signupTokenStore;
+    private final SocialTokenStore socialTokenStore;
     private final TokenIssuer tokenIssuer;
-    private final Duration signupTokenTtl;
+    private final Duration pendingTokenTtl;
 
     public SocialLoginService(
             List<SocialProviderClient> providerClients,
             AccountRepository accountRepository,
             EmailConflictChecker emailConflictChecker,
-            SocialSignupTokenStore signupTokenStore,
+            SocialTokenStore socialTokenStore,
             TokenIssuer tokenIssuer,
-            @Value("${oauth.signup-token-ttl}") Duration signupTokenTtl) {
+            @Value("${oauth.pending-token-ttl}") Duration pendingTokenTtl) {
         providerClients.forEach(client -> this.clients.put(client.provider(), client));
         this.accountRepository = accountRepository;
         this.emailConflictChecker = emailConflictChecker;
-        this.signupTokenStore = signupTokenStore;
+        this.socialTokenStore = socialTokenStore;
         this.tokenIssuer = tokenIssuer;
-        this.signupTokenTtl = signupTokenTtl;
+        this.pendingTokenTtl = pendingTokenTtl;
     }
 
     public SocialLoginResult login(SocialProvider provider, String authorizationCode) {
@@ -62,6 +62,11 @@ public class SocialLoginService {
 
         Account linked = accountRepository.findBySocial(provider, identity.socialId()).orElse(null);
         if (linked != null) {
+            // 일반 로그인(LoginService)이 막는 잠금을 여기서도 막는다 — locked_until은 계정 상태이지
+            // 비밀번호 방식만의 상태가 아니다. 안 막으면 소셜이 연동된 계정은 잠금이 무의미해진다.
+            if (linked.isLocked(Instant.now())) {
+                throw new AccountLockedException(linked.getLockedUntil());
+            }
             var tokens = tokenIssuer.issue(linked.getId(), linked.getRole());
             return SocialLoginResult.loggedIn(
                     tokens.accessToken(), tokens.refreshToken(), linked.isMustChangePassword());
@@ -71,14 +76,17 @@ public class SocialLoginService {
         // SocialSignupService가 같은 판정을 다시 돌린다.
         Account localAccount = emailConflictChecker.checkOrThrow(identity.email());
         if (localAccount != null) {
-            // 정책 A(본인인증 후 연동)는 아직 없다. 조용히 새 계정을 만들지 않고 막는다 —
-            // uq_accounts_email이 UNIQUE라 어차피 가입 단계에서 실패한다.
-            throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+            // 정책 A — 자체가입 계정이 있다. 본인인증을 거치면 연동할 수 있다.
+            // 연동 대상 계정은 서버가 여기서 정해 토큰에 담는다(클라이언트가 지목하지 못하게).
+            String linkToken = UuidCreator.getTimeOrderedEpoch().toString();
+            socialTokenStore.saveLink(linkToken, new SocialTokenStore.PendingSocialLink(
+                    provider, identity.socialId(), localAccount.getId()), pendingTokenTtl);
+            return SocialLoginResult.needsLink(provider, linkToken);
         }
 
         String signupToken = UuidCreator.getTimeOrderedEpoch().toString();
-        signupTokenStore.save(signupToken, new SocialSignupTokenStore.PendingSocialSignup(
-                provider, identity.socialId(), identity.email(), identity.name()), signupTokenTtl);
+        socialTokenStore.saveSignup(signupToken, new SocialTokenStore.PendingSocialSignup(
+                provider, identity.socialId(), identity.email(), identity.name()), pendingTokenTtl);
         return SocialLoginResult.needsSignup(
                 provider, signupToken, identity.email(), identity.name());
     }
@@ -89,6 +97,8 @@ public class SocialLoginService {
      */
     public record SocialLoginResult(
             boolean needsSignup,
+            boolean needsLink,
+            String linkToken,
             String accessToken,
             String refreshToken,
             boolean mustChangePassword,
@@ -98,12 +108,20 @@ public class SocialLoginService {
             String name) {
 
         static SocialLoginResult loggedIn(String accessToken, String refreshToken, boolean mustChangePassword) {
-            return new SocialLoginResult(false, accessToken, refreshToken, mustChangePassword, null, null, null, null);
+            return new SocialLoginResult(
+                    false, false, null, accessToken, refreshToken, mustChangePassword, null, null, null, null);
         }
 
         static SocialLoginResult needsSignup(
                 SocialProvider provider, String signupToken, String email, String name) {
-            return new SocialLoginResult(true, null, null, false, provider, signupToken, email, name);
+            return new SocialLoginResult(
+                    true, false, null, null, null, false, provider, signupToken, email, name);
+        }
+
+        /** 정책 A — 응답에 이메일을 담지 않는다. 소셜 로그인 시도만으로 타인의 가입 이메일이 드러나면 안 된다. */
+        static SocialLoginResult needsLink(SocialProvider provider, String linkToken) {
+            return new SocialLoginResult(
+                    false, true, linkToken, null, null, false, provider, null, null, null);
         }
     }
 }

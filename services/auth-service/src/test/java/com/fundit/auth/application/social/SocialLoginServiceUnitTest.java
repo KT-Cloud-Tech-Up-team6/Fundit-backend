@@ -30,7 +30,7 @@ class SocialLoginServiceUnitTest {
     @Mock
     private AccountRepository accountRepository;
     @Mock
-    private SocialSignupTokenStore signupTokenStore;
+    private SocialTokenStore socialTokenStore;
     @Mock
     private TokenIssuer tokenIssuer;
     @Mock
@@ -40,7 +40,7 @@ class SocialLoginServiceUnitTest {
         when(kakaoClient.provider()).thenReturn(SocialProvider.KAKAO);
         return new SocialLoginService(
                 List.of(kakaoClient), accountRepository,
-                new EmailConflictChecker(accountRepository), signupTokenStore, tokenIssuer, Duration.ofMinutes(10));
+                new EmailConflictChecker(accountRepository), socialTokenStore, tokenIssuer, Duration.ofMinutes(10));
     }
 
     @Test
@@ -59,7 +59,7 @@ class SocialLoginServiceUnitTest {
         // then
         assertThat(result.needsSignup()).isFalse();
         assertThat(result.accessToken()).isEqualTo("access");
-        verify(signupTokenStore, never()).save(anyString(), any(), any());
+        verify(socialTokenStore, never()).saveSignup(anyString(), any(), any());
     }
 
     @Test
@@ -76,7 +76,7 @@ class SocialLoginServiceUnitTest {
         // then
         assertThat(result.needsSignup()).isTrue();
         assertThat(result.signupToken()).isNotBlank();
-        verify(signupTokenStore).save(eq(result.signupToken()), any(), eq(Duration.ofMinutes(10)));
+        verify(socialTokenStore).saveSignup(eq(result.signupToken()), any(), eq(Duration.ofMinutes(10)));
     }
 
     @Test
@@ -102,5 +102,48 @@ class SocialLoginServiceUnitTest {
                 .role(Role.MEMBER).failedLoginCount(0).mustChangePassword(false)
                 .createdAt(Instant.now()).updatedAt(Instant.now())
                 .build();
+    }
+
+    @Test
+    void 자체가입_계정과_이메일이_같으면_연동_안내를_준다() {
+        // given — 정책 A. 여기서 새 계정을 만들면 uq_accounts_email에 걸린다
+        when(kakaoClient.fetchIdentity("code"))
+                .thenReturn(new SocialProviderClient.SocialIdentity("kakao-1", "user@fundit.com", "응원왕"));
+        when(accountRepository.findBySocial(SocialProvider.KAKAO, "kakao-1")).thenReturn(Optional.empty());
+        Account local = account("user@fundit.com", null, null);
+        when(accountRepository.findByEmail("user@fundit.com")).thenReturn(Optional.of(local));
+
+        // when
+        var result = service().login(SocialProvider.KAKAO, "code");
+
+        // then
+        assertThat(result.needsLink()).isTrue();
+        assertThat(result.linkToken()).isNotBlank();
+        // 소셜 로그인 시도만으로 타인의 가입 이메일이 드러나면 안 된다
+        assertThat(result.email()).isNull();
+        // 연동 대상 계정은 서버가 토큰에 담는다 — 클라이언트가 지목하지 못하게
+        verify(socialTokenStore).saveLink(eq(result.linkToken()),
+                eq(new SocialTokenStore.PendingSocialLink(SocialProvider.KAKAO, "kakao-1", local.getId())),
+                eq(Duration.ofMinutes(10)));
+    }
+
+    @Test
+    void 잠긴_계정은_소셜_로그인으로도_들어올_수_없다() {
+        // given — locked_until은 계정 상태다. 소셜만 통과시키면 잠금이 무의미해진다
+        when(kakaoClient.fetchIdentity("code"))
+                .thenReturn(new SocialProviderClient.SocialIdentity("kakao-1", "user@kakao.com", "응원왕"));
+        Account locked = Account.builder()
+                .id(UUID.randomUUID()).email("user@kakao.com")
+                .socialProvider("KAKAO").socialId("kakao-1")
+                .role(Role.MEMBER).failedLoginCount(0).mustChangePassword(false)
+                .lockedUntil(Instant.now().plusSeconds(600))
+                .createdAt(Instant.now()).updatedAt(Instant.now())
+                .build();
+        when(accountRepository.findBySocial(SocialProvider.KAKAO, "kakao-1")).thenReturn(Optional.of(locked));
+
+        // when & then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service().login(SocialProvider.KAKAO, "code"))
+                .isInstanceOf(com.fundit.auth.domain.account.AccountLockedException.class);
+        verify(tokenIssuer, never()).issue(any(), any());
     }
 }

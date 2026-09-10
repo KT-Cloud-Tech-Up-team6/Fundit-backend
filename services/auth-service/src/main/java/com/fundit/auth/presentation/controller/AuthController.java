@@ -4,6 +4,7 @@ import com.fundit.auth.application.email.EmailAvailabilityService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
+import com.fundit.auth.application.social.SocialLinkService;
 import com.fundit.auth.application.social.SocialLoginService;
 import com.fundit.auth.application.social.SocialSignupService;
 import com.fundit.auth.application.token.TokenIssuer;
@@ -16,6 +17,8 @@ import com.fundit.auth.presentation.dto.MessageResponse;
 import com.fundit.auth.presentation.dto.PasswordChangeRequest;
 import com.fundit.auth.presentation.dto.SignupRequest;
 import com.fundit.auth.presentation.dto.SignupResponse;
+import com.fundit.auth.presentation.dto.SocialLinkRequest;
+import com.fundit.auth.presentation.dto.SocialLinkResponse;
 import com.fundit.auth.presentation.dto.SocialLoginRequest;
 import com.fundit.auth.presentation.dto.SocialLoginResponse;
 import com.fundit.auth.presentation.dto.SocialSignupRequest;
@@ -57,6 +60,7 @@ public class AuthController {
     private final PasswordChangeService passwordChangeService;
     private final SocialLoginService socialLoginService;
     private final SocialSignupService socialSignupService;
+    private final SocialLinkService socialLinkService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     @GetMapping("/check-email")
@@ -101,6 +105,16 @@ public class AuthController {
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SocialSignupResponse(result.accountId(), result.memberId(), result.accessToken()));
+    }
+
+    /**
+     * 정책 A — 기존 자체가입 계정에 소셜 로그인을 붙인다.
+     * 본인인증이 그 계정 주인의 것인지 확인되어야만 성공한다.
+     */
+    @PostMapping("/social/link")
+    public ResponseEntity<SocialLinkResponse> linkSocial(@Valid @RequestBody SocialLinkRequest request) {
+        var tokens = socialLinkService.link(request.linkToken(), request.verificationToken());
+        return withRefreshTokenCookie(tokens.refreshToken()).body(new SocialLinkResponse(tokens.accessToken()));
     }
 
     @PostMapping("/token/refresh")

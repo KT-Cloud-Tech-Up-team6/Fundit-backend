@@ -15,17 +15,28 @@ import java.util.Optional;
  *
  * <p>{@link IdentityVerificationStore}와 같은 1회 소비 패턴이다.
  */
-public interface SocialSignupTokenStore {
+public interface SocialTokenStore {
 
-    void save(String signupToken, PendingSocialSignup pending, Duration ttl);
+    void saveSignup(String signupToken, PendingSocialSignup pending, Duration ttl);
 
     /** 1회 소비(get-and-delete) — 같은 토큰으로 두 번 꺼내면 두 번째는 항상 비어있다. */
-    Optional<PendingSocialSignup> consume(String signupToken);
+    Optional<PendingSocialSignup> consumeSignup(String signupToken);
+
+    void saveLink(String linkToken, PendingSocialLink pending, Duration ttl);
+
+    Optional<PendingSocialLink> consumeLink(String linkToken);
 
     /**
      * 제공자가 확인해 준 신원. {@code email}/{@code name}은 null일 수 있다
      * (카카오는 이메일 동의가 선택) — 없으면 가입 화면에서 사용자에게 받는다.
      */
     record PendingSocialSignup(SocialProvider provider, String socialId, String email, String name) {
+    }
+
+    /**
+     * 연동 대상 계정을 <b>서버가 정해서</b> 담아둔다. 클라이언트가 accountId를 보내는 방식이면
+     * 아무 계정이나 지목할 수 있다 — 본인인증만 통과하면 남의 계정에 소셜을 붙일 수 있게 된다.
+     */
+    record PendingSocialLink(SocialProvider provider, String socialId, java.util.UUID accountId) {
     }
 }

@@ -50,6 +50,15 @@ public class Account {
         lockedUntil = null;
     }
 
+    /**
+     * 자체가입 계정에 소셜 로그인을 붙인다. 비밀번호는 그대로 둔다 —
+     * 연동 후에도 일반 로그인과 소셜 로그인이 둘 다 되어야 한다.
+     */
+    public void linkSocial(SocialProvider provider, String socialId) {
+        this.socialProvider = provider.name();
+        this.socialId = socialId;
+    }
+
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
         this.mustChangePassword = false;

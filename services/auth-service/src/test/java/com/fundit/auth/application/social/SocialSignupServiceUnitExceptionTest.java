@@ -35,7 +35,7 @@ class SocialSignupServiceUnitExceptionTest {
     @Mock
     private AccountRepository accountRepository;
     @Mock
-    private SocialSignupTokenStore signupTokenStore;
+    private SocialTokenStore signupTokenStore;
     @Mock
     private IdentityVerificationStore identityVerificationStore;
     @Mock
@@ -51,7 +51,7 @@ class SocialSignupServiceUnitExceptionTest {
     @Test
     void 가입토큰이_만료됐거나_이미_쓰였으면_401이다() {
         // given — 1회 소비라 두 번째 호출은 항상 비어있다
-        when(signupTokenStore.consume("token")).thenReturn(Optional.empty());
+        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> service().signup(command("token", null)))
@@ -78,8 +78,8 @@ class SocialSignupServiceUnitExceptionTest {
     @Test
     void 제공자도_사용자도_이메일을_주지_않으면_400이다() {
         // given — accounts.email이 NOT NULL이라 이메일 없이는 계정을 만들 수 없다
-        when(signupTokenStore.consume("token")).thenReturn(Optional.of(
-                new SocialSignupTokenStore.PendingSocialSignup(SocialProvider.KAKAO, "kakao-1", null, null)));
+        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
+                new SocialTokenStore.PendingSocialSignup(SocialProvider.KAKAO, "kakao-1", null, null)));
         when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
                 new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
         when(accountRepository.findBySocial(SocialProvider.KAKAO, "kakao-1")).thenReturn(Optional.empty());
@@ -133,8 +133,8 @@ class SocialSignupServiceUnitExceptionTest {
     }
 
     private void givenValidTokens() {
-        when(signupTokenStore.consume("token")).thenReturn(Optional.of(
-                new SocialSignupTokenStore.PendingSocialSignup(
+        when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
+                new SocialTokenStore.PendingSocialSignup(
                         SocialProvider.KAKAO, "kakao-1", "user@kakao.com", "응원왕")));
         when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
                 new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));

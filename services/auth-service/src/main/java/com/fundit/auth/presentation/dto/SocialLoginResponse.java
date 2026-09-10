@@ -4,7 +4,7 @@ import com.fundit.auth.application.social.SocialLoginService;
 import com.fundit.auth.domain.account.SocialProvider;
 
 /**
- * 가입이 필요한 경우와 로그인된 경우를 한 형태로 내려준다 — {@code needsSignup}으로 분기한다.
+ * 로그인 / 가입 필요 / 연동 필요를 한 형태로 내려준다 — {@code needsSignup}·{@code needsLink}로 분기한다.
  * 명세 AUTH-002가 두 응답 모두 200으로 정의한다: 미가입을 404로 주면 프론트가 에러 처리 경로로
  * 빠져 가입 화면 전환이 어색해진다.
  *
@@ -13,6 +13,8 @@ import com.fundit.auth.domain.account.SocialProvider;
  */
 public record SocialLoginResponse(
         boolean needsSignup,
+        boolean needsLink,
+        String linkToken,
         String accessToken,
         Boolean mustChangePassword,
         SocialProvider provider,
@@ -23,10 +25,15 @@ public record SocialLoginResponse(
 
     public static SocialLoginResponse from(SocialLoginService.SocialLoginResult result) {
         if (result.needsSignup()) {
-            return new SocialLoginResponse(true, null, null,
+            return new SocialLoginResponse(true, false, null, null, null,
                     result.provider(), result.signupToken(), result.email(), result.name());
         }
-        return new SocialLoginResponse(false, result.accessToken(), result.mustChangePassword(),
+        if (result.needsLink()) {
+            // 이메일을 담지 않는다 — 소셜 로그인 시도만으로 타인의 가입 이메일이 드러나면 안 된다
+            return new SocialLoginResponse(false, true, result.linkToken(), null, null,
+                    result.provider(), null, null, null);
+        }
+        return new SocialLoginResponse(false, false, null, result.accessToken(), result.mustChangePassword(),
                 null, null, null, null);
     }
 }

@@ -35,13 +35,13 @@ public class SocialSignupService {
 
     private final AccountRepository accountRepository;
     private final EmailConflictChecker emailConflictChecker;
-    private final SocialSignupTokenStore signupTokenStore;
+    private final SocialTokenStore signupTokenStore;
     private final IdentityVerificationStore identityVerificationStore;
     private final MemberServiceClient memberServiceClient;
     private final TokenIssuer tokenIssuer;
 
     public SocialSignupResult signup(SocialSignupCommand command) {
-        var pending = signupTokenStore.consume(command.signupToken())
+        var pending = signupTokenStore.consumeSignup(command.signupToken())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_EXPIRED));
 
         var verifiedIdentity = identityVerificationStore.consume(command.verificationToken())

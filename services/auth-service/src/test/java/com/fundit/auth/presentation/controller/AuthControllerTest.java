@@ -5,6 +5,7 @@ import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
+import com.fundit.auth.application.social.SocialLinkService;
 import com.fundit.auth.application.social.SocialLoginService;
 import com.fundit.auth.application.social.SocialSignupService;
 import com.fundit.auth.application.token.TokenIssuer;
@@ -78,6 +79,8 @@ class AuthControllerTest {
     private SocialLoginService socialLoginService;
     @MockitoBean
     private SocialSignupService socialSignupService;
+    @MockitoBean
+    private SocialLinkService socialLinkService;
     @MockitoBean
     private LoginService loginService;
     @MockitoBean
