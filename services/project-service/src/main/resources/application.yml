@@ -13,3 +13,10 @@ reward-event-outbox:
   worker-enabled: true
   poll-interval-ms: 5000
   batch-size: 50
+
+# 컨트롤러 8개가 대표 도메인을 공유하지 않아(다수가 @RequestMapping("/api/v1")만 두고
+# 세부 경로를 메서드에서 지정) auth/member처럼 "그 서비스의 단일 리소스" 경로를 쓸 수 없다.
+# 서비스명이자 가장 먼저 생기는 리소스인 projects를 대표로 삼는다.
+springdoc:
+  api-docs:
+    path: /api/v1/projects/api-docs

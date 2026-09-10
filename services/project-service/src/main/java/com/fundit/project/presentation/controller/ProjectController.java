@@ -30,6 +30,9 @@ import com.fundit.project.presentation.dto.RewardRefundPolicyResponse;
 import com.fundit.project.presentation.dto.RewardStatResponse;
 import com.fundit.project.presentation.dto.SellerSummaryResponse;
 import com.fundit.project.presentation.dto.WishStatsResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "project")
 @RestController
 @RequestMapping("/api/v1/projects")
 @RequiredArgsConstructor
@@ -59,6 +63,8 @@ public class ProjectController {
     private final ProjectQueryService projectQueryService;
     private final ProjectStatsService projectStatsService;
 
+    @Operation(summary = "판매자 프로젝트 목록 조회",
+            description = "로그인한 판매자 본인의 프로젝트를 상태별로 페이지네이션 조회한다. status 미지정 시 전체 상태.")
     @GetMapping
     public PageResponse<ProjectListItemResponse> list(
             @CurrentMember UUID sellerId,
@@ -77,6 +83,9 @@ public class ProjectController {
         return PageResponse.from(result);
     }
 
+    @Operation(summary = "프로젝트 생성(DRAFT)",
+            description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다.")
+    @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping
     public ResponseEntity<ProjectCreateResponse> create(@CurrentMember UUID sellerId) {
         Project project = projectService.create(sellerId);
@@ -84,12 +93,15 @@ public class ProjectController {
                 .body(new ProjectCreateResponse(project.getPublicId(), project.getStatus().name()));
     }
 
+    @Operation(summary = "프로젝트 삭제", description = "DRAFT 상태의 프로젝트만 삭제할 수 있다(PROJECT_NOT_DELETABLE).")
+    @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/{projectId}")
     public ResponseEntity<Void> delete(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
         projectService.delete(sellerId, projectId);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "기본정보 수정", description = "사업자 유형/카테고리/제목/목표금액을 수정한다.")
     @PatchMapping("/{projectId}/basic-info")
     public ProjectBasicInfoResponse updateBasicInfo(
             @CurrentMember UUID sellerId, @PathVariable UUID projectId,
@@ -103,6 +115,8 @@ public class ProjectController {
                 project.getGoalAmount(), project.getUpdatedAt());
     }
 
+    @Operation(summary = "개인정보 수집 동의",
+            description = "심사 제출 전 개인정보 수집 동의를 기록한다(PRIVACY_CONSENT_REQUIRED 전제조건).")
     @PostMapping("/{projectId}/privacy-consent")
     public PrivacyConsentResponse consentPrivacy(
             @CurrentMember UUID sellerId, @PathVariable UUID projectId,
@@ -111,12 +125,15 @@ public class ProjectController {
         return new PrivacyConsentResponse(projectId, consentedAt);
     }
 
+    @Operation(summary = "심사 제출",
+            description = "필수 작성 항목이 모두 채워진 DRAFT 프로젝트를 PENDING_REVIEW로 전환한다(PROJECT_NOT_SUBMITTABLE).")
     @PostMapping("/{projectId}/submit")
     public ProjectStatusResponse submit(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
         Project project = projectService.submit(sellerId, projectId);
         return new ProjectStatusResponse(project.getPublicId(), project.getStatus().name());
     }
 
+    @Operation(summary = "스토리(소개) 수정", description = "제목/커버이미지/본문 콘텐츠 블록을 수정한다.")
     @PatchMapping("/{projectId}/story")
     public ProjectStoryResponse updateStory(
             @CurrentMember UUID sellerId, @PathVariable UUID projectId,
@@ -126,16 +143,21 @@ public class ProjectController {
         return new ProjectStoryResponse(project.getPublicId(), project.getUpdatedAt());
     }
 
+    @Operation(summary = "판매자 미리보기 조회",
+            description = "공개 여부와 무관하게 본인 프로젝트의 상세를 미리보기로 조회한다.")
     @GetMapping("/{projectId}/preview")
     public ProjectDetailResponse preview(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
         return toDetailResponse(projectQueryService.getPreview(sellerId, projectId));
     }
 
+    @Operation(summary = "공개 상세 조회",
+            description = "소비자용 프로젝트 상세. 비공개(DRAFT/PENDING_REVIEW) 프로젝트는 존재 여부를 비노출하기 위해 다른 코드가 아닌 404로 응답한다.")
     @GetMapping("/{projectId}")
     public ProjectDetailResponse getPublicDetail(@PathVariable UUID projectId) {
         return toDetailResponse(projectQueryService.getPublicDetail(projectId));
     }
 
+    @Operation(summary = "환불 정책 조회", description = "공통 환불정책과 리워드별 간편환불 불가 여부를 함께 조회한다.")
     @GetMapping("/{projectId}/refund-policy")
     public RefundPolicyResponse getRefundPolicy(@PathVariable UUID projectId) {
         var view = projectQueryService.getRefundPolicy(projectId);
@@ -146,6 +168,8 @@ public class ProjectController {
                         .toList());
     }
 
+    @Operation(summary = "펀딩 현황 조회(판매자)",
+            description = "현재 모금액/달성률/참여자수 등 판매자 대시보드용 통계를 조회한다. order-service 조회 결과 기반.")
     @GetMapping("/{projectId}/funding-status")
     public FundingStatusResponse getFundingStatus(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
         var view = projectStatsService.getFundingStatus(sellerId, projectId);
@@ -156,6 +180,7 @@ public class ProjectController {
                 view.openNotifyCount(), view.wishCount(), rewardStats, view.remainingDays(), view.lastSyncedAt());
     }
 
+    @Operation(summary = "찜/오픈알림 통계 조회(판매자)", description = "찜 수와 오픈예정 알림 신청 수를 조회한다.")
     @GetMapping("/{projectId}/wish-stats")
     public WishStatsResponse getWishStats(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
         var view = projectStatsService.getWishStats(sellerId, projectId);
