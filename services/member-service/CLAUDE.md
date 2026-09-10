@@ -7,7 +7,7 @@
 
 로그인 자격증명과 본인인증(CI/DI 포함) 처리는 전부 auth-service 소관입니다. member-service는 auth-service가 회원가입 시 동기 호출할 때 넘겨주는 값(accountId, name, phoneNumber 등)을 받아 프로필로 저장만 합니다 — `phone_number`는 본인인증 성공 여부와 무관하게 입력값 그대로 저장하며, CI/DI 등 인증 관련 필드는 member-service가 갖지 않습니다(auth-service도 현재 미사용 상태 — `IdentityVerificationStore.VerifiedIdentity`에 필드 없음).
 
-팔로우, 리워드 품절 알림 신청, 닉네임 수정, 소셜가입은 MVP 범위 밖입니다 — 상세는 `MvpImplementationSummary.md` 참고.
+팔로우, 리워드 품절 알림 신청, 닉네임 수정은 MVP 범위 밖입니다. **소셜가입 전용 엔드포인트(`POST /members/social`)는 만들지 않기로 확정**했습니다 — 기존 `POST /members`의 요청 본문에 비밀번호도 소셜 관련 필드도 없어 provider와 무관하기 때문입니다(소셜 가입도 이 엔드포인트를 그대로 씁니다) — 상세는 `MvpImplementationSummary.md` 참고.
 
 ## 먼저 읽을 문서
 회원가입/프로필/찜/배송지 관련 작업을 시작하기 전에 **`services/member-service/docs/`의 기능명세서(MEMBER-001~009)와 `member-domain-api-spec.md`를 먼저 읽으세요.** 이 CLAUDE.md는 그 문서들의 핵심만 요약한 것이지 대체하지 않습니다. **MVP 범위에서 제외된 항목(후순위 구현)은 `MvpImplementationSummary.md`를 참고하세요** — 기능명세서/API명세서에 항목 자체는 남아있어도 이번 구현 범위엔 포함되지 않습니다.
@@ -22,7 +22,7 @@
 - `addresses` — 회원당 다건 등록 가능.
 
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
-- **내부 전용 엔드포인트 방어**: `POST /members`, `POST /members/social`은 두 겹으로 막는다 — ① 게이트웨이가 이 경로+메서드를 404로 끊어 외부 노출을 차단하고, ② `InternalGatewaySecretFilter`(modules:common-webmvc)가 `X-Internal-Api-Key`로 게이트웨이 우회 직접 호출을 차단한다(`security.md` S7). 어느 한쪽만으로는 뚫린다 — 게이트웨이가 모든 프록시 요청에 내부 키를 주입하므로 ①이 없으면 외부에서 그냥 통과된다. 내부 전용 경로는 `InternalEndpointConfig`에 빈으로 선언한다(설정 파일에 두면 특정 프로필에서 누락될 수 있어서). `accountId`는 auth-service가 발급한 값이라는 전제로 신뢰하고 별도 검증하지 않는다.
+- **내부 전용 엔드포인트 방어**: `POST /members`, `POST /members/{accountId}/phone-verification`은 두 겹으로 막는다 — ① 게이트웨이가 이 경로+메서드를 404로 끊어 외부 노출을 차단하고, ② `InternalGatewaySecretFilter`(modules:common-webmvc)가 `X-Internal-Api-Key`로 게이트웨이 우회 직접 호출을 차단한다(`security.md` S7). 어느 한쪽만으로는 뚫린다 — 게이트웨이가 모든 프록시 요청에 내부 키를 주입하므로 ①이 없으면 외부에서 그냥 통과된다. 내부 전용 경로는 `InternalEndpointConfig`에 빈으로 선언한다(설정 파일에 두면 특정 프로필에서 누락될 수 있어서). `accountId`는 auth-service가 발급한 값이라는 전제로 신뢰하고 별도 검증하지 않는다.
 - **구매자/판매자는 별도로 지정하지 않는다**: 가입 완료 시 둘 다 자동 부여되며, member-service는 이를 위한 별도 저장 상태를 갖지 않는다. 화면 전환이 필요하면 세션/토큰 클레임 수준에서만 다룬다 — `members` 테이블에 모드 값을 영속화하지 않는다.
 - **찜은 idempotent**: 등록은 `PUT`(`INSERT ... ON CONFLICT DO NOTHING`), 해제는 `DELETE`(이미 목표 상태면 204). 중복 요청·네트워크 재시도를 실패로 처리하지 않는다.
 - **찜 목록의 프로젝트 정보는 스냅샷**: catalog-service를 실시간 호출하지 않는다.
@@ -38,5 +38,6 @@
 - 구매자/판매자 모드를 `members` 테이블에 영속화하려 하지 말 것 — 설계상 별도 저장이 필요 없음
 - 찜 목록 조회 시 catalog-service를 매번 실시간 호출하지 말 것 — 스냅샷 컬럼을 사용
 - 배송지 등 개인정보를 평문으로 로그에 남기지 말 것 (`security.md` S9·S10)
-- `POST /members`, `POST /members/social`을 게이트웨이 라우팅에 노출하지 말 것 — auth-service 내부 호출 전용
+- `POST /members`, `POST /members/{accountId}/phone-verification`을 게이트웨이 라우팅에 노출하지 말 것 — auth-service 내부 호출 전용
+- 휴대폰번호로 계정을 찾아주는 엔드포인트를 만들지 말 것 — 번호만 넣어보며 가입 여부를 캐낼 수 있다. 본인 확인은 `accountId`를 이미 아는 쪽에서 "맞는지"만 묻는 형태로 유지
 - MVP 범위 밖 기능(팔로우, 리워드알림, 닉네임 수정, 소셜가입)을 별다른 논의 없이 구현 범위에 슬쩍 포함시키지 말 것 — `MvpImplementationSummary.md`에서 먼저 확인

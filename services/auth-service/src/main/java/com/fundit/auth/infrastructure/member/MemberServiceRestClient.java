@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * member-service 동기 호출 어댑터. CLAUDE.md 규칙대로 connect/read 타임아웃을 명시 설정한다
@@ -44,6 +45,27 @@ public class MemberServiceRestClient implements MemberServiceClient {
                 .defaultHeader(INTERNAL_API_KEY_HEADER, internalApiKey)
                 .requestFactory(requestFactory)
                 .build();
+    }
+
+    @Override
+    public boolean phoneMatches(UUID accountId, String phoneNumber) {
+        try {
+            PhoneVerificationResponse response = restClient.post()
+                    .uri("/api/v1/members/{accountId}/phone-verification", accountId)
+                    .body(new PhoneVerificationRequest(phoneNumber))
+                    .retrieve()
+                    .body(PhoneVerificationResponse.class);
+            return response != null && response.matches();
+        } catch (RestClientException e) {
+            throw new DependencyFailureException(e);
+        }
+    }
+
+    /** 휴대폰번호를 URL이 아니라 본문으로 보낸다 — 쿼리스트링은 액세스 로그에 남는다(security.md S10). */
+    private record PhoneVerificationRequest(String phoneNumber) {
+    }
+
+    private record PhoneVerificationResponse(boolean matches) {
     }
 
     @Override

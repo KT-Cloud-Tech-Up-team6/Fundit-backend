@@ -78,4 +78,28 @@ class MemberServiceRestClientUnitTest {
         assertThat(result.memberId()).isEqualTo(accountId);
         server.verify();
     }
+
+    @Test
+    void 본인확인_요청은_번호를_URL이_아니라_본문에_담아_보낸다() {
+        // given — 쿼리스트링에 담으면 휴대폰번호가 액세스 로그에 그대로 남는다(security.md S10)
+        RestClient.Builder builder = RestClient.builder()
+                .baseUrl("http://localhost:8082")
+                .defaultHeader("X-Internal-Api-Key", INTERNAL_API_KEY);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        MemberServiceRestClient client = new MemberServiceRestClient(builder.build());
+
+        UUID accountId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8082/api/v1/members/" + accountId + "/phone-verification"))
+                .andExpect(method(POST))
+                .andExpect(header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(content().json("{\"phoneNumber\": \"01012345678\"}"))
+                .andRespond(withSuccess("{\"matches\": true}", MediaType.APPLICATION_JSON));
+
+        // when
+        boolean matches = client.phoneMatches(accountId, "01012345678");
+
+        // then
+        assertThat(matches).isTrue();
+        server.verify();
+    }
 }

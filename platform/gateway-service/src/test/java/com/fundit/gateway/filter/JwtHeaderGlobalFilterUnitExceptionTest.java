@@ -46,11 +46,11 @@ class JwtHeaderGlobalFilterUnitExceptionTest {
     }
 
     @Test
-    void 내부_전용_소셜가입_엔드포인트도_404를_반환한다() {
-        // given — 아직 구현되지 않았지만 내부 전용으로 확정된 경로다.
-        // 나중에 구현하는 사람이 게이트웨이 차단을 빠뜨려도 외부에 노출되지 않아야 한다.
+    void 경로_변수가_있는_내부_전용_엔드포인트도_404를_반환한다() {
+        // given — 소셜 계정 연동의 본인 확인. accountId가 경로 변수라 문자열 비교로는 잡히지 않는다
         ServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.post("/api/v1/members/social").header("Content-Type", "application/json"));
+                MockServerHttpRequest.post("/api/v1/members/" + UUID.randomUUID() + "/phone-verification")
+                        .header("Content-Type", "application/json"));
 
         // when
         filter.filter(exchange, chain).block();
