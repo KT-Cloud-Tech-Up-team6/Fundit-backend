@@ -34,6 +34,7 @@ import java.util.Arrays;
 public class ProjectOpenApiCustomizer {
 
     private static final String ACCOUNT_HEADER_SCHEME = "accountIdHeader";
+    private static final String ACCOUNT_ROLE_HEADER_SCHEME = "accountRoleHeader";
     private static final String ERROR_SCHEMA_REF = "#/components/schemas/ErrorResponse";
     private static final String APPLICATION_JSON = "application/json";
 
@@ -49,9 +50,14 @@ public class ProjectOpenApiCustomizer {
                     .type(SecurityScheme.Type.APIKEY)
                     .in(SecurityScheme.In.HEADER)
                     .name(CurrentMemberArgumentResolver.ACCOUNT_ID_HEADER)
-                    .description("게이트웨이 라우트가 아직 없어 서명 검증 없이 이 헤더를 그대로 신뢰한다(로컬 직접 접속 전용). "
-                            + "관리자 전용 엔드포인트는 " + CurrentAdminArgumentResolver.ACCOUNT_ROLE_HEADER
-                            + ": admin 헤더도 함께 요구한다."));
+                    .description("게이트웨이 라우트가 아직 없어 서명 검증 없이 이 헤더를 그대로 신뢰한다(로컬 직접 접속 전용)."));
+            // 관리자 전용 엔드포인트는 이 헤더도 같이 요구한다 — 별도 스킴으로 선언해야
+            // "함께 필요하다"는 게 설명 문구가 아니라 스펙(SecurityRequirement)에 기계적으로 드러난다.
+            components.addSecuritySchemes(ACCOUNT_ROLE_HEADER_SCHEME, new SecurityScheme()
+                    .type(SecurityScheme.Type.APIKEY)
+                    .in(SecurityScheme.In.HEADER)
+                    .name(CurrentAdminArgumentResolver.ACCOUNT_ROLE_HEADER)
+                    .description("관리자 전용 엔드포인트에서만 요구된다. 값이 admin이 아니면 403."));
             openApi.setComponents(components);
         };
     }
@@ -60,7 +66,9 @@ public class ProjectOpenApiCustomizer {
     public GlobalOperationCustomizer accountHeaderRequirementCustomizer() {
         return (operation, handlerMethod) -> {
             if (requiresAdmin(handlerMethod)) {
-                operation.addSecurityItem(new SecurityRequirement().addList(ACCOUNT_HEADER_SCHEME));
+                operation.addSecurityItem(new SecurityRequirement()
+                        .addList(ACCOUNT_HEADER_SCHEME)
+                        .addList(ACCOUNT_ROLE_HEADER_SCHEME));
                 operation.getResponses().addApiResponse("401", errorResponse(
                         CurrentMemberArgumentResolver.ACCOUNT_ID_HEADER + " 헤더가 없거나 형식이 올바르지 않음"));
                 operation.getResponses().addApiResponse("403", errorResponse("관리자(admin)가 아님"));
