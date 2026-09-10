@@ -1,21 +1,19 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.reward.RewardQueryService;
 import com.fundit.project.application.reward.RewardService;
 import com.fundit.project.domain.reward.Reward;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -26,12 +24,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RewardController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class RewardControllerTest {
 
     @Autowired
@@ -55,7 +53,7 @@ class RewardControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("""
                                 {"name":"얼리버드","description":"설명","price":39000,"isLimited":true,"quantity":100}
@@ -73,7 +71,7 @@ class RewardControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/rewards/1")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"name\":\"새이름\"}"))
                 .andExpect(status().isOk());
@@ -85,28 +83,9 @@ class RewardControllerTest {
         UUID sellerId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(delete("/api/v1/rewards/1").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(delete("/api/v1/rewards/1").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isNoContent());
         verify(rewardService).delete(sellerId, 1L);
-    }
-
-    @Test
-    void 고시정보를_등록하면_200을_반환한다() throws Exception {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        Reward withDisclosure = reward(1L);
-        withDisclosure.changeDisclosure("COSMETIC", Map.of("제조국", "대한민국"));
-        when(rewardService.updateDisclosure(eq(sellerId), eq(1L), eq("COSMETIC"), any())).thenReturn(withDisclosure);
-
-        // when & then
-        mockMvc.perform(put("/api/v1/rewards/1/disclosure")
-                        .header("X-Account-Id", sellerId.toString())
-                        .contentType("application/json")
-                        .content("""
-                                {"categoryType":"COSMETIC","disclosure":{"제조국":"대한민국"}}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.categoryType").value("COSMETIC"));
     }
 
     @Test
@@ -119,7 +98,7 @@ class RewardControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/rewards/1/refund-policy")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"simpleRefundDisabled\":true}"))
                 .andExpect(status().isOk())
@@ -138,18 +117,5 @@ class RewardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].remainingStock").value(37))
                 .andExpect(jsonPath("$[0].soldOut").value(false));
-    }
-
-    @Test
-    void 리워드_고시정보_목록을_조회한다() throws Exception {
-        // given
-        UUID projectId = UUID.randomUUID();
-        var view = new RewardQueryService.RewardDisclosureView(1L, "얼리버드", "COSMETIC", Map.of("제조국", "대한민국"));
-        when(rewardQueryService.listDisclosures(projectId)).thenReturn(List.of(view));
-
-        // when & then
-        mockMvc.perform(get("/api/v1/projects/" + projectId + "/rewards/disclosures"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].categoryType").value("COSMETIC"));
     }
 }

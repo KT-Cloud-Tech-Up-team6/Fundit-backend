@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,19 +62,6 @@ class RewardUnitTest {
             assertThat(reward.getName()).isEqualTo("새이름");
             assertThat(reward.isHasOption()).isFalse();
         }
-    }
-
-    @Test
-    void 고시정보를_변경한다() {
-        // given
-        Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null);
-
-        // when
-        reward.changeDisclosure("COSMETIC", Map.of("제조국", "대한민국"));
-
-        // then
-        assertThat(reward.getCategoryType()).isEqualTo("COSMETIC");
-        assertThat(reward.getDisclosure()).containsEntry("제조국", "대한민국");
     }
 
     @Test

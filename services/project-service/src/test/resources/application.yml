@@ -12,3 +12,16 @@ spring:
 
 reward-event-outbox:
   worker-enabled: false
+
+# S3Client/S3Presigner 빈 생성에 필요한 필수 프로퍼티 — 실제 네트워크 호출 없이 컨텍스트만
+# 띄우는 테스트라 값 자체는 사용되지 않는다(datasource의 "unused"와 동일한 취지).
+media:
+  s3:
+    bucket: unused
+    region: ap-northeast-2
+
+# CommonWebConfig(InternalGatewaySecretFilter)가 빈 생성 시 필수로 참조한다 — scanBasePackages가
+# com.fundit로 넓어지면서 @SpringBootTest(전체 컨텍스트)마다 필요해졌다. 실제 검증이 필요한
+# 컨트롤러 테스트는 이 값을 헤더에 그대로 사용한다(개별 @TestPropertySource 대신 여기 한 곳에서 통일).
+internal-api:
+  key: test-only-internal-api-key

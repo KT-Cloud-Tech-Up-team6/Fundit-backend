@@ -2,9 +2,12 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.media.MediaCategory;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.BusinessType;
 import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -45,6 +48,7 @@ public class ProjectService {
     private final ProjectPrivacyConsentJpaRepository privacyConsentJpaRepository;
     private final ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     private final RewardJpaRepository rewardJpaRepository;
+    private final MediaUrlValidator mediaUrlValidator;
 
     @Transactional(readOnly = true)
     public Page<ProjectListProjection> list(UUID sellerId, ProjectStatus status, Pageable pageable) {
@@ -89,6 +93,17 @@ public class ProjectService {
     @Transactional
     public Project updateStory(UUID sellerId, UUID publicId, UpdateStoryCommand command) {
         Project project = loadOwned(sellerId, publicId);
+        if (command.coverImageUrl() != null) {
+            mediaUrlValidator.validate(publicId, command.coverImageUrl(), MediaCategory.IMAGE);
+        }
+        if (command.introContent() != null) {
+            // VIDEO_URL은 유튜브 등 외부 영상 링크 용도라 S3 검증 대상이 아니다(ApiSpec #8 참고).
+            for (IntroContentBlock block : command.introContent()) {
+                if (block.type() == IntroContentType.IMAGE) {
+                    mediaUrlValidator.validate(publicId, block.value(), MediaCategory.IMAGE);
+                }
+            }
+        }
         project.updateStory(command.title(), command.coverImageUrl(), command.introContent());
         return projectRepository.save(project);
     }

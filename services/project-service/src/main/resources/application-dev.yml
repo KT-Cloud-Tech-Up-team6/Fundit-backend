@@ -6,3 +6,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+
+media:
+  s3:
+    bucket: ${MEDIA_S3_BUCKET}
+    region: ${AWS_REGION}
+
+internal-api:
+  key: ${INTERNAL_API_KEY}

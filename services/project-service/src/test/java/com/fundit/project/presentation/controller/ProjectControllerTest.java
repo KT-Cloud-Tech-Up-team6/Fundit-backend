@@ -1,5 +1,6 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.project.ProjectQueryService;
 import com.fundit.project.application.project.ProjectService;
 import com.fundit.project.application.project.ProjectStatsService;
@@ -7,14 +8,12 @@ import com.fundit.project.domain.project.BusinessType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.infrastructure.persistence.project.query.ProjectListProjection;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ProjectController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class ProjectControllerTest {
 
     @Autowired
@@ -67,7 +67,7 @@ class ProjectControllerTest {
         when(projectService.list(eq(sellerId), isNull(), any())).thenReturn(new PageImpl<>(List.of(projection)));
 
         // when & then
-        mockMvc.perform(get("/api/v1/projects").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/projects").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].title").value("프로젝트A"))
                 .andExpect(jsonPath("$.totalElements").value(1));
@@ -81,7 +81,7 @@ class ProjectControllerTest {
         when(projectService.create(sellerId)).thenReturn(draftProject(sellerId, publicId));
 
         // when & then
-        mockMvc.perform(post("/api/v1/projects").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(post("/api/v1/projects").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.projectId").value(publicId.toString()))
                 .andExpect(jsonPath("$.status").value("DRAFT"));
@@ -94,7 +94,7 @@ class ProjectControllerTest {
         UUID publicId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(delete("/api/v1/projects/" + publicId).header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(delete("/api/v1/projects/" + publicId).header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isNoContent());
         verify(projectService).delete(sellerId, publicId);
     }
@@ -111,7 +111,7 @@ class ProjectControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/projects/" + publicId + "/basic-info")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("""
                                 {"businessType":"SOLE","categoryMajor":"테크·가전","categoryMinor":"생활가전","title":"제목","goalAmount":1000000}
@@ -130,7 +130,7 @@ class ProjectControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + publicId + "/privacy-consent")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"agreed\":true}"))
                 .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class ProjectControllerTest {
         when(projectService.submit(sellerId, publicId)).thenReturn(submitted);
 
         // when & then
-        mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
     }
@@ -160,7 +160,7 @@ class ProjectControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/projects/" + publicId + "/story")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("""
                                 {"title":"제목","coverImageUrl":"http://img","introContent":[{"type":"TEXT","value":"본문"}]}
@@ -180,7 +180,7 @@ class ProjectControllerTest {
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
 
         // when & then
-        mockMvc.perform(get("/api/v1/projects/" + publicId + "/preview").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/projects/" + publicId + "/preview").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("제목"));
     }
@@ -226,7 +226,7 @@ class ProjectControllerTest {
         when(projectStatsService.getFundingStatus(sellerId, publicId)).thenReturn(view);
 
         // when & then
-        mockMvc.perform(get("/api/v1/projects/" + publicId + "/funding-status").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/projects/" + publicId + "/funding-status").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentAmount").value(320000));
     }
@@ -239,7 +239,7 @@ class ProjectControllerTest {
         when(projectStatsService.getWishStats(sellerId, publicId)).thenReturn(new ProjectStatsService.WishStatsView(210, 40));
 
         // when & then
-        mockMvc.perform(get("/api/v1/projects/" + publicId + "/wish-stats").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/projects/" + publicId + "/wish-stats").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.wishCount").value(210));
     }

@@ -2,6 +2,8 @@ package com.fundit.project.application.reward;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.media.MediaCategory;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.reward.Reward;
@@ -12,10 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-/** 리워드 등록/수정/삭제·고시·환불정책 특이사항(PROJECT-007~009). */
+/** 리워드 등록/수정/삭제·환불정책 특이사항(PROJECT-007~009). */
 @Service
 @RequiredArgsConstructor
 public class RewardService {
@@ -23,6 +24,7 @@ public class RewardService {
     private final ProjectRepository projectRepository;
     private final RewardRepository rewardRepository;
     private final RewardEventPublisher rewardEventPublisher;
+    private final MediaUrlValidator mediaUrlValidator;
 
     @Transactional
     public Reward create(UUID sellerId, UUID projectPublicId, CreateRewardCommand command) {
@@ -30,6 +32,9 @@ public class RewardService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!project.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        if (command.imageUrl() != null) {
+            mediaUrlValidator.validate(project.getPublicId(), command.imageUrl(), MediaCategory.IMAGE);
         }
 
         Reward reward = Reward.create(project.getId(), command.name(), command.description(), command.imageUrl(),
@@ -46,7 +51,11 @@ public class RewardService {
 
     @Transactional
     public Reward update(UUID sellerId, Long rewardId, UpdateRewardCommand command) {
-        Reward reward = loadOwned(sellerId, rewardId);
+        OwnedReward owned = loadOwned(sellerId, rewardId);
+        Reward reward = owned.reward();
+        if (command.imageUrl() != null) {
+            mediaUrlValidator.validate(owned.project().getPublicId(), command.imageUrl(), MediaCategory.IMAGE);
+        }
 
         String name = command.name() != null ? command.name() : reward.getName();
         String description = command.description() != null ? command.description() : reward.getDescription();
@@ -78,26 +87,19 @@ public class RewardService {
 
     @Transactional
     public void delete(UUID sellerId, Long rewardId) {
-        Reward reward = loadOwned(sellerId, rewardId);
+        Reward reward = loadOwned(sellerId, rewardId).reward();
         reward.delete();
         rewardRepository.save(reward);
     }
 
     @Transactional
-    public Reward updateDisclosure(UUID sellerId, Long rewardId, String categoryType, Map<String, String> disclosure) {
-        Reward reward = loadOwned(sellerId, rewardId);
-        reward.changeDisclosure(categoryType, disclosure);
-        return rewardRepository.save(reward);
-    }
-
-    @Transactional
     public Reward updateRefundPolicy(UUID sellerId, Long rewardId, boolean simpleRefundDisabled) {
-        Reward reward = loadOwned(sellerId, rewardId);
+        Reward reward = loadOwned(sellerId, rewardId).reward();
         reward.changeRefundPolicy(simpleRefundDisabled);
         return rewardRepository.save(reward);
     }
 
-    private Reward loadOwned(UUID sellerId, Long rewardId) {
+    private OwnedReward loadOwned(UUID sellerId, Long rewardId) {
         Reward reward = rewardRepository.findById(rewardId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         Project project = projectRepository.findById(reward.getProjectId())
@@ -105,7 +107,10 @@ public class RewardService {
         if (!project.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
-        return reward;
+        return new OwnedReward(reward, project);
+    }
+
+    private record OwnedReward(Reward reward, Project project) {
     }
 
     public record CreateRewardCommand(
