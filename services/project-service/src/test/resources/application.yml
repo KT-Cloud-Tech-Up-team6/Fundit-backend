@@ -1,4 +1,8 @@
 spring:
+  application:
+    # main application.yml을 대체하는 파일이라 여기 없으면 정의되지 않는다.
+    # CommonOpenApiConfig(@Import — ProjectServiceApplication)가 필수로 참조한다.
+    name: project-service
   profiles:
     active: test
   datasource:

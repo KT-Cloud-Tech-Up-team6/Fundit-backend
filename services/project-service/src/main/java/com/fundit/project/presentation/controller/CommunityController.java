@@ -14,6 +14,9 @@ import com.fundit.project.presentation.dto.CommunityPostCreateRequest;
 import com.fundit.project.presentation.dto.CommunityPostListItemResponse;
 import com.fundit.project.presentation.dto.CommunityPostResponse;
 import com.fundit.project.presentation.dto.PageResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /** PROJECT-017, PROJECT-018, PROJECT-020, PROJECT-024, PROJECT-025 — 커뮤니티 질문/응원, 답변. */
+@Tag(name = "community")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -40,6 +44,8 @@ public class CommunityController {
 
     private final CommunityService communityService;
 
+    @Operation(summary = "커뮤니티 글 작성(질문/응원)", description = "postType은 QUESTION 또는 CHEER.")
+    @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/community/posts")
     public ResponseEntity<CommunityPostResponse> createPost(
             @CurrentMember UUID memberId, @PathVariable UUID projectId,
@@ -53,6 +59,8 @@ public class CommunityController {
      * 미로그인도 조회 가능(선택적 인증) — @CurrentMember 대신 헤더를 직접 읽는다.
      * answeredOnly는 판매자 전용이며, 본인 소유가 아니면 CommunityService가 조용히 무시한다.
      */
+    @Operation(summary = "커뮤니티 글 목록 조회",
+            description = "미로그인도 조회 가능(선택적 인증). answeredOnly는 판매자 전용이며 본인 소유가 아니면 무시된다.")
     @GetMapping("/projects/{projectId}/community/posts")
     public PageResponse<CommunityPostListItemResponse> listPosts(
             @PathVariable UUID projectId,
@@ -74,6 +82,8 @@ public class CommunityController {
         return PageResponse.from(result);
     }
 
+    @Operation(summary = "커뮤니티 답변 등록/수정(UPSERT)",
+            description = "게시글당 답변은 1개(DB 유니크 제약) — 이미 있으면 갱신한다.")
     @PostMapping("/community/posts/{postId}/answer")
     public CommunityAnswerResponse upsertAnswer(
             @CurrentMember UUID sellerId, @PathVariable Long postId,

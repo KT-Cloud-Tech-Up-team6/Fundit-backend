@@ -9,6 +9,9 @@ import com.fundit.project.presentation.dto.LiveVerificationListResponse;
 import com.fundit.project.presentation.dto.LiveVerificationResponse;
 import com.fundit.project.presentation.dto.LiveVerificationUpdateRequest;
 import com.fundit.project.presentation.dto.LiveVerificationUpdateResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /** PROJECT-014, PROJECT-019 — LIVE검증 콘텐츠 등록/수정/삭제/조회. */
+@Tag(name = "live-verification")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -32,6 +36,9 @@ public class LiveVerificationController {
 
     private final LiveVerificationService liveVerificationService;
 
+    @Operation(summary = "LIVE검증 콘텐츠 등록",
+            description = "방송이 끝난 뒤 남는 LIVE검증 질문요약/답변을 등록한다. 방송 송출 자체는 live-service 소관.")
+    @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/live-verifications")
     public ResponseEntity<LiveVerificationResponse> create(
             @CurrentMember UUID sellerId, @PathVariable UUID projectId,
@@ -42,6 +49,7 @@ public class LiveVerificationController {
                 .body(new LiveVerificationResponse(entity.getId(), entity.getAnswer(), entity.getCreatedAt()));
     }
 
+    @Operation(summary = "LIVE검증 답변 수정")
     @PatchMapping("/live-verifications/{id}")
     public LiveVerificationUpdateResponse update(
             @CurrentMember UUID sellerId, @PathVariable Long id,
@@ -50,12 +58,15 @@ public class LiveVerificationController {
         return new LiveVerificationUpdateResponse(entity.getId(), entity.getAnswer(), entity.getUpdatedAt());
     }
 
+    @Operation(summary = "LIVE검증 콘텐츠 삭제")
+    @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/live-verifications/{id}")
     public ResponseEntity<Void> delete(@CurrentMember UUID sellerId, @PathVariable Long id) {
         liveVerificationService.delete(sellerId, id);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "LIVE검증 콘텐츠 목록 조회(소비자)")
     @GetMapping("/projects/{projectId}/live-verifications")
     public LiveVerificationListResponse listForConsumer(@PathVariable UUID projectId) {
         var content = liveVerificationService.listForConsumer(projectId).stream()

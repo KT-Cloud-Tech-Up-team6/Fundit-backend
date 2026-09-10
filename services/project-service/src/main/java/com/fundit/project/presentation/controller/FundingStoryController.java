@@ -16,6 +16,9 @@ import com.fundit.project.presentation.dto.FundingStorySessionCreateRequest;
 import com.fundit.project.presentation.dto.FundingStorySessionCreateResponse;
 import com.fundit.project.presentation.dto.FundingStorySessionResponse;
 import com.fundit.project.presentation.dto.FundingStoryWarningResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,6 +37,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /** PROJECT-011, PROJECT-012 — 펀딩스토리 AI 정보입력/생성요청, 결과조회, 결과반영. */
+@Tag(name = "funding-story")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -41,6 +45,9 @@ public class FundingStoryController {
 
     private final FundingStoryService fundingStoryService;
 
+    @Operation(summary = "펀딩스토리 AI 초안 생성 요청",
+            description = "상품 설명/이미지를 제출해 AI 생성을 시작한다. 결과는 비동기로 준비되며 세션 조회로 폴링한다.")
+    @ApiResponse(responseCode = "202", description = "생성 요청 접수됨")
     @PostMapping("/projects/{projectId}/ai/funding-story/sessions")
     public ResponseEntity<FundingStorySessionCreateResponse> createSession(
             @CurrentMember UUID sellerId, @PathVariable UUID projectId,
@@ -54,12 +61,15 @@ public class FundingStoryController {
                 .body(new FundingStorySessionCreateResponse(session.getId(), session.getStatus().name()));
     }
 
+    @Operation(summary = "펀딩스토리 세션 조회",
+            description = "생성 상태, 추가 질문, 완료 시 결과(섹션/이미지출처/경고)를 조회한다.")
     @GetMapping("/ai/funding-story/sessions/{sessionId}")
     public FundingStorySessionResponse getSession(@CurrentMember UUID sellerId, @PathVariable UUID sessionId) {
         FundingStorySession session = fundingStoryService.getSession(sellerId, sessionId);
         return toResponse(session);
     }
 
+    @Operation(summary = "펀딩스토리 결과를 프로젝트에 반영", description = "AI 결과(또는 수정본)를 프로젝트 스토리에 적용한다.")
     @PatchMapping("/ai/funding-story/sessions/{sessionId}/apply")
     public FundingStoryApplyResponse apply(
             @CurrentMember UUID sellerId, @PathVariable UUID sessionId,
