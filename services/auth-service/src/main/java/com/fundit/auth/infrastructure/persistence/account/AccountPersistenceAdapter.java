@@ -2,6 +2,7 @@ package com.fundit.auth.infrastructure.persistence.account;
 
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
+import com.fundit.auth.domain.account.SocialProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,11 @@ public class AccountPersistenceAdapter implements AccountRepository {
     @Override
     public Account save(Account account) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(account)));
+    }
+
+    @Override
+    public Optional<Account> findBySocial(SocialProvider provider, String socialId) {
+        return jpaRepository.findBySocialProviderAndSocialId(provider.name(), socialId).map(mapper::toDomain);
     }
 
     @Override
