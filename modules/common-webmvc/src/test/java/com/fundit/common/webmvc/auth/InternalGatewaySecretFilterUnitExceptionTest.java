@@ -1,6 +1,7 @@
 package com.fundit.common.webmvc.auth;
 
 import com.fundit.common.auth.AuthHeaders;
+import com.fundit.common.error.CommonErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -64,5 +65,24 @@ class InternalGatewaySecretFilterUnitExceptionTest {
 
         // then
         assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void 변수를_포함한_내부경로도_시크릿_없이는_막는다() throws Exception {
+        // given — 경로를 문자열 equals로 비교하면 {accountId} 자리가 절대 매칭되지 않아
+        // 내부 전용으로 선언해도 조용히 무방비가 된다
+        var filter = new InternalGatewaySecretFilter(
+                KEY,
+                List.of(new InternalEndpoint("POST", "/api/v1/members/{accountId}/phone-verification")),
+                new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/api/v1/members/" + UUID.randomUUID() + "/phone-verification");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        // when
+        filter.doFilter(request, response, new MockFilterChain());
+
+        // then
+        assertThat(response.getStatus()).isEqualTo(CommonErrorCode.UNAUTHORIZED.getHttpStatus());
     }
 }

@@ -5,6 +5,9 @@ import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
+import com.fundit.auth.application.social.SocialLinkService;
+import com.fundit.auth.application.social.SocialLoginService;
+import com.fundit.auth.application.social.SocialSignupService;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.application.token.TokenRefreshService;
 import com.fundit.auth.domain.account.Account;
@@ -73,6 +76,12 @@ class AuthControllerTest {
     @MockitoBean
     private SignupService signupService;
     @MockitoBean
+    private SocialLoginService socialLoginService;
+    @MockitoBean
+    private SocialSignupService socialSignupService;
+    @MockitoBean
+    private SocialLinkService socialLinkService;
+    @MockitoBean
     private LoginService loginService;
     @MockitoBean
     private TokenIssuer tokenIssuer;
@@ -126,6 +135,7 @@ class AuthControllerTest {
                                   "email": "new@fundit.com",
                                   "verificationToken": "ignored",
                                   "name": "홍길동",
+                                  "nickname": "응원왕",
                                   "phoneNumber": "01012345678",
                                   "agreedTerms": ["TOS"]
                                 }
@@ -191,5 +201,25 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void 연동이_필요한_소셜_로그인은_refreshToken_쿠키를_내리지_않는다() throws Exception {
+        // given — 아직 인증이 끝나지 않은 응답이다. 쿠키를 내리면 빈 값이 세팅되고,
+        // 로그인 중인 사용자가 연동을 시도하면 기존 refreshToken이 덮어써진다
+        when(socialLoginService.login(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new SocialLoginService.SocialLoginResult(
+                        false, true, "link-token", null, null, false,
+                        com.fundit.auth.domain.account.SocialProvider.KAKAO, null, null, null));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/login/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "KAKAO", "authorizationCode": "code"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.needsLink").value(true))
+                .andExpect(header().doesNotExist("Set-Cookie"));
     }
 }

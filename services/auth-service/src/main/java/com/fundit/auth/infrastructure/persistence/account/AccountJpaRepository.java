@@ -15,6 +15,8 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, UU
 
     boolean existsByEmail(String email);
 
+    Optional<AccountJpaEntity> findBySocialProviderAndSocialId(String socialProvider, String socialId);
+
     /**
      * TokenRefreshService의 회전/재사용탐지 경합을 계정 단위로 직렬화하기 위한 전용 락 조회.
      * 다른 곳(findById)에는 영향 없도록 별도 메서드로 분리한다.

@@ -33,8 +33,7 @@ import java.util.Locale;
  * <ol>
  *   <li>클라이언트가 보낸 신뢰 헤더를 무조건 제거한다 — 이 단계가 없으면 게이트웨이를 세워도
  *       {@code X-User-Id} 위조가 그대로 통한다.</li>
- *   <li>내부 전용 엔드포인트({@code POST /api/v1/members}, {@code POST /api/v1/members/social})는
- *       즉시 404로 막는다. 아래 3번에서
+ *   <li>내부 전용 엔드포인트({@link #INTERNAL_ONLY_POST_PATHS})는 즉시 404로 막는다. 아래 3번에서
  *       게이트웨이가 <b>모든</b> 프록시 요청에 내부 키를 주입하기 때문에, 이 차단이 없으면
  *       외부 클라이언트가 게이트웨이를 통해 내부 키 검증을 그냥 통과해버린다.</li>
  *   <li>내부 키를 주입한다(게이트웨이를 거쳤다는 증명).</li>
@@ -69,11 +68,12 @@ public class JwtHeaderGlobalFilter implements GlobalFilter, Ordered {
      * 인코딩 우회(예: {@code /api/v1/me%6dbers})로 두 판정이 어긋나는 일이 없게 한다.
      */
     private static final List<PathPattern> INTERNAL_ONLY_POST_PATHS = List.of(
-            // 회원 프로필 생성 — auth-service 회원가입(AUTH-007)만 호출
+            // 회원 프로필 생성 — auth-service 회원가입(AUTH-007)만 호출.
+            // 소셜 가입도 이 엔드포인트를 그대로 쓴다(요청 본문에 비밀번호도 소셜 필드도 없어
+            // provider와 무관하다) — 그래서 예전에 미리 막아뒀던 /api/v1/members/social은 지웠다.
             PATH_PARSER.parse("/api/v1/members"),
-            // 소셜 회원가입(MEMBER-003) — 아직 미구현이지만 내부 전용으로 확정돼 있어 미리 막아둔다.
-            // 나중에 구현하는 사람이 게이트웨이 차단을 빠뜨려도 외부에 노출되지 않게 하기 위함
-            PATH_PARSER.parse("/api/v1/members/social"));
+            // 소셜 계정 연동(AUTH-002)의 본인 확인 — auth-service만 호출
+            PATH_PARSER.parse("/api/v1/members/{accountId}/phone-verification"));
 
     private final ReactiveJwtDecoder jwtDecoder;
     private final ObjectMapper objectMapper;

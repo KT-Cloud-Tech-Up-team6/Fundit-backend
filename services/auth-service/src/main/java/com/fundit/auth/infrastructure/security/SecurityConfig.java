@@ -59,7 +59,9 @@ public class SecurityConfig {
                         // OpenAPI 스펙(운영 프로필에서는 아예 비활성) — .yaml까지 걸리도록 * 사용
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/api-docs*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup",
-                                "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications").permitAll()
+                                "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications",
+                                "/api/v1/auth/login/social", "/api/v1/auth/signup/social",
+                                "/api/v1/auth/social/link").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler -> handler.authenticationEntryPoint(this::onAuthenticationFailure))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

@@ -9,6 +9,9 @@ import jakarta.servlet.http.HttpFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.PathContainer;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -32,15 +35,22 @@ import java.util.List;
  */
 public class InternalGatewaySecretFilter extends HttpFilter {
 
+    private static final PathPatternParser PATH_PARSER = PathPatternParser.defaultInstance;
+
     private final String expectedApiKey;
-    private final List<InternalEndpoint> internalEndpoints;
+    private final List<CompiledEndpoint> internalEndpoints;
     private final ObjectMapper objectMapper;
 
     public InternalGatewaySecretFilter(
             String expectedApiKey, List<InternalEndpoint> internalEndpoints, ObjectMapper objectMapper) {
         this.expectedApiKey = expectedApiKey;
-        this.internalEndpoints = List.copyOf(internalEndpoints);
+        this.internalEndpoints = internalEndpoints.stream()
+                .map(endpoint -> new CompiledEndpoint(endpoint.method(), PATH_PARSER.parse(endpoint.path())))
+                .toList();
         this.objectMapper = objectMapper;
+    }
+
+    private record CompiledEndpoint(String method, PathPattern pattern) {
     }
 
     @Override
@@ -59,10 +69,17 @@ public class InternalGatewaySecretFilter extends HttpFilter {
         return request.getHeader(AuthHeaders.USER_ID) != null || isInternalEndpoint(request);
     }
 
+    /**
+     * 게이트웨이(JwtHeaderGlobalFilter)와 같은 PathPattern 매칭을 쓴다. 문자열 equals로 비교하면
+     * {@code /api/v1/members/{accountId}/phone-verification} 같은 변수 경로가 <b>절대 매칭되지 않아</b>
+     * 내부 전용으로 선언해도 조용히 무방비가 된다. 두 판정이 같은 방식이어야 인코딩 우회로
+     * 어긋나는 일도 없다(게이트웨이 쪽 주석 참고).
+     */
     private boolean isInternalEndpoint(HttpServletRequest request) {
+        PathContainer path = PathContainer.parsePath(request.getRequestURI());
         return internalEndpoints.stream().anyMatch(endpoint ->
                 endpoint.method().equalsIgnoreCase(request.getMethod())
-                        && endpoint.path().equals(request.getRequestURI()));
+                        && endpoint.pattern().matches(path));
     }
 
     /**

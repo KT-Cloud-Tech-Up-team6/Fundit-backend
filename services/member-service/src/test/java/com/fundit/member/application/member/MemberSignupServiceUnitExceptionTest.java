@@ -47,7 +47,7 @@ class MemberSignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null)))
+                accountId, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
@@ -62,7 +62,7 @@ class MemberSignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("MARKETING"), null)))
+                accountId, "홍길동", "응원왕", "01012345678", List.of("MARKETING"), null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);
@@ -79,7 +79,7 @@ class MemberSignupServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> memberSignupService.signup(new MemberSignupService.SignupCommand(
-                accountId, "홍길동", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null)))
+                accountId, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);

@@ -2,6 +2,7 @@ package com.fundit.auth.application.signup;
 
 import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.token.TokenIssuer;
+import com.fundit.auth.application.social.EmailConflictChecker;
 import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
@@ -28,9 +29,12 @@ public class SignupService {
     private final MemberServiceClient memberServiceClient;
     private final IdentityVerificationStore identityVerificationStore;
     private final TokenIssuer tokenIssuer;
+    private final EmailConflictChecker emailConflictChecker;
 
     public SignupResult signup(SignupCommand command) {
-        if (accountRepository.existsByEmail(command.email())) {
+        // 존재 여부만 보지 않고 계정을 꺼내는 이유(정책 B): 소셜로 가입된 이메일이면
+        // "이미 가입됨"이 아니라 어느 제공자로 가입됐는지 알려줘야 사용자가 소셜 로그인으로 갈 수 있다.
+        if (emailConflictChecker.checkOrThrow(command.email()) != null) {
             throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
@@ -61,8 +65,8 @@ public class SignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), command.email(), verifiedIdentity.name(), verifiedIdentity.phoneNumber(),
-                    command.agreedTerms(), command.address()));
+                    account.getId(), command.email(), verifiedIdentity.name(), command.nickname(),
+                    verifiedIdentity.phoneNumber(), command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             // 보상 트랜잭션: 방금 커밋한 계정을 삭제하고 원래 예외(503 DEPENDENCY_FAILURE)를 그대로 전파
             accountRepository.deleteById(account.getId());
@@ -78,6 +82,7 @@ public class SignupService {
             String password,
             String verificationToken,
             String name,
+            String nickname,
             String phoneNumber,
             List<String> agreedTerms,
             Map<String, Object> address

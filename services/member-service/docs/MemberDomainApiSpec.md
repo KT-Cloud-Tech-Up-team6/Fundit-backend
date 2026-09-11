@@ -70,6 +70,7 @@ Request Body
 | `accountId` | UUID | Y | auth-service가 발급한 계정 ID |
 | `email` | String | N | auth-service가 함께 전달하나 member-service는 저장하지 않음(받고 버림) |
 | `name` | String | Y | 실명 |
+| `nickname` | String | **Y** | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — **실명으로 대신 채우지 않는다**(security.md S9) |
 | `phoneNumber` | String | Y | 휴대전화번호 (본인인증 성공 여부와 무관하게 입력값 그대로 저장) |
 | `agreedTerms` | Array\<String\> | Y | 동의한 약관 코드 목록 `["SERVICE_USE", "PRIVACY", ...]` |
 | `address` | Object | N | 선택 입력 주소 |
