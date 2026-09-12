@@ -1,9 +1,12 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.project.ProjectReviewService;
 import com.fundit.project.application.project.ReviewDecision;
 import com.fundit.project.domain.project.Project;
-import com.fundit.project.infrastructure.security.CurrentAdmin;
 import com.fundit.project.presentation.dto.ProjectStatusResponse;
 import com.fundit.project.presentation.dto.ReviewDecisionRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,9 +34,12 @@ public class AdminProjectController {
             description = "관리자(role=admin)만 호출 가능. decision=APPROVE 시 funding_start_at/funding_deadline이 이 시점에 확정된다.")
     @PostMapping("/{projectId}/review-decision")
     public ProjectStatusResponse reviewDecision(
-            @CurrentAdmin UUID adminId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody ReviewDecisionRequest request) {
-        Project project = projectReviewService.decide(adminId, projectId,
+        if (!user.hasRole("ADMIN")) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        Project project = projectReviewService.decide(user.id(), projectId,
                 ReviewDecision.valueOf(request.decision()), request.rejectReason());
         return new ProjectStatusResponse(project.getPublicId(), project.getStatus().name());
     }

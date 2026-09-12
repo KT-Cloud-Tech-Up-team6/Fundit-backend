@@ -1,12 +1,13 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.community.CommunityService;
 import com.fundit.project.infrastructure.persistence.community.CommunityAnswerJpaEntity;
 import com.fundit.project.infrastructure.persistence.community.CommunityPostJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentMember;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
 import com.fundit.project.presentation.dto.CommunityAnswerRequest;
 import com.fundit.project.presentation.dto.CommunityAnswerResponse;
 import com.fundit.project.presentation.dto.CommunityAnswerSummary;
@@ -48,15 +49,15 @@ public class CommunityController {
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/community/posts")
     public ResponseEntity<CommunityPostResponse> createPost(
-            @CurrentMember UUID memberId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody CommunityPostCreateRequest request) {
-        CommunityPostJpaEntity post = communityService.createPost(memberId, projectId, request.postType(), request.content());
+        CommunityPostJpaEntity post = communityService.createPost(user.id(), projectId, request.postType(), request.content());
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new CommunityPostResponse(post.getId(), post.getPostType(), post.getContent(), post.getCreatedAt()));
     }
 
     /**
-     * 미로그인도 조회 가능(선택적 인증) — @CurrentMember 대신 헤더를 직접 읽는다.
+     * 미로그인도 조회 가능(선택적 인증) — @LoginUser 대신 헤더를 직접 읽는다(필수 인증이 아니므로).
      * answeredOnly는 판매자 전용이며, 본인 소유가 아니면 CommunityService가 조용히 무시한다.
      */
     @Operation(summary = "커뮤니티 글 목록 조회",
@@ -66,7 +67,7 @@ public class CommunityController {
             @PathVariable UUID projectId,
             @RequestParam(required = false) String postType,
             @RequestParam(defaultValue = "false") boolean answeredOnly,
-            @RequestHeader(value = CurrentMemberArgumentResolver.ACCOUNT_ID_HEADER, required = false) String accountIdHeader,
+            @RequestHeader(value = AuthHeaders.USER_ID, required = false) String accountIdHeader,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
@@ -86,9 +87,9 @@ public class CommunityController {
             description = "게시글당 답변은 1개(DB 유니크 제약) — 이미 있으면 갱신한다.")
     @PostMapping("/community/posts/{postId}/answer")
     public CommunityAnswerResponse upsertAnswer(
-            @CurrentMember UUID sellerId, @PathVariable Long postId,
+            @LoginUser CurrentUser user, @PathVariable Long postId,
             @Valid @RequestBody CommunityAnswerRequest request) {
-        CommunityAnswerJpaEntity answer = communityService.upsertAnswer(sellerId, postId, request.content());
+        CommunityAnswerJpaEntity answer = communityService.upsertAnswer(user.id(), postId, request.content());
         return new CommunityAnswerResponse(postId, new CommunityAnswerSummary(answer.getContent(), answer.getUpdatedAt()));
     }
 

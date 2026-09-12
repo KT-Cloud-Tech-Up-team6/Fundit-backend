@@ -14,11 +14,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.generator.EventType;
 import org.hibernate.annotations.Generated;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.Map;
 
 /**
  * updated_at은 DB 트리거(trg_rewards_updated_at)가 관리하므로 @PreUpdate를 두지 않는다
@@ -65,13 +62,6 @@ public class RewardJpaEntity {
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder;
-
-    @Column(name = "category_type", length = 30)
-    private String categoryType;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private Map<String, String> disclosure;
 
     @Column(name = "simple_refund_disabled", nullable = false)
     private Boolean simpleRefundDisabled;

@@ -2,6 +2,8 @@ package com.fundit.project.application.reward;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.media.MediaUrlValidator;
+import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -18,6 +20,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +34,8 @@ class RewardServiceUnitExceptionTest {
     private RewardRepository rewardRepository;
     @Mock
     private RewardEventPublisher rewardEventPublisher;
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
 
     @InjectMocks
     private RewardService rewardService;
@@ -62,6 +69,27 @@ class RewardServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void imageUrl_검증에_실패하면_등록시_예외가_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        String imageUrl = "https://attacker.example.com/a.jpg";
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        doThrow(new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL))
+                .when(mediaUrlValidator).validate(eq(projectPublicId), eq(imageUrl), any());
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
     }
 
     @Test

@@ -1,8 +1,9 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.liveverification.LiveVerificationService;
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.LiveVerificationCreateRequest;
 import com.fundit.project.presentation.dto.LiveVerificationListItemResponse;
 import com.fundit.project.presentation.dto.LiveVerificationListResponse;
@@ -41,10 +42,10 @@ public class LiveVerificationController {
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/live-verifications")
     public ResponseEntity<LiveVerificationResponse> create(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody LiveVerificationCreateRequest request) {
         LiveVerificationJpaEntity entity = liveVerificationService.create(
-                sellerId, projectId, request.questionSummaryId(), request.answer());
+                user.id(), projectId, request.questionSummaryId(), request.answer());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new LiveVerificationResponse(entity.getId(), entity.getAnswer(), entity.getCreatedAt()));
     }
@@ -52,17 +53,17 @@ public class LiveVerificationController {
     @Operation(summary = "LIVE검증 답변 수정")
     @PatchMapping("/live-verifications/{id}")
     public LiveVerificationUpdateResponse update(
-            @CurrentMember UUID sellerId, @PathVariable Long id,
+            @LoginUser CurrentUser user, @PathVariable Long id,
             @Valid @RequestBody LiveVerificationUpdateRequest request) {
-        LiveVerificationJpaEntity entity = liveVerificationService.update(sellerId, id, request.answer());
+        LiveVerificationJpaEntity entity = liveVerificationService.update(user.id(), id, request.answer());
         return new LiveVerificationUpdateResponse(entity.getId(), entity.getAnswer(), entity.getUpdatedAt());
     }
 
     @Operation(summary = "LIVE검증 콘텐츠 삭제")
     @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/live-verifications/{id}")
-    public ResponseEntity<Void> delete(@CurrentMember UUID sellerId, @PathVariable Long id) {
-        liveVerificationService.delete(sellerId, id);
+    public ResponseEntity<Void> delete(@LoginUser CurrentUser user, @PathVariable Long id) {
+        liveVerificationService.delete(user.id(), id);
         return ResponseEntity.noContent().build();
     }
 

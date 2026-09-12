@@ -2,6 +2,8 @@ package com.fundit.project.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.project.ProjectQueryService;
 import com.fundit.project.application.project.ProjectService;
 import com.fundit.project.application.project.ProjectStatsService;
@@ -9,7 +11,6 @@ import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
-import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.CommonRefundPolicyResponse;
 import com.fundit.project.presentation.dto.FundingStatusResponse;
 import com.fundit.project.presentation.dto.FundingStatusSummaryResponse;
@@ -67,7 +68,7 @@ public class ProjectController {
             description = "로그인한 판매자 본인의 프로젝트를 상태별로 페이지네이션 조회한다. status 미지정 시 전체 상태.")
     @GetMapping
     public PageResponse<ProjectListItemResponse> list(
-            @CurrentMember UUID sellerId,
+            @LoginUser CurrentUser user,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -77,7 +78,7 @@ public class ProjectController {
         }
         ProjectStatus statusFilter = parseStatus(status);
 
-        var result = projectService.list(sellerId, statusFilter, PageRequest.of(page, size))
+        var result = projectService.list(user.id(), statusFilter, PageRequest.of(page, size))
                 .map(p -> new ProjectListItemResponse(p.getProjectId(), p.getProjectDisplayCode(), p.getTitle(),
                         p.getThumbnailUrl(), p.getStatus(), p.getCreatedAt(), p.getFundingDeadline()));
         return PageResponse.from(result);
@@ -87,8 +88,8 @@ public class ProjectController {
             description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다.")
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping
-    public ResponseEntity<ProjectCreateResponse> create(@CurrentMember UUID sellerId) {
-        Project project = projectService.create(sellerId);
+    public ResponseEntity<ProjectCreateResponse> create(@LoginUser CurrentUser user) {
+        Project project = projectService.create(user.id());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ProjectCreateResponse(project.getPublicId(), project.getStatus().name()));
     }
@@ -96,17 +97,17 @@ public class ProjectController {
     @Operation(summary = "프로젝트 삭제", description = "DRAFT 상태의 프로젝트만 삭제할 수 있다(PROJECT_NOT_DELETABLE).")
     @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/{projectId}")
-    public ResponseEntity<Void> delete(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
-        projectService.delete(sellerId, projectId);
+    public ResponseEntity<Void> delete(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        projectService.delete(user.id(), projectId);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "기본정보 수정", description = "사업자 유형/카테고리/제목/목표금액을 수정한다.")
     @PatchMapping("/{projectId}/basic-info")
     public ProjectBasicInfoResponse updateBasicInfo(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody ProjectBasicInfoRequest request) {
-        Project project = projectService.updateBasicInfo(sellerId, projectId, new ProjectService.UpdateBasicInfoCommand(
+        Project project = projectService.updateBasicInfo(user.id(), projectId, new ProjectService.UpdateBasicInfoCommand(
                 request.businessType(), request.categoryMajor(), request.categoryMinor(),
                 request.title(), request.goalAmount()));
         return new ProjectBasicInfoResponse(project.getPublicId(),
@@ -119,26 +120,26 @@ public class ProjectController {
             description = "심사 제출 전 개인정보 수집 동의를 기록한다(PRIVACY_CONSENT_REQUIRED 전제조건).")
     @PostMapping("/{projectId}/privacy-consent")
     public PrivacyConsentResponse consentPrivacy(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody PrivacyConsentRequest request) {
-        var consentedAt = projectService.consentPrivacy(sellerId, projectId, request.agreed());
+        var consentedAt = projectService.consentPrivacy(user.id(), projectId, request.agreed());
         return new PrivacyConsentResponse(projectId, consentedAt);
     }
 
     @Operation(summary = "심사 제출",
             description = "필수 작성 항목이 모두 채워진 DRAFT 프로젝트를 PENDING_REVIEW로 전환한다(PROJECT_NOT_SUBMITTABLE).")
     @PostMapping("/{projectId}/submit")
-    public ProjectStatusResponse submit(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
-        Project project = projectService.submit(sellerId, projectId);
+    public ProjectStatusResponse submit(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        Project project = projectService.submit(user.id(), projectId);
         return new ProjectStatusResponse(project.getPublicId(), project.getStatus().name());
     }
 
     @Operation(summary = "스토리(소개) 수정", description = "제목/커버이미지/본문 콘텐츠 블록을 수정한다.")
     @PatchMapping("/{projectId}/story")
     public ProjectStoryResponse updateStory(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody ProjectStoryRequest request) {
-        Project project = projectService.updateStory(sellerId, projectId, new ProjectService.UpdateStoryCommand(
+        Project project = projectService.updateStory(user.id(), projectId, new ProjectService.UpdateStoryCommand(
                 request.title(), request.coverImageUrl(), toIntroContent(request.introContent())));
         return new ProjectStoryResponse(project.getPublicId(), project.getUpdatedAt());
     }
@@ -146,8 +147,8 @@ public class ProjectController {
     @Operation(summary = "판매자 미리보기 조회",
             description = "공개 여부와 무관하게 본인 프로젝트의 상세를 미리보기로 조회한다.")
     @GetMapping("/{projectId}/preview")
-    public ProjectDetailResponse preview(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
-        return toDetailResponse(projectQueryService.getPreview(sellerId, projectId));
+    public ProjectDetailResponse preview(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        return toDetailResponse(projectQueryService.getPreview(user.id(), projectId));
     }
 
     @Operation(summary = "공개 상세 조회",
@@ -171,8 +172,8 @@ public class ProjectController {
     @Operation(summary = "펀딩 현황 조회(판매자)",
             description = "현재 모금액/달성률/참여자수 등 판매자 대시보드용 통계를 조회한다. order-service 조회 결과 기반.")
     @GetMapping("/{projectId}/funding-status")
-    public FundingStatusResponse getFundingStatus(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
-        var view = projectStatsService.getFundingStatus(sellerId, projectId);
+    public FundingStatusResponse getFundingStatus(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        var view = projectStatsService.getFundingStatus(user.id(), projectId);
         var rewardStats = view.rewardStats().stream()
                 .map(r -> new RewardStatResponse(r.rewardId(), r.purchasedQuantity()))
                 .toList();
@@ -182,8 +183,8 @@ public class ProjectController {
 
     @Operation(summary = "찜/오픈알림 통계 조회(판매자)", description = "찜 수와 오픈예정 알림 신청 수를 조회한다.")
     @GetMapping("/{projectId}/wish-stats")
-    public WishStatsResponse getWishStats(@CurrentMember UUID sellerId, @PathVariable UUID projectId) {
-        var view = projectStatsService.getWishStats(sellerId, projectId);
+    public WishStatsResponse getWishStats(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        var view = projectStatsService.getWishStats(user.id(), projectId);
         return new WishStatsResponse(view.wishCount(), view.openNotifyCount());
     }
 

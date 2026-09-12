@@ -1,5 +1,6 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.ai.FundingStoryService;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
 import com.fundit.project.domain.aifundingstory.FundingStorySection;
@@ -7,14 +8,12 @@ import com.fundit.project.domain.aifundingstory.FundingStorySession;
 import com.fundit.project.domain.aifundingstory.FundingStorySessionStatus;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(FundingStoryController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class FundingStoryControllerTest {
 
     @Autowired
@@ -54,7 +54,7 @@ class FundingStoryControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/ai/funding-story/sessions")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"productDescription\":\"설명\"}"))
                 .andExpect(status().isAccepted())
@@ -74,7 +74,7 @@ class FundingStoryControllerTest {
         when(fundingStoryService.getSession(sellerId, sessionId)).thenReturn(session);
 
         // when & then
-        mockMvc.perform(get("/api/v1/ai/funding-story/sessions/" + sessionId).header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/ai/funding-story/sessions/" + sessionId).header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.result.sections[0].type").value("INTRO"));
@@ -93,7 +93,7 @@ class FundingStoryControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/ai/funding-story/sessions/" + sessionId + "/apply")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"mode\":\"OVERWRITE\"}"))
                 .andExpect(status().isOk())

@@ -3,7 +3,9 @@
 > 루트 `CLAUDE.md`(레포 공통 규칙)와 `.claude/rules/`를 전제로, 여기는 project-service에만 해당하는 내용만 다룹니다.
 
 ## 이 서비스가 하는 일
-프로젝트, 리워드/옵션/고시정보, 커뮤니티, 새소식, 후기, 프로젝트 심사. (`PRD.md` 2. 도메인/서비스 개요 기준)
+프로젝트, 리워드/옵션, 커뮤니티, 새소식, 후기, 프로젝트 심사. (`PRD.md` 2. 도메인/서비스 개요 기준)
+
+리워드 법정고시(PROJECT-008/PROJECT-027)는 품목마다 필요한 고시 항목이 달라 MVP에서 표준화하기 어려워 **범위 제외됐다**(PM 확정) — 관련 API/도메인/테스트 없음.
 
 LIVE 방송 송출 자체는 live-service 소관입니다. 이 서비스는 방송이 끝난 뒤 남는 LIVE검증 콘텐츠와 펀딩스토리 AI 초안을 보관합니다.
 
@@ -28,7 +30,7 @@ cd services/project-service && docker compose up -d
 - projects — id(BIGINT), public_id(UUID v7, 외부 노출용 — URL/API 경로 파라미터는 전부 이 값), seller_id(UUID, member-service members.id 참조, FK 아님 — 서비스 분리), business_type(GENERAL/SOLE/CORP), category_major/category_minor(FK), title(40자 제한), goal_amount(50만원 이상 CHECK), funding_start_at/funding_deadline(둘 다 nullable — 심사 승인 시점에만 확정, 그 전엔 NULL), status(DRAFT/PENDING_REVIEW/ONGOING/SUCCEEDED/FAILED), deleted_at(소프트 딜리트), project_display_code(GENERATED ALWAYS AS 'F' || LPAD(id,7,'0') — 애플리케이션에서 직접 세팅하지 않음).
 - project_review_requests — 심사 이력(append 성격). status(SUBMITTED/APPROVED/REJECTED), reviewer_id(UUID, role=ADMIN인 accounts 참조, FK 아님), reject_reason.
 - project_open_notify_requests — 오픈 예정 프로젝트 알림 신청. (project_id, member_id) 유니크(중복 신청 방지).
-- rewards — project_id(FK), price, is_limited/quantity(is_limited=true면 quantity 필수·0 이상, false면 quantity는 반드시 NULL — DB CHECK로 강제), has_option, disclosure(JSONB, 품목 유형별 법정고시), simple_refund_disabled, deleted_at(소프트 딜리트, 삭제된 리워드는 소비자 응답에서 제외), reward_display_code(GENERATED, R0000001 형식).
+- rewards — project_id(FK), price, is_limited/quantity(is_limited=true면 quantity 필수·0 이상, false면 quantity는 반드시 NULL — DB CHECK로 강제), has_option, simple_refund_disabled, deleted_at(소프트 딜리트, 삭제된 리워드는 소비자 응답에서 제외), reward_display_code(GENERATED, R0000001 형식). category_type/disclosure 컬럼은 V9 마이그레이션으로 제거됨(법정고시 MVP 범위 제외).
 - reward_option_groups/reward_option_values — has_option=true인 리워드에만 존재하는 2단 구조(그룹: 색상 등 / 값: 화이트·블랙 등).
 - community_posts/community_answers — post_type(QUESTION/CHEER). 답변은 게시글당 1개(uq_community_answers_post 유니크) — 답변 등록 API는 생성이 아니라 UPSERT로 구현.
 - project_notices/project_notice_comments — 새소식(공지)과 댓글. 댓글은 500자 제한, 소프트 딜리트.
@@ -41,12 +43,14 @@ cd services/project-service && docker compose up -d
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
 
 - 소유권 검증은 모든 쓰기 API의 전제조건: projects.seller_id/리워드가 속한 프로젝트의 seller_id가 로그인 회원과 일치하는지 서버에서 항상 대조한다(security.md S4). 식별자만으로 접근하지 않는다 — 불일치 시 CommonErrorCode.FORBIDDEN.
+- 인증은 게이트웨이 표준 방식(`@LoginUser CurrentUser`, modules:common-webmvc)을 쓴다: 게이트웨이가 JWT를 검증해 `X-User-Id`/`X-User-Roles`로 바꿔주고, `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`로 게이트웨이 우회를 막는다. 예전엔 게이트웨이 라우트가 없어 `@CurrentMember`/`@CurrentAdmin`이 `X-Account-Id`/`X-Account-Role`을 서명 검증 없이 신뢰하는 임시 방식을 썼으나 게이트웨이 라우트 연결과 함께 삭제됐다(member-service와 동일한 전환). 관리자 권한은 `user.hasRole("ADMIN")`으로 확인한다(`AdminProjectController` 참고). 내부 전용 엔드포인트는 아직 없음.
 - display_code류 컬럼은 애플리케이션에서 세팅하지 않는다: project_display_code/reward_display_code는 DB GENERATED ALWAYS AS ... STORED 컬럼이다. INSERT 시 값을 지정하려 하지 말 것.
 - funding_start_at/funding_deadline은 생성 시점에 확정하지 않는다: 심사 승인(PROJECT-030) 처리 로직에서만 값을 채운다. 그 전 단계 API에서 이 값을 요구하거나 임의로 세팅하지 않는다.
 - 리워드 수량 변경은 order-service에 동기화 이벤트가 필요하다: rewards.quantity를 생성/수정하면 order-service의 재고 원장(inventories)에 반영되도록 이벤트를 발행한다(최종적 일관성 — 동기 호출로 강결합하지 않는다).
 - 삭제는 전부 소프트 딜리트: projects/rewards/project_notice_comments 모두 deleted_at으로 처리한다. 하드 삭제(물리 DELETE)는 사용하지 않는다.
 - 커뮤니티 답변은 UPSERT: 게시글당 답변은 1개(DB 유니크 제약)이므로, 답변 등록 API를 호출할 때마다 새로 만들지 말고 기존 답변이 있으면 갱신한다.
 - categories는 읽기 전용 마스터 데이터: 프로젝트 생성/수정 시 존재 여부만 검증(FK)하고, project-service가 카테고리를 생성·수정하는 API는 만들지 않는다(시드 데이터로만 관리).
+- 이미지/영상은 반드시 `POST /api/v1/projects/{projectId}/media/upload-url`로 발급받은 `fileUrl`만 저장 가능: 프론트가 직접 만든 URL 문자열은 스토리(coverImageUrl/introContent의 IMAGE 블록)·리워드(imageUrl) 저장 시 거부된다(경로가 `projects/{projectId}/`로 시작하는지, S3에 실제 업로드됐는지, 크기 제한을 넘지 않는지 검증). 파일 바이트는 백엔드를 거치지 않고 클라이언트가 S3에 직접 PUT한다.
 
 ## 에러 코드
 
@@ -61,12 +65,16 @@ cd services/project-service && docker compose up -d
 | PRIVACY_CONSENT_REQUIRED | 422 | 개인정보 수집 동의 없이 다음 단계 진행 |
 | PROJECT_NOT_DELETABLE | 422 | DRAFT가 아닌 프로젝트 삭제 시도 |
 | PROJECT_NOT_SUBMITTABLE | 422 | 필수 작성 항목 미완료 상태로 심사 제출 |
+| UNSUPPORTED_MEDIA_TYPE | 400 | 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반 |
+| MEDIA_TOO_LARGE | 400 | 업로드 주소 발급 또는 fileUrl 저장 시 용량 제한 초과 |
+| INVALID_MEDIA_URL | 400 | fileUrl 저장 시 경로 불일치/미업로드 확인 실패 |
 
 나머지(리워드/AI/LIVE검증 관련 신규 코드)는 해당 슬라이스 구현 시점에 추가한다.
 
 ## 이 서비스에서 절대 하지 말아야 할 것
 
-- 클라이언트가 보낸 sellerId/projectId 소유자 정보를 신뢰하지 말 것 — 항상 로그인 회원(@CurrentMember/X-Account-Id)과 서버에서 대조
+- 클라이언트가 보낸 sellerId/projectId 소유자 정보를 신뢰하지 말 것 — 항상 로그인 회원(@LoginUser CurrentUser)과 서버에서 대조
+- 컨트롤러에서 X-User-Id/X-User-Roles 헤더를 직접 파싱하지 말 것 — @LoginUser CurrentUser로 주입받는다(루트 CLAUDE.md 참고)
 - DRAFT가 아닌 프로젝트의 삭제를 허용하지 말 것 (PROJECT_NOT_DELETABLE)
 - 개인정보 수집 동의 없이 심사 제출 등 다음 단계로 진행시키지 말 것 (PRIVACY_CONSENT_REQUIRED)
 - 미공개(DRAFT/PENDING_REVIEW) 프로젝트를 공개 상세 API에서 404가 아닌 다른 코드로 구분하지 말 것 (존재 여부 비노출)
@@ -74,3 +82,4 @@ cd services/project-service && docker compose up -d
 - 재고 수량(잔여재고)을 이 서비스 DB에 원장으로 두거나 자체 계산하지 말 것 — order-service 조회 결과를 그대로 쓸 것
 - project_follows/reviews 테이블을 사용하는 API를 이번 슬라이스에 슬쩍 포함시키지 말 것 — 소유권 재검토·범위 미정 (MvpImplementationSummary.md에서 먼저 확인)
 - 카테고리(categories)를 생성/수정하는 API를 만들지 말 것 — 읽기 전용 마스터 데이터
+- 클라이언트가 보낸 이미지/영상 URL을 검증 없이 그대로 저장하지 말 것 — 반드시 MediaUrlValidator로 경로·S3 실존·크기를 확인한 뒤 저장 (업로드 주소 발급 API를 거치지 않은 URL 차단)

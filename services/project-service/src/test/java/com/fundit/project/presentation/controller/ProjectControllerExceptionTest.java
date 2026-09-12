@@ -1,19 +1,18 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.project.ProjectQueryService;
 import com.fundit.project.application.project.ProjectService;
 import com.fundit.project.application.project.ProjectStatsService;
 import com.fundit.project.domain.ProjectErrorCode;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 정상 흐름은 {@link ProjectControllerTest} 참고. */
 @WebMvcTest(ProjectController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class ProjectControllerExceptionTest {
 
     @Autowired
@@ -50,7 +50,7 @@ class ProjectControllerExceptionTest {
     @Test
     void status값이_올바르지_않으면_400을_반환한다() throws Exception {
         mockMvc.perform(get("/api/v1/projects")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("status", "NOT_A_STATUS"))
                 .andExpect(status().isBadRequest());
     }
@@ -58,7 +58,7 @@ class ProjectControllerExceptionTest {
     @Test
     void page가_음수이면_400을_반환한다() throws Exception {
         mockMvc.perform(get("/api/v1/projects")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("page", "-1"))
                 .andExpect(status().isBadRequest());
     }
@@ -72,14 +72,14 @@ class ProjectControllerExceptionTest {
                 .when(projectService).delete(sellerId, publicId);
 
         // when & then
-        mockMvc.perform(delete("/api/v1/projects/" + publicId).header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(delete("/api/v1/projects/" + publicId).header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
     void 목표금액이_음수이면_400을_반환한다() throws Exception {
         mockMvc.perform(patch("/api/v1/projects/" + UUID.randomUUID() + "/basic-info")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"goalAmount\":-1}"))
                 .andExpect(status().isBadRequest());
@@ -88,7 +88,7 @@ class ProjectControllerExceptionTest {
     @Test
     void agreed값이_없으면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/api/v1/projects/" + UUID.randomUUID() + "/privacy-consent")
-                        .header("X-Account-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isBadRequest());
@@ -103,7 +103,7 @@ class ProjectControllerExceptionTest {
                 .thenThrow(new BusinessException(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE));
 
         // when & then
-        mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isUnprocessableEntity());
     }
 
@@ -126,7 +126,7 @@ class ProjectControllerExceptionTest {
         when(projectQueryService.getPreview(sellerId, publicId)).thenThrow(new BusinessException(CommonErrorCode.FORBIDDEN));
 
         // when & then
-        mockMvc.perform(get("/api/v1/projects/" + publicId + "/preview").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(get("/api/v1/projects/" + publicId + "/preview").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isForbidden());
     }
 }

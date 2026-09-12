@@ -3,5 +3,8 @@ dependencies {
     implementation project(':modules:common-webmvc')
     // public_id(UUID v7) 생성용 — auth-service accounts.id 생성과 동일 라이브러리
     implementation 'com.github.f4b6a3:uuid-creator:6.1.0'
+    // 이미지/영상 업로드 주소 발급(S3 Presigned URL, 할일 D) — S3Client(HeadObject)/S3Presigner(PUT)
+    implementation platform('software.amazon.awssdk:bom:2.29.52')
+    implementation 'software.amazon.awssdk:s3'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 }

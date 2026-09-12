@@ -2,6 +2,7 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
@@ -22,6 +23,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +42,8 @@ class ProjectServiceUnitExceptionTest {
     private ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     @Mock
     private RewardJpaRepository rewardJpaRepository;
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
 
     @InjectMocks
     private ProjectService projectService;
@@ -106,6 +111,25 @@ class ProjectServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.PRIVACY_CONSENT_REQUIRED);
+    }
+
+    @Test
+    void 커버이미지가_검증에_실패하면_예외가_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        Project project = ownedDraftProject(sellerId, publicId);
+        String coverImageUrl = "https://attacker.example.com/a.jpg";
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+        org.mockito.Mockito.doThrow(new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL))
+                .when(mediaUrlValidator).validate(eq(publicId), eq(coverImageUrl), any());
+
+        // when & then
+        assertThatThrownBy(() -> projectService.updateStory(sellerId, publicId,
+                new ProjectService.UpdateStoryCommand(null, coverImageUrl, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
     }
 
     @Test

@@ -1,17 +1,16 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.project.ProjectReviewService;
 import com.fundit.project.application.project.ReviewDecision;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,7 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminProjectController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class AdminProjectControllerTest {
 
     @Autowired
@@ -48,8 +48,8 @@ class AdminProjectControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/admin/projects/" + publicId + "/review-decision")
-                        .header("X-Account-Id", adminId.toString())
-                        .header("X-Account-Role", "admin")
+                        .header("X-User-Id", adminId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType("application/json")
                         .content("{\"decision\":\"APPROVED\"}"))
                 .andExpect(status().isOk())

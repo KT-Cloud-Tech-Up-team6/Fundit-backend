@@ -7,7 +7,6 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 복잡한 애그리거트(persistence-convention.md 기준) — isLimited/quantity 정합성 같은
@@ -29,8 +28,6 @@ public class Reward {
     private boolean isEarlyBird;
     private boolean hasOption;
     private int sortOrder;
-    private String categoryType;
-    private Map<String, String> disclosure;
     private boolean simpleRefundDisabled;
     private List<RewardOptionGroup> optionGroups;
     private final String rewardDisplayCode;
@@ -81,11 +78,6 @@ public class Reward {
             this.optionGroups = optionGroups;
             this.hasOption = !optionGroups.isEmpty();
         }
-    }
-
-    public void changeDisclosure(String categoryType, Map<String, String> disclosure) {
-        this.categoryType = categoryType;
-        this.disclosure = disclosure;
     }
 
     public void changeRefundPolicy(boolean simpleRefundDisabled) {
