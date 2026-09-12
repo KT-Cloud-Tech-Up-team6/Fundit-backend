@@ -39,6 +39,28 @@ class InternalGatewaySecretFilterUnitExceptionTest {
         assertThat(chain.getRequest()).as("체인으로 넘어가면 안 된다").isNull();
     }
 
+    /**
+     * 이 필터는 MVC 메시지 컨버터를 거치지 않고 응답을 직접 쓰는 유일한 지점이다. Content-Type에
+     * charset을 달지 않으면 실제 컨테이너(Tomcat)에서 getWriter()가 기본 인코딩으로 쓰고,
+     * 클라이언트도 무엇으로 디코딩할지 알 수 없어 CommonErrorCode의 한글 메시지가 "?? ??"로 깨진다.
+     * (MVC가 그리는 응답은 메시지 컨버터가 charset을 붙여줘서 멀쩡하다 — 그래서 이 필터만 깨졌다.)
+     */
+    @Test
+    void 거부_응답에_UTF_8_charset이_명시된다() throws Exception {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/members/me");
+        request.addHeader(AuthHeaders.USER_ID, UUID.randomUUID().toString());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        // when
+        filter.doFilter(request, response, new MockFilterChain());
+
+        // then
+        assertThat(response.getContentType()).containsIgnoringCase("charset=UTF-8");
+        assertThat(response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains(CommonErrorCode.UNAUTHORIZED.getMessage());
+    }
+
     @Test
     void 시크릿이_틀리면_401을_반환한다() throws Exception {
         // given
