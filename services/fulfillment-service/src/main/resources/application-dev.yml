@@ -9,3 +9,19 @@ spring:
 
 internal-api:
   key: ${INTERNAL_API_KEY}
+
+# order-service 내부 API(GET /internal/fundings/{fundingId})가 아직 없어 기본은 stub —
+# 연동 완료 후 ORDER_FUNDING_CLIENT_MODE=http로 전환(payment-service와 동일 패턴).
+order:
+  integration:
+    funding-client:
+      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+    base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
+
+# project-service 내부 API(GET /internal/projects/{projectId})가 아직 없어 기본은 stub —
+# 연동 완료 후 PROJECT_OWNERSHIP_CLIENT_MODE=http로 전환.
+project:
+  integration:
+    ownership-client:
+      mode: ${PROJECT_OWNERSHIP_CLIENT_MODE:stub}
+    base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}

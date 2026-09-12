@@ -9,12 +9,10 @@ order-service가 펀딩 성립을 판정하고 `FundingSucceeded` 이벤트를 �
 
 리워드·재고·펀딩 성립 판정 자체는 order-service 소관이고, 결제·환불·정산은 payment-service 소관입니다. 이 서비스는 그 이후 단계(제작 착수 ~ 수령확인)만 다룹니다.
 
-## ⚠️ 먼저 확인할 것 — 서비스명 불일치
-`docs/PRD.md`의 "2. 도메인/서비스 개요" 표, `.claude/rules/config-convention.md`의 로컬 포트 표, payment-service 코드 주석(`ShippingStatusClient`, `StubShippingStatusClient`, `ShippingCompletionListener`)은 전부 이 도메인을 **`shipping-service`**라고 부릅니다. 반면 이번에 작성한 설계 문서(`FulfillmentERD.md`, `fullfillmentFunctionalSpec.md`, `FullfillmentApiSPec.md`)는 **`fulfillment-service`**라는 이름을 씁니다. 같은 서비스를 가리키는 것으로 보이지만 이름이 다릅니다.
+## ✅ 서비스명 결정 완료 — `fulfillment-service`로 통일
+과거 이 문서는 `docs/PRD.md`·`config-convention.md`·payment-service 코드 주석(`ShippingStatusClient`, `StubShippingStatusClient`, `ShippingCompletionListener`)이 이 도메인을 `shipping-service`라고 부르는 것과, 이 서비스의 설계 문서(`FulfillmentERD.md` 등)가 `fulfillment-service`라고 부르는 것 사이의 불일치를 지적했습니다. **`fulfillment-service`로 통일하기로 결정했습니다** — `docs/PRD.md`(2장 서비스 개요 표·3.5 플로우)와 payment-service의 관련 주석(`ShippingStatusClient`/`StubShippingStatusClient`/`ShippingCompletionListener`/`SettlementDisputeService`)을 정정 완료했습니다(클래스명 자체는 유지 — 코드 구조 변경은 범위 밖). `config-convention.md`는 애초에 이미 `fulfillment-service`로 표기돼 있어 수정할 게 없었습니다.
 
-- 이 CLAUDE.md는 설계 문서와 맞추기 위해 일단 `fulfillment-service`로 진행합니다.
-- **구현 착수 전에** `docs/PRD.md`와 `config-convention.md`를 `fulfillment-service`로 통일할지, 반대로 이 서비스를 `shipping-service`로 리네임할지 결정하고 넘어가세요. 결정이 없으면 payment-service 담당자가 `StubShippingStatusClient`를 실제 클라이언트로 교체할 때 어떤 서비스명/포트를 호출해야 하는지 헷갈립니다.
-- 포트는 이름과 무관하게 `config-convention.md`가 이미 이 도메인 몫으로 비워둔 슬롯(앱 `8087`, DB `5438`)을 그대로 씁니다 — 아래 "로컬 실행" 참고.
+포트는 `config-convention.md`가 이 도메인 몫으로 비워둔 슬롯(앱 `8087`, DB `5438`)을 그대로 씁니다 — 아래 "로컬 실행" 참고.
 
 ## 먼저 읽을 문서
 구현을 시작하기 전에 **`FulfillmentERD.md`(ERD·DDL 검토·수정본), `fullfillmentFunctionalSpec.md`(FULFILLMENT-001~010), `FullfillmentApiSPec.md`를 먼저 읽으세요.** 이 CLAUDE.md는 그 문서들의 핵심만 요약한 것이지 대체하지 않습니다. **FULFILLMENT-001~010 전체**가 구현 대상입니다(후순위로 미룬 항목 없음 — 우선순위는 전부 MVP).
