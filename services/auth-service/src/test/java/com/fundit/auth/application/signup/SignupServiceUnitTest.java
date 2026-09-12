@@ -1,6 +1,7 @@
 package com.fundit.auth.application.signup;
 
 import com.fundit.auth.application.identity.IdentityVerificationStore;
+import com.fundit.auth.application.social.EmailConflictChecker;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
@@ -38,11 +39,13 @@ class SignupServiceUnitTest {
     @InjectMocks
     private SignupService signupService;
 
+    @Mock
+    private EmailConflictChecker emailConflictChecker;
+
     @Test
     void 정상_가입이면_계정과_프로필을_생성하고_토큰을_발급한다() {
         // given
         UUID memberId = UUID.randomUUID();
-        when(accountRepository.existsByEmail("test@fundit.com")).thenReturn(false);
         when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(
                 new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", null)));
         when(passwordEncoder.encode("pw")).thenReturn("hashed-pw");
@@ -53,7 +56,7 @@ class SignupServiceUnitTest {
 
         // when
         SignupService.SignupResult result = signupService.signup(new SignupService.SignupCommand(
-                "test@fundit.com", "pw", "verify-token", "홍길동", "01012345678", List.of("TOS"), Map.of()));
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of()));
 
         // then
         assertThat(result.memberId()).isEqualTo(memberId);

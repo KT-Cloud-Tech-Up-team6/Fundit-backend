@@ -4,6 +4,9 @@ import com.fundit.auth.application.email.EmailAvailabilityService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
+import com.fundit.auth.application.social.SocialLinkService;
+import com.fundit.auth.application.social.SocialLoginService;
+import com.fundit.auth.application.social.SocialSignupService;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.application.token.TokenRefreshService;
 import com.fundit.auth.presentation.RefreshTokenCookieFactory;
@@ -14,6 +17,12 @@ import com.fundit.auth.presentation.dto.MessageResponse;
 import com.fundit.auth.presentation.dto.PasswordChangeRequest;
 import com.fundit.auth.presentation.dto.SignupRequest;
 import com.fundit.auth.presentation.dto.SignupResponse;
+import com.fundit.auth.presentation.dto.SocialLinkRequest;
+import com.fundit.auth.presentation.dto.SocialLinkResponse;
+import com.fundit.auth.presentation.dto.SocialLoginRequest;
+import com.fundit.auth.presentation.dto.SocialLoginResponse;
+import com.fundit.auth.presentation.dto.SocialSignupRequest;
+import com.fundit.auth.presentation.dto.SocialSignupResponse;
 import com.fundit.auth.presentation.dto.TokenRefreshResponse;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
@@ -49,6 +58,9 @@ public class AuthController {
     private final SignupService signupService;
     private final TokenRefreshService tokenRefreshService;
     private final PasswordChangeService passwordChangeService;
+    private final SocialLoginService socialLoginService;
+    private final SocialSignupService socialSignupService;
+    private final SocialLinkService socialLinkService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     @GetMapping("/check-email")
@@ -66,10 +78,45 @@ public class AuthController {
     public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         var result = signupService.signup(new SignupService.SignupCommand(
                 request.email(), request.password(), request.verificationToken(), request.name(),
-                request.phoneNumber(), request.agreedTerms(), request.address()));
+                request.nickname(), request.phoneNumber(), request.agreedTerms(), request.address()));
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SignupResponse(result.accountId(), result.memberId(), result.accessToken()));
+    }
+
+    /**
+     * 미가입도 200으로 응답한다(명세 AUTH-002) — 404로 주면 프론트가 에러 경로로 빠져
+     * 가입 화면 전환이 어색해진다. 인가 코드는 1회용이라 재시도도 불가능하다.
+     */
+    @PostMapping("/login/social")
+    public ResponseEntity<SocialLoginResponse> loginSocial(@Valid @RequestBody SocialLoginRequest request) {
+        var result = socialLoginService.login(request.provider(), request.authorizationCode());
+        // 로그인이 끝난 경우에만 쿠키를 내린다. 가입·연동이 필요한 응답은 아직 인증이 아니라
+        // refreshToken이 null이고, 그대로 쿠키를 만들면 빈 값이 기존 refreshToken을 덮어쓴다.
+        if (result.refreshToken() == null) {
+            return ResponseEntity.ok(SocialLoginResponse.from(result));
+        }
+        return withRefreshTokenCookie(result.refreshToken()).body(SocialLoginResponse.from(result));
+    }
+
+    @PostMapping("/signup/social")
+    public ResponseEntity<SocialSignupResponse> signupSocial(@Valid @RequestBody SocialSignupRequest request) {
+        var result = socialSignupService.signup(new SocialSignupService.SocialSignupCommand(
+                request.signupToken(), request.verificationToken(), request.email(),
+                request.nickname(), request.agreedTerms(), request.address()));
+
+        return withRefreshTokenCookie(result.refreshToken())
+                .body(new SocialSignupResponse(result.accountId(), result.memberId(), result.accessToken()));
+    }
+
+    /**
+     * 정책 A — 기존 자체가입 계정에 소셜 로그인을 붙인다.
+     * 본인인증이 그 계정 주인의 것인지 확인되어야만 성공한다.
+     */
+    @PostMapping("/social/link")
+    public ResponseEntity<SocialLinkResponse> linkSocial(@Valid @RequestBody SocialLinkRequest request) {
+        var tokens = socialLinkService.link(request.linkToken(), request.verificationToken());
+        return withRefreshTokenCookie(tokens.refreshToken()).body(new SocialLinkResponse(tokens.accessToken()));
     }
 
     @PostMapping("/token/refresh")

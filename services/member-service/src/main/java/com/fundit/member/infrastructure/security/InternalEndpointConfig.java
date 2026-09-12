@@ -20,4 +20,10 @@ public class InternalEndpointConfig {
     public InternalEndpoint memberCreateInternalEndpoint() {
         return new InternalEndpoint("POST", "/api/v1/members");
     }
+
+    /** auth-service의 소셜 계정 연동(AUTH-002)만 호출하는 본인 확인 엔드포인트. */
+    @Bean
+    public InternalEndpoint phoneVerificationInternalEndpoint() {
+        return new InternalEndpoint("POST", "/api/v1/members/{accountId}/phone-verification");
+    }
 }

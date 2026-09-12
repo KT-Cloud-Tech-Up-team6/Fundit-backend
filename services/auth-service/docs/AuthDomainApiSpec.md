@@ -122,6 +122,7 @@ Request Body
 | `email` | String | Y | 이메일 |
 | `verificationToken` | String | Y | 휴대폰 인증 완료 토큰 |
 | `name` | String | Y | 실명 (프로필용) |
+| `nickname` | String | **Y** | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — **실명으로 대신 채우지 않는다**(security.md S9) |
 | `phoneNumber` | String | Y | 휴대전화번호 (프로필용) |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `address` | Object | N | 선택 입력 주소 |
@@ -167,6 +168,7 @@ Request Body
 | `signupToken` | String | N | 소셜 로그인 시도 중 미가입으로 판정되며 발급된 토큰(하단 로그인 API 참고). `authorizationCode` 대신 제출 가능 |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
 | `name` | String | N | 제공자 응답에 이름이 없을 경우 추가 입력 |
+| `nickname` | String | **Y** | 표시명. 프론트가 제공자 닉네임(`login/social` 응답의 `name`)으로 폼을 미리 채우고 사용자가 고칠 수 있다. **서버는 제공자 값을 쓰지 않는다** — 요청값이 유일한 출처다(이메일과 반대) |
 | `phoneNumber` | String | N | 제공자 응답에 없을 경우 추가 입력 |
 
 Response Body (Set-Cookie로 refreshToken 발급됨)
@@ -181,11 +183,18 @@ Response Body (Set-Cookie로 refreshToken 발급됨)
 
 Validation / Business Rules
 
+> **구현 정정(2026-09-10)**: `POST /auth/signup/social`은 `verificationToken`(본인인증)을 **필수로 받는다.**
+> 아래 표에는 없지만, 일반가입(AUTH-007)은 본인인증을 요구하고 member-service는 `phone_number`를 NOT NULL로
+> 저장한다. 소셜만 면제하면 본인인증을 안 거친 회원이 생기고, 정책 A가 대조할 휴대폰번호도 사용자가
+> 타이핑한 값이 된다. `name`/`phoneNumber`는 요청에서 받지 않고 본인인증 결과를 그대로 쓴다.
+> **기획 확인 후 완화 가능** — 쌓인 미인증 데이터는 되돌리기 어려워 엄격한 쪽을 기본값으로 뒀다.
+
 - `authorizationCode`/`signupToken` 둘 다 없으면 400.
 - `authorizationCode` 제출 시: 인가 코드로 제공자 사용자정보 조회, 응답값 검증 후 사용.
 - `signupToken` 제출 시: 토큰에 담긴 검증된 소셜 신원 정보를 그대로 사용(재검증 불필요, OAuth 핸드셰이크 재수행 없음). 만료 시 401 → 소셜 로그인부터 재시도 안내.
 - 기존 연동 계정(`social_provider`+`social_id`) 존재 시 409 → 로그인 유도.
-- 계정 생성 후 회원 도메인 `POST /api/v1/members/social` 동기 호출 — 실패 시 보상 트랜잭션은 AUTH-007과 동일.
+- 계정 생성 후 회원 도메인 `POST /api/v1/members` 동기 호출 — 실패 시 보상 트랜잭션은 AUTH-007과 동일.
+  (소셜 전용 엔드포인트를 두지 않는다: 기존 요청 본문에 비밀번호도 소셜 필드도 없어 provider와 무관하다.)
 
 ---
 
@@ -224,6 +233,51 @@ Validation / Business Rules
 - **5회 연속 실패 시 계정 30분 자동 잠금**(`locked_until = now() + 30분`). 잠금 중 로그인 시도는 423(`AuthErrorCode.ACCOUNT_LOCKED`) + 잠금 해제 예정 시각(`detail.lockedUntil`) 안내. 이메일/SMS를 통한 셀프 해제는 P2로 보류(MVP 범위 아님).
 - `accounts.must_change_password = true`인 계정으로 로그인 성공 시 응답의 `mustChangePassword`를 true로 반환 — 프론트는 이 값을 보고 비밀번호 변경 화면으로 즉시 리다이렉션.
 - 응답에 비밀번호·해시 절대 미포함.
+
+---
+
+### 이메일 충돌 정책 (PM 확정, 2026-09-10)
+
+같은 이메일이 이미 쓰이고 있을 때의 처리. **판정은 `EmailConflictChecker` 한 곳에서만 한다** —
+제공자가 이메일을 주면 소셜 로그인 시점에, 주지 않으면(카카오는 이메일 동의가 선택) 사용자가
+이메일을 입력하는 가입 시점에 판정하게 되어 진입점이 둘이기 때문이다.
+
+| 상황 | 처리 |
+| --- | --- |
+| **A.** 자체가입 계정과 같은 이메일로 소셜 로그인 | 200 `needsLink: true` + `linkToken` → 본인인증 → `POST /auth/social/link`로 연동 |
+| **B.** 소셜 계정과 같은 이메일로 일반 회원가입 | 409 `SOCIAL_ACCOUNT_EXISTS`, `detail.provider`로 어느 제공자인지 전달 |
+| **C.** 소셜 계정과 같은 이메일로 다른 소셜 로그인 | 위와 동일 |
+
+`uq_accounts_email`이 UNIQUE라 "이메일당 계정 하나"라는 이 정책과 DB 제약이 일치한다.
+
+```json
+{ "code": "SOCIAL_ACCOUNT_EXISTS", "message": "이미 KAKAO 소셜 로그인 계정이 존재합니다.",
+  "detail": { "provider": "KAKAO" } }
+```
+
+---
+
+### 소셜 계정 연동 (정책 A)
+
+```
+POST /api/v1/auth/social/link
+```
+
+Auth Required: **X** (`linkToken` + 본인인증 토큰이 인증 수단)
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `linkToken` | String | Y | 소셜 로그인이 정책 A로 판정하며 발급한 토큰 |
+| `verificationToken` | String | Y | 본인인증(`POST /auth/identity-verifications`) 결과 토큰 |
+
+Validation / Business Rules
+
+- **연동 대상 계정은 `linkToken`에서만 나온다** — 클라이언트가 `accountId`를 보내지 않는다. 보내게 하면 본인인증만 통과하면 아무 계정이나 지목할 수 있다.
+- 본인인증으로 확인된 휴대폰번호가 그 계정 주인의 것인지 member-service(`POST /members/{accountId}/phone-verification`)에 확인한다. auth-service는 휴대폰번호를 보관하지 않는다.
+- 불일치·계정 없음이면 403. 둘을 구분해 알려주지 않는다.
+- 두 토큰 모두 1회 소비, 만료 시 401.
+- 연동 후에도 기존 비밀번호는 유지된다 — 일반 로그인과 소셜 로그인이 둘 다 가능하다.
+- 소셜 로그인 응답에는 **이메일을 담지 않는다** — 소셜 로그인 시도만으로 타인의 가입 이메일이 드러나면 안 된다.
 
 ---
 

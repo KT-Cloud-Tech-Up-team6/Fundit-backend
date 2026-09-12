@@ -11,6 +11,8 @@ public interface AccountRepository {
 
     Optional<Account> findByEmail(String email);
 
+    Optional<Account> findBySocial(SocialProvider provider, String socialId);
+
     boolean existsByEmail(String email);
 
     void deleteById(UUID id);

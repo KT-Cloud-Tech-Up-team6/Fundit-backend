@@ -21,8 +21,10 @@ public class Account {
     private final UUID id;
     private final String email;
     private String passwordHash;
-    private final String socialProvider;
-    private final String socialId;
+    // final이 아닌 이유: 자체가입 계정에 나중에 소셜 로그인을 붙일 수 있다(linkSocial).
+    // passwordHash가 changePassword 때문에 final이 아닌 것과 같은 이유다.
+    private String socialProvider;
+    private String socialId;
     private final Role role;
     private int failedLoginCount;
     private Instant lockedUntil;
@@ -46,6 +48,15 @@ public class Account {
     public void recordSuccessfulLogin() {
         failedLoginCount = 0;
         lockedUntil = null;
+    }
+
+    /**
+     * 자체가입 계정에 소셜 로그인을 붙인다. 비밀번호는 그대로 둔다 —
+     * 연동 후에도 일반 로그인과 소셜 로그인이 둘 다 되어야 한다.
+     */
+    public void linkSocial(SocialProvider provider, String socialId) {
+        this.socialProvider = provider.name();
+        this.socialId = socialId;
     }
 
     public void changePassword(String newPasswordHash) {

@@ -21,7 +21,7 @@ class MemberServiceRestClientUnitExceptionTest {
 
     private static MemberServiceClient.CreateMemberProfileCommand command() {
         return new MemberServiceClient.CreateMemberProfileCommand(
-                UUID.randomUUID(), "test@example.com", "홍길동", "01012345678",
+                UUID.randomUUID(), "test@example.com", "홍길동", "응원왕", "01012345678",
                 List.of("SERVICE_USE"), null);
     }
 
