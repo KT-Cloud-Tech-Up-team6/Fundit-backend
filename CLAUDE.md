@@ -1,6 +1,6 @@
 # 프로젝트 개요
 - fundit-backend: Spring Boot 4.1.1 / Java 25, Gradle 멀티모듈(MSA)
-- 서비스: `services:auth-service`, `services:member-service`, `services:order-service`, `services:payment-service` (착수 순) 외 `project/live/shipping/notification/search-service` 예정
+- 서비스: `services:auth-service`, `services:member-service`, `services:order-service`, `services:payment-service`, `services:fulfillment-service` (착수 순) 외 `project/live/notification/search-service` 예정
 - 플랫폼 모듈: `platform:gateway-service`(Spring Cloud Gateway, 리액티브) — JWT를 검증해 `X-User-Id`/`X-User-Roles` 헤더로 변환하고 내부 전용 엔드포인트를 차단한다. 설계·보안 근거는 `platform/gateway-service/docs/` 참고
 - 공용 라이브러리 모듈: `modules:common`(에러·응답 계약 `ErrorCode`/`CommonErrorCode`/`BusinessException`/`DependencyFailureException`/`ErrorResponse` + 인증 헤더 계약 `AuthHeaders` — 프레임워크 무관 순수 Java, 무엇을 둘 수 있는지는 아래 "절대 하지 말아야 할 것" 참고), `modules:common-webmvc`(Servlet 기반 서비스 전용 — `GlobalExceptionHandler` 어댑터 + 게이트웨이 뒤에서 쓰는 공통 인증 플러밍(`@LoginUser`/`CurrentUser`/`LoginUserArgumentResolver`/`InternalGatewaySecretFilter`/`CommonWebConfig`), `spring-boot-starter-web` 의존). 서비스는 `modules:common`이 아니라 `modules:common-webmvc`에 의존한다(`api` 관계로 `modules:common`도 같이 딸려옴). WebFlux 서비스가 생기면 `modules:common-webflux`를 별도 추가할 것 — Servlet용 예외 핸들러와는 시그니처가 달라 공존 불가
 - 각 서비스 내부는 계층형 아키텍처로 구성: `presentation → application → domain → infrastructure`

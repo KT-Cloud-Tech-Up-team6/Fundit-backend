@@ -2,6 +2,7 @@ downstream:
   auth-service-base-url: ${AUTH_SERVICE_BASE_URL}
   member-service-base-url: ${MEMBER_SERVICE_BASE_URL}
   payment-service-base-url: ${PAYMENT_SERVICE_BASE_URL}
+  fulfillment-service-base-url: ${FULFILLMENT_SERVICE_BASE_URL}
 
 jwt:
   # auth-service가 공개키를 노출하는 곳. downstream 주소를 재사용해 환경변수를 늘리지 않는다.

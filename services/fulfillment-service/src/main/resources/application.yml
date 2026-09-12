@@ -1,0 +1,14 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fulfillment-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
+
+springdoc:
+  api-docs:
+    path: /api/v1/fulfillments/api-docs
