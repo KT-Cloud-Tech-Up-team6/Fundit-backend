@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
@@ -67,8 +68,15 @@ public class NotificationJpaEntity {
         if (this.createdAt == null) this.createdAt = Instant.now();
     }
 
-    /** 이미 읽은 알림은 기존 시각을 유지한다 — 재호출을 실패로 처리하지도, 덮어쓰지도 않는다. */
+    /**
+     * 이미 읽은 알림은 기존 시각을 유지한다 — 재호출을 실패로 처리하지도, 덮어쓰지도 않는다.
+     *
+     * <p>마이크로초로 자르는 이유: read_at이 TIMESTAMPTZ(소수점 6자리)라 나노초는 저장 시 어차피 잘린다.
+     * 메모리 값을 미리 맞춰두지 않으면 "방금 쓴 값"과 "DB에서 읽은 값"이 달라져, 같은 readAt이
+     * 첫 PATCH 응답과 이후 조회에서 다른 문자열로 나간다. 플랫폼 클럭 해상도에 따라 증상이 갈려서
+     * (Linux 나노초 / macOS 마이크로초) 로컬은 통과하고 CI만 깨지기도 한다.
+     */
     public void markRead(Instant now) {
-        if (this.readAt == null) this.readAt = now;
+        if (this.readAt == null) this.readAt = now.truncatedTo(ChronoUnit.MICROS);
     }
 }

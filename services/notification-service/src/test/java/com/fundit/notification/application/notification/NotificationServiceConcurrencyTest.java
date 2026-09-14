@@ -83,9 +83,15 @@ class NotificationServiceConcurrencyTest {
                 }
             });
         }
-        start.countDown();
-        assertThat(done.await(20, TimeUnit.SECONDS)).isTrue();
-        pool.shutdown();
+        // await 단언이 실패해도 풀이 남지 않도록 finally에서 정리한다.
+        // try-with-resources(ExecutorService는 AutoCloseable)를 쓰지 않는 이유: close()는 종료까지
+        // 블로킹이라 스레드가 DB 락에 걸려 있으면 스위트 전체가 멈춘다. shutdownNow는 인터럽트만 걸고 반환한다.
+        try {
+            start.countDown();
+            assertThat(done.await(20, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pool.shutdownNow();
+        }
 
         // then — 모든 요청이 같은 시각을 돌려받고, 그 값이 DB에 저장된 값과 일치한다.
         // 확인용 읽기는 findById를 쓴다 — findByIdAndMemberId는 PESSIMISTIC_WRITE라 트랜잭션이 필요하다.
