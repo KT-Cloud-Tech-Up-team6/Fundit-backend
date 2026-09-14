@@ -13,6 +13,7 @@ internal-api:
 toss:
   payments:
     secret-key: ${TOSS_WIDGET_SECRET_KEY}
+    base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
 
 payment:
   encryption:
