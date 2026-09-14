@@ -58,7 +58,11 @@ public class InternalGatewaySecretFilter extends HttpFilter {
             throws IOException, ServletException {
         if (requiresSecret(request) && !hasValidSecret(request)) {
             response.setStatus(CommonErrorCode.UNAUTHORIZED.getHttpStatus());
+            // charset을 명시하지 않으면 getWriter()가 컨테이너 기본 인코딩으로 쓴다 —
+            // CommonErrorCode의 한글 메시지("인증 필요")가 "?? ??"로 깨져 나간다.
+            // MVC가 그리는 응답은 메시지 컨버터가 UTF-8을 붙여줘서 멀쩡하고, 이 필터만 직접 쓰기 때문에 깨졌다.
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             objectMapper.writeValue(response.getWriter(), ErrorResponse.of(CommonErrorCode.UNAUTHORIZED));
             return;
         }

@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+# 이 서비스에는 내부 전용 엔드포인트가 없지만 CommonWebConfig가 무조건
+# @Value("${internal-api.key}")로 주입받으므로, 없으면 빈 생성 단계에서 기동이 실패한다.
+internal-api:
+  key: ${INTERNAL_API_KEY}
+
+# 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
+springdoc:
+  api-docs:
+    enabled: false
