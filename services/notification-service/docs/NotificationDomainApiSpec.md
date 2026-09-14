@@ -54,7 +54,7 @@ Response Body
       "notifType": "LIVE_START",
       "title": "팔로우한 브랜드가 LIVE를 시작했어요",
       "relatedUrl": "/live/0199...",
-      "readAt": null,
+      "readAt": "2026-09-03T10:18:00+09:00",
       "createdAt": "2026-09-03T10:15:00+09:00"
     }
   ],
@@ -72,6 +72,7 @@ Validation / Business Rules
 - 최신순(`created_at` 내림차순) 정렬.
 - `notifType`은 아래 "알림 유형" 표의 값이며 `notifications.notif_type`과 동일 체계다.
 - `readAt`이 `null`이면 안 읽은 알림. **항목별** 읽음 표시용이며, 알림함 아이콘의 **전체 안읽음 개수는 이 목록으로 구할 수 없다**(페이징되므로 해당 페이지 안에서만 셀 수 있음) — 전용 API(NOTI-007)를 쓴다.
+- 안 읽은 알림은 **이 키가 응답에서 아예 빠진다**(전 서비스 공통 `non_null` 설정). 위 예시는 읽은 알림이다 — 읽음 여부는 `if (!n.readAt)`처럼 falsy로 판단하고 `=== null`로 비교하지 않는다.
 - **검토의견(변경사항)**: 초안 응답은 `{ content, hasNext }`였으나 `.claude/rules/api-convention.md`의 `PageResponse<T>` 규약(`content`/`page`/`size`/`totalElements`/`totalPages`/`hasNext`)에 맞췄다. 다른 서비스의 목록 조회와 형태를 통일한다.
 
 ---
