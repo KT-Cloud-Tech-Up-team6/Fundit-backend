@@ -5,7 +5,11 @@ import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
 import com.fundit.order.application.order.OrderPricingService;
 import com.fundit.order.application.order.OrderQueryService;
+import com.fundit.order.domain.coupon.DiscountType;
+import com.fundit.order.domain.coupon.IssuerType;
 import com.fundit.order.domain.funding.Funding;
+import com.fundit.order.domain.funding.FundingLineItem;
+import com.fundit.order.domain.funding.FundingLineItemOption;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
 import com.fundit.order.infrastructure.security.CurrentMemberArgumentResolver;
@@ -80,6 +84,28 @@ class OrderControllerTest {
     }
 
     @Test
+    void 미리보기_응답에_적용쿠폰과_미적용쿠폰이_포함된다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        var applied = new OrderPricingService.AppliedCoupon(1L, "WELCOME10", IssuerType.PLATFORM, DiscountType.RATE, 1_000L);
+        var unavailable = new OrderPricingService.UnavailableCoupon("EXPIRED10", "EXPIRED");
+        var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 1_000L, 12_000L,
+                List.of(), List.of(applied), List.of(unavailable));
+        when(orderPreviewService.preview(eq(memberId), eq(123L), any(), any())).thenReturn(pricing);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders/preview")
+                        .header("X-Account-Id", memberId.toString())
+                        .contentType("application/json")
+                        .content(REQUEST_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appliedCoupons[0].couponCode").value("WELCOME10"))
+                .andExpect(jsonPath("$.appliedCoupons[0].issuerType").value("PLATFORM"))
+                .andExpect(jsonPath("$.unavailableCoupons[0].couponCode").value("EXPIRED10"))
+                .andExpect(jsonPath("$.unavailableCoupons[0].reason").value("EXPIRED"));
+    }
+
+    @Test
     void 인증헤더가_없으면_401을_반환한다() throws Exception {
         mockMvc.perform(post("/api/v1/orders/preview")
                         .contentType("application/json")
@@ -148,6 +174,26 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-Account-Id", memberId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()));
+    }
+
+    @Test
+    void 참여_상세에_라인아이템_옵션이_포함된다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        FundingLineItemOption option = new FundingLineItemOption(1L, 10L, "색상", 100L, "블랙");
+        FundingLineItem lineItem = new FundingLineItem(1L, 1L, "얼리버드 패키지", 2, 10_000L, List.of(option));
+        Funding funding = funding(memberId, orderId, FundingStatus.PENDING).toBuilder()
+                .lineItems(List.of(lineItem)).build();
+        when(orderQueryService.getDetail(memberId, orderId))
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-Account-Id", memberId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lineItems[0].rewardName").value("얼리버드 패키지"))
+                .andExpect(jsonPath("$.lineItems[0].options[0].optionGroupName").value("색상"))
+                .andExpect(jsonPath("$.lineItems[0].options[0].optionValue").value("블랙"));
     }
 
     @Test
