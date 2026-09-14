@@ -10,6 +10,22 @@ spring:
 internal-api:
   key: ${INTERNAL_API_KEY}
 
+# order-service 내부 API(GET /internal/fundings/{fundingId})가 아직 없어 기본은 stub —
+# 연동 완료 후 ORDER_FUNDING_CLIENT_MODE=http로 전환(dev와 동일 패턴).
+order:
+  integration:
+    funding-client:
+      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+    base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
+
+# project-service 내부 API(GET /internal/projects/{projectId})가 아직 없어 기본은 stub —
+# 연동 완료 후 PROJECT_OWNERSHIP_CLIENT_MODE=http로 전환.
+project:
+  integration:
+    ownership-client:
+      mode: ${PROJECT_OWNERSHIP_CLIENT_MODE:stub}
+    base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}
+
 # 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
 springdoc:
   api-docs:

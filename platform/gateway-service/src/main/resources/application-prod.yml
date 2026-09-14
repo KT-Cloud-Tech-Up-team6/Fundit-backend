@@ -1,6 +1,7 @@
 downstream:
   auth-service-base-url: ${AUTH_SERVICE_BASE_URL}
   member-service-base-url: ${MEMBER_SERVICE_BASE_URL}
+  payment-service-base-url: ${PAYMENT_SERVICE_BASE_URL}
   fulfillment-service-base-url: ${FULFILLMENT_SERVICE_BASE_URL}
 
 jwt:
