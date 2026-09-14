@@ -1,8 +1,10 @@
 package com.fundit.notification.infrastructure.persistence.notification;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,7 +25,14 @@ public interface NotificationJpaRepository extends JpaRepository<NotificationJpa
      * "없음"과 "있는데 남의 것"이 코드상 갈라져 403이 새어나갈 여지가 생긴다. 403은 "그 알림이 존재한다"를
      * 알려주므로 ID를 넣어보며 타인 알림의 존재 여부를 캐낼 수 있다. 한 쿼리로 묶으면 두 경우가
      * 같은 Optional.empty()가 되어 404가 자연히 나온다.
+     *
+     * <p>PESSIMISTIC_WRITE를 거는 이유: 잠금이 없으면 같은 알림에 PATCH가 동시에 들어왔을 때
+     * 두 트랜잭션이 모두 read_at=null을 읽고 각자 써서 "최초 1회만 기록"이 깨진다(나중 요청이 덮어씀).
+     * SELECT ... FOR UPDATE로 직렬화하면 뒤에 온 요청은 앞 트랜잭션이 커밋한 read_at을 읽게 되고,
+     * {@code NotificationJpaEntity#markRead}의 null 가드가 그대로 멱등성을 지켜준다.
+     * 이 메서드는 읽음 처리 경로에서만 쓰이므로(조회·집계는 다른 메서드) 잠금 비용이 다른 경로에 번지지 않는다.
      */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<NotificationJpaEntity> findByIdAndMemberId(Long id, UUID memberId);
 
     /**

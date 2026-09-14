@@ -39,11 +39,10 @@ public class NotificationService {
      * 존재하지 않거나 타인의 알림이면 403이 아니라 404다 — 403은 "그 알림이 존재한다"를 알려주므로
      * ID를 넣어보며 타인 알림의 존재 여부를 캐낼 수 있다(security.md S10).
      *
-     * <p>[천장] 동시 요청은 막지 않는다. 같은 알림에 PATCH가 동시에 들어오면 두 트랜잭션이 모두
-     * read_at=null을 읽고 각자 쓰므로 최종 값이 밀리초 단위로 갈릴 수 있다. 잠금을 걸지 않은 이유는
-     * 이 값을 정밀하게 읽는 곳이 없기 때문이다 — 안읽음 개수는 read_at IS NULL로만 판단하고,
-     * 어느 쪽이 이겨도 null이 되지 않아 유실·중복도 없다. "언제 읽었나"가 실제로 쓰이게 되면
-     * 조건부 UPDATE(WHERE read_at IS NULL)로 바꾼다.
+     * <p>동시 요청에서도 "최초 1회만 기록"이 지켜진다 — 조회에 PESSIMISTIC_WRITE가 걸려 있어
+     * (NotificationJpaRepository#findByIdAndMemberId) 같은 알림에 대한 읽음 처리가 행 단위로 직렬화되고,
+     * 뒤에 온 요청은 앞 트랜잭션이 커밋한 read_at을 읽어 markRead의 null 가드에서 그대로 통과한다.
+     * 검증: NotificationServiceConcurrencyTest.
      */
     @Transactional
     public Instant markRead(Long notificationId, UUID memberId) {
