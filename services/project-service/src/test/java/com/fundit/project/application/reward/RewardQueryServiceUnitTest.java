@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -109,25 +108,5 @@ class RewardQueryServiceUnitTest {
         // then
         assertThat(result.get(0).options()).hasSize(1);
         assertThat(result.get(0).options().get(0).values().get(0).value()).isEqualTo("화이트");
-    }
-
-    @Test
-    void 고시정보_목록을_조회한다() {
-        // given
-        UUID publicId = UUID.randomUUID();
-        RewardJpaEntity reward = RewardJpaEntity.builder()
-                .id(1L).projectId(1L).name("얼리버드").description("설명").price(39000L)
-                .isLimited(false).isEarlyBird(false).hasOption(false).sortOrder(0)
-                .categoryType("COSMETIC").disclosure(Map.of("제조국", "대한민국"))
-                .simpleRefundDisabled(false).createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(publicProject(publicId)));
-        when(rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(1L)).thenReturn(List.of(reward));
-
-        // when
-        var result = rewardQueryService.listDisclosures(publicId);
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).disclosure()).containsEntry("제조국", "대한민국");
     }
 }

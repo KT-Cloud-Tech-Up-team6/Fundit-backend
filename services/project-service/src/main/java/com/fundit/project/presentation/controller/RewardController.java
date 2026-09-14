@@ -1,15 +1,13 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.reward.RewardQueryService;
 import com.fundit.project.application.reward.RewardService;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
-import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.RewardConsumerResponse;
 import com.fundit.project.presentation.dto.RewardCreateRequest;
-import com.fundit.project.presentation.dto.RewardDisclosureListItemResponse;
-import com.fundit.project.presentation.dto.RewardDisclosureRequest;
-import com.fundit.project.presentation.dto.RewardDisclosureResponse;
 import com.fundit.project.presentation.dto.RewardOptionGroupResponse;
 import com.fundit.project.presentation.dto.RewardOptionRequest;
 import com.fundit.project.presentation.dto.RewardOptionValueResponse;
@@ -29,7 +27,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/** PROJECT-007~009, PROJECT-027, PROJECT-028 — 리워드 등록/수정/삭제/고시/환불정책, 소비자 조회. */
+/** PROJECT-007~009, PROJECT-028 — 리워드 등록/수정/삭제/환불정책, 소비자 조회(PROJECT-008/027 고시 관련은 MVP 범위 제외). */
 @Tag(name = "reward")
 @RestController
 @RequestMapping("/api/v1")
@@ -51,9 +48,9 @@ public class RewardController {
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/rewards")
     public ResponseEntity<RewardResponse> create(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody RewardCreateRequest request) {
-        Reward reward = rewardService.create(sellerId, projectId, new RewardService.CreateRewardCommand(
+        Reward reward = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 request.isLimited(), request.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
                 toOptionGroups(request.options())));
@@ -63,9 +60,9 @@ public class RewardController {
     @Operation(summary = "리워드 수정")
     @PatchMapping("/rewards/{rewardId}")
     public RewardResponse update(
-            @CurrentMember UUID sellerId, @PathVariable Long rewardId,
+            @LoginUser CurrentUser user, @PathVariable Long rewardId,
             @Valid @RequestBody RewardUpdateRequest request) {
-        Reward reward = rewardService.update(sellerId, rewardId, new RewardService.UpdateRewardCommand(
+        Reward reward = rewardService.update(user.id(), rewardId, new RewardService.UpdateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 request.isLimited(), request.quantity(), request.isEarlyBird(),
                 toOptionGroups(request.options())));
@@ -76,26 +73,17 @@ public class RewardController {
             description = "소프트 딜리트 — 소비자 응답에서 제외되며 물리 삭제하지 않는다.")
     @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/rewards/{rewardId}")
-    public ResponseEntity<Void> delete(@CurrentMember UUID sellerId, @PathVariable Long rewardId) {
-        rewardService.delete(sellerId, rewardId);
+    public ResponseEntity<Void> delete(@LoginUser CurrentUser user, @PathVariable Long rewardId) {
+        rewardService.delete(user.id(), rewardId);
         return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "리워드 법정고시 정보 등록/수정", description = "품목 유형(categoryType)별 법정고시 항목을 등록한다.")
-    @PutMapping("/rewards/{rewardId}/disclosure")
-    public RewardDisclosureResponse updateDisclosure(
-            @CurrentMember UUID sellerId, @PathVariable Long rewardId,
-            @Valid @RequestBody RewardDisclosureRequest request) {
-        Reward reward = rewardService.updateDisclosure(sellerId, rewardId, request.categoryType(), request.disclosure());
-        return new RewardDisclosureResponse(reward.getId(), reward.getCategoryType(), reward.getDisclosure());
     }
 
     @Operation(summary = "리워드 간편환불 가능 여부 수정")
     @PatchMapping("/rewards/{rewardId}/refund-policy")
     public RewardRefundPolicyResponse updateRefundPolicy(
-            @CurrentMember UUID sellerId, @PathVariable Long rewardId,
+            @LoginUser CurrentUser user, @PathVariable Long rewardId,
             @Valid @RequestBody RewardRefundPolicyRequest request) {
-        Reward reward = rewardService.updateRefundPolicy(sellerId, rewardId, request.simpleRefundDisabled());
+        Reward reward = rewardService.updateRefundPolicy(user.id(), rewardId, request.simpleRefundDisabled());
         return new RewardRefundPolicyResponse(reward.getId(), reward.isSimpleRefundDisabled());
     }
 
@@ -111,14 +99,6 @@ public class RewardController {
                                         g.values().stream().map(val -> new RewardOptionValueResponse(val.valueId(), val.value())).toList()))
                                 .toList(),
                         v.soldOut()))
-                .toList();
-    }
-
-    @Operation(summary = "리워드 법정고시 목록 조회")
-    @GetMapping("/projects/{projectId}/rewards/disclosures")
-    public List<RewardDisclosureListItemResponse> listDisclosures(@PathVariable UUID projectId) {
-        return rewardQueryService.listDisclosures(projectId).stream()
-                .map(v -> new RewardDisclosureListItemResponse(v.rewardId(), v.rewardName(), v.categoryType(), v.disclosure()))
                 .toList();
     }
 

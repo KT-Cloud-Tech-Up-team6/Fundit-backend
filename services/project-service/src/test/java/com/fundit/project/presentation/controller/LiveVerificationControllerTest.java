@@ -1,15 +1,14 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.liveverification.LiveVerificationService;
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(LiveVerificationController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class LiveVerificationControllerTest {
 
     @Autowired
@@ -52,7 +52,7 @@ class LiveVerificationControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/live-verifications")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"questionSummaryId\":\"live-q-1\",\"answer\":\"답변\"}"))
                 .andExpect(status().isCreated())
@@ -67,7 +67,7 @@ class LiveVerificationControllerTest {
 
         // when & then
         mockMvc.perform(patch("/api/v1/live-verifications/301")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"answer\":\"수정답변\"}"))
                 .andExpect(status().isOk());
@@ -79,7 +79,7 @@ class LiveVerificationControllerTest {
         UUID sellerId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(delete("/api/v1/live-verifications/301").header("X-Account-Id", sellerId.toString()))
+        mockMvc.perform(delete("/api/v1/live-verifications/301").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isNoContent());
         verify(liveVerificationService).delete(sellerId, 301L);
     }

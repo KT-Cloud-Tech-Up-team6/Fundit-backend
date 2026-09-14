@@ -1,5 +1,9 @@
 package com.fundit.project.application.project;
 
+import com.fundit.project.application.media.MediaCategory;
+import com.fundit.project.application.media.MediaUrlValidator;
+import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -18,11 +22,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +47,8 @@ class ProjectServiceUnitTest {
     private ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     @Mock
     private RewardJpaRepository rewardJpaRepository;
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
 
     @InjectMocks
     private ProjectService projectService;
@@ -108,6 +116,52 @@ class ProjectServiceUnitTest {
             // then
             assertThat(result.getTitle()).isEqualTo("제목");
             assertThat(result.getCategoryMajor()).isEqualTo("테크·가전");
+        }
+    }
+
+    @Nested
+    class 스토리_수정 {
+
+        @Test
+        void 커버이미지가_있으면_검증_후_저장된다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedDraftProject(sellerId, publicId);
+            String coverImageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + publicId + "/a.jpg";
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Project result = projectService.updateStory(sellerId, publicId,
+                    new ProjectService.UpdateStoryCommand(null, coverImageUrl, null));
+
+            // then
+            verify(mediaUrlValidator).validate(publicId, coverImageUrl, MediaCategory.IMAGE);
+            assertThat(result.getCoverImageUrl()).isEqualTo(coverImageUrl);
+        }
+
+        @Test
+        void 소개콘텐츠의_IMAGE_블록만_검증하고_VIDEO_URL과_TEXT는_검증하지_않는다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedDraftProject(sellerId, publicId);
+            String imageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + publicId + "/a.jpg";
+            List<IntroContentBlock> introContent = List.of(
+                    new IntroContentBlock(IntroContentType.TEXT, "본문"),
+                    new IntroContentBlock(IntroContentType.IMAGE, imageUrl),
+                    new IntroContentBlock(IntroContentType.VIDEO_URL, "https://youtube.com/x"));
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            projectService.updateStory(sellerId, publicId, new ProjectService.UpdateStoryCommand(null, null, introContent));
+
+            // then
+            verify(mediaUrlValidator).validate(publicId, imageUrl, MediaCategory.IMAGE);
+            verify(mediaUrlValidator, never()).validate(publicId, "https://youtube.com/x", MediaCategory.IMAGE);
+            verify(mediaUrlValidator, never()).validate(publicId, "본문", MediaCategory.IMAGE);
         }
     }
 

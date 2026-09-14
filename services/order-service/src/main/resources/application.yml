@@ -29,7 +29,10 @@ order:
     welcome-coupon-code: ""
   integration:
     project-service:
-      base-url: http://localhost:8083
+      # base-url은 환경마다 달라(로컬/dev/운영) application-{profile}.yml에서 선언한다 —
+      # 여기 공통 파일에 리터럴로 두면 dev/prod에서도 계속 localhost를 호출하는 버그가 된다.
+      # 이 빈은 조건부(stub/http 스위치)가 아니라 항상 생성되므로, 프로필을 안 타는
+      # 테스트 컨텍스트를 위한 기본값은 ProjectServiceClientConfig의 @Value 기본값으로 둔다.
       # security.md 규칙: 서비스 간 동기 호출에는 반드시 타임아웃을 둔다.
       connect-timeout-ms: 2000
       read-timeout-ms: 3000

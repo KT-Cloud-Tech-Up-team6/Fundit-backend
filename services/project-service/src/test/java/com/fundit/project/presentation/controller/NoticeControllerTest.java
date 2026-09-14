@@ -1,16 +1,15 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.notice.NoticeService;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeCommentJpaEntity;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(NoticeController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class NoticeControllerTest {
 
     @Autowired
@@ -48,7 +48,7 @@ class NoticeControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/notices")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"noticeType\":\"FAQ\",\"title\":\"제목\",\"content\":\"내용\"}"))
                 .andExpect(status().isCreated())
@@ -79,7 +79,7 @@ class NoticeControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/notices/1/comments")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"content\":\"기대돼요!\"}"))
                 .andExpect(status().isCreated())

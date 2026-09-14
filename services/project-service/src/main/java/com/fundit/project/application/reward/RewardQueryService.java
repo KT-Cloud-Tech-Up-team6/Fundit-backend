@@ -14,10 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-/** 리워드/옵션 조회 및 재고 확인, 법정고시정보 조회(소비자) — PROJECT-027, PROJECT-028. */
+/** 리워드/옵션 조회 및 재고 확인(소비자) — PROJECT-028. */
 @Service
 @RequiredArgsConstructor
 public class RewardQueryService {
@@ -33,14 +32,6 @@ public class RewardQueryService {
         Long projectId = loadPublicProjectId(projectPublicId);
         return rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(projectId).stream()
                 .map(this::toConsumerView)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<RewardDisclosureView> listDisclosures(UUID projectPublicId) {
-        Long projectId = loadPublicProjectId(projectPublicId);
-        return rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(projectId).stream()
-                .map(r -> new RewardDisclosureView(r.getId(), r.getName(), r.getCategoryType(), r.getDisclosure()))
                 .toList();
     }
 
@@ -81,8 +72,5 @@ public class RewardQueryService {
     public record RewardConsumerView(
             Long rewardId, String rewardDisplayCode, String name, Long price, boolean isEarlyBird,
             boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut) {
-    }
-
-    public record RewardDisclosureView(Long rewardId, String rewardName, String categoryType, Map<String, String> disclosure) {
     }
 }

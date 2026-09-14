@@ -6,3 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+
+order:
+  integration:
+    project-service:
+      base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}

@@ -31,6 +31,10 @@ spring:
               uri: ${downstream.payment-service-base-url}
               predicates:
                 - Path=/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**
+            - id: fulfillment-service
+              uri: ${downstream.fulfillment-service-base-url}
+              predicates:
+                - Path=/api/v1/fulfillments/**
 
 management:
   endpoints:

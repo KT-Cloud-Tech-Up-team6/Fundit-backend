@@ -10,33 +10,34 @@
 | 6 | POST | `/api/v1/projects/{projectId}/submit` | 프로젝트 심사 제출 | O (판매자) | PROJECT-029 |
 | 7 | POST | `/api/v1/admin/projects/{projectId}/review-decision` | 프로젝트 심사 처리(승인/반려) | O (운영자/관리자) | PROJECT-030 |
 | 8 | PATCH | `/api/v1/projects/{projectId}/story` | 프로젝트 소개 콘텐츠 등록 | O (판매자) | PROJECT-006 |
-| 9 | POST | `/api/v1/projects/{projectId}/rewards` | 리워드 등록 | O (판매자) | PROJECT-007 |
-| 10 | PATCH | `/api/v1/rewards/{rewardId}` | 리워드 수정 | O (판매자) | PROJECT-007 |
-| 11 | DELETE | `/api/v1/rewards/{rewardId}` | 리워드 삭제 | O (판매자) | PROJECT-007 |
-| 12 | PUT | `/api/v1/rewards/{rewardId}/disclosure` | 리워드 정보 제공 고시 등록 | O (판매자) | PROJECT-008 |
+| 9 | POST | `/api/v1/projects/{projectId}/media/upload-url` | 이미지/영상 업로드 주소 발급(S3 Presigned URL) | O (판매자) | PROJECT-006, PROJECT-007 |
+| 10 | POST | `/api/v1/projects/{projectId}/rewards` | 리워드 등록 | O (판매자) | PROJECT-007 |
+| 11 | PATCH | `/api/v1/rewards/{rewardId}` | 리워드 수정 | O (판매자) | PROJECT-007 |
+| 12 | DELETE | `/api/v1/rewards/{rewardId}` | 리워드 삭제 | O (판매자) | PROJECT-007 |
 | 13 | PATCH | `/api/v1/rewards/{rewardId}/refund-policy` | 환불정책 특이사항 등록 | O (판매자) | PROJECT-009 |
 | 14 | GET | `/api/v1/projects/{projectId}/rewards` | 리워드/옵션 조회 및 재고 확인(소비자) | X (공통) | PROJECT-028 |
-| 15 | GET | `/api/v1/projects/{projectId}/rewards/disclosures` | 리워드 법정고시정보 조회(소비자) | X (공통) | PROJECT-027 |
-| 16 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
-| 17 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
-| 18 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (구매자) | PROJECT-023 |
-| 19 | GET | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 목록 조회 | X (공통) | PROJECT-023 |
-| 20 | POST | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 질문/응원 등록(소비자) | O (구매자) | PROJECT-024 |
-| 21 | GET | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 게시글 목록 조회(판매자/소비자 공용) | 선택 (미로그인도 조회 가능, 미답변 필터는 판매자 전용) | PROJECT-017, PROJECT-025 |
-| 22 | POST | `/api/v1/community/posts/{postId}/answer` | 커뮤니티 답변 등록/수정 | O (판매자) | PROJECT-018 |
-| 23 | POST | `/api/v1/projects/{projectId}/ai/funding-story/sessions` | 펀딩스토리 AI — 정보입력/생성요청 | O (판매자) | PROJECT-011 |
-| 24 | GET | `/api/v1/ai/funding-story/sessions/{sessionId}` | 펀딩스토리 AI — 결과 조회 | O (판매자) | PROJECT-012 |
-| 25 | PATCH | `/api/v1/ai/funding-story/sessions/{sessionId}/apply` | 펀딩스토리 AI — 결과 반영 | O (판매자) | PROJECT-012 |
-| 26 | GET | `/api/v1/projects/{projectId}/preview` | 프로젝트 미리보기 조회(판매자) | O (판매자) | PROJECT-013 |
-| 27 | GET | `/api/v1/projects/{projectId}` | 프로젝트 상세정보 조회(공개) | X (공통) | PROJECT-020 |
-| 28 | GET | `/api/v1/sellers/{sellerId}` | 판매자 정보/이력 조회 | X (공통) | PROJECT-021 |
-| 29 | GET | `/api/v1/projects/{projectId}/refund-policy` | 환불정책/환불불가유형 조회 | X (공통) | PROJECT-026 |
-| 30 | POST | `/api/v1/projects/{projectId}/live-verifications` | LIVE검증 콘텐츠 등록(판매자) | O (판매자) | PROJECT-014 |
-| 31 | PATCH | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 수정 | O (판매자) | PROJECT-014 |
-| 32 | DELETE | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 삭제 | O (판매자) | PROJECT-014 |
-| 33 | GET | `/api/v1/projects/{projectId}/live-verifications` | 방송종료 후 LIVE검증 질문/답변 조회(소비자) | X (공통) | PROJECT-019 |
-| 34 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
-| 35 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
+| 15 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
+| 16 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
+| 17 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (구매자) | PROJECT-023 |
+| 18 | GET | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 목록 조회 | X (공통) | PROJECT-023 |
+| 19 | POST | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 질문/응원 등록(소비자) | O (구매자) | PROJECT-024 |
+| 20 | GET | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 게시글 목록 조회(판매자/소비자 공용) | 선택 (미로그인도 조회 가능, 미답변 필터는 판매자 전용) | PROJECT-017, PROJECT-025 |
+| 21 | POST | `/api/v1/community/posts/{postId}/answer` | 커뮤니티 답변 등록/수정 | O (판매자) | PROJECT-018 |
+| 22 | POST | `/api/v1/projects/{projectId}/ai/funding-story/sessions` | 펀딩스토리 AI — 정보입력/생성요청 | O (판매자) | PROJECT-011 |
+| 23 | GET | `/api/v1/ai/funding-story/sessions/{sessionId}` | 펀딩스토리 AI — 결과 조회 | O (판매자) | PROJECT-012 |
+| 24 | PATCH | `/api/v1/ai/funding-story/sessions/{sessionId}/apply` | 펀딩스토리 AI — 결과 반영 | O (판매자) | PROJECT-012 |
+| 25 | GET | `/api/v1/projects/{projectId}/preview` | 프로젝트 미리보기 조회(판매자) | O (판매자) | PROJECT-013 |
+| 26 | GET | `/api/v1/projects/{projectId}` | 프로젝트 상세정보 조회(공개) | X (공통) | PROJECT-020 |
+| 27 | GET | `/api/v1/sellers/{sellerId}` | 판매자 정보/이력 조회 | X (공통) | PROJECT-021 |
+| 28 | GET | `/api/v1/projects/{projectId}/refund-policy` | 환불정책/환불불가유형 조회 | X (공통) | PROJECT-026 |
+| 29 | POST | `/api/v1/projects/{projectId}/live-verifications` | LIVE검증 콘텐츠 등록(판매자) | O (판매자) | PROJECT-014 |
+| 30 | PATCH | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 수정 | O (판매자) | PROJECT-014 |
+| 31 | DELETE | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 삭제 | O (판매자) | PROJECT-014 |
+| 32 | GET | `/api/v1/projects/{projectId}/live-verifications` | 방송종료 후 LIVE검증 질문/답변 조회(소비자) | X (공통) | PROJECT-019 |
+| 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
+| 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
+
+> PROJECT-008(리워드 정보 제공 고시 등록)·PROJECT-027(리워드 법정고시정보 조회)은 품목마다 필요한 고시 항목이 달라 MVP에서 표준화하기 어려워 **범위 제외됐다**(PM 확정). 관련 엔드포인트(`PUT /api/v1/rewards/{rewardId}/disclosure`, `GET /api/v1/projects/{projectId}/rewards/disclosures`)는 존재하지 않으며, 도메인/DTO/테스트도 모두 제거됐다.
 
 ---
 
@@ -261,10 +262,10 @@ PATCH /api/v1/projects/{projectId}/story
 
 **Request**: {
 "title": "세상에 없는 프라이팬",
-"coverImageUrl": "https://cdn.example.com/p/123/cover.jpg",
+"coverImageUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2.jpg",
 "introContent": [
 { "type": "TEXT", "value": "..." },
-{ "type": "IMAGE", "value": "https://cdn.example.com/p/123/1.jpg" },
+{ "type": "IMAGE", "value": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../c3d4.jpg" },
 { "type": "VIDEO_URL", "value": "https://youtube.com/..." }
 ]
 }
@@ -278,13 +279,49 @@ PATCH /api/v1/projects/{projectId}/story
 **Validation / Business Rules**
 
 - `title` 40자 제한(DB 컬럼 제약과 동일).
-- `coverImageUrl`은 10MB 이하 JPG/JPEG/PNG 1개만 허용, 확장자 화이트리스트 검증 및 저장 파일명은 추측 불가능한 값으로 변경(S5).
+- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
+- `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
 - `introContent`의 텍스트 항목은 소비자 화면에 그대로 노출되므로 출력 인코딩 적용(XSS 방지, S2).
 - 임시저장 겸용이며 부분 필드만 전달해도 저장 가능.
 
 ---
 
-### 9. 리워드 등록
+### 9. 이미지/영상 업로드 주소 발급(S3 Presigned URL)
+
+```
+POST /api/v1/projects/{projectId}/media/upload-url
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: {
+"fileName": "cover.jpg",
+"contentType": "image/jpeg",
+"fileSize": 2097152
+}
+
+**Response Body**
+
+```json
+{
+  "uploadUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2c3d4.jpg?X-Amz-...",
+  "fileUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2c3d4.jpg"
+}
+```
+
+**Validation / Business Rules**
+
+- 이미지/영상 URL을 프로젝트 스토리(커버이미지·소개콘텐츠, #8)·리워드(이미지, #10·#11) 등 기존 API에 저장하기 전, 이 API로 먼저 업로드 주소를 발급받아 **① S3에 직접 PUT 업로드 → ② 발급받은 `fileUrl`을 저장 API에 전달**하는 순서로 사용한다(백엔드 서버는 파일 바이트를 직접 받지 않는다).
+- 소유권(S4): 요청자가 `projectId`의 `seller_id`와 일치해야 함(리워드 이미지도 이 프로젝트 네임스페이스를 사용하므로 별도 리워드 전용 엔드포인트는 두지 않음) — 불일치 시 `403 FORBIDDEN`.
+- 확장자·`contentType` 화이트리스트(S5): 이미지는 `jpg`/`jpeg`/`png`/`webp`(`image/jpeg`,`image/png`,`image/webp`), 영상은 `mp4`(`video/mp4`)만 허용 — 그 외 `400 UNSUPPORTED_MEDIA_TYPE`.
+- 용량 제한(S5): 이미지 10MB(10,485,760 bytes), 영상 100MB(104,857,600 bytes) 초과 시 `400 MEDIA_TOO_LARGE`.
+- 저장 키는 `projects/{projectId}/{UUID}.{ext}` 형식으로 서버가 생성한다 — 클라이언트가 보낸 `fileName`은 키에 사용하지 않는다(추측 불가 파일명, S5).
+- `uploadUrl`은 발급 후 5분(TTL)간만 유효, PUT 요청 시 `Content-Type` 헤더가 발급 요청의 `contentType`과 일치해야 한다(서명에 포함).
+- 영상은 단일 PUT만 지원(멀티파트 업로드 미지원, 협의 완료).
+
+---
+
+### 10. 리워드 등록
 
 ```
 POST /api/v1/projects/{projectId}/rewards
@@ -295,7 +332,7 @@ POST /api/v1/projects/{projectId}/rewards
 **Request**: {
 "name": "얼리버드 패키지",
 "description": "...",
-"imageUrl": "https://cdn.example.com/r/1.jpg",
+"imageUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../r1.jpg",
 "price": 39000,
 "isLimited": true,
 "quantity": 100,
@@ -323,13 +360,14 @@ POST /api/v1/projects/{projectId}/rewards
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`).
+- `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성.
 - 리워드 생성/수정 시 order-service의 재고 원장(`inventories.available_stock`)에 `quantity` 값을 동기화하는 이벤트를 발행해야 함(ORDER-012 연동, `RewardCreated`).
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).
 
 ---
 
-### 10. 리워드 수정
+### 11. 리워드 수정
 
 ```
 PATCH /api/v1/rewards/{rewardId}
@@ -348,12 +386,13 @@ PATCH /api/v1/rewards/{rewardId}
 **Validation / Business Rules**
 
 - 소유권 검증: 리워드가 속한 프로젝트의 `seller_id`가 본인인지 확인(S4).
+- `imageUrl`을 전달하는 경우 #9로 발급받은 `fileUrl`인지 등록(#10)과 동일하게 검증한다.
 - `quantity` 변경 시 order-service `inventories` 동기화 이벤트(`RewardUpdated`) 발행 필요(ORDER-012 연동).
 - 이미 판매(주문)가 발생한 리워드의 `price` 인하/인상 등 정책은 [정책 확인 필요].
 
 ---
 
-### 11. 리워드 삭제
+### 12. 리워드 삭제
 
 ```
 DELETE /api/v1/rewards/{rewardId}
@@ -373,40 +412,6 @@ DELETE /api/v1/rewards/{rewardId}
 
 - 소프트 삭제(`deleted_at`) 처리 — 삭제된 리워드는 소비자 응답에서 제외.
 - 소유권 검증(S4), 이미 주문(`funding_line_items`)이 존재하는 리워드 삭제 가능 여부는 [정책 확인 필요].
-
----
-
-### 12. 리워드 정보 제공 고시 등록
-
-```
-PUT /api/v1/rewards/{rewardId}/disclosure
-```
-
-**Auth Required**: O (판매자)
-
-**Request**: {
-"categoryType": "COSMETIC",
-"disclosure": {
-"품명및모델명": "...",
-"제조자": "...",
-"제조국": "대한민국",
-"크기용량형태": "...",
-"AS책임자전화번호": "1588-0000"
-}
-}
-
-**Response Body**
-
-```json
-{ "rewardId": 1, "categoryType": "COSMETIC", "disclosure": { "...": "..." } }
-```
-
-**Validation / Business Rules**
-
-- `categoryType`에 따라 필수 입력 항목 구성이 달라짐(화장품/식품/전자제품 등 템플릿, PRD 12.7.3).
-- 미입력 항목이 있어도 저장은 허용하되, 프로젝트 심사 제출(PROJECT-029) 시점에 검수 대상이 됨.
-- `disclosure`는 JSONB로 저장, 품목 유형별 템플릿 검증은 애플리케이션 레이어에서 수행.
-- 소유권 검증(S4), 출력 인코딩 적용(S2).
 
 ---
 
@@ -481,33 +486,7 @@ GET /api/v1/projects/{projectId}/rewards
 
 ---
 
-### 15. 리워드 법정고시정보 조회(소비자)
-
-```
-GET /api/v1/projects/{projectId}/rewards/disclosures
-```
-
-**Auth Required**: X (공통)
-
-**Request**: Path Parameter: `projectId`
-
-**Response Body**
-
-```json
-[
-  { "rewardId": 1, "rewardName": "얼리버드 패키지", "categoryType": "COSMETIC",
-    "disclosure": { "품명및모델명": "...", "제조국": "대한민국" } }
-]
-```
-
-**Validation / Business Rules**
-
-- 리워드가 여러 개인 경우 리워드 단위로 반복 노출(PRD 12.7.4).
-- 특정 항목 값이 없는 경우 해당 항목은 `null`로 반환, 프론트에서 '정보 없음' 표시.
-
----
-
-### 16. 새소식 등록(판매자)
+### 15. 새소식 등록(판매자)
 
 ```
 POST /api/v1/projects/{projectId}/notices
@@ -535,7 +514,7 @@ POST /api/v1/projects/{projectId}/notices
 
 ---
 
-### 17. 새소식 목록 조회(소비자)
+### 16. 새소식 목록 조회(소비자)
 
 ```
 GET /api/v1/projects/{projectId}/notices
@@ -563,7 +542,7 @@ GET /api/v1/projects/{projectId}/notices
 
 ---
 
-### 18. 새소식 댓글 등록
+### 17. 새소식 댓글 등록
 
 ```
 POST /api/v1/notices/{noticeId}/comments
@@ -586,7 +565,7 @@ POST /api/v1/notices/{noticeId}/comments
 
 ---
 
-### 19. 새소식 댓글 목록 조회
+### 18. 새소식 댓글 목록 조회
 
 ```
 GET /api/v1/notices/{noticeId}/comments
@@ -608,7 +587,7 @@ GET /api/v1/notices/{noticeId}/comments
 
 ---
 
-### 20. 커뮤니티 질문/응원 등록(소비자)
+### 19. 커뮤니티 질문/응원 등록(소비자)
 
 ```
 POST /api/v1/projects/{projectId}/community/posts
@@ -631,7 +610,7 @@ POST /api/v1/projects/{projectId}/community/posts
 
 ---
 
-### 21. 커뮤니티 게시글 목록 조회(판매자/소비자 공용)
+### 20. 커뮤니티 게시글 목록 조회(판매자/소비자 공용)
 
 ```
 GET /api/v1/projects/{projectId}/community/posts
@@ -661,7 +640,7 @@ GET /api/v1/projects/{projectId}/community/posts
 
 ---
 
-### 22. 커뮤니티 답변 등록/수정
+### 21. 커뮤니티 답변 등록/수정
 
 ```
 POST /api/v1/community/posts/{postId}/answer
@@ -685,7 +664,7 @@ POST /api/v1/community/posts/{postId}/answer
 
 ---
 
-### 23. 펀딩스토리 AI — 정보입력/생성요청
+### 22. 펀딩스토리 AI — 정보입력/생성요청
 
 ```
 POST /api/v1/projects/{projectId}/ai/funding-story/sessions
@@ -712,11 +691,11 @@ POST /api/v1/projects/{projectId}/ai/funding-story/sessions
 - 비동기 처리 — 응답은 `sessionId`만 반환하고 실제 생성 결과는 결과조회 API로 폴링(PRD 5.1.4.2).
 - 동일 세션에 대한 중복 생성 요청은 차단(`status=GENERATING`인 동안 재요청 시 `409 CONFLICT`).
 - 외부 AI 서비스 연동 API Key는 코드와 분리 보관, 요청/응답 검증(S7).
-- 제품 이미지 업로드 시 확장자·용량 검증(S5).
+- 제품 이미지 업로드 시 확장자·용량 검증(S5). `productImageUrls`는 AI 생성을 위한 참고 이미지 입력으로, #9 업로드 주소 발급 및 저장 시 `fileUrl` 검증(경로/실존/크기) 대상은 아니다.
 
 ---
 
-### 24. 펀딩스토리 AI — 결과 조회
+### 23. 펀딩스토리 AI — 결과 조회
 
 ```
 GET /api/v1/ai/funding-story/sessions/{sessionId}
@@ -749,7 +728,7 @@ GET /api/v1/ai/funding-story/sessions/{sessionId}
 
 ---
 
-### 25. 펀딩스토리 AI — 결과 반영
+### 24. 펀딩스토리 AI — 결과 반영
 
 ```
 PATCH /api/v1/ai/funding-story/sessions/{sessionId}/apply
@@ -768,12 +747,12 @@ PATCH /api/v1/ai/funding-story/sessions/{sessionId}/apply
 **Validation / Business Rules**
 
 - `mode`는 `OVERWRITE`(전체 덮어쓰기) 또는 `COPY`(복사하기) 중 선택(PRD 5.1.4).
-- 반영된 내용은 프로젝트 스토리(`PATCH .../story`)에 임시저장되며 이후 이어서 작성 가능.
+- 반영된 내용은 프로젝트 스토리(`PATCH .../story`)에 임시저장되며 이후 이어서 작성 가능. AI 결과 이미지는 AI가 생성/수집한 것이므로 #8과 달리 `fileUrl` S3 검증을 적용하지 않는다.
 - 생성 결과는 최종적으로 소비자 화면에 노출되므로 반영 시 출력 인코딩 적용(S2).
 
 ---
 
-### 26. 프로젝트 미리보기 조회(판매자)
+### 25. 프로젝트 미리보기 조회(판매자)
 
 ```
 GET /api/v1/projects/{projectId}/preview
@@ -786,7 +765,7 @@ GET /api/v1/projects/{projectId}/preview
 **Response Body**
 
 ```json
-공개용 상세조회(#27)와 동일 구조 — 미공개(`DRAFT`/`PENDING_REVIEW`) 상태에서도 조회 가능
+공개용 상세조회(#26)와 동일 구조 — 미공개(`DRAFT`/`PENDING_REVIEW`) 상태에서도 조회 가능
 ```
 
 **Validation / Business Rules**
@@ -796,7 +775,7 @@ GET /api/v1/projects/{projectId}/preview
 
 ---
 
-### 27. 프로젝트 상세정보 조회(공개)
+### 26. 프로젝트 상세정보 조회(공개)
 
 ```
 GET /api/v1/projects/{projectId}
@@ -828,7 +807,7 @@ GET /api/v1/projects/{projectId}
 
 ---
 
-### 28. 판매자 정보/이력 조회
+### 27. 판매자 정보/이력 조회
 
 ```
 GET /api/v1/sellers/{sellerId}
@@ -857,7 +836,7 @@ GET /api/v1/sellers/{sellerId}
 
 ---
 
-### 29. 환불정책/환불불가유형 조회
+### 28. 환불정책/환불불가유형 조회
 
 ```
 GET /api/v1/projects/{projectId}/refund-policy
@@ -885,7 +864,7 @@ GET /api/v1/projects/{projectId}/refund-policy
 
 ---
 
-### 30. LIVE검증 콘텐츠 등록(판매자)
+### 29. LIVE검증 콘텐츠 등록(판매자)
 
 ```
 POST /api/v1/projects/{projectId}/live-verifications
@@ -909,7 +888,7 @@ POST /api/v1/projects/{projectId}/live-verifications
 
 ---
 
-### 31. LIVE검증 콘텐츠 수정
+### 30. LIVE검증 콘텐츠 수정
 
 ```
 PATCH /api/v1/live-verifications/{id}
@@ -931,7 +910,7 @@ PATCH /api/v1/live-verifications/{id}
 
 ---
 
-### 32. LIVE검증 콘텐츠 삭제
+### 31. LIVE검증 콘텐츠 삭제
 
 ```
 DELETE /api/v1/live-verifications/{id}
@@ -953,7 +932,7 @@ DELETE /api/v1/live-verifications/{id}
 
 ---
 
-### 33. 방송종료 후 LIVE검증 질문/답변 조회(소비자)
+### 32. 방송종료 후 LIVE검증 질문/답변 조회(소비자)
 
 ```
 GET /api/v1/projects/{projectId}/live-verifications
@@ -979,7 +958,7 @@ GET /api/v1/projects/{projectId}/live-verifications
 
 ---
 
-### 34. 펀딩 현황 조회(판매자)
+### 33. 펀딩 현황 조회(판매자)
 
 ```
 GET /api/v1/projects/{projectId}/funding-status
@@ -1007,7 +986,7 @@ GET /api/v1/projects/{projectId}/funding-status
 
 ---
 
-### 35. 찜·알림신청 건수 조회(판매자용)
+### 34. 찜·알림신청 건수 조회(판매자용)
 
 ```
 GET /api/v1/projects/{projectId}/wish-stats

@@ -1,16 +1,15 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.community.CommunityService;
 import com.fundit.project.infrastructure.persistence.community.CommunityAnswerJpaEntity;
 import com.fundit.project.infrastructure.persistence.community.CommunityPostJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentAdminArgumentResolver;
-import com.fundit.project.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.project.infrastructure.security.WebConfig;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,7 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CommunityController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, CurrentAdminArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class CommunityControllerTest {
 
     @Autowired
@@ -50,7 +50,7 @@ class CommunityControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/community/posts")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"postType\":\"QUESTION\",\"content\":\"질문\"}"))
                 .andExpect(status().isCreated())
@@ -81,7 +81,7 @@ class CommunityControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/community/posts/7001/answer")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")
                         .content("{\"content\":\"답변\"}"))
                 .andExpect(status().isOk())

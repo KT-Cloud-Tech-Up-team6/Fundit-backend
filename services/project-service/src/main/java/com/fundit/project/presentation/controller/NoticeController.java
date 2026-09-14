@@ -2,10 +2,11 @@ package com.fundit.project.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.notice.NoticeService;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeCommentJpaEntity;
 import com.fundit.project.infrastructure.persistence.notice.ProjectNoticeJpaEntity;
-import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.NoticeCommentCreateRequest;
 import com.fundit.project.presentation.dto.NoticeCommentListItemResponse;
 import com.fundit.project.presentation.dto.NoticeCommentResponse;
@@ -45,9 +46,9 @@ public class NoticeController {
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/notices")
     public ResponseEntity<NoticeResponse> create(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody NoticeCreateRequest request) {
-        ProjectNoticeJpaEntity notice = noticeService.create(sellerId, projectId,
+        ProjectNoticeJpaEntity notice = noticeService.create(user.id(), projectId,
                 request.noticeType(), request.title(), request.content());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(notice));
     }
@@ -70,9 +71,9 @@ public class NoticeController {
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/notices/{noticeId}/comments")
     public ResponseEntity<NoticeCommentResponse> createComment(
-            @CurrentMember UUID memberId, @PathVariable Long noticeId,
+            @LoginUser CurrentUser user, @PathVariable Long noticeId,
             @Valid @RequestBody NoticeCommentCreateRequest request) {
-        ProjectNoticeCommentJpaEntity comment = noticeService.createComment(memberId, noticeId, request.content());
+        ProjectNoticeCommentJpaEntity comment = noticeService.createComment(user.id(), noticeId, request.content());
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new NoticeCommentResponse(comment.getId(), comment.getNoticeId(), comment.getContent(), comment.getCreatedAt()));
     }

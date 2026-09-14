@@ -14,6 +14,12 @@ reward-event-outbox:
   poll-interval-ms: 5000
   batch-size: 50
 
+# 이미지/영상 업로드 주소 발급(S3 Presigned URL, 할일 D 확정 스펙) — bucket/region은 시크릿이
+# 아니지만 환경마다 달라 application-dev.yml/application-prod.yml에서 env로만 채운다.
+media:
+  upload:
+    presign-ttl-minutes: 5
+
 # 컨트롤러 8개가 대표 도메인을 공유하지 않아(다수가 @RequestMapping("/api/v1")만 두고
 # 세부 경로를 메서드에서 지정) auth/member처럼 "그 서비스의 단일 리소스" 경로를 쓸 수 없다.
 # 서비스명이자 가장 먼저 생기는 리소스인 projects를 대표로 삼는다.

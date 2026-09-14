@@ -14,13 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class ProjectRewardPersistenceIntegrationTest {
 
     @Container
@@ -124,22 +125,6 @@ class ProjectRewardPersistenceIntegrationTest {
         // then — replaceOptions 자체가 예외 없이 완료되면 정상(옵션은 응답에 되읽지 않는 설계).
         Reward reloaded = rewardRepository.findById(reward.getId()).orElseThrow();
         assertThat(reloaded.getId()).isEqualTo(reward.getId());
-    }
-
-    @Test
-    void 리워드_고시정보_JSONB가_그대로_왕복된다() {
-        // given
-        Reward reward = rewardRepository.save(
-                Reward.create(persistProjectId(), "얼리버드", "설명", null, 39000L, false, null, false, null));
-        reward.changeDisclosure("COSMETIC", Map.of("제조국", "대한민국"));
-
-        // when
-        Reward saved = rewardRepository.save(reward);
-        Reward reloaded = rewardRepository.findById(saved.getId()).orElseThrow();
-
-        // then
-        assertThat(reloaded.getCategoryType()).isEqualTo("COSMETIC");
-        assertThat(reloaded.getDisclosure()).containsEntry("제조국", "대한민국");
     }
 
     private Long persistProjectId() {

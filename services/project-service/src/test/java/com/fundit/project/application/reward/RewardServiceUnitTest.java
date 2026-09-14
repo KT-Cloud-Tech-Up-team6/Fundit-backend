@@ -1,5 +1,7 @@
 package com.fundit.project.application.reward;
 
+import com.fundit.project.application.media.MediaCategory;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -35,6 +37,8 @@ class RewardServiceUnitTest {
     private RewardRepository rewardRepository;
     @Mock
     private RewardEventPublisher rewardEventPublisher;
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
 
     @InjectMocks
     private RewardService rewardService;
@@ -69,6 +73,27 @@ class RewardServiceUnitTest {
             assertThat(result.getId()).isEqualTo(10L);
             verify(rewardRepository).replaceOptions(eq(10L), eq(options));
             verify(rewardEventPublisher).publishRewardCreated(any());
+        }
+
+        @Test
+        void imageUrl이_있으면_MediaUrlValidator로_검증한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID projectPublicId = UUID.randomUUID();
+            Project project = ownedProject(sellerId, projectPublicId);
+            String imageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + projectPublicId + "/a.jpg";
+            when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> {
+                Reward r = invocation.getArgument(0);
+                return r.toBuilder().id(10L).build();
+            });
+
+            // when
+            rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
+                    "얼리버드", "설명", imageUrl, 39000L, false, null, false, null));
+
+            // then
+            verify(mediaUrlValidator).validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
         }
 
         @Test
@@ -114,6 +139,27 @@ class RewardServiceUnitTest {
             assertThat(result.getName()).isEqualTo("새이름");
             assertThat(result.getDescription()).isEqualTo("기존설명");
         }
+
+        @Test
+        void imageUrl이_전달되면_리워드가_속한_프로젝트의_publicId로_검증한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID projectPublicId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, projectPublicId);
+            String imageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + projectPublicId + "/a.jpg";
+            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, imageUrl, null, null, null, null, null));
+
+            // then
+            verify(mediaUrlValidator).validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
+        }
     }
 
     @Test
@@ -134,24 +180,6 @@ class RewardServiceUnitTest {
         ArgumentCaptor<Reward> captor = ArgumentCaptor.forClass(Reward.class);
         verify(rewardRepository).save(captor.capture());
         assertThat(captor.getValue().isDeleted()).isTrue();
-    }
-
-    @Test
-    void 고시정보를_저장한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        Reward existing = Reward.create(1L, "이름", "설명", null, 10000L, false, null, false, null)
-                .toBuilder().id(5L).build();
-        Project project = ownedProject(sellerId, UUID.randomUUID());
-        when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // when
-        Reward result = rewardService.updateDisclosure(sellerId, 5L, "COSMETIC", java.util.Map.of("제조국", "대한민국"));
-
-        // then
-        assertThat(result.getCategoryType()).isEqualTo("COSMETIC");
     }
 
     @Test

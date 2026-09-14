@@ -1,11 +1,12 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.ai.FundingStoryService;
 import com.fundit.project.domain.aifundingstory.FundingStoryAnswer;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
 import com.fundit.project.domain.aifundingstory.FundingStorySession;
 import com.fundit.project.domain.project.Project;
-import com.fundit.project.infrastructure.security.CurrentMember;
 import com.fundit.project.presentation.dto.FundingStoryAdditionalQuestionResponse;
 import com.fundit.project.presentation.dto.FundingStoryApplyRequest;
 import com.fundit.project.presentation.dto.FundingStoryApplyResponse;
@@ -50,13 +51,13 @@ public class FundingStoryController {
     @ApiResponse(responseCode = "202", description = "생성 요청 접수됨")
     @PostMapping("/projects/{projectId}/ai/funding-story/sessions")
     public ResponseEntity<FundingStorySessionCreateResponse> createSession(
-            @CurrentMember UUID sellerId, @PathVariable UUID projectId,
+            @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody FundingStorySessionCreateRequest request) {
         List<FundingStoryAnswer> answers = request.answers() == null ? null : request.answers().stream()
                 .map(a -> new FundingStoryAnswer(a.questionId(), a.answer()))
                 .toList();
         FundingStorySession session = fundingStoryService.createSession(
-                sellerId, projectId, request.productDescription(), request.productImageUrls(), answers);
+                user.id(), projectId, request.productDescription(), request.productImageUrls(), answers);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(new FundingStorySessionCreateResponse(session.getId(), session.getStatus().name()));
     }
@@ -64,19 +65,19 @@ public class FundingStoryController {
     @Operation(summary = "펀딩스토리 세션 조회",
             description = "생성 상태, 추가 질문, 완료 시 결과(섹션/이미지출처/경고)를 조회한다.")
     @GetMapping("/ai/funding-story/sessions/{sessionId}")
-    public FundingStorySessionResponse getSession(@CurrentMember UUID sellerId, @PathVariable UUID sessionId) {
-        FundingStorySession session = fundingStoryService.getSession(sellerId, sessionId);
+    public FundingStorySessionResponse getSession(@LoginUser CurrentUser user, @PathVariable UUID sessionId) {
+        FundingStorySession session = fundingStoryService.getSession(user.id(), sessionId);
         return toResponse(session);
     }
 
     @Operation(summary = "펀딩스토리 결과를 프로젝트에 반영", description = "AI 결과(또는 수정본)를 프로젝트 스토리에 적용한다.")
     @PatchMapping("/ai/funding-story/sessions/{sessionId}/apply")
     public FundingStoryApplyResponse apply(
-            @CurrentMember UUID sellerId, @PathVariable UUID sessionId,
+            @LoginUser CurrentUser user, @PathVariable UUID sessionId,
             @Valid @RequestBody FundingStoryApplyRequest request) {
         Map<String, String> editsBySectionType = request.edits() == null ? Map.of() : request.edits().stream()
                 .collect(Collectors.toMap(e -> e.sectionType(), e -> e.body(), (a, b) -> b));
-        Project project = fundingStoryService.applyToProject(sellerId, sessionId, request.mode(), editsBySectionType);
+        Project project = fundingStoryService.applyToProject(user.id(), sessionId, request.mode(), editsBySectionType);
         return new FundingStoryApplyResponse(project.getPublicId(), project.getUpdatedAt());
     }
 
