@@ -39,7 +39,7 @@ K8s(dev/prod)에서는 파드마다 네트워크 네임스페이스가 분리되
 | order-service | 8084 |
 | payment-service | 8085 |
 | live-service | 8086 |
-| shipping-service | 8087 |
+| fulfillment-service | 8087 |
 | notification-service | 8088 |
 
 ```yaml
@@ -116,7 +116,7 @@ networks:
   | order-service | 5435 |
   | payment-service | 5436 |
   | live-service | 5437 |
-  | shipping-service | 5438 |
+  | fulfillment-service | 5438 |
   | notification-service | 5439 |
 
 > CI(GitHub Actions)에서는 이 파일을 쓰지 않는다 — Testcontainers가 테스트 실행 중에 자체적으로 컨테이너를 관리한다(`test-convention.md` 참고). 로컬 편의용 정의와 테스트 인프라 정의를 같은 파일로 섞지 않는다.

@@ -13,6 +13,7 @@ fundit-backend/                 ← 하나의 레포지토리, 전체를 클론
 ├── services/member-service/
 ├── services/order-service/
 ├── services/payment-service/
+├── services/fulfillment-service/
 └── ...
 ```
 
@@ -109,7 +110,7 @@ curl -s localhost:{로컬 앱 포트}/api/v1/{도메인}/api-docs.yaml > {도메
 Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어주지 않습니다. **명시적으로 `include` 하지 않으면 그 서비스는 빌드에서 아예 빠집니다.** `settings.gradle`의 서비스 배열에 이름을 추가하세요.
 
 ```groovy
-['auth-service', 'member-service', 'order-service', 'payment-service', '{새 서비스명}'].each { svc ->
+['auth-service', 'member-service', 'order-service', 'payment-service', 'fulfillment-service', '{새 서비스명}'].each { svc ->
     if (file("services/${svc}").exists()) {
         include "services:${svc}"
     }
@@ -170,7 +171,7 @@ Gradle은 디렉토리가 존재한다고 자동으로 빌드 대상에 넣어�
 | order-service | `'order-service'` | `ci-order-service.yml` | 8084 | 5435 |
 | payment-service | `'payment-service'` | `ci-payment-service.yml` | 8085 | 5436 |
 | live-service | `'live-service'` | `ci-live-service.yml` | 8086 | 5437 |
-| shipping-service | `'shipping-service'` | `ci-shipping-service.yml` | 8087 | 5438 |
+| fulfillment-service | `'fulfillment-service'` | `ci-fulfillment-service.yml` | 8087 | 5438 |
 | notification-service | `'notification-service'` | `ci-notification-service.yml` | 8088 | 5439 |
 | platform:gateway-service | `'gateway-service'`(platform 배열) | `ci-gateway-service.yml` | 8080 | 해당 없음 |
 

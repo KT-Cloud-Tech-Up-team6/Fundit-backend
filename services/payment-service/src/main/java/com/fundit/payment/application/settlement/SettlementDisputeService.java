@@ -20,9 +20,9 @@ import java.util.UUID;
  * PAYMENT-011 — 정산 이의 신청. 접수 시 대상 배치를 ON_HOLD로 전환한다(PAYMENT-015가 지급
  * 대상에서 제외).
  *
- * <p>[가정] "발송일로부터 7일"의 발송일 기준점을 shipping-service가 아직 없어 알 수 없다 —
- * 배치 생성일({@code createdAt})을 대리 기준으로 사용한다. shipping-service 연동 후 실제
- * 발송일 기준으로 교체해야 한다.
+ * <p>[가정] "발송일로부터 7일"의 발송일 기준점을 fulfillment-service 연동 전이라 알 수 없다 —
+ * 배치 생성일({@code createdAt})을 대리 기준으로 사용한다. fulfillment-service 연동 후 실제
+ * 발송일(shipments.shipped_at) 기준으로 교체해야 한다.
  */
 @Service
 @RequiredArgsConstructor
