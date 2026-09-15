@@ -77,4 +77,4 @@ class 재고_차감 {
 
 ## 통합 테스트
 - `@SpringBootTest`로 스프링 컨텍스트를 띄워 검증
-- 외부 인프라(DB, RabbitMQ 등 실제 사용하는 것만)는 Testcontainers로 대체 — Mock으로 대체하지 않는다
+- 외부 인프라(PostgreSQL, Kafka 등 실제 사용하는 것만)는 Testcontainers로 대체 — Mock으로 대체하지 않는다

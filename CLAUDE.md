@@ -8,7 +8,7 @@
   - `application`: 유스케이스/애플리케이션 서비스, 아웃바운드 포트 인터페이스
   - `domain`: 도메인 모델(엔티티·값 객체), 도메인 예외, 레포지토리 인터페이스(포트)
   - `infrastructure`: JPA 엔티티, 매퍼, 리포지토리 구현체(어댑터), 외부 API 연동, 설정(Bean Config)
-- 공통 규칙: `.claude/rules/`(`api-convention.md`, `error-handling.md`, `test-convention.md`, `security.md`, `persistence-convention.md`, `config-convention.md`)
+- 공통 규칙: `.claude/rules/`(`api-convention.md`, `error-handling.md`, `test-convention.md`, `security.md`, `persistence-convention.md`, `config-convention.md`, `event-convention.md`)
 - 프로젝트 전반 문서: 루트 `docs/`(`PRD.md` — 전체 요구사항 정의서, `development-workflow-guide.md` — 브랜치 전략/Gradle 규칙, `ci-workflow-guide.md` — CI 작성 가이드+템플릿)
 - 서비스별 문서: `services/{service}/docs/`(API 명세서, 예: `auth-domain-api-spec.md`, `member-domain-api-spec.md`). 서비스별 `CLAUDE.md`는 아직 없음 — 해당 서비스 개발 착수 시점에 추가 예정
 
