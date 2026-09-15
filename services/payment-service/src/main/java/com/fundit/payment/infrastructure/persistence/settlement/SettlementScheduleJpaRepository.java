@@ -9,4 +9,7 @@ public interface SettlementScheduleJpaRepository extends JpaRepository<Settlemen
 
     List<SettlementScheduleJpaEntity> findByBatchTypeAndProcessedAtIsNullAndDueAtLessThanEqual(
             String batchType, Instant now);
+
+    /** Kafka at-least-once 재전달로 같은 이벤트가 두 번 와도 실행 대상을 중복 등록하지 않기 위한 멱등 가드. */
+    boolean existsByFundingIdAndBatchType(Long fundingId, String batchType);
 }

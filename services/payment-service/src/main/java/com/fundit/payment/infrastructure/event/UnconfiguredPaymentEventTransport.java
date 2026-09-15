@@ -11,13 +11,13 @@ import org.springframework.stereotype.Component;
 public class UnconfiguredPaymentEventTransport implements PaymentEventTransport {
 
     @Override
-    public void sendPaymentCompleted(PaymentCompletedTransportEvent event) {
+    public void sendPaymentCompleted(PaymentCompletedTransportEvent event, Long outboxId) {
         throw new IllegalStateException(
                 "메시지 브로커가 아직 구성되지 않아 PaymentCompleted를 발행하지 못했습니다. fundingId=" + event.fundingId());
     }
 
     @Override
-    public void sendRefundCompleted(RefundCompletedTransportEvent event) {
+    public void sendRefundCompleted(RefundCompletedTransportEvent event, Long outboxId) {
         throw new IllegalStateException(
                 "메시지 브로커가 아직 구성되지 않아 RefundCompleted를 발행하지 못했습니다. fundingId=" + event.fundingId());
     }

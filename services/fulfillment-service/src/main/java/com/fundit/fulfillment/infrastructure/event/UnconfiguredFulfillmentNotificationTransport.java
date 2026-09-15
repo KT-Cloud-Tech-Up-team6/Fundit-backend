@@ -14,19 +14,19 @@ import org.springframework.stereotype.Component;
 public class UnconfiguredFulfillmentNotificationTransport implements FulfillmentNotificationTransport {
 
     @Override
-    public void sendStaleUpdateReminder(StaleUpdateReminderEvent event) {
+    public void sendStaleUpdateReminder(StaleUpdateReminderEvent event, Long outboxId) {
         throw new IllegalStateException(
                 "notification-service가 아직 구성되지 않아 StaleUpdateReminder를 발행하지 못했습니다. projectId=" + event.projectId());
     }
 
     @Override
-    public void sendScheduleChanged(ScheduleChangedEvent event) {
+    public void sendScheduleChanged(ScheduleChangedEvent event, Long outboxId) {
         throw new IllegalStateException(
                 "notification-service가 아직 구성되지 않아 ScheduleChanged를 발행하지 못했습니다. projectId=" + event.projectId());
     }
 
     @Override
-    public void sendReceiptAutoConfirmed(ReceiptAutoConfirmedEvent event) {
+    public void sendReceiptAutoConfirmed(ReceiptAutoConfirmedEvent event, Long outboxId) {
         throw new IllegalStateException(
                 "notification-service가 아직 구성되지 않아 ReceiptAutoConfirmed를 발행하지 못했습니다. fundingId=" + event.fundingId());
     }

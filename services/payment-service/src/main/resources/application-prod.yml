@@ -6,6 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 internal-api:
   key: ${INTERNAL_API_KEY}

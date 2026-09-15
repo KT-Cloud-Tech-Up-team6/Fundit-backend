@@ -46,7 +46,7 @@ class FulfillmentEventOutboxWorkerUnitTest {
 
         // then
         ArgumentCaptor<StaleUpdateReminderEvent> captor = ArgumentCaptor.forClass(StaleUpdateReminderEvent.class);
-        verify(transport).sendStaleUpdateReminder(captor.capture());
+        verify(transport).sendStaleUpdateReminder(captor.capture(), any());
         assertThat(captor.getValue().projectId()).isEqualTo(123L);
         assertThat(event.getPublishedAt()).isNotNull();
     }
@@ -60,7 +60,7 @@ class FulfillmentEventOutboxWorkerUnitTest {
                 .projectId(123L)
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
-        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendStaleUpdateReminder(any());
+        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendStaleUpdateReminder(any(), any());
 
         // when
         worker.publishPending();

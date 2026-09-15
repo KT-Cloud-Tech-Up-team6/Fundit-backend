@@ -17,7 +17,7 @@ class UnconfiguredFulfillmentNotificationTransportUnitTest {
 
     @Test
     void 미등록_알림_발행은_브로커_미구성_예외를_던진다() {
-        assertThatThrownBy(() -> transport.sendStaleUpdateReminder(new StaleUpdateReminderEvent(123L)))
+        assertThatThrownBy(() -> transport.sendStaleUpdateReminder(new StaleUpdateReminderEvent(123L), 1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("StaleUpdateReminder")
                 .hasMessageContaining("123");
@@ -26,14 +26,14 @@ class UnconfiguredFulfillmentNotificationTransportUnitTest {
     @Test
     void 일정변경_알림_발행은_브로커_미구성_예외를_던진다() {
         assertThatThrownBy(() -> transport.sendScheduleChanged(new ScheduleChangedEvent(123L,
-                FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE, Instant.now())))
+                FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE, Instant.now()), 2L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ScheduleChanged");
     }
 
     @Test
     void 자동확정_알림_발행은_브로커_미구성_예외를_던진다() {
-        assertThatThrownBy(() -> transport.sendReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(1024L)))
+        assertThatThrownBy(() -> transport.sendReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(1024L), 3L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("ReceiptAutoConfirmed")
                 .hasMessageContaining("1024");

@@ -1,5 +1,6 @@
 package com.fundit.order.infrastructure.event;
 
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.funding.FundingEventPublisher;
 import com.fundit.order.infrastructure.persistence.event.FundingEventOutboxJpaEntity;
 import com.fundit.order.infrastructure.persistence.event.FundingEventOutboxJpaRepository;
@@ -14,6 +15,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,7 +61,8 @@ class FundingEventOutboxIntegrationTest {
     void 워커가_발행에_성공하면_published_at이_채워진다() {
         // given
         fundingEventPublisher.publishFundingGoalFailed(new FundingEventPublisher.FundingGoalFailedEvent(11L, 10L));
-        FundingEventOutboxWorker worker = new FundingEventOutboxWorker(outboxRepository, succeedingTransport(), 50);
+        FundingEventOutboxWorker worker =
+                new FundingEventOutboxWorker(outboxRepository, succeedingTransport(), stubOwnershipClient(), 50);
 
         // when
         worker.publishPending();
@@ -73,7 +77,8 @@ class FundingEventOutboxIntegrationTest {
     void 워커가_발행에_실패하면_미발행으로_남기고_재시도횟수를_올린다() {
         // given
         fundingEventPublisher.publishFundingSucceeded(new FundingEventPublisher.FundingSucceededEvent(12L, 10L));
-        FundingEventOutboxWorker worker = new FundingEventOutboxWorker(outboxRepository, failingTransport(), 50);
+        FundingEventOutboxWorker worker =
+                new FundingEventOutboxWorker(outboxRepository, failingTransport(), stubOwnershipClient(), 50);
 
         // when
         worker.publishPending();
@@ -88,15 +93,16 @@ class FundingEventOutboxIntegrationTest {
     private static FundingEventTransport succeedingTransport() {
         return new FundingEventTransport() {
             @Override
-            public void sendGoalFailed(FundingEventPublisher.FundingGoalFailedEvent event) {
+            public void sendGoalFailed(FundingEventPublisher.FundingGoalFailedEvent event, Long outboxId) {
             }
 
             @Override
-            public void sendSucceeded(FundingEventPublisher.FundingSucceededEvent event) {
+            public void sendSucceeded(FundingEventPublisher.FundingSucceededEvent event, UUID sellerId,
+                                       Instant achievedAt, Long outboxId) {
             }
 
             @Override
-            public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event) {
+            public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event, Long outboxId) {
             }
         };
     }
@@ -104,19 +110,25 @@ class FundingEventOutboxIntegrationTest {
     private static FundingEventTransport failingTransport() {
         return new FundingEventTransport() {
             @Override
-            public void sendGoalFailed(FundingEventPublisher.FundingGoalFailedEvent event) {
+            public void sendGoalFailed(FundingEventPublisher.FundingGoalFailedEvent event, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
 
             @Override
-            public void sendSucceeded(FundingEventPublisher.FundingSucceededEvent event) {
+            public void sendSucceeded(FundingEventPublisher.FundingSucceededEvent event, UUID sellerId,
+                                       Instant achievedAt, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
 
             @Override
-            public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event) {
+            public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
         };
+    }
+
+    /** 이 테스트는 sellerId 조회 자체를 검증 대상으로 삼지 않으므로 항상 값을 반환하는 스텁으로 충분하다. */
+    private static ProjectOwnershipClient stubOwnershipClient() {
+        return projectId -> Optional.of(UUID.randomUUID());
     }
 }
