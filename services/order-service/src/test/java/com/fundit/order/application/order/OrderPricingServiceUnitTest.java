@@ -161,6 +161,26 @@ class OrderPricingServiceUnitTest {
         }
 
         @Test
+        void 예산이_소진된_쿠폰은_BUDGET_EXCEEDED로_분류된다() {
+            // given — 할인액 2,000인데 이미 사용된 예산이 9,000이고 한도가 10,000이라 여유가 1,000뿐
+            Coupon coupon = couponBase("BUDGETOUT", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(2_000).budgetLimit(10_000L).usedBudgetAmount(9_000L).build();
+            CouponIssuance issuance = CouponIssuance.issue("BUDGETOUT", MEMBER_ID);
+            when(couponRepository.findByCouponCode("BUDGETOUT")).thenReturn(Optional.of(coupon));
+            when(couponIssuanceRepository.findByCouponCodeAndOwnerId("BUDGETOUT", MEMBER_ID))
+                    .thenReturn(Optional.of(issuance));
+
+            // when
+            OrderPricingService.PricingResult result = service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("BUDGETOUT"));
+
+            // then
+            assertThat(result.appliedCoupons()).isEmpty();
+            assertThat(result.unavailableCoupons()).singleElement()
+                    .isEqualTo(new OrderPricingService.UnavailableCoupon("BUDGETOUT", "BUDGET_EXCEEDED"));
+        }
+
+        @Test
         void 플랫폼쿠폰과_메이커쿠폰을_각각_하나씩_적용할_수_있다() {
             // given
             Coupon platform = couponBase("PLAT", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)

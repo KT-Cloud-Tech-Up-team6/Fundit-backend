@@ -69,6 +69,7 @@ class OrderCreateServiceUnitTest {
         OrderPricingService.PricingResult pricing = pricingResultWithCoupon();
         when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any())).thenReturn(pricing);
         when(inventoryRepository.decreaseStock(REWARD_ID, 2)).thenReturn(true);
+        when(couponRepository.increaseUsedBudget("WELCOME", 2_000L)).thenReturn(true);
         when(projectSummaryClient.getProjectTitle(PROJECT_ID)).thenReturn(Optional.of("프로젝트"));
         Funding savedFunding = Funding.builder().id(100L).publicId(UUID.randomUUID()).memberId(MEMBER_ID)
                 .projectId(PROJECT_ID).projectTitle("프로젝트")

@@ -83,3 +83,7 @@ cd services/project-service && docker compose up -d
 - project_follows/reviews 테이블을 사용하는 API를 이번 슬라이스에 슬쩍 포함시키지 말 것 — 소유권 재검토·범위 미정 (MvpImplementationSummary.md에서 먼저 확인)
 - 카테고리(categories)를 생성/수정하는 API를 만들지 말 것 — 읽기 전용 마스터 데이터
 - 클라이언트가 보낸 이미지/영상 URL을 검증 없이 그대로 저장하지 말 것 — 반드시 MediaUrlValidator로 경로·S3 실존·크기를 확인한 뒤 저장 (업로드 주소 발급 API를 거치지 않은 URL 차단)
+
+## 정책값 / 확인 필요 사항
+
+- `ProjectReviewService.DEFAULT_FUNDING_PERIOD`(`application/project/ProjectReviewService.java:25`) — 심사 승인(PROJECT-030) 시 `funding_deadline`을 계산하는 모금기간 기본값을 30일로 가정해뒀다. PRD/API 명세서 어디에도 이 값이 명시돼 있지 않아 코드 상수로만 고정한 상태 — 기획 확정 필요. 값이 확정되면 이 상수만 바꾸면 된다.

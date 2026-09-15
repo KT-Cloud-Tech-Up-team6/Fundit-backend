@@ -80,6 +80,24 @@ class PaymentEventSyncServiceUnitTest {
         }
 
         @Test
+        void 이미_만료된_쿠폰은_환불로_복원하지_않는다() {
+            // given — CouponExpirationBatchScheduler가 이미 EXPIRED로 전이시킨 상태
+            CouponIssuance issuance = CouponIssuance.issue("WELCOME", UUID.randomUUID());
+            issuance.markUsed(1L);
+            issuance.restore(); // AVAILABLE로 되돌린 뒤
+            issuance.expireIfAvailable(); // 다시 EXPIRED로 — 테스트에서 상태만 만들기 위한 경로
+            when(couponIssuanceRepository.findById(5L)).thenReturn(Optional.of(issuance));
+
+            // when
+            paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
+                    1L, 5L, PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
+
+            // then
+            assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.EXPIRED);
+            verify(couponIssuanceRepository, never()).save(any());
+        }
+
+        @Test
         void 마감전_단순변심_취소는_쿠폰을_복원하지_않는다() {
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(

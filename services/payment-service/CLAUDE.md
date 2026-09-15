@@ -289,4 +289,4 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
 - PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.
 - 적립금(`point_transactions`) MVP 포함 여부 미정.
-- 게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록 — 스캐폴딩 시점에 추가 필요(웹훅 경로는 인증 없이 통과하는 라우트여야 함).
+- ~~게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록~~ — 등록 완료(`platform/gateway-service/src/main/resources/application.yml`, `/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**`). 웹훅 경로(`/api/v1/payments/webhook/toss`)도 `X-User-Id` 없는 요청은 필터가 자동 통과시키므로 별도 화이트리스트 없이 정상 동작한다.

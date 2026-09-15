@@ -37,12 +37,16 @@ class CouponIssuancePersistenceAdapterIntegrationTest {
     private CouponJpaRepository couponJpaRepository;
 
     private void seedCoupon(String code) {
+        seedCoupon(code, Instant.now().plus(1, ChronoUnit.DAYS));
+    }
+
+    private void seedCoupon(String code, Instant expiresAt) {
         couponJpaRepository.save(CouponJpaEntity.builder()
                 .couponCode(code).couponName("쿠폰")
                 .discountType("AMOUNT").discountValue(1_000)
                 .issuerType("PLATFORM").targetScope("ALL")
                 .minFundingAmount(0).perMemberLimit(1).remainingQuantity(10)
-                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel("GENERAL")
+                .expiresAt(expiresAt).issueChannel("GENERAL")
                 .version(0).build());
     }
 
@@ -91,5 +95,27 @@ class CouponIssuancePersistenceAdapterIntegrationTest {
         // when & then
         assertThat(couponIssuanceRepository.countByCouponCodeAndOwnerId("CODE4", memberId)).isEqualTo(1);
         assertThat(couponIssuanceRepository.countByCouponCodeAndOwnerId("CODE4", UUID.randomUUID())).isZero();
+    }
+
+    @Test
+    void AVAILABLE이고_쿠폰유효기간이_지난_발급건만_만료대상으로_조회한다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        Instant past = Instant.now().minus(1, ChronoUnit.DAYS);
+        seedCoupon("EXPIRED-AVAILABLE", past); // 대상이어야 함
+        seedCoupon("EXPIRED-USED", past); // 만료됐지만 이미 USED — 대상 아님
+        seedCoupon("NOT-EXPIRED", Instant.now().plus(1, ChronoUnit.DAYS)); // 아직 유효 — 대상 아님
+
+        couponIssuanceRepository.save(CouponIssuance.issue("EXPIRED-AVAILABLE", memberId));
+        CouponIssuance used = CouponIssuance.issue("EXPIRED-USED", memberId);
+        used.markUsed(1L);
+        couponIssuanceRepository.save(used);
+        couponIssuanceRepository.save(CouponIssuance.issue("NOT-EXPIRED", memberId));
+
+        // when
+        var targets = couponIssuanceRepository.findAvailableExpired(Instant.now());
+
+        // then
+        assertThat(targets).extracting(CouponIssuance::getCouponCode).containsExactly("EXPIRED-AVAILABLE");
     }
 }

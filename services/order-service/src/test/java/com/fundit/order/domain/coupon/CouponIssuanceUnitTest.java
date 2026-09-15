@@ -58,4 +58,31 @@ class CouponIssuanceUnitTest {
         assertThat(issuance.getUsedFundingId()).isNull();
         assertThat(issuance.getRestoredAt()).isNotNull();
     }
+
+    @Test
+    void AVAILABLE이면_만료처리에_성공한다() {
+        // given
+        CouponIssuance issuance = CouponIssuance.issue("CODE1", UUID.randomUUID());
+
+        // when
+        boolean expired = issuance.expireIfAvailable();
+
+        // then
+        assertThat(expired).isTrue();
+        assertThat(issuance.getStatus()).isEqualTo(CouponIssuanceStatus.EXPIRED);
+    }
+
+    @Test
+    void AVAILABLE이_아니면_만료처리를_건너뛴다() {
+        // given
+        CouponIssuance issuance = CouponIssuance.issue("CODE1", UUID.randomUUID());
+        issuance.markUsed(100L);
+
+        // when
+        boolean expired = issuance.expireIfAvailable();
+
+        // then
+        assertThat(expired).isFalse();
+        assertThat(issuance.getStatus()).isEqualTo(CouponIssuanceStatus.USED);
+    }
 }

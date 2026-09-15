@@ -45,7 +45,8 @@ class ShippingDelayRefundServiceUnitTest {
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
-        when(shippingStatusClient.isAlreadyShipped(FUNDING_ID)).thenReturn(false);
+        when(shippingStatusClient.fetch(FUNDING_ID))
+                .thenReturn(new ShippingStatusClient.ShippingStatus(false, false, null, null));
         when(refundExecutionService.executeFullRefundOrAwaitAlternateAccount(FUNDING_ID,
                 RefundTriggerType.SHIPPING_DELAY, "발송지연 결제취소"))
                 .thenReturn(new RefundExecutionService.RefundExecutionResult(9L, "COMPLETED", true));
