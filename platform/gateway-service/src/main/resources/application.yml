@@ -31,10 +31,17 @@ spring:
               uri: ${downstream.payment-service-base-url}
               predicates:
                 - Path=/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**
+            # GET /internal/fundings/{fundingId}/fulfillment-status(내부 전용)는 이 패턴에
+            # 걸리지 않는다 — 별도 prefix(/internal/**)라 fulfillment-service 라우트 자체가
+            # 안 걸리므로 JwtHeaderGlobalFilter의 404 차단을 확인하려면 그 경로를 이 라우트에도
+            # 추가해야 한다(현재는 라우팅되지 않아 프록시 자체가 안 됨 — 별도 이슈로 남겨둠).
+            # project-service 라우트를 나중에 넓게(예: Path=/api/v1/projects/**) 추가할 때는
+            # 이 라우트보다 뒤에 정의할 것 — Spring Cloud Gateway는 정의 순서대로 첫 매치를
+            # 취하므로, 더 구체적인 이 predicate가 먼저 와야 fulfillment 요청을 가로채지 않는다.
             - id: fulfillment-service
               uri: ${downstream.fulfillment-service-base-url}
               predicates:
-                - Path=/api/v1/fulfillments/**
+                - Path=/api/v1/projects/*/fulfillment/**,/api/v1/projects/*/fundings/*/shipment/**
 
 management:
   endpoints:

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -22,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** coupon_issuances는 coupons.coupon_code를 FK로 참조하므로 발급 전 쿠폰 템플릿을 먼저 저장한다. */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 @Transactional
 class CouponIssuancePersistenceAdapterIntegrationTest {
 

@@ -7,7 +7,8 @@ import com.fundit.order.application.order.OrderPreviewService;
 import com.fundit.order.application.order.OrderPricingService;
 import com.fundit.order.application.order.OrderQueryService;
 import com.fundit.order.domain.funding.FundingStatus;
-import com.fundit.order.infrastructure.security.CurrentMember;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.order.presentation.dto.OrderCancelResponse;
 import com.fundit.order.presentation.dto.OrderCreateResponse;
 import com.fundit.order.presentation.dto.OrderDetailResponse;
@@ -45,17 +46,17 @@ public class OrderController {
 
     /** ORDER-002/010 — 결제금액 계산(미리보기, 쿠폰 적용/해제 포함). 비영속. */
     @PostMapping("/preview")
-    public OrderPreviewResponse preview(@CurrentMember UUID memberId, @Valid @RequestBody OrderPreviewRequest request) {
+    public OrderPreviewResponse preview(@LoginUser CurrentUser user, @Valid @RequestBody OrderPreviewRequest request) {
         OrderPricingService.PricingResult result = orderPreviewService.preview(
-                memberId, request.projectId(), toLineItems(request.lineItems()), request.couponCodes());
+                user.id(), request.projectId(), toLineItems(request.lineItems()), request.couponCodes());
         return OrderPreviewResponse.from(result);
     }
 
     /** ORDER-003 — 펀딩 주문 생성(재고 검증/차감). */
     @PostMapping
-    public ResponseEntity<OrderCreateResponse> create(@CurrentMember UUID memberId,
+    public ResponseEntity<OrderCreateResponse> create(@LoginUser CurrentUser user,
                                                         @Valid @RequestBody OrderPreviewRequest request) {
-        OrderCreateService.OrderCreateResult result = orderCreateService.create(memberId, request.projectId(),
+        OrderCreateService.OrderCreateResult result = orderCreateService.create(user.id(), request.projectId(),
                 toLineItems(request.lineItems()), request.shippingAddress().toDomain(), request.couponCodes());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(OrderCreateResponse.from(result.funding(), result.finalAmount()));
@@ -63,23 +64,23 @@ public class OrderController {
 
     /** ORDER-004 — 내 펀딩 참여 목록 조회. */
     @GetMapping
-    public PageResponse<OrderSummaryResponse> list(@CurrentMember UUID memberId,
+    public PageResponse<OrderSummaryResponse> list(@LoginUser CurrentUser user,
                                                      @RequestParam(required = false) FundingStatus status,
                                                      @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(orderQueryService.listMyOrders(memberId, status, pageable)
+        return PageResponse.from(orderQueryService.listMyOrders(user.id(), status, pageable)
                 .map(OrderSummaryResponse::from));
     }
 
     /** ORDER-005 — 개별 펀딩 참여 상세 조회. */
     @GetMapping("/{orderId}")
-    public OrderDetailResponse detail(@CurrentMember UUID memberId, @PathVariable UUID orderId) {
-        return OrderDetailResponse.from(orderQueryService.getDetail(memberId, orderId));
+    public OrderDetailResponse detail(@LoginUser CurrentUser user, @PathVariable UUID orderId) {
+        return OrderDetailResponse.from(orderQueryService.getDetail(user.id(), orderId));
     }
 
     /** ORDER-014 — 참여 취소(단순변심). */
     @PostMapping("/{orderId}/cancel")
-    public OrderCancelResponse cancel(@CurrentMember UUID memberId, @PathVariable UUID orderId) {
-        return OrderCancelResponse.from(orderCancelService.cancel(memberId, orderId));
+    public OrderCancelResponse cancel(@LoginUser CurrentUser user, @PathVariable UUID orderId) {
+        return OrderCancelResponse.from(orderCancelService.cancel(user.id(), orderId));
     }
 
     private List<OrderLineItemRequest> toLineItems(List<OrderLineItemRequestDto> dtos) {

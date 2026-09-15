@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Funding 애그리거트(루트 + line_items + options 3개 플랫 테이블 수동 조합)의 JPA 배선을 검증한다. */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 @Transactional
 class FundingPersistenceAdapterIntegrationTest {
 

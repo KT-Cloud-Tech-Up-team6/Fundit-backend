@@ -7,6 +7,9 @@ spring:
     hibernate:
       ddl-auto: validate
 
+internal-api:
+  key: ${INTERNAL_API_KEY}
+
 order:
   integration:
     project-service:

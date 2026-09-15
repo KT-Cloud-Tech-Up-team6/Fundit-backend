@@ -6,13 +6,13 @@ import com.fundit.order.domain.coupon.CouponTargetScope;
 import com.fundit.order.domain.coupon.DiscountType;
 import com.fundit.order.domain.coupon.IssueChannel;
 import com.fundit.order.domain.coupon.IssuerType;
-import com.fundit.order.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.order.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.order.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,8 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SellerCouponController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class SellerCouponControllerTest {
+
+    private static final String INTERNAL_KEY = "test-only-internal-api-key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -50,7 +53,8 @@ class SellerCouponControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/sellers/coupons")
-                        .header("X-Account-Id", sellerId.toString())
+                        .header("X-User-Id", sellerId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("""
                                 {

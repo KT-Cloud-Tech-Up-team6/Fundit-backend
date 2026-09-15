@@ -2,6 +2,8 @@ package com.fundit.project.application.ai;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.media.MediaCategory;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.aifundingstory.FundingStoryAnswer;
 import com.fundit.project.domain.aifundingstory.FundingStoryResult;
 import com.fundit.project.domain.aifundingstory.FundingStorySection;
@@ -29,6 +31,7 @@ public class FundingStoryService {
     private final ProjectRepository projectRepository;
     private final FundingStorySessionRepository sessionRepository;
     private final FundingStoryAiClient fundingStoryAiClient;
+    private final MediaUrlValidator mediaUrlValidator;
 
     /**
      * 실제 외부 AI 연동 전까지는 목 생성기가 동기적으로 즉시 완료 처리한다(FundingStoryAiClient
@@ -41,6 +44,14 @@ public class FundingStoryService {
                                               String productDescription, List<String> productImageUrls,
                                               List<FundingStoryAnswer> answers) {
         Project project = loadOwnedProject(sellerId, projectPublicId);
+        // 업로드 주소 발급(POST /media/upload-url)을 거치지 않은 URL이 AI 입력으로도 들어오지
+        // 못하게 막는다 — ProjectService.updateStory()와 동일한 근거(CLAUDE.md "절대 하지 말아야
+        // 할 것": 클라이언트가 보낸 이미지 URL을 검증 없이 저장하지 않는다).
+        if (productImageUrls != null) {
+            for (String imageUrl : productImageUrls) {
+                mediaUrlValidator.validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
+            }
+        }
 
         FundingStorySession session = sessionRepository.save(FundingStorySession.create(
                 UuidCreator.getTimeOrderedEpoch(), project.getId(), sellerId,
@@ -72,6 +83,14 @@ public class FundingStoryService {
             merged.addAll(project.getIntroContent());
         }
         merged.addAll(generated);
+
+        // ProjectService.updateStory()가 지키는 검증을 이 경로도 동일하게 거친다 — AI 결과가
+        // project.updateStory()를 직접 호출해서 그 검증을 우회하면 안 된다.
+        for (IntroContentBlock block : merged) {
+            if (block.type() == IntroContentType.IMAGE) {
+                mediaUrlValidator.validate(project.getPublicId(), block.value(), MediaCategory.IMAGE);
+            }
+        }
 
         project.updateStory(null, null, merged);
         return projectRepository.save(project);
