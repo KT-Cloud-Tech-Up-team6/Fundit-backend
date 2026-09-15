@@ -105,7 +105,7 @@ jobs:
 3. 테스트 코드 — `@Container` + `@ServiceConnection`으로 연결하면 끝.
 
 - DB: 예시에 MySQL이 있어도 이 프로젝트는 PostgreSQL 기준입니다.
-- 메시징(Kafka/RabbitMQ): 기술 자체가 아직 미확정이니, 확정 전까지는 넣지 않습니다.
+- 메시징: **Kafka로 확정**(2026-09-11). DB와 같은 방식입니다 — CI에 서비스 컨테이너를 넣지 말고, 그 브로커를 실제로 쓰는 서비스만 `testcontainers-kafka`를 테스트 의존성에 추가해 Testcontainers로 띄웁니다. 토픽명·payload 규약은 `.claude/rules/event-convention.md` 참고.
 
 ## sparse-checkout — 실제 존재하는 경로만
 
