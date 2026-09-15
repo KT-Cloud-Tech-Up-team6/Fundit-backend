@@ -1,0 +1,79 @@
+name: CI - modules
+
+# 공용 라이브러리 모듈(modules/common, modules/common-webmvc) 전용 워크플로.
+#
+# 왜 별도 워크플로가 필요한가: 서비스 CI는 `:services:{svc}:build`만 돌리는데, 이건
+# modules의 `jar`까지만 의존하고 `test`는 건드리지 않는다(`--dry-run`으로 확인 가능).
+# 서비스 CI의 paths-filter에 modules/**가 있어 "트리거"는 되지만 modules 테스트는 실행되지 않아,
+# common-webmvc의 인증 필터 회귀 테스트가 7개 서비스를 보호하면서도 CI에서 한 번도 안 돌고 있었다.
+#
+# 서비스 CI에 modules 테스트를 추가하지 않는 이유: 8곳에서 중복 실행된다.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # actions/checkout
+      pull-requests: read  # dorny/paths-filter가 PR 변경 파일 목록을 API로 조회할 때 필요
+    outputs:
+      relevant: ${{ steps.filter.outputs.modules == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            modules:
+              - 'modules/**'
+              - 'build.gradle'
+              - 'settings.gradle'
+              - 'gradle/**'
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            modules/common
+            modules/common-webmvc
+            build.gradle
+            settings.gradle
+            gradlew
+            gradle
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      # jacoco 커버리지 검증은 걸지 않는다 — KafkaTopics처럼 상수만 있는 클래스는 실행 라인이
+      # 사실상 없어, 서비스 기준(80%)을 그대로 적용하면 의미 없이 실패한다.
+      # 아티팩트 업로드도 없다 — modules는 라이브러리라 배포용 bootJar이 없다.
+      - name: Test
+        run: ./gradlew :modules:common:test :modules:common-webmvc:test --stacktrace
+
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-modules
+          path: modules/*/build/reports/tests/test/
