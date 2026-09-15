@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 @Transactional
 class InventoryPersistenceAdapterIntegrationTest {
 

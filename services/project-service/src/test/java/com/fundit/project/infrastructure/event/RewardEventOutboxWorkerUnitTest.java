@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +48,7 @@ class RewardEventOutboxWorkerUnitTest {
         worker.publishPending();
 
         // then
-        verify(transport).sendCreated(new RewardCreatedEvent(10L, 1L, true, 100));
+        verify(transport).sendCreated(new RewardCreatedEvent(10L, 1L, true, 100), 1L);
         assertThat(event.getPublishedAt()).isNotNull();
         assertThat(event.getAttemptCount()).isZero();
     }
@@ -60,7 +61,7 @@ class RewardEventOutboxWorkerUnitTest {
                 .rewardId(10L).projectId(1L).isLimited(false).quantity(null).build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any(Pageable.class)))
                 .thenReturn(List.of(event));
-        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendUpdated(any(RewardUpdatedEvent.class));
+        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendUpdated(any(RewardUpdatedEvent.class), anyLong());
 
         // when
         worker.publishPending();

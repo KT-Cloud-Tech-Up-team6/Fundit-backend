@@ -69,7 +69,8 @@ class ShippingDelayRefundServiceUnitExceptionTest {
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
-        when(shippingStatusClient.isAlreadyShipped(FUNDING_ID)).thenReturn(true);
+        when(shippingStatusClient.fetch(FUNDING_ID))
+                .thenReturn(new ShippingStatusClient.ShippingStatus(true, false, null, null));
 
         assertThatThrownBy(() -> shippingDelayRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)

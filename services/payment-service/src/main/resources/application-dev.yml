@@ -6,6 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 internal-api:
   key: ${INTERNAL_API_KEY}
@@ -24,3 +26,9 @@ order:
     funding-client:
       mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
     base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
+
+fulfillment:
+  integration:
+    shipping-status-client:
+      mode: ${SHIPPING_STATUS_CLIENT_MODE:stub}
+    base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}

@@ -33,6 +33,10 @@ public class CommunityService {
     public CommunityPostJpaEntity createPost(UUID memberId, UUID projectPublicId, String postType, String content) {
         Project project = projectRepository.findByPublicId(projectPublicId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        // 비공개 프로젝트는 본인(판매자)만 글쓰기 가능 — listPosts와 동일 기준(존재 자체를 노출하지 않는다).
+        if (!project.isPublic() && !project.isOwnedBy(memberId)) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        }
         return postJpaRepository.save(CommunityPostJpaEntity.builder()
                 .projectId(project.getId())
                 .memberId(memberId)

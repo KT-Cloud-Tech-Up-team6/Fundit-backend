@@ -11,9 +11,10 @@ import com.fundit.fulfillment.application.notification.FulfillmentNotificationPu
  */
 public interface FulfillmentNotificationTransport {
 
-    void sendStaleUpdateReminder(StaleUpdateReminderEvent event);
+    /** outboxId는 소비 측 멱등의 근거가 되는 eventId("fulfillment:{outboxId}")의 재료다(event-convention.md 5번). */
+    void sendStaleUpdateReminder(StaleUpdateReminderEvent event, Long outboxId);
 
-    void sendScheduleChanged(ScheduleChangedEvent event);
+    void sendScheduleChanged(ScheduleChangedEvent event, Long outboxId);
 
-    void sendReceiptAutoConfirmed(ReceiptAutoConfirmedEvent event);
+    void sendReceiptAutoConfirmed(ReceiptAutoConfirmedEvent event, Long outboxId);
 }

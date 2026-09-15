@@ -11,7 +11,7 @@ class UnconfiguredPaymentEventTransportUnitTest {
     @Test
     void 결제완료_발행은_브로커_미구성_예외를_던진다() {
         assertThatThrownBy(() -> transport.sendPaymentCompleted(
-                new PaymentEventTransport.PaymentCompletedTransportEvent(1024L, 7L)))
+                new PaymentEventTransport.PaymentCompletedTransportEvent(1024L, 7L), 1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("PaymentCompleted")
                 .hasMessageContaining("1024");
@@ -20,7 +20,7 @@ class UnconfiguredPaymentEventTransportUnitTest {
     @Test
     void 환불완료_발행은_브로커_미구성_예외를_던진다() {
         assertThatThrownBy(() -> transport.sendRefundCompleted(
-                new PaymentEventTransport.RefundCompletedTransportEvent(2048L, null, "CANCELLED_BY_MEMBER", true)))
+                new PaymentEventTransport.RefundCompletedTransportEvent(2048L, null, "CANCELLED_BY_MEMBER", true), 2L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("RefundCompleted")
                 .hasMessageContaining("2048");

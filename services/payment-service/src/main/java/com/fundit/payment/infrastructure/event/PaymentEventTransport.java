@@ -7,9 +7,10 @@ package com.fundit.payment.infrastructure.event;
  */
 public interface PaymentEventTransport {
 
-    void sendPaymentCompleted(PaymentCompletedTransportEvent event);
+    /** outboxId는 소비 측 멱등의 근거가 되는 eventId("payment:{outboxId}")의 재료다(event-convention.md 5번). */
+    void sendPaymentCompleted(PaymentCompletedTransportEvent event, Long outboxId);
 
-    void sendRefundCompleted(RefundCompletedTransportEvent event);
+    void sendRefundCompleted(RefundCompletedTransportEvent event, Long outboxId);
 
     record PaymentCompletedTransportEvent(Long fundingId, Long couponIssuanceId) {
     }

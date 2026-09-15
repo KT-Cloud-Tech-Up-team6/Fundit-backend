@@ -9,7 +9,8 @@ import com.fundit.project.application.reward.RewardEventPublisher.RewardUpdatedE
  */
 public interface RewardEventTransport {
 
-    void sendCreated(RewardCreatedEvent event);
+    /** outboxId는 소비 측 멱등의 근거가 되는 eventId("project:{outboxId}")의 재료다(event-convention.md 5번). */
+    void sendCreated(RewardCreatedEvent event, Long outboxId);
 
-    void sendUpdated(RewardUpdatedEvent event);
+    void sendUpdated(RewardUpdatedEvent event, Long outboxId);
 }

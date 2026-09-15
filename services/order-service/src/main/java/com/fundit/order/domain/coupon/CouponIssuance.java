@@ -54,7 +54,12 @@ public class CouponIssuance {
         this.restoredAt = Instant.now();
     }
 
-    public void expire() {
+    /** @return true면 이번 호출로 만료 처리됨, false면 이미 AVAILABLE이 아니었음(idempotent). */
+    public boolean expireIfAvailable() {
+        if (status != CouponIssuanceStatus.AVAILABLE) {
+            return false;
+        }
         this.status = CouponIssuanceStatus.EXPIRED;
+        return true;
     }
 }
