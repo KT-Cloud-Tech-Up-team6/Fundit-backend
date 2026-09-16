@@ -18,7 +18,10 @@
 | GET | `/api/v1/members/me` | O | 내 프로필 조회 |
 | PUT | `/api/v1/wishes/{projectId}` | O | 찜 등록(idempotent) |
 | DELETE | `/api/v1/wishes/{projectId}` | O | 찜 해제(idempotent) |
-| GET | `/api/v1/wishes` | O | 내 찜 목록 조회 |
+| GET | `/api/v1/wishes` | O | 내 찜 **프로젝트** 목록 조회 |
+| PUT | `/api/v1/follows/{sellerId}` | O | 판매자 팔로우(idempotent) |
+| DELETE | `/api/v1/follows/{sellerId}` | O | 팔로우 해제(idempotent) |
+| GET | `/api/v1/follows` | O | 내 팔로우 **판매자** 목록 조회 |
 | GET | `/api/v1/addresses` | O | 배송지 목록 조회 |
 | POST | `/api/v1/addresses` | O | 배송지 등록 |
 
@@ -214,7 +217,94 @@ Response Body
 Validation / Business Rules
 
 - 본인 찜 목록만 조회 가능.
+- 이 응답은 **프로젝트만** 담는다. 마이페이지의 "찜한 판매자" 목록은 `GET /api/v1/follows`(MEMBER-007)다 — 응답 아이템 모양이 달라 한 엔드포인트에 섞으면 페이지네이션이 하나로 묶여 탭 전환마다 커서가 꼬인다.
 - `projectTitle`/`projectThumbnailUrl`은 `wishes` 테이블에 저장된 스냅샷 컬럼을 그대로 반환한다(catalog-service를 실시간 호출하지 않음). catalog-service가 발행하는 프로젝트 변경 이벤트를 구독해 동기화하므로, 프로젝트 정보가 바뀐 직후 아주 짧은 시간(최종적 일관성) 동안은 옛 값이 보일 수 있다.
+
+---
+
+### 판매자 팔로우 (MEMBER-007)
+
+```
+PUT /api/v1/follows/{sellerId}
+```
+
+Auth Required: **O**
+
+Request Body: 없음
+
+Response Body
+
+```json
+{ "sellerId": "018e5678-abcd-7xxx-xxxx-xxxxxxxxxxxx", "following": true }
+```
+
+Validation / Business Rules
+
+- **Idempotent.** 이미 팔로우한 판매자에 대한 요청도 200으로 응답(`ON CONFLICT DO NOTHING`).
+- 본인을 팔로우하려는 시도 → 400 (`INVALID_INPUT`).
+- 존재하지 않거나 탈퇴한 회원 → 404 (`NOT_FOUND`).
+- 대상이 "판매자"인지는 검증하지 않는다 — `members`에 판매자 구분 컬럼이 없다.
+
+---
+
+### 팔로우 해제 (MEMBER-007)
+
+```
+DELETE /api/v1/follows/{sellerId}
+```
+
+Auth Required: **O**
+
+Response Body: 없음 (204 No Content)
+
+Validation / Business Rules
+
+- **Idempotent.** 팔로우하지 않은 상대에 대한 해제 요청도 204.
+- 팔로우와 달리 **대상 존재를 확인하지 않는다** — 확인하면 "이미 지워진 걸 지우는" 재시도가 404로 바뀐다.
+
+---
+
+### 내 팔로우 목록 조회 (MEMBER-007 / MEMBER-006 화면)
+
+```
+GET /api/v1/follows
+```
+
+Auth Required: **O**
+
+Query Parameter
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `page` | Int | N | 페이지 번호 (기본값 0) |
+| `size` | Int | N | 페이지당 개수 (기본값 20, 최대 100) |
+
+Response Body
+
+```json
+{
+  "content": [
+    {
+      "sellerId": "018e5678-abcd-7xxx-xxxx-xxxxxxxxxxxx",
+      "sellerName": "김판매",
+      "sellerNickname": "판매왕",
+      "createdAt": "2026-08-20T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "hasNext": false
+}
+```
+
+Validation / Business Rules
+
+- 본인 팔로우 목록만 조회 가능(`memberId`를 요청으로 받지 않는다).
+- `sellerName`/`sellerNickname`은 **스냅샷이 아니라 `members` 조인 결과**다 — 찜(`wishes`)과 달리 대상이 같은 DB에 있어 복사할 이유가 없고, 복사하면 동기화 문제만 새로 생긴다.
+- **탈퇴한 판매자는 목록에서 제외된다**(`members.deleted_at`) — 남아 있으면 클릭했을 때 없는 프로필로 간다.
+- `nickname`은 nullable이라 `sellerNickname`이 응답에서 생략될 수 있다(`spring.jackson.default-property-inclusion: non_null`).
 
 ---
 
@@ -297,6 +387,8 @@ Validation / Business Rules
 - **[확정, 2026-09-03] 모드 전환 기능 삭제**: `PATCH /members/me/mode`, `currentMode` 필드는 과거 오기로 확인되어 문서에서 완전히 제거(사용자 확인).
 - **[확정, 2026-09-03] `POST /members` 요청 계약 정정**: `agreedTerms`는 `List<String>`(동의한 약관 코드만), `email`은 받되 저장하지 않음 — auth-service의 실제 코드(`MemberServiceClient.CreateMemberProfileCommand`) 기준.
 - ~~**[구현 메모, 2026-09-03] 임시 인증 방식**: 게이트웨이가 없어 `X-Account-Id` 헤더를 서명 검증 없이 신뢰~~ **→ 2026-09-07 해소됨.** 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 `X-User-Id`/`X-User-Roles`를 주입하고, 클라이언트가 보낸 같은 이름의 헤더는 게이트웨이에서 제거된다. 서비스 쪽 리졸버는 `modules:common-webmvc`의 `LoginUserArgumentResolver`로 이전됐고(`CurrentMemberArgumentResolver` 삭제), 게이트웨이 우회 직접 호출은 `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`로 차단한다. 설계 근거는 `platform/gateway-service/docs/` 참고.
+- **[확정, 2026-09-16 #58] MEMBER-007 팔로우 복귀**: PM이 MEMBER-006을 "찜한 프로젝트 목록과 찜한 판매자 목록"으로 변경 — 판매자 목록이 필요해져 팔로우를 구현하고 `PUT`/`DELETE`/`GET /api/v1/follows`를 이 문서로 되가져왔다(위 `[확정, 2026-09-03]` 항목 중 007 부분 무효). 목록은 `GET /api/v1/wishes`에 합치지 않는다 — 응답 아이템 모양이 달라 페이지네이션이 하나로 묶인다.
+- **[구현 메모, 2026-09-16 #58] 찜 이벤트 아웃박스**: 찜 등록/해제가 `wish_event_outbox`에 같은 트랜잭션으로 적재되고 워커가 발행한다. **Kafka 전송 어댑터는 아직 없어** 행이 미발행으로 남아 재시도되며, project-service의 찜 통계는 브로커 배선 이후에 동작한다.
 
 ## ⚠️ 남은 확인 필요 사항
 

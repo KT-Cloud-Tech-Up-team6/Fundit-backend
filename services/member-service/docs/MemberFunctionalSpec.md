@@ -58,7 +58,7 @@
 | 도메인 | 소비자 / 홈·탐색 |
 | Actor | 구매자 |
 | 설명 | 관심 있는 프로젝트를 찜 목록에 저장·해제한다 |
-| 비즈니스 룰 | 찜 상태 저장/삭제, `ProjectWished`/`ProjectUnwished` 이벤트 발행(project-service, search-service 구독용) |
+| 비즈니스 룰 | 찜 상태 저장/삭제. 상태가 실제로 바뀐 경우에만 `ProjectWished`/`ProjectUnwished`를 **같은 트랜잭션에서 아웃박스(`wish_event_outbox`)에 적재**하고, 워커가 `project.wished.v1`/`project.unwished.v1`로 발행한다(project-service 찜 통계 구독용). ⚠️ **Kafka 전송 어댑터는 아직 없다** — 브로커 배선 전까지 행은 미발행으로 남아 재시도된다 |
 | Request | projectId |
 | Response | 찜 상태 |
 | 예외 | - |
@@ -72,12 +72,29 @@
 | 화면코드 | FL_B_HM_01_04 |
 | 도메인 | 소비자 / 홈·탐색 |
 | Actor | 구매자 |
-| 설명 | 마이페이지에서 찜한 프로젝트 목록을 모아본다 |
-| 비즈니스 룰 | 회원 기준 찜 목록 조회. `projectTitle`/`projectThumbnailUrl`은 `wishes` 테이블의 스냅샷 컬럼을 그대로 반환(catalog-service 실시간 호출 안 함) |
-| Request | 페이지네이션 |
-| Response | 찜한 프로젝트 목록 |
+| 설명 | 마이페이지에서 찜한 프로젝트 목록과 찜한 판매자 목록을 모아본다 |
+| 비즈니스 룰 | 회원 기준 찜 목록 조회. `projectTitle`/`projectThumbnailUrl`은 `wishes` 테이블의 스냅샷 컬럼을 그대로 반환(catalog-service 실시간 호출 안 함). **찜한 판매자 목록은 MEMBER-007의 `GET /api/v1/follows`로 별도 제공한다** — 응답 아이템 모양이 달라 한 엔드포인트에 섞으면 페이지네이션이 하나로 묶인다 |
+| Request | 페이지네이션 (두 목록 각각) |
+| Response | 찜한 프로젝트 목록 / 팔로우한 판매자 목록 |
 | 예외 | - |
 | 보안 | [S4] 본인 찜 목록만 조회 가능 |
+
+---
+
+### MEMBER-007 메이커 팔로우/언팔로우
+| 항목 | 내용 |
+| --- | --- |
+| 화면코드 | FL_B_PJ_01_03 |
+| 도메인 | 소비자 / 프로젝트 상세 |
+| Actor | 구매자 |
+| 설명 | 관심 있는 판매자(메이커)를 팔로우하고, 마이페이지에서 팔로우한 판매자 목록을 모아본다 |
+| 비즈니스 룰 | 팔로우 관계 저장/삭제/목록 조회. 팔로우·언팔로우 모두 idempotent(`ON CONFLICT DO NOTHING` / 영향 행 0 허용). 목록의 판매자 이름은 스냅샷이 아니라 `members` 조인으로 가져오고(같은 DB), 탈퇴한 판매자는 제외한다 |
+| Request | sellerId / (목록) 페이지네이션 |
+| Response | 팔로우 상태 / 팔로우한 판매자 목록 |
+| 예외 | 본인을 팔로우하려는 시도 → 400 / 존재하지 않는 회원 → 404 |
+| 보안 | [S4] 본인 계정 기준 처리, 남의 팔로우 목록을 조회할 경로가 없다(memberId를 요청으로 받지 않음) |
+
+> **대상이 "판매자"인지는 검증하지 않습니다.** `members`에 판매자 구분 컬럼이 없어(`isSeller`/`isBuyer`가 둘 다 항상 true) 존재하는 회원인지만 확인합니다. 판매자 심사 정보가 생기면 그때 조건을 추가합니다.
 
 ---
 
@@ -98,4 +115,4 @@
 
 ## MVP 범위 밖 (여기 없음)
 
-MEMBER-003(소셜가입), MEMBER-007(팔로우), MEMBER-008(리워드 품절 알림)은 이 문서에서 제거됐습니다. 전체 스펙·후순위 사유는 `MvpImplementationSummary.md`에서만 관리합니다.
+MEMBER-003(소셜가입), MEMBER-008(리워드 품절 알림)은 이 문서에서 제거됐습니다. (MEMBER-007 팔로우는 구현 완료되어 위 본문으로 복귀했습니다.) 전체 스펙·후순위 사유는 `MvpImplementationSummary.md`에서만 관리합니다.
