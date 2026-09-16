@@ -19,7 +19,9 @@ spring:
       # [천장] 첫 기동 시 토픽에 남은 과거 알림을 전부 읽는다. 알림함에 오래된 항목이
       # 쌓이는 게 문제가 되면 latest 또는 by_duration 으로 바꾼다.
       auto-offset-reset: earliest
-      # JSON 파싱은 리스너가 직접 한다(NotificationKafkaListener 주석 참고) — 여기선 문자열로만 받는다.
+      # 브로커에서는 문자열로만 받는다. NotificationRaisedEvent로의 타입 변환은
+      # KafkaConsumerConfig의 메시지 컨버터가 리스너 호출 전에 끝낸다 —
+      # 모르는 필드 무시와 역직렬화 실패 처리도 그쪽(컨버터/에러 핸들러) 소관이다.
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
