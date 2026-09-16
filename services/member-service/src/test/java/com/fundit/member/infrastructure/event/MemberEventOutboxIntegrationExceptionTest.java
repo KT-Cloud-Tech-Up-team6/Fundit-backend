@@ -22,20 +22,24 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 도메인 쓰기와 아웃박스 적재가 <b>같은 트랜잭션</b>이라는 것을 확인한다(MEMBER-002·005).
+ * 발행이 실패했을 때 아웃박스 행이 어떻게 남는지만 본다. 정상 흐름은
+ * {@code MemberEventOutboxIntegrationTest} 참고(test-convention.md 정상/예외 파일 분리).
  *
- * <p>실패 흐름은 {@code MemberEventOutboxIntegrationExceptionTest}, 실제 Kafka 발행은
- * {@code KafkaMemberEventTransportIntegrationTest}가 본다.
+ * <p><b>브로커를 띄우지 않고 닿지 않는 주소를 준다</b> — 이게 운영에서 실제로 일어나는
+ * "브로커 장애" 경로다. Kafka 컨테이너가 필요 없어 이 클래스는 Postgres만 띄운다.
  *
- * <p>poll-interval을 크게 잡아 스케줄러가 끼어들지 않게 하고 워커를 직접 호출한다.
+ * <p>여기서 확인하는 것: 전송이 실패하면 행이 <b>발행된 것처럼 지워지지 않는다</b>.
+ * 지워지면 찜 통계와 웰컴 쿠폰이 조용히 유실되고 아웃박스를 둔 이유가 사라진다.
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
         "internal-api.key=test-only-internal-api-key",
-        "member-event-outbox.poll-interval-ms=3600000"})
+        "member-event-outbox.poll-interval-ms=3600000",
+        // 닿지 않는 주소. KafkaProducerConfig의 max.block.ms(5초)가 상한이라 오래 매달리지 않는다.
+        "spring.kafka.bootstrap-servers=localhost:1"})
 @Transactional
-class MemberEventOutboxIntegrationTest {
+class MemberEventOutboxIntegrationExceptionTest {
 
     @Container
     @ServiceConnection
@@ -45,6 +49,8 @@ class MemberEventOutboxIntegrationTest {
     private WishService wishService;
     @Autowired
     private MemberEventOutboxJpaRepository outboxRepository;
+    @Autowired
+    private MemberEventOutboxWorker worker;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
 
@@ -58,47 +64,35 @@ class MemberEventOutboxIntegrationTest {
     }
 
     @Test
-    void 찜하면_아웃박스에_적재된다() {
+    void 브로커에_닿지_못하면_미발행으로_남고_시도횟수가_오른다() {
         // given
         UUID memberId = createMember();
-
-        // when
         wishService.wish(memberId, 1L);
 
+        // when
+        worker.publishPending();
+
         // then
-        assertThat(unpublished()).singleElement()
-                .satisfies(e -> {
-                    assertThat(e.getEventType()).isEqualTo(MemberEventOutboxJpaEntity.TYPE_WISHED);
-                    assertThat(e.getMemberId()).isEqualTo(memberId);
-                    assertThat(e.getProjectId()).isEqualTo(1L);
-                });
+        assertThat(unpublished()).singleElement().satisfies(e -> {
+            assertThat(e.getPublishedAt()).isNull();
+            assertThat(e.getAttemptCount()).isEqualTo(1);
+            assertThat(e.getLastError()).isNotBlank();
+        });
     }
 
+    /** 한 건이 실패해도 배치의 나머지가 멈추지 않아야 다음 주기에 함께 재시도된다. */
     @Test
-    void 해제하면_해제_이벤트가_적재된다() {
+    void 여러_건이_실패해도_모두_미발행으로_남는다() {
         // given
         UUID memberId = createMember();
         wishService.wish(memberId, 1L);
+        wishService.wish(memberId, 2L);
 
         // when
-        wishService.unwish(memberId, 1L);
+        worker.publishPending();
 
         // then
-        assertThat(unpublished()).extracting(MemberEventOutboxJpaEntity::getEventType)
-                .containsExactly(MemberEventOutboxJpaEntity.TYPE_WISHED, MemberEventOutboxJpaEntity.TYPE_UNWISHED);
-    }
-
-    /** 하트 더블탭으로 이벤트가 두 건 쌓이면 아웃박스만 불어난다. */
-    @Test
-    void 이미_찜한_프로젝트를_다시_찜해도_이벤트는_한_건이다() {
-        // given
-        UUID memberId = createMember();
-
-        // when
-        wishService.wish(memberId, 1L);
-        wishService.wish(memberId, 1L);
-
-        // then
-        assertThat(unpublished()).hasSize(1);
+        assertThat(unpublished()).hasSize(2)
+                .allSatisfy(e -> assertThat(e.getAttemptCount()).isEqualTo(1));
     }
 }
