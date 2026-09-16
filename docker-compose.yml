@@ -1,0 +1,17 @@
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: fundit-kafka
+    ports:
+      - "127.0.0.1:9092:9092"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - fundit-kafka-net
+
+networks:
+  fundit-kafka-net:
