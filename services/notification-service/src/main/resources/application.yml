@@ -12,8 +12,12 @@ spring:
   kafka:
     consumer:
       group-id: notification-service
-      # earliest: 컨슈머가 내려가 있는 동안 발행된 알림도 올라온 뒤 받아야 한다.
-      # latest면 다운타임 중 알림이 조용히 유실된다.
+      # auto.offset.reset은 "커밋된 오프셋이 없거나 그 오프셋이 더 이상 유효하지 않을 때"만 적용된다.
+      # 정상 재기동은 커밋된 오프셋부터 이어 읽으므로 이 값과 무관하게 유실이 없다.
+      # earliest를 고른 건 오프셋이 사라진 상황(그룹 재생성, retention 초과)에서
+      # 알림을 건너뛰기보다 다시 읽는 쪽이 낫기 때문이다 — 중복은 (event_id, member_id) UNIQUE가 흡수한다.
+      # [천장] 첫 기동 시 토픽에 남은 과거 알림을 전부 읽는다. 알림함에 오래된 항목이
+      # 쌓이는 게 문제가 되면 latest 또는 by_duration 으로 바꾼다.
       auto-offset-reset: earliest
       # JSON 파싱은 리스너가 직접 한다(NotificationKafkaListener 주석 참고) — 여기선 문자열로만 받는다.
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer

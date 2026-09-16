@@ -122,6 +122,27 @@ class NotificationKafkaListenerIntegrationTest {
         awaitUnreadCount(memberId, 1);
     }
 
+    /**
+     * event-convention.md 6번 — "소비자는 모르는 필드를 무시해야 한다".
+     * 이게 지켜져야 발행 측이 필드를 추가할 때(버전 유지) 구독자가 안 깨진다.
+     * 규약에 적어만 두고 검증한 적이 없어 여기서 고정한다.
+     */
+    @Test
+    void 모르는_필드가_있어도_적재된다() {
+        // given — 발행 측이 .v1 유지한 채 필드를 추가한 상황
+        UUID memberId = UUID.randomUUID();
+        String withExtraField = """
+                {"eventId":"order:7","memberId":"%s","notifType":"SHIPPING_UPDATE",
+                 "title":"제목","relatedUrl":"/x","traceId":"나중에 추가된 필드","attempt":3}
+                """.formatted(memberId);
+
+        // when
+        send(withExtraField);
+
+        // then
+        awaitUnreadCount(memberId, 1);
+    }
+
     /** NOTI-006 핵심 — 한 건 때문에 파티션이 멈추면 뒤의 알림이 전부 막힌다. */
     @Test
     void 깨진_메시지가_와도_컨슈머가_멈추지_않는다() {
