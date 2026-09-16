@@ -1,7 +1,9 @@
 package com.fundit.order.application.inventory;
 
+import com.fundit.order.application.notification.OrderNotificationPublisher;
 import com.fundit.order.domain.inventory.Inventory;
 import com.fundit.order.domain.inventory.InventoryRepository;
+import com.fundit.order.infrastructure.persistence.restock.RewardRestockNotifyRequestJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -17,9 +19,13 @@ class RewardStockSyncServiceUnitExceptionTest {
 
     @Mock
     private InventoryRepository inventoryRepository;
+    @Mock
+    private RewardRestockNotifyRequestJpaRepository restockNotifyRequestJpaRepository;
+    @Mock
+    private OrderNotificationPublisher notificationPublisher;
 
     private RewardStockSyncService service() {
-        return new RewardStockSyncService(inventoryRepository);
+        return new RewardStockSyncService(inventoryRepository, restockNotifyRequestJpaRepository, notificationPublisher);
     }
 
     @Test

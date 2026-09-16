@@ -82,7 +82,14 @@ public class OrderCreateService {
                     .couponIssuanceId(applied.couponIssuanceId())
                     .discountAmount(applied.discountAmount())
                     .build());
-            couponRepository.increaseUsedBudget(applied.couponCode(), applied.discountAmount());
+            // 위 OrderPricingService.resolveSingleCoupon()이 방금 hasRemainingBudget()로 확인했지만,
+            // 그 확인과 이 조건부 UPDATE 사이의 레이스로 예산이 그새 소진될 수 있다 — 그 경우 회계가
+            // 틀어진 채 주문만 조용히 성공하지 않도록 주문 생성 자체를 실패시킨다(재고 부족과 동일 층위).
+            boolean budgetReserved = couponRepository.increaseUsedBudget(applied.couponCode(), applied.discountAmount());
+            if (!budgetReserved) {
+                throw new BusinessException(OrderErrorCode.COUPON_BUDGET_EXCEEDED,
+                        "쿠폰 예산이 소진되었습니다. couponCode=" + applied.couponCode());
+            }
         }
 
         return new OrderCreateResult(saved, pricing.finalAmount());

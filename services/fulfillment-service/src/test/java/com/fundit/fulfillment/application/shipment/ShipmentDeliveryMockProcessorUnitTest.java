@@ -1,11 +1,13 @@
 package com.fundit.fulfillment.application.shipment;
 
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher;
 import com.fundit.fulfillment.domain.shipment.Shipment;
 import com.fundit.fulfillment.domain.shipment.ShipmentRepository;
 import com.fundit.fulfillment.domain.shipment.ShipmentStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -13,6 +15,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,12 +24,14 @@ class ShipmentDeliveryMockProcessorUnitTest {
 
     @Mock
     private ShipmentRepository shipmentRepository;
+    @Mock
+    private FulfillmentDomainEventPublisher domainEventPublisher;
 
     private ShipmentDeliveryMockProcessor processor;
 
     @BeforeEach
     void setUp() {
-        processor = new ShipmentDeliveryMockProcessor(shipmentRepository);
+        processor = new ShipmentDeliveryMockProcessor(shipmentRepository, domainEventPublisher);
     }
 
     @Test
@@ -44,6 +49,11 @@ class ShipmentDeliveryMockProcessorUnitTest {
         assertThat(result).isTrue();
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERED);
         verify(shipmentRepository).save(shipment);
+        ArgumentCaptor<FulfillmentDomainEventPublisher.ShippingCompletedEvent> captor =
+                ArgumentCaptor.forClass(FulfillmentDomainEventPublisher.ShippingCompletedEvent.class);
+        verify(domainEventPublisher).publishShippingCompleted(captor.capture());
+        assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
+        assertThat(captor.getValue().projectId()).isEqualTo(123L);
     }
 
     @Test
@@ -59,5 +69,6 @@ class ShipmentDeliveryMockProcessorUnitTest {
 
         // then
         assertThat(result).isFalse();
+        verify(domainEventPublisher, never()).publishShippingCompleted(any());
     }
 }

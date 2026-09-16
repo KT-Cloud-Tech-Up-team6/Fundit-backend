@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,6 +41,16 @@ public class CouponIssuancePersistenceAdapter implements CouponIssuanceRepositor
     @Override
     public long countByCouponCodeAndOwnerId(String couponCode, UUID ownerId) {
         return jpaRepository.countByCouponCodeAndOwnerId(couponCode, ownerId);
+    }
+
+    @Override
+    public List<CouponIssuance> findAvailableExpired(Instant now) {
+        return jpaRepository.findAvailableExpired(now).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public List<CouponIssuance> findAvailableExpiringWithin(Instant now, Instant windowEnd) {
+        return jpaRepository.findAvailableExpiringWithin(now, windowEnd).stream().map(mapper::toDomain).toList();
     }
 
     @Override

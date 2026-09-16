@@ -16,7 +16,10 @@ import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementScheduleServiceUnitTest {
@@ -73,5 +76,35 @@ class SettlementScheduleServiceUnitTest {
         assertThat(saved.getBatchType()).isEqualTo(SettlementScheduleJpaEntity.TYPE_FINAL);
         assertThat(saved.getDueAt()).isEqualTo(completedAt.plus(java.time.Duration.ofDays(14)));
         assertThat(saved.getFundingId()).isEqualTo(2048L);
+    }
+
+    @Test
+    void 동일_펀딩의_선정산_스케줄이_이미_있으면_재등록하지_않는다() {
+        // given — Kafka 재전달로 같은 FundingSucceeded가 두 번 온 경우
+        Instant friday = ZonedDateTime.of(2026, 9, 4, 10, 0, 0, 0, ZONE).toInstant();
+        var event = new FundingSucceededListener.FundingSucceededEvent(1024L, 10L, UUID.randomUUID(), friday);
+        when(settlementScheduleJpaRepository.existsByFundingIdAndBatchType(
+                1024L, SettlementScheduleJpaEntity.TYPE_INTERIM)).thenReturn(true);
+
+        // when
+        settlementScheduleService.onFundingSucceeded(event);
+
+        // then
+        verify(settlementScheduleJpaRepository, never()).save(any());
+    }
+
+    @Test
+    void 동일_펀딩의_최종정산_스케줄이_이미_있으면_재등록하지_않는다() {
+        // given
+        Instant completedAt = Instant.parse("2026-09-01T00:00:00Z");
+        var event = new ShippingCompletionListener.ShippingCompletedEvent(2048L, 10L, UUID.randomUUID(), completedAt);
+        when(settlementScheduleJpaRepository.existsByFundingIdAndBatchType(
+                2048L, SettlementScheduleJpaEntity.TYPE_FINAL)).thenReturn(true);
+
+        // when
+        settlementScheduleService.onShippingCompleted(event);
+
+        // then
+        verify(settlementScheduleJpaRepository, never()).save(any());
     }
 }

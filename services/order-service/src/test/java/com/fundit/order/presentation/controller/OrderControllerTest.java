@@ -12,14 +12,14 @@ import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingLineItemOption;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
-import com.fundit.order.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.order.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.order.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -36,8 +36,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrderController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class OrderControllerTest {
+
+    private static final String INTERNAL_KEY = "test-only-internal-api-key";
 
     private static final String REQUEST_BODY = """
             {
@@ -76,7 +79,8 @@ class OrderControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content(REQUEST_BODY))
                 .andExpect(status().isOk())
@@ -95,7 +99,8 @@ class OrderControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content(REQUEST_BODY))
                 .andExpect(status().isOk())
@@ -120,7 +125,8 @@ class OrderControllerTest {
 
         // when & then — lineItems가 빈 배열
         mockMvc.perform(post("/api/v1/orders/preview")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("""
                                 {"projectId": 123, "lineItems": [],
@@ -140,7 +146,8 @@ class OrderControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/orders")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content(REQUEST_BODY))
                 .andExpect(status().isCreated())
@@ -156,7 +163,8 @@ class OrderControllerTest {
                 .thenReturn(new PageImpl<>(List.of(funding(memberId, UUID.randomUUID(), FundingStatus.PENDING))));
 
         // when & then
-        mockMvc.perform(get("/api/v1/orders").header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].status").value("PENDING"));
     }
@@ -171,7 +179,8 @@ class OrderControllerTest {
                 .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
 
         // when & then
-        mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()));
     }
@@ -189,7 +198,8 @@ class OrderControllerTest {
                 .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
 
         // when & then
-        mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lineItems[0].rewardName").value("얼리버드 패키지"))
                 .andExpect(jsonPath("$.lineItems[0].options[0].optionGroupName").value("색상"))
@@ -205,7 +215,8 @@ class OrderControllerTest {
                 .thenReturn(funding(memberId, orderId, FundingStatus.CANCELLED_BY_MEMBER));
 
         // when & then
-        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED_BY_MEMBER"));
     }

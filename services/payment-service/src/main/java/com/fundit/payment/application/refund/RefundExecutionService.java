@@ -3,6 +3,9 @@ package com.fundit.payment.application.refund;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.payment.application.event.PaymentEventPublisher;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher.RefundNotificationStatus;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher.RefundStatusChangedEvent;
 import com.fundit.payment.application.payment.TossApiException;
 import com.fundit.payment.application.payment.TossPaymentsClient;
 import com.fundit.payment.application.settlement.SettlementHoldService;
@@ -39,6 +42,7 @@ public class RefundExecutionService {
     private final PaymentCancellationJpaRepository paymentCancellationJpaRepository;
     private final RefundRequestRepository refundRequestRepository;
     private final PaymentEventPublisher paymentEventPublisher;
+    private final PaymentNotificationPublisher paymentNotificationPublisher;
     private final SettlementHoldService settlementHoldService;
 
     /**
@@ -82,6 +86,8 @@ public class RefundExecutionService {
             }
             log.warn("원 결제수단 환불 실패 — 대체 계좌 입력 대기 상태로 전환합니다. fundingId={}", fundingId, e);
             refundRequestRepository.save(RefundRequest.awaitingAlternateAccount(triggerType, fundingId, payment.getId()));
+            paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
+                    fundingId, payment.getMemberId(), RefundNotificationStatus.AWAITING_ALTERNATE_ACCOUNT));
             return RefundExecutionResult.awaitingAlternateAccount();
         }
     }
@@ -130,6 +136,8 @@ public class RefundExecutionService {
         paymentEventPublisher.publishRefundCompleted(new PaymentEventPublisher.RefundCompletedEvent(
                 payment.getId(), payment.getFundingId(), payment.getCouponIssuanceId(),
                 triggerType.toOrderServiceReason(), isFullRefund));
+        paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
+                payment.getFundingId(), payment.getMemberId(), RefundNotificationStatus.COMPLETED));
 
         return new RefundExecutionResult(saved.getId(), saved.getStatus().name(), isFullRefund);
     }

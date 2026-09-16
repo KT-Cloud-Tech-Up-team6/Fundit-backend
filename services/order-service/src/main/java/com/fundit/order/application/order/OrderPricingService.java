@@ -113,21 +113,20 @@ public class OrderPricingService {
         for (int i = 0; i < couponCodes.size(); i++) {
             String code = couponCodes.get(i);
             Coupon coupon = coupons.get(i);
-            resolveSingleCoupon(memberId, projectId, code, coupon, rewardAmount)
+            resolveSingleCoupon(memberId, projectId, code, coupon, rewardAmount, shippingFee)
                     .ifPresentOrElse(
-                            issuance -> {
-                                long discount = coupon.calculateDiscount(rewardAmount, shippingFee);
-                                applied.add(new AppliedCoupon(issuance.getId(), code, coupon.getIssuerType(),
-                                        coupon.getDiscountType(), discount));
-                            },
-                            () -> unavailable.add(new UnavailableCoupon(code, unavailableReason(memberId, projectId, code, coupon, rewardAmount))));
+                            resolved -> applied.add(new AppliedCoupon(resolved.issuance().getId(), code,
+                                    coupon.getIssuerType(), coupon.getDiscountType(), resolved.discount())),
+                            () -> unavailable.add(new UnavailableCoupon(code,
+                                    unavailableReason(memberId, projectId, code, coupon, rewardAmount, shippingFee))));
         }
         long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
         return new CouponResolution(applied, unavailable, totalDiscount);
     }
 
-    private Optional<CouponIssuance> resolveSingleCoupon(UUID memberId, Long projectId, String code, Coupon coupon,
-                                                           long rewardAmount) {
+    /** 할인액까지 여기서 계산해 반환한다 — 예산 체크(hasRemainingBudget)가 실제 할인액을 알아야 해서다. */
+    private Optional<ResolvedCoupon> resolveSingleCoupon(UUID memberId, Long projectId, String code, Coupon coupon,
+                                                           long rewardAmount, long shippingFee) {
         if (coupon == null) {
             return Optional.empty();
         }
@@ -144,10 +143,15 @@ public class OrderPricingService {
         if (!coupon.matchesProject(projectId)) {
             return Optional.empty();
         }
-        return issuanceOpt;
+        long discount = coupon.calculateDiscount(rewardAmount, shippingFee);
+        if (!coupon.hasRemainingBudget(discount)) {
+            return Optional.empty();
+        }
+        return Optional.of(new ResolvedCoupon(issuanceOpt.get(), discount));
     }
 
-    private String unavailableReason(UUID memberId, Long projectId, String code, Coupon coupon, long rewardAmount) {
+    private String unavailableReason(UUID memberId, Long projectId, String code, Coupon coupon, long rewardAmount,
+                                      long shippingFee) {
         if (coupon == null) {
             return "NOT_FOUND";
         }
@@ -167,7 +171,13 @@ public class OrderPricingService {
         if (!coupon.matchesProject(projectId)) {
             return "NOT_APPLICABLE";
         }
+        if (!coupon.hasRemainingBudget(coupon.calculateDiscount(rewardAmount, shippingFee))) {
+            return "BUDGET_EXCEEDED";
+        }
         return "NOT_APPLICABLE";
+    }
+
+    private record ResolvedCoupon(CouponIssuance issuance, long discount) {
     }
 
     public record PricingResult(long rewardAmount, long shippingFee, long discountAmount, long finalAmount,

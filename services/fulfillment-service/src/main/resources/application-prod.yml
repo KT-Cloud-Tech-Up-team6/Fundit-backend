@@ -6,24 +6,26 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 internal-api:
   key: ${INTERNAL_API_KEY}
 
-# order-service 내부 API(GET /internal/fundings/{fundingId})가 아직 없어 기본은 stub —
-# 연동 완료 후 ORDER_FUNDING_CLIENT_MODE=http로 전환(dev와 동일 패턴).
+# order-service 내부 API(GET /internal/fundings/{fundingId})가 실제로 배선되어 기본을 http로 켠다.
+# 로컬에서 order-service 없이 이 서비스만 띄우고 싶으면 ORDER_FUNDING_CLIENT_MODE=stub로 되돌린다.
 order:
   integration:
     funding-client:
-      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+      mode: ${ORDER_FUNDING_CLIENT_MODE:http}
     base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
 
-# project-service 내부 API(GET /internal/projects/{projectId})가 아직 없어 기본은 stub —
-# 연동 완료 후 PROJECT_OWNERSHIP_CLIENT_MODE=http로 전환.
+# project-service 내부 API(GET /internal/projects/{projectId})가 실제로 배선되어 기본을 http로 켠다.
+# 로컬에서 project-service 없이 이 서비스만 띄우고 싶으면 PROJECT_OWNERSHIP_CLIENT_MODE=stub로 되돌린다.
 project:
   integration:
     ownership-client:
-      mode: ${PROJECT_OWNERSHIP_CLIENT_MODE:stub}
+      mode: ${PROJECT_OWNERSHIP_CLIENT_MODE:http}
     base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}
 
 # 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).

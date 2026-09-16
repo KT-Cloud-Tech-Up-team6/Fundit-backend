@@ -44,7 +44,7 @@ class ShipmentServiceUnitTest {
     void 발송정보가_없으면_새로_생성하고_SHIPPED로_전환한다() {
         // given
         when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -59,7 +59,7 @@ class ShipmentServiceUnitTest {
     @Test
     void 발송_전이면_저장하지_않고_PREPARING_뷰를_반환한다() {
         // given
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
 
         // when
@@ -73,7 +73,7 @@ class ShipmentServiceUnitTest {
     @Test
     void 배송완료_상태에서_수령확인하면_RECEIPT_CONFIRMED로_전환된다() {
         // given
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
         Shipment delivered = Shipment.create(1024L, 123L);
         delivered.registerShipment("CJ대한통운", "123456789012");
         delivered.markDelivered(Instant.now());

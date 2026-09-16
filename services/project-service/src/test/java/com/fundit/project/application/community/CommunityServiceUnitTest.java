@@ -63,6 +63,24 @@ class CommunityServiceUnitTest {
         assertThat(post.getMemberId()).isEqualTo(memberId);
     }
 
+    @Test
+    void 판매자_본인은_비공개_프로젝트에도_글을_작성할_수_있다() {
+        // given — listPosts와 동일 기준(비공개여도 소유자는 접근 가능)
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+        when(postJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        CommunityPostJpaEntity post = communityService.createPost(sellerId, publicId, "CHEER", "화이팅");
+
+        // then
+        assertThat(post.getPostType()).isEqualTo("CHEER");
+    }
+
     @Nested
     class 목록조회 {
 

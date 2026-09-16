@@ -49,6 +49,22 @@ class CommunityServiceUnitExceptionTest {
     }
 
     @Test
+    void 비공개_프로젝트에_타인이_글을_작성하면_404_예외가_발생한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(publicId).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+
+        // when & then — 존재 여부를 201/404로 구분할 수 없어야 한다(존재-오라클 방지)
+        assertThatThrownBy(() -> communityService.createPost(UUID.randomUUID(), publicId, "QUESTION", "질문"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void 비공개_프로젝트를_타인이_조회하면_404_예외가_발생한다() {
         // given
         UUID publicId = UUID.randomUUID();

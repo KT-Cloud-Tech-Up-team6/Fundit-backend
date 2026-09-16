@@ -87,11 +87,11 @@ class RewardEventOutboxIntegrationTest {
     private static RewardEventTransport succeedingTransport() {
         return new RewardEventTransport() {
             @Override
-            public void sendCreated(RewardEventPublisher.RewardCreatedEvent event) {
+            public void sendCreated(RewardEventPublisher.RewardCreatedEvent event, Long outboxId) {
             }
 
             @Override
-            public void sendUpdated(RewardEventPublisher.RewardUpdatedEvent event) {
+            public void sendUpdated(RewardEventPublisher.RewardUpdatedEvent event, Long outboxId) {
             }
         };
     }
@@ -99,12 +99,12 @@ class RewardEventOutboxIntegrationTest {
     private static RewardEventTransport failingTransport() {
         return new RewardEventTransport() {
             @Override
-            public void sendCreated(RewardEventPublisher.RewardCreatedEvent event) {
+            public void sendCreated(RewardEventPublisher.RewardCreatedEvent event, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
 
             @Override
-            public void sendUpdated(RewardEventPublisher.RewardUpdatedEvent event) {
+            public void sendUpdated(RewardEventPublisher.RewardUpdatedEvent event, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
         };

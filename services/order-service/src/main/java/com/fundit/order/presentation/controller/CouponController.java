@@ -8,7 +8,8 @@ import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceStatus;
 import com.fundit.order.domain.coupon.CouponRepository;
-import com.fundit.order.infrastructure.security.CurrentMember;
+import com.fundit.common.webmvc.auth.CurrentUser;
+import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.order.presentation.dto.CouponBoxItemResponse;
 import com.fundit.order.presentation.dto.CouponClaimResponse;
 import com.fundit.order.presentation.dto.PageResponse;
@@ -22,8 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/v1/coupons")
 @RequiredArgsConstructor
@@ -35,8 +34,8 @@ public class CouponController {
 
     /** ORDER-012 — 쿠폰 발급받기(소비자 능동 클레임). */
     @PostMapping("/{couponCode}/claim")
-    public CouponClaimResponse claim(@CurrentMember UUID memberId, @PathVariable String couponCode) {
-        CouponIssuance issuance = couponIssuanceService.claim(memberId, couponCode);
+    public CouponClaimResponse claim(@LoginUser CurrentUser user, @PathVariable String couponCode) {
+        CouponIssuance issuance = couponIssuanceService.claim(user.id(), couponCode);
         Coupon coupon = couponRepository.findByCouponCode(couponCode)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         return CouponClaimResponse.from(issuance, coupon);
@@ -44,10 +43,10 @@ public class CouponController {
 
     /** ORDER-009 — 쿠폰함 조회. */
     @GetMapping("/me")
-    public PageResponse<CouponBoxItemResponse> myCoupons(@CurrentMember UUID memberId,
+    public PageResponse<CouponBoxItemResponse> myCoupons(@LoginUser CurrentUser user,
                                                            @RequestParam(required = false) CouponIssuanceStatus status,
                                                            @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(couponBoxQueryService.list(memberId, status, pageable)
+        return PageResponse.from(couponBoxQueryService.list(user.id(), status, pageable)
                 .map(CouponBoxItemResponse::from));
     }
 }

@@ -1,7 +1,11 @@
 package com.fundit.order.application.inventory;
 
+import com.fundit.order.application.notification.OrderNotificationPublisher;
+import com.fundit.order.application.notification.OrderNotificationPublisher.RewardRestockedEvent;
 import com.fundit.order.domain.inventory.Inventory;
 import com.fundit.order.domain.inventory.InventoryRepository;
+import com.fundit.order.infrastructure.persistence.restock.RewardRestockNotifyRequestJpaEntity;
+import com.fundit.order.infrastructure.persistence.restock.RewardRestockNotifyRequestJpaRepository;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,7 +13,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +32,10 @@ class RewardStockSyncServiceUnitTest {
 
     @Mock
     private InventoryRepository inventoryRepository;
+    @Mock
+    private RewardRestockNotifyRequestJpaRepository restockNotifyRequestJpaRepository;
+    @Mock
+    private OrderNotificationPublisher notificationPublisher;
 
     private RewardStockSyncService service;
 
@@ -34,7 +44,7 @@ class RewardStockSyncServiceUnitTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        service = new RewardStockSyncService(inventoryRepository);
+        service = new RewardStockSyncService(inventoryRepository, restockNotifyRequestJpaRepository, notificationPublisher);
     }
 
     @Nested
@@ -156,6 +166,49 @@ class RewardStockSyncServiceUnitTest {
             // then
             verify(inventoryRepository, times(1)).save(captor.capture());
             assertThat(captor.getValue().getAvailableStock()).isEqualTo(80);
+        }
+
+        @Test
+        void 품절이었다가_재입고되면_대기_신청자_전원에게_알림을_보낸다() {
+            // given — 재고 0에서 50으로 증가(재입고)
+            Inventory existing = Inventory.builder().id(1L).rewardId(1L)
+                    .availableStock(0).initialQuantity(100).version(2).build();
+            when(inventoryRepository.findByRewardId(1L)).thenReturn(Optional.of(existing));
+            when(inventoryRepository.applyQuantityDelta(eq(1L), anyInt(), anyInt()))
+                    .thenReturn(new InventoryRepository.InventoryDeltaResult(false));
+            UUID memberId1 = UUID.randomUUID();
+            UUID memberId2 = UUID.randomUUID();
+            List<RewardRestockNotifyRequestJpaEntity> pending = List.of(
+                    RewardRestockNotifyRequestJpaEntity.builder().id(1L).rewardId(1L).memberId(memberId1).build(),
+                    RewardRestockNotifyRequestJpaEntity.builder().id(2L).rewardId(1L).memberId(memberId2).build());
+            when(restockNotifyRequestJpaRepository.findByRewardId(1L)).thenReturn(pending);
+
+            // when
+            service.onRewardUpdated(new RewardEventListener.RewardUpdatedEvent(1L, 10L, true, 150));
+
+            // then
+            ArgumentCaptor<RewardRestockedEvent> captor = ArgumentCaptor.forClass(RewardRestockedEvent.class);
+            verify(notificationPublisher, times(2)).publishRewardRestocked(captor.capture());
+            assertThat(captor.getAllValues()).extracting(RewardRestockedEvent::memberId)
+                    .containsExactlyInAnyOrder(memberId1, memberId2);
+            verify(restockNotifyRequestJpaRepository).deleteAll(pending);
+        }
+
+        @Test
+        void 재고가_남아있는_상태에서_증가하면_재입고_알림을_보내지_않는다() {
+            // given — 재고 10에서 60으로 증가(품절 상태였던 적 없음)
+            Inventory existing = Inventory.builder().id(1L).rewardId(1L)
+                    .availableStock(10).initialQuantity(100).version(2).build();
+            when(inventoryRepository.findByRewardId(1L)).thenReturn(Optional.of(existing));
+            when(inventoryRepository.applyQuantityDelta(eq(1L), anyInt(), anyInt()))
+                    .thenReturn(new InventoryRepository.InventoryDeltaResult(false));
+
+            // when
+            service.onRewardUpdated(new RewardEventListener.RewardUpdatedEvent(1L, 10L, true, 150));
+
+            // then
+            verifyNoInteractions(notificationPublisher);
+            verify(restockNotifyRequestJpaRepository, never()).findByRewardId(any());
         }
     }
 }

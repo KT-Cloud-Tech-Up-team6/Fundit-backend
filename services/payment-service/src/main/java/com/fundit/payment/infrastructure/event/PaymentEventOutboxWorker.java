@@ -57,10 +57,12 @@ public class PaymentEventOutboxWorker {
         Map<String, Object> payload = event.getPayload();
         switch (event.getEventType()) {
             case PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED -> transport.sendPaymentCompleted(
-                    new PaymentCompletedTransportEvent(event.getFundingId(), toLong(payload.get("couponIssuanceId"))));
+                    new PaymentCompletedTransportEvent(event.getFundingId(), toLong(payload.get("couponIssuanceId"))),
+                    event.getId());
             case PaymentEventOutboxJpaEntity.TYPE_REFUND_COMPLETED -> transport.sendRefundCompleted(
                     new RefundCompletedTransportEvent(event.getFundingId(), toLong(payload.get("couponIssuanceId")),
-                            (String) payload.get("refundReason"), Boolean.TRUE.equals(payload.get("fullRefund"))));
+                            (String) payload.get("refundReason"), Boolean.TRUE.equals(payload.get("fullRefund"))),
+                    event.getId());
             default -> throw new IllegalStateException("알 수 없는 결제 이벤트 타입: " + event.getEventType());
         }
     }

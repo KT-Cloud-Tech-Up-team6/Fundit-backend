@@ -32,6 +32,11 @@ public class SettlementScheduleService implements FundingSucceededListener, Ship
     @Override
     @Transactional
     public void onFundingSucceeded(FundingSucceededEvent event) {
+        // Kafka는 at-least-once라 같은 이벤트가 재전달될 수 있다 — 실행 대상을 중복 등록하지 않는다.
+        if (settlementScheduleJpaRepository.existsByFundingIdAndBatchType(
+                event.fundingId(), SettlementScheduleJpaEntity.TYPE_INTERIM)) {
+            return;
+        }
         Instant dueAt = addBusinessDays(event.achievedAt(), INTERIM_BUSINESS_DAYS);
         settlementScheduleJpaRepository.save(SettlementScheduleJpaEntity.builder()
                 .fundingId(event.fundingId())
@@ -45,6 +50,10 @@ public class SettlementScheduleService implements FundingSucceededListener, Ship
     @Override
     @Transactional
     public void onShippingCompleted(ShippingCompletedEvent event) {
+        if (settlementScheduleJpaRepository.existsByFundingIdAndBatchType(
+                event.fundingId(), SettlementScheduleJpaEntity.TYPE_FINAL)) {
+            return;
+        }
         settlementScheduleJpaRepository.save(SettlementScheduleJpaEntity.builder()
                 .fundingId(event.fundingId())
                 .projectId(event.projectId())

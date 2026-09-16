@@ -35,17 +35,19 @@ class HttpOrderFundingClientUnitTest {
     @Test
     void 내부API키를_붙여_펀딩_스냅샷을_조회한다() {
         UUID memberId = UUID.randomUUID();
+        UUID fundingPublicId = UUID.randomUUID();
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andRespond(withSuccess("""
-                        {"projectId": 123, "memberId": "%s"}
-                        """.formatted(memberId), MediaType.APPLICATION_JSON));
+                        {"projectId": 123, "memberId": "%s", "fundingPublicId": "%s"}
+                        """.formatted(memberId, fundingPublicId), MediaType.APPLICATION_JSON));
 
         var snapshot = client.fetch(1024L);
 
         assertThat(snapshot.projectId()).isEqualTo(123L);
         assertThat(snapshot.memberId()).isEqualTo(memberId);
+        assertThat(snapshot.fundingPublicId()).isEqualTo(fundingPublicId);
         server.verify();
     }
 

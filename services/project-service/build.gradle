@@ -7,4 +7,9 @@ dependencies {
     implementation platform('software.amazon.awssdk:bom:2.29.52')
     implementation 'software.amazon.awssdk:s3'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    // 리워드 이벤트(reward.created.v1/reward.updated.v1) 발행 — event-convention.md
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.testcontainers:testcontainers-kafka'
 }

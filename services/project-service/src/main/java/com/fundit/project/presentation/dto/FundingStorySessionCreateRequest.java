@@ -7,7 +7,7 @@ import java.util.List;
 
 public record FundingStorySessionCreateRequest(
         @NotBlank String productDescription,
-        List<String> productImageUrls,
+        List<@NotBlank String> productImageUrls,
         @Valid List<FundingStoryAnswerRequest> answers
 ) {
 }

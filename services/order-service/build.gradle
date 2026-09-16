@@ -2,4 +2,11 @@ dependencies {
     // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
     implementation project(':modules:common-webmvc')
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    // 리워드/펀딩/결제 이벤트 발행·구독 — event-convention.md
+    implementation 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.testcontainers:testcontainers-kafka'
+    // 비동기 컨슈머 처리 완료를 폴링으로 기다리는 Kafka 통합테스트 전용 — 다른 곳엔 쓰지 않는다.
+    testImplementation 'org.awaitility:awaitility'
 }
