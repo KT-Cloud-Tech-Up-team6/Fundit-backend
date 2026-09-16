@@ -1,9 +1,12 @@
 package com.fundit.member.application.wish;
 
+import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaEntity;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +28,8 @@ class WishServiceUnitTest {
 
     @Mock
     private WishJpaRepository wishJpaRepository;
+    @Mock
+    private WishEventOutboxJpaRepository wishEventOutboxJpaRepository;
 
     @InjectMocks
     private WishService wishService;
@@ -50,6 +56,65 @@ class WishServiceUnitTest {
 
         // then
         verify(wishJpaRepository).deleteByMemberIdAndProjectId(memberId, 1L);
+    }
+
+    @Test
+    void 찜이_실제로_등록되면_아웃박스에_적재한다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(wishJpaRepository.insertIgnoringConflict(memberId, 1L)).thenReturn(1);
+
+        // when
+        wishService.wish(memberId, 1L);
+
+        // then
+        ArgumentCaptor<WishEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(WishEventOutboxJpaEntity.class);
+        verify(wishEventOutboxJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(WishEventOutboxJpaEntity.TYPE_WISHED);
+        assertThat(captor.getValue().getMemberId()).isEqualTo(memberId);
+        assertThat(captor.getValue().getProjectId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 찜이_실제로_해제되면_아웃박스에_적재한다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(wishJpaRepository.deleteByMemberIdAndProjectId(memberId, 1L)).thenReturn(1);
+
+        // when
+        wishService.unwish(memberId, 1L);
+
+        // then
+        ArgumentCaptor<WishEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(WishEventOutboxJpaEntity.class);
+        verify(wishEventOutboxJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(WishEventOutboxJpaEntity.TYPE_UNWISHED);
+    }
+
+    /** 하트 더블탭 한 번에 이벤트가 여러 건 쌓이면 소비 측이 멱등이어도 아웃박스만 불어난다. */
+    @Test
+    void 이미_찜한_프로젝트면_아웃박스에_적재하지_않는다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(wishJpaRepository.insertIgnoringConflict(memberId, 1L)).thenReturn(0);
+
+        // when
+        wishService.wish(memberId, 1L);
+
+        // then
+        verify(wishEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 찜하지_않은_프로젝트를_해제하면_아웃박스에_적재하지_않는다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(wishJpaRepository.deleteByMemberIdAndProjectId(memberId, 1L)).thenReturn(0);
+
+        // when
+        wishService.unwish(memberId, 1L);
+
+        // then
+        verify(wishEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
