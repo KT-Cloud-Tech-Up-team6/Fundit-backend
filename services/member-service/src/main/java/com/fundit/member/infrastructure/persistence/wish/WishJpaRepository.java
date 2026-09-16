@@ -11,7 +11,12 @@ import java.util.UUID;
 
 public interface WishJpaRepository extends JpaRepository<WishJpaEntity, Long> {
 
-    Page<WishJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
+    /**
+     * 정렬을 메서드명에 박아두는 이유: 컨트롤러가 정렬 없는 PageRequest를 넘기는데 파생 쿼리에
+     * ORDER BY가 없으면 순서가 임의가 되어 같은 행이 두 페이지에 나오거나 빠진다.
+     * createdAt은 동률이 가능하므로 PK를 2차 키로 둔다.
+     */
+    Page<WishJpaEntity> findByMemberIdOrderByCreatedAtDescIdDesc(UUID memberId, Pageable pageable);
 
     /**
      * 찜 등록은 idempotent해야 한다(CLAUDE.md 핵심 설계 결정) — 중복 등록·재시도를

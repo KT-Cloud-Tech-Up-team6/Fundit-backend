@@ -35,6 +35,10 @@ public interface FollowJpaRepository extends JpaRepository<FollowJpaEntity, Foll
     /**
      * 판매자 이름은 스냅샷이 아니라 조인으로 가져온다 — 같은 DB라 복사할 이유가 없다.
      * 탈퇴한 판매자는 목록에서 제외한다(members.deleted_at).
+     *
+     * <p>createdAt만으로 정렬하지 않는 이유: insertIgnoringConflict가 Postgres now()
+     * (=트랜잭션 시작 시각)를 쓰므로 동률이 실제로 생긴다. 동률이면 페이지마다 순서가 달라져
+     * 같은 행이 두 페이지에 나오거나 아예 빠진다. sellerId를 2차 키로 둬 순서를 고정한다.
      */
     @Query("""
             select new com.fundit.member.infrastructure.persistence.follow.FollowView(
@@ -42,7 +46,7 @@ public interface FollowJpaRepository extends JpaRepository<FollowJpaEntity, Foll
             from FollowJpaEntity f
             join MemberJpaEntity m on m.id = f.sellerId
             where f.memberId = :memberId and m.deletedAt is null
-            order by f.createdAt desc
+            order by f.createdAt desc, f.sellerId desc
             """)
     Page<FollowView> findViewsByMemberId(@Param("memberId") UUID memberId, Pageable pageable);
 }

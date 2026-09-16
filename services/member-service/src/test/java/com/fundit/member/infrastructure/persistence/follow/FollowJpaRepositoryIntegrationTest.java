@@ -14,7 +14,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -100,5 +104,52 @@ class FollowJpaRepositoryIntegrationTest {
         // when & then
         assertThat(followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getTotalElements())
                 .isEqualTo(0);
+    }
+
+    /**
+     * createdAt 동률은 실제로 생긴다 — insertIgnoringConflict가 Postgres now()(=트랜잭션 시작 시각)를
+     * 쓴다. 2차 정렬 키가 없으면 DB가 힙 순서(=삽입 순서)로 돌려주므로, <b>오름차순으로 넣고
+     * 내림차순을 기대</b>해 타이브레이커가 없으면 반드시 깨지게 만든다.
+     */
+    @Test
+    void 등록시각이_같으면_판매자id_내림차순으로_정렬된다() {
+        // given
+        UUID memberId = createMember("구매자");
+        Instant sameTime = Instant.parse("2026-09-16T00:00:00Z");
+        List<UUID> ascending = Stream.generate(() -> createMember("판매자")).limit(5)
+                // Postgres의 uuid 정렬은 바이트 단위 무부호 비교다 — Java UUID.compareTo(부호 있는 long 비교)와
+                // 달라서, 16진 문자열 순서로 정렬해야 DB가 돌려주는 순서와 맞는다.
+                .sorted(Comparator.comparing(UUID::toString)).toList();
+        ascending.forEach(sellerId -> followJpaRepository.save(FollowJpaEntity.builder()
+                .memberId(memberId).sellerId(sellerId).createdAt(sameTime).build()));
+
+        // when
+        List<UUID> actual = followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 5))
+                .getContent().stream().map(FollowView::sellerId).toList();
+
+        // then
+        assertThat(actual).containsExactlyElementsOf(ascending.reversed());
+    }
+
+    /** 페이지를 나눠 읽어도 같은 행이 두 번 나오거나 빠지지 않는다. */
+    @Test
+    void 등록시각이_같아도_페이지를_나눠_읽으면_중복이나_누락이_없다() {
+        // given
+        UUID memberId = createMember("구매자");
+        Instant sameTime = Instant.parse("2026-09-16T00:00:00Z");
+        for (int i = 0; i < 6; i++) {
+            followJpaRepository.save(FollowJpaEntity.builder()
+                    .memberId(memberId).sellerId(createMember("판매자" + i)).createdAt(sameTime).build());
+        }
+
+        // when
+        List<UUID> paged = new ArrayList<>();
+        for (int page = 0; page < 3; page++) {
+            followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(page, 2))
+                    .forEach(v -> paged.add(v.sellerId()));
+        }
+
+        // then
+        assertThat(paged).hasSize(6).doesNotHaveDuplicates();
     }
 }

@@ -35,7 +35,7 @@ class WishServiceUnitTest {
     private WishService wishService;
 
     @Test
-    void 찜_등록시_idempotent_insert를_호출한다() {
+    void 찜을_등록하면_중복을_무시하고_저장한다() {
         // given
         UUID memberId = UUID.randomUUID();
 
@@ -47,7 +47,7 @@ class WishServiceUnitTest {
     }
 
     @Test
-    void 찜_해제시_idempotent_delete를_호출한다() {
+    void 찜을_해제하면_없는_대상도_정상_처리한다() {
         // given
         UUID memberId = UUID.randomUUID();
 
@@ -126,7 +126,7 @@ class WishServiceUnitTest {
                 .id(1L).memberId(memberId).projectId(10L)
                 .projectTitle("프로젝트A").projectThumbnailUrl("http://img").createdAt(now).build();
         Page<WishJpaEntity> page = new PageImpl<>(List.of(entity));
-        when(wishJpaRepository.findByMemberId(memberId, PageRequest.of(0, 20))).thenReturn(page);
+        when(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20))).thenReturn(page);
 
         // when
         Page<WishService.WishItem> result = wishService.getWishes(memberId, PageRequest.of(0, 20));

@@ -31,7 +31,7 @@ class FollowServiceUnitExceptionTest {
     private FollowService followService;
 
     @Test
-    void 자기_자신을_팔로우하면_INVALID_INPUT() {
+    void 자기_자신을_팔로우하면_예외가_발생한다() {
         // given
         UUID memberId = UUID.randomUUID();
 
@@ -43,7 +43,7 @@ class FollowServiceUnitExceptionTest {
     }
 
     @Test
-    void 존재하지_않는_회원을_팔로우하면_NOT_FOUND() {
+    void 존재하지_않는_회원을_팔로우하면_예외가_발생한다() {
         // given
         UUID memberId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();

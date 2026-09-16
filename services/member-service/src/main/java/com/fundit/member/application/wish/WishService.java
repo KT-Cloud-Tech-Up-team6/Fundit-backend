@@ -42,7 +42,7 @@ public class WishService {
 
     @Transactional(readOnly = true)
     public Page<WishItem> getWishes(UUID memberId, Pageable pageable) {
-        return wishJpaRepository.findByMemberId(memberId, pageable)
+        return wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, pageable)
                 .map(w -> new WishItem(w.getProjectId(), w.getProjectTitle(), w.getProjectThumbnailUrl(), w.getCreatedAt()));
     }
 

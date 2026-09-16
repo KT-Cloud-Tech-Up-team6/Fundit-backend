@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.TestPropertySource;
@@ -90,5 +91,21 @@ class FollowControllerTest {
         // when & then
         mockMvc.perform(put("/api/v1/follows/" + UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /** page/size가 뒤바뀌거나 무시돼도 응답 모양은 같아서 조용히 통과한다 — 전달 자체를 고정한다. */
+    @Test
+    void page와_size를_주면_그대로_서비스에_전달한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        when(followService.getFollows(accountId, PageRequest.of(2, 50))).thenReturn(Page.empty());
+
+        // when & then
+        mockMvc.perform(get("/api/v1/follows")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .param("page", "2").param("size", "50"))
+                .andExpect(status().isOk());
+        verify(followService).getFollows(accountId, PageRequest.of(2, 50));
     }
 }

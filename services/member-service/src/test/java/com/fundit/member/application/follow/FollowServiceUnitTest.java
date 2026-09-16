@@ -34,7 +34,7 @@ class FollowServiceUnitTest {
     private FollowService followService;
 
     @Test
-    void 팔로우시_idempotent_insert를_호출한다() {
+    void 팔로우하면_중복을_무시하고_저장한다() {
         // given
         UUID memberId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
