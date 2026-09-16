@@ -388,7 +388,8 @@ Validation / Business Rules
 - **[확정, 2026-09-03] `POST /members` 요청 계약 정정**: `agreedTerms`는 `List<String>`(동의한 약관 코드만), `email`은 받되 저장하지 않음 — auth-service의 실제 코드(`MemberServiceClient.CreateMemberProfileCommand`) 기준.
 - ~~**[구현 메모, 2026-09-03] 임시 인증 방식**: 게이트웨이가 없어 `X-Account-Id` 헤더를 서명 검증 없이 신뢰~~ **→ 2026-09-07 해소됨.** 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 `X-User-Id`/`X-User-Roles`를 주입하고, 클라이언트가 보낸 같은 이름의 헤더는 게이트웨이에서 제거된다. 서비스 쪽 리졸버는 `modules:common-webmvc`의 `LoginUserArgumentResolver`로 이전됐고(`CurrentMemberArgumentResolver` 삭제), 게이트웨이 우회 직접 호출은 `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`로 차단한다. 설계 근거는 `platform/gateway-service/docs/` 참고.
 - **[확정, 2026-09-16 #58] MEMBER-007 팔로우 복귀**: PM이 MEMBER-006을 "찜한 프로젝트 목록과 찜한 판매자 목록"으로 변경 — 판매자 목록이 필요해져 팔로우를 구현하고 `PUT`/`DELETE`/`GET /api/v1/follows`를 이 문서로 되가져왔다(위 `[확정, 2026-09-03]` 항목 중 007 부분 무효). 목록은 `GET /api/v1/wishes`에 합치지 않는다 — 응답 아이템 모양이 달라 페이지네이션이 하나로 묶인다.
-- **[구현 메모, 2026-09-16 #58] 찜 이벤트 발행**: 찜 등록/해제가 `wish_event_outbox`에 같은 트랜잭션으로 적재되고, 워커가 `project.wished.v1`/`project.unwished.v1`로 발행한다(파티션 키 `memberId`). 발행 측은 끝났고, **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다** — 그쪽 `ProjectWishStatsEventSubscriber`는 인프로세스 `@EventListener`라 토픽을 직접 받지 못한다.
+- **[구현 메모, 2026-09-16 #58] 찜 이벤트 발행**: 찜 등록/해제가 `member_event_outbox`에 같은 트랜잭션으로 적재되고, 워커가 `project.wished.v1`/`project.unwished.v1`로 발행한다(파티션 키 `memberId`). 발행 측은 끝났고, **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다** — 그쪽 `ProjectWishStatsEventSubscriber`는 인프로세스 `@EventListener`라 토픽을 직접 받지 못한다.
+- **[구현 메모, 2026-09-16 #58] 회원가입 이벤트 발행**: `POST /api/v1/members`가 성공하면 같은 트랜잭션에서 `member_event_outbox`에 적재되고 워커가 `member.signed-up.v1`로 발행한다(파티션 키 `memberId`). order-service가 이 토픽으로 웰컴 쿠폰(ORDER-007)을 발급한다. 발행 실패는 워커가 재시도하며 **가입 API를 깨지 않는다** — 여기서 예외가 나가면 auth-service가 보상 트랜잭션으로 계정을 지운다.
 
 ## ⚠️ 남은 확인 필요 사항
 

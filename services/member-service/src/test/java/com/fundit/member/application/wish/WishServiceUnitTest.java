@@ -1,7 +1,7 @@
 package com.fundit.member.application.wish;
 
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaEntity;
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaRepository;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaEntity;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class WishServiceUnitTest {
     @Mock
     private WishJpaRepository wishJpaRepository;
     @Mock
-    private WishEventOutboxJpaRepository wishEventOutboxJpaRepository;
+    private MemberEventOutboxJpaRepository memberEventOutboxJpaRepository;
 
     @InjectMocks
     private WishService wishService;
@@ -68,9 +68,9 @@ class WishServiceUnitTest {
         wishService.wish(memberId, 1L);
 
         // then
-        ArgumentCaptor<WishEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(WishEventOutboxJpaEntity.class);
-        verify(wishEventOutboxJpaRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventType()).isEqualTo(WishEventOutboxJpaEntity.TYPE_WISHED);
+        ArgumentCaptor<MemberEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(MemberEventOutboxJpaEntity.class);
+        verify(memberEventOutboxJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(MemberEventOutboxJpaEntity.TYPE_WISHED);
         assertThat(captor.getValue().getMemberId()).isEqualTo(memberId);
         assertThat(captor.getValue().getProjectId()).isEqualTo(1L);
     }
@@ -85,9 +85,9 @@ class WishServiceUnitTest {
         wishService.unwish(memberId, 1L);
 
         // then
-        ArgumentCaptor<WishEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(WishEventOutboxJpaEntity.class);
-        verify(wishEventOutboxJpaRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventType()).isEqualTo(WishEventOutboxJpaEntity.TYPE_UNWISHED);
+        ArgumentCaptor<MemberEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(MemberEventOutboxJpaEntity.class);
+        verify(memberEventOutboxJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo(MemberEventOutboxJpaEntity.TYPE_UNWISHED);
     }
 
     /** 하트 더블탭 한 번에 이벤트가 여러 건 쌓이면 소비 측이 멱등이어도 아웃박스만 불어난다. */
@@ -101,7 +101,7 @@ class WishServiceUnitTest {
         wishService.wish(memberId, 1L);
 
         // then
-        verify(wishEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(memberEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -114,7 +114,7 @@ class WishServiceUnitTest {
         wishService.unwish(memberId, 1L);
 
         // then
-        verify(wishEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(memberEventOutboxJpaRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

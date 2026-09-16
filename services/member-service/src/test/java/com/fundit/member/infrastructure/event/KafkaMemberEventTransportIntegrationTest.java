@@ -1,9 +1,10 @@
 package com.fundit.member.infrastructure.event;
 
 import com.fundit.common.event.KafkaTopics;
+import com.fundit.member.application.member.MemberSignupService;
 import com.fundit.member.application.wish.WishService;
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaEntity;
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaRepository;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaEntity;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -48,8 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
         "internal-api.key=test-only-internal-api-key",
-        "wish-event-outbox.poll-interval-ms=3600000"})
-class KafkaWishEventTransportIntegrationTest {
+        "member-event-outbox.poll-interval-ms=3600000"})
+class KafkaMemberEventTransportIntegrationTest {
 
     @Container
     @ServiceConnection
@@ -68,9 +69,11 @@ class KafkaWishEventTransportIntegrationTest {
     @Autowired
     private WishService wishService;
     @Autowired
-    private WishEventOutboxJpaRepository outboxRepository;
+    private MemberSignupService memberSignupService;
     @Autowired
-    private WishEventOutboxWorker worker;
+    private MemberEventOutboxJpaRepository outboxRepository;
+    @Autowired
+    private MemberEventOutboxWorker worker;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
 
@@ -146,7 +149,32 @@ class KafkaWishEventTransportIntegrationTest {
 
         // then
         assertThat(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, 50)))
-                .extracting(WishEventOutboxJpaEntity::getMemberId)
+                .extracting(MemberEventOutboxJpaEntity::getMemberId)
                 .doesNotContain(memberId);
+    }
+
+    /** 웰컴 쿠폰(ORDER-007)이 이 토픽에 걸려 있다 — order-service의 구독 어댑터는 #56에 이미 있다. */
+    @Test
+    void 가입하면_member_signed_up이_토픽에_실제로_들어간다() {
+        // given
+        UUID accountId = UUID.randomUUID();
+        memberSignupService.signup(new MemberSignupService.SignupCommand(
+                accountId, "홍길동", null, "01012345678",
+                List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
+
+        // when
+        worker.publishPending();
+
+        // then
+        ConsumerRecord<String, String> record = drain(KafkaTopics.MEMBER_SIGNED_UP).stream()
+                .filter(r -> r.value().contains(accountId.toString()))
+                .findFirst().orElseThrow(() -> new AssertionError("member.signed-up.v1에 메시지가 없다"));
+
+        assertThat(record.key()).isEqualTo(accountId.toString());
+        assertThat(record.value())
+                .contains("\"memberId\":\"" + accountId + "\"")
+                .containsPattern("\"eventId\":\"member:\\d+\"")
+                // 가입 이벤트에는 projectId가 없다 — 있으면 계약에 없는 필드가 나간다
+                .doesNotContain("projectId");
     }
 }

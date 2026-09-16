@@ -22,13 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ON CONFLICT DO NOTHING과 members 조인은 Postgres에서 실행해봐야 확인된다(찜과 같은 이유).
  *
  * <p>내부 키·@Transactional이 필요한 사정은 {@code WishJpaRepositoryIntegrationTest} 주석 참고.
- * 워커를 끄는 이유: 브로커가 없어 UnconfiguredWishEventTransport가 매 주기 예외를 던져 로그가 섞인다.
+ * 워커를 끄는 이유: 이 테스트에 브로커가 없어 발행이 매 주기 실패하고 로그가 섞인다.
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
         "internal-api.key=test-only-internal-api-key",
-        "wish-event-outbox.worker-enabled=false"})
+        "member-event-outbox.worker-enabled=false"})
 @Transactional
 class FollowJpaRepositoryIntegrationTest {
 

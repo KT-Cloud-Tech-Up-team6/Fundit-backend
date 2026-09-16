@@ -1,8 +1,8 @@
 package com.fundit.member.infrastructure.event;
 
 import com.fundit.member.application.wish.WishService;
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaEntity;
-import com.fundit.member.infrastructure.persistence.event.WishEventOutboxJpaRepository;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaEntity;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.doThrow;
  * 미발행으로 남아 재시도된다는 것을 확인한다(MEMBER-005).
  *
  * <p>전송은 스텁으로 실패시킨다 — 여기서 확인할 건 브로커 연동이 아니라 "실패했을 때 행이
- * 어떻게 남는가"다. 실제 Kafka 발행은 {@code KafkaWishEventTransportIntegrationTest}가 본다.
+ * 어떻게 남는가"다. 실제 Kafka 발행은 {@code KafkaMemberEventTransportIntegrationTest}가 본다.
  *
  * <p>poll-interval을 크게 잡아 스케줄러가 끼어들지 않게 하고 워커를 직접 호출한다.
  */
@@ -37,9 +37,9 @@ import static org.mockito.Mockito.doThrow;
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
         "internal-api.key=test-only-internal-api-key",
-        "wish-event-outbox.poll-interval-ms=3600000"})
+        "member-event-outbox.poll-interval-ms=3600000"})
 @Transactional
-class WishEventOutboxIntegrationTest {
+class MemberEventOutboxIntegrationTest {
 
     @Container
     @ServiceConnection
@@ -48,20 +48,20 @@ class WishEventOutboxIntegrationTest {
     @Autowired
     private WishService wishService;
     @Autowired
-    private WishEventOutboxJpaRepository outboxRepository;
+    private MemberEventOutboxJpaRepository outboxRepository;
     @Autowired
-    private WishEventOutboxWorker worker;
+    private MemberEventOutboxWorker worker;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
     @MockitoBean
-    private WishEventTransport transport;
+    private MemberEventTransport transport;
 
     private UUID createMember() {
         return memberJpaRepository.save(MemberJpaEntity.builder()
                 .id(UUID.randomUUID()).name("홍길동").phoneNumber("01012345678").build()).getId();
     }
 
-    private List<WishEventOutboxJpaEntity> unpublished() {
+    private List<MemberEventOutboxJpaEntity> unpublished() {
         return outboxRepository.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, 50));
     }
 
@@ -76,7 +76,7 @@ class WishEventOutboxIntegrationTest {
         // then
         assertThat(unpublished()).singleElement()
                 .satisfies(e -> {
-                    assertThat(e.getEventType()).isEqualTo(WishEventOutboxJpaEntity.TYPE_WISHED);
+                    assertThat(e.getEventType()).isEqualTo(MemberEventOutboxJpaEntity.TYPE_WISHED);
                     assertThat(e.getMemberId()).isEqualTo(memberId);
                     assertThat(e.getProjectId()).isEqualTo(1L);
                 });
@@ -92,8 +92,8 @@ class WishEventOutboxIntegrationTest {
         wishService.unwish(memberId, 1L);
 
         // then
-        assertThat(unpublished()).extracting(WishEventOutboxJpaEntity::getEventType)
-                .containsExactly(WishEventOutboxJpaEntity.TYPE_WISHED, WishEventOutboxJpaEntity.TYPE_UNWISHED);
+        assertThat(unpublished()).extracting(MemberEventOutboxJpaEntity::getEventType)
+                .containsExactly(MemberEventOutboxJpaEntity.TYPE_WISHED, MemberEventOutboxJpaEntity.TYPE_UNWISHED);
     }
 
     /** 하트 더블탭으로 이벤트가 두 건 쌓이면 아웃박스만 불어난다. */

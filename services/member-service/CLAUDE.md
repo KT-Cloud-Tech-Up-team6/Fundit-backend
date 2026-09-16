@@ -20,7 +20,7 @@
 - `terms_agreements` — 약관 동의 append-only 이력(법적 보존 목적, UPDATE/DELETE 없음). `terms_type`은 `SERVICE_USE`/`PRIVACY`/`AGE_OVER_14`/`MARKETING`/`AI_PERSONALIZATION`.
 - `wishes` — `project_title`/`project_thumbnail_url`은 catalog-service 이벤트 구독으로 동기화하는 스냅샷(비정규화, 최종적 일관성). `member_id`는 FK, `project_id`는 FK 아님(타 서비스 참조).
 - `follows` — 판매자 팔로우(MEMBER-007). 복합 PK `(member_id, seller_id)` — 중복 차단용 UNIQUE가 따로 필요 없고, 주 조회인 "내 팔로우 목록"이 `member_id` 선두라 그대로 쓰인다. **`seller_id`에 FK를 건다** — `wishes.project_id`와 달리 대상이 같은 DB `members`의 한 행이다. 같은 이유로 판매자 이름을 스냅샷으로 복사하지 않고 조회 시 조인한다.
-- `wish_event_outbox` — 찜 등록/해제 이벤트의 트랜잭셔널 아웃박스(MEMBER-005). `id BIGINT IDENTITY`는 `eventId = "member:{outboxId}"`의 근거다.
+- `member_event_outbox` — 이 서비스가 발행하는 이벤트의 트랜잭셔널 아웃박스. **서비스당 한 벌**이라 가입(MEMBER-002)과 찜(MEMBER-005)이 `event_type`으로 한 테이블을 공유한다(order `funding_event_outbox`와 같은 형태). `project_id`는 찜 이벤트만 채워 nullable이다. `id BIGINT IDENTITY`는 `eventId = "member:{outboxId}"`의 근거다.
 - `addresses` — 회원당 다건 등록 가능.
 
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
@@ -30,7 +30,7 @@
 - **찜 목록의 프로젝트 정보는 스냅샷**: catalog-service를 실시간 호출하지 않는다.
 - **팔로우도 같은 idempotent 패턴**: `PUT`(ON CONFLICT DO NOTHING) / `DELETE`(영향 행 0 허용). 두 기능이 "토글 + 재시도 안전"으로 성질이 같은데 한쪽만 다르게 처리하면 나중에 읽는 사람이 이유를 찾는다. 단, **팔로우 목록은 스냅샷을 쓰지 않는다** — 대상이 같은 DB에 있어 조인하면 되고, 복사하면 동기화 문제만 새로 생긴다.
 - **팔로우 대상이 "판매자"인지는 검증하지 않는다**: `members`에 판매자 구분 컬럼이 없다(`isSeller`/`isBuyer`가 둘 다 항상 true). 존재하는 회원인지만 확인한다.
-- **찜 이벤트는 아웃박스로만 발행한다**: 찜 쓰기와 같은 트랜잭션에서 `wish_event_outbox`에 적재하고, `WishEventOutboxWorker`가 `project.wished.v1`/`project.unwished.v1`로 보낸다. **상태가 실제로 바뀐 경우에만 적재한다** — 영향 행이 0인 재요청까지 적재하면 하트 더블탭 한 번에 이벤트가 여러 건 쌓인다. 파티션 키는 `memberId`다(`event-convention.md`).
+- **이벤트는 아웃박스로만 발행한다**: 도메인 쓰기와 같은 트랜잭션에서 `member_event_outbox`에 적재하고, `MemberEventOutboxWorker`가 `project.wished.v1`/`project.unwished.v1`/`member.signed-up.v1`로 보낸다. **상태가 실제로 바뀐 경우에만 적재한다** — 영향 행이 0인 재요청까지 적재하면 하트 더블탭 한 번에 이벤트가 여러 건 쌓인다. 파티션 키는 `memberId`다(`event-convention.md`).
 - **회원가입 실패 시 보상 트랜잭션은 auth-service 책임**: member-service는 생성 실패 시 auth-service에 실패 응답만 반환하면 된다. 자체적으로 롤백/삭제 로직을 만들지 않는다(auth-service CLAUDE.md의 "회원가입 보상 트랜잭션" 참고).
 - **본인인증(CI/DI) 데이터는 갖지 않는다**: `phone_number`만 입력값으로 저장하고, 인증 여부·CI/DI 관련 로직은 전부 auth-service 소관이다. auth-service가 향후 CI/DI를 저장하게 되면(현재는 미사용) 그때 member-service 반영 여부를 다시 결정한다.
 
@@ -45,5 +45,5 @@
 - 배송지 등 개인정보를 평문으로 로그에 남기지 말 것 (`security.md` S9·S10)
 - `POST /members`, `POST /members/{accountId}/phone-verification`을 게이트웨이 라우팅에 노출하지 말 것 — auth-service 내부 호출 전용
 - 휴대폰번호로 계정을 찾아주는 엔드포인트를 만들지 말 것 — 번호만 넣어보며 가입 여부를 캐낼 수 있다. 본인 확인은 `accountId`를 이미 아는 쪽에서 "맞는지"만 묻는 형태로 유지
-- **`@EnableScheduling`을 떼지 말 것** — `WishEventOutboxWorker`가 이걸로 돈다. 없어도 컴파일되고 다른 테스트도 다 통과하지만 이벤트가 영영 미발행으로 쌓인다(`MemberServiceApplicationUnitTest`가 고정한다)
+- **`@EnableScheduling`을 떼지 말 것** — `MemberEventOutboxWorker`가 이걸로 돈다. 없어도 컴파일되고 다른 테스트도 다 통과하지만 이벤트가 영영 미발행으로 쌓인다(`MemberServiceApplicationUnitTest`가 고정한다)
 - MVP 범위 밖 기능(리워드알림, 닉네임 수정, 소셜가입)을 별다른 논의 없이 구현 범위에 슬쩍 포함시키지 말 것 — `MvpImplementationSummary.md`에서 먼저 확인

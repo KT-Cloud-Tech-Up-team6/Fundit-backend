@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface WishEventOutboxJpaRepository extends JpaRepository<WishEventOutboxJpaEntity, Long> {
+public interface MemberEventOutboxJpaRepository extends JpaRepository<MemberEventOutboxJpaEntity, Long> {
 
-    List<WishEventOutboxJpaEntity> findByPublishedAtIsNullOrderByIdAsc(Pageable pageable);
+    List<MemberEventOutboxJpaEntity> findByPublishedAtIsNullOrderByIdAsc(Pageable pageable);
 }

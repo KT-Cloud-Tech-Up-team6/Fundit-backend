@@ -58,7 +58,7 @@
 | 도메인 | 소비자 / 홈·탐색 |
 | Actor | 구매자 |
 | 설명 | 관심 있는 프로젝트를 찜 목록에 저장·해제한다 |
-| 비즈니스 룰 | 찜 상태 저장/삭제. 상태가 실제로 바뀐 경우에만 `ProjectWished`/`ProjectUnwished`를 **같은 트랜잭션에서 아웃박스(`wish_event_outbox`)에 적재**하고, 워커가 `project.wished.v1`/`project.unwished.v1`로 Kafka 발행한다(파티션 키 `memberId`). 발행 실패 시 행이 미발행으로 남아 재시도된다. ⚠️ **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다**(해당 서비스 담당) |
+| 비즈니스 룰 | 찜 상태 저장/삭제. 상태가 실제로 바뀐 경우에만 `ProjectWished`/`ProjectUnwished`를 **같은 트랜잭션에서 아웃박스(`member_event_outbox`)에 적재**하고, 워커가 `project.wished.v1`/`project.unwished.v1`로 Kafka 발행한다(파티션 키 `memberId`). 발행 실패 시 행이 미발행으로 남아 재시도된다. ⚠️ **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다**(해당 서비스 담당) |
 | Request | projectId |
 | Response | 찜 상태 |
 | 예외 | - |

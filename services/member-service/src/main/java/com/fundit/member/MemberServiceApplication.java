@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * (CommonWebConfig — @LoginUser 리졸버 + InternalGatewaySecretFilter)이 com.fundit.common.webmvc
  * 패키지에 있어서, 기본 스캔 범위(com.fundit.member 하위)로는 잡히지 않는다.
  *
- * <p>@EnableScheduling: 찜 이벤트 아웃박스 워커(WishEventOutboxWorker, MEMBER-005)가
+ * <p>@EnableScheduling: 이벤트 아웃박스 워커(MemberEventOutboxWorker — 가입 MEMBER-002, 찜 MEMBER-005)가
  * @Scheduled로 돈다. 이게 없으면 예외 없이 조용히 안 돌고 이벤트만 영영 미발행으로 쌓인다.
  */
 @EnableScheduling
