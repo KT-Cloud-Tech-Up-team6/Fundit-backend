@@ -1,6 +1,7 @@
 package com.fundit.payment.application.refund;
 
 import com.fundit.payment.application.event.PaymentEventPublisher;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher;
 import com.fundit.payment.application.payment.TossPaymentsClient;
 import com.fundit.payment.application.settlement.SettlementHoldService;
 import com.fundit.payment.domain.payment.Payment;
@@ -46,6 +47,8 @@ class RefundExecutionServiceUnitTest {
     @Mock
     private PaymentEventPublisher paymentEventPublisher;
     @Mock
+    private PaymentNotificationPublisher paymentNotificationPublisher;
+    @Mock
     private SettlementHoldService settlementHoldService;
 
     private RefundExecutionService refundExecutionService;
@@ -54,7 +57,7 @@ class RefundExecutionServiceUnitTest {
     void setUp() {
         refundExecutionService = new RefundExecutionService(paymentRepository, tossPaymentsClient,
                 paymentCancellationJpaRepository, refundRequestRepository, paymentEventPublisher,
-                settlementHoldService);
+                paymentNotificationPublisher, settlementHoldService);
     }
 
     private Payment completedPayment() {
@@ -82,6 +85,12 @@ class RefundExecutionServiceUnitTest {
         verify(settlementHoldService).releaseToRefund(payment.getId());
         verify(paymentEventPublisher).publishRefundCompleted(any());
         verify(paymentCancellationJpaRepository).save(any());
+        ArgumentCaptor<PaymentNotificationPublisher.RefundStatusChangedEvent> notificationCaptor =
+                ArgumentCaptor.forClass(PaymentNotificationPublisher.RefundStatusChangedEvent.class);
+        verify(paymentNotificationPublisher).publishRefundStatusChanged(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().memberId()).isEqualTo(MEMBER_ID);
+        assertThat(notificationCaptor.getValue().status())
+                .isEqualTo(PaymentNotificationPublisher.RefundNotificationStatus.COMPLETED);
     }
 
     @Test
@@ -137,5 +146,10 @@ class RefundExecutionServiceUnitTest {
         verify(refundRequestRepository).save(captor.capture());
         assertThat(captor.getValue().getTriggerType()).isEqualTo(RefundTriggerType.GOAL_FAILED_AUTO);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED); // 취소되지 않고 그대로 유지
+        ArgumentCaptor<PaymentNotificationPublisher.RefundStatusChangedEvent> notificationCaptor =
+                ArgumentCaptor.forClass(PaymentNotificationPublisher.RefundStatusChangedEvent.class);
+        verify(paymentNotificationPublisher).publishRefundStatusChanged(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().status())
+                .isEqualTo(PaymentNotificationPublisher.RefundNotificationStatus.AWAITING_ALTERNATE_ACCOUNT);
     }
 }

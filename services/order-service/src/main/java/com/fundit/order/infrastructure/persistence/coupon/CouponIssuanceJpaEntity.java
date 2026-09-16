@@ -49,6 +49,9 @@ public class CouponIssuanceJpaEntity {
     @Column(name = "restored_at")
     private Instant restoredAt;
 
+    @Column(name = "expiring_notified_at")
+    private Instant expiringNotifiedAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.issuedAt == null) {

@@ -16,4 +16,11 @@ public interface ProjectOwnershipClient {
      * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
      */
     UUID getSellerId(Long projectId);
+
+    /**
+     * 알림 relatedUrl 조립용 — 외부 노출 식별자는 항상 publicId다(내부 PK를 URL에 쓰지 않는다).
+     *
+     * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
+     */
+    UUID getPublicId(Long projectId);
 }

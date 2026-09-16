@@ -42,12 +42,12 @@ public class HttpOrderFundingClient implements OrderFundingClient {
             if (response == null) {
                 throw new DependencyFailureException(new IllegalStateException("order-service 응답 본문 없음"));
             }
-            return new FundingSnapshot(response.projectId(), response.memberId());
+            return new FundingSnapshot(response.projectId(), response.memberId(), response.fundingPublicId());
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
     }
 
-    private record InternalFundingResponse(Long projectId, UUID memberId) {
+    private record InternalFundingResponse(Long projectId, UUID memberId, UUID fundingPublicId) {
     }
 }

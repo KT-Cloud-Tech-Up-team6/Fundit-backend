@@ -1,13 +1,18 @@
 package com.fundit.order.application.inventory;
 
+import com.fundit.order.application.notification.OrderNotificationPublisher;
+import com.fundit.order.application.notification.OrderNotificationPublisher.RewardRestockedEvent;
 import com.fundit.order.domain.inventory.Inventory;
 import com.fundit.order.domain.inventory.InventoryRepository;
+import com.fundit.order.infrastructure.persistence.restock.RewardRestockNotifyRequestJpaEntity;
+import com.fundit.order.infrastructure.persistence.restock.RewardRestockNotifyRequestJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -22,6 +27,8 @@ public class RewardStockSyncService implements RewardEventListener {
     private static final Logger log = LoggerFactory.getLogger(RewardStockSyncService.class);
 
     private final InventoryRepository inventoryRepository;
+    private final RewardRestockNotifyRequestJpaRepository restockNotifyRequestJpaRepository;
+    private final OrderNotificationPublisher notificationPublisher;
 
     @Override
     @Transactional
@@ -71,6 +78,22 @@ public class RewardStockSyncService implements RewardEventListener {
                             + "이미 판매된 수량보다 적게 재설정하려는 시도일 수 있어 운영 확인이 필요합니다. "
                             + "rewardId={}, delta={}",
                     current.getRewardId(), delta);
+        }
+        boolean wasOutOfStock = current.getAvailableStock() <= 0;
+        boolean backInStock = current.getAvailableStock() + delta > 0;
+        if (wasOutOfStock && backInStock) {
+            notifyPendingRestockRequests(current.getRewardId());
+        }
+    }
+
+    /** 재입고(ORDER-011 대기 신청) 알림 — 신청자 전원에게 1건씩 발행하고 신청 레코드는 소진한다. */
+    private void notifyPendingRestockRequests(Long rewardId) {
+        List<RewardRestockNotifyRequestJpaEntity> pending = restockNotifyRequestJpaRepository.findByRewardId(rewardId);
+        for (RewardRestockNotifyRequestJpaEntity request : pending) {
+            notificationPublisher.publishRewardRestocked(new RewardRestockedEvent(rewardId, request.getMemberId()));
+        }
+        if (!pending.isEmpty()) {
+            restockNotifyRequestJpaRepository.deleteAll(pending);
         }
     }
 

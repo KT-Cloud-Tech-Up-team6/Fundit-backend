@@ -30,4 +30,12 @@ public interface CouponIssuanceJpaRepository extends JpaRepository<CouponIssuanc
             + "WHERE ci.status = 'AVAILABLE' AND c.expires_at <= :now "
             + "ORDER BY ci.id ASC", nativeQuery = true)
     List<CouponIssuanceJpaEntity> findAvailableExpired(@Param("now") Instant now);
+
+    /** 쿠폰 만료임박(COUPON_EXPIRING) 리마인더 배치 대상 조회 — 아직 리마인더를 보내지 않은 건만. */
+    @Query(value = "SELECT ci.* FROM coupon_issuances ci "
+            + "JOIN coupons c ON c.coupon_code = ci.coupon_code "
+            + "WHERE ci.status = 'AVAILABLE' AND ci.expiring_notified_at IS NULL "
+            + "AND c.expires_at BETWEEN :now AND :windowEnd "
+            + "ORDER BY ci.id ASC", nativeQuery = true)
+    List<CouponIssuanceJpaEntity> findAvailableExpiringWithin(@Param("now") Instant now, @Param("windowEnd") Instant windowEnd);
 }

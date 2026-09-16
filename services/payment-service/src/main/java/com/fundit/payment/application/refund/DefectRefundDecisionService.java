@@ -3,6 +3,9 @@ package com.fundit.payment.application.refund;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.payment.application.funding.OrderFundingClient;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher.RefundNotificationStatus;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher.RefundStatusChangedEvent;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentRepository;
 import com.fundit.payment.domain.refund.RefundRequest;
@@ -23,6 +26,7 @@ public class DefectRefundDecisionService {
     private final PaymentRepository paymentRepository;
     private final OrderFundingClient orderFundingClient;
     private final RefundExecutionService refundExecutionService;
+    private final PaymentNotificationPublisher paymentNotificationPublisher;
 
     @Transactional
     public DefectDecisionResult decide(UUID accountId, Long refundId, boolean approve, String reason) {
@@ -37,13 +41,16 @@ public class DefectRefundDecisionService {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
 
+        Payment payment = paymentRepository.findById(refundRequest.getPaymentId())
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+
         if (!approve) {
             RefundRequest saved = refundRequestRepository.save(rejectedCopy(refundRequest, reason));
+            paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
+                    payment.getFundingId(), payment.getMemberId(), RefundNotificationStatus.REJECTED));
             return new DefectDecisionResult(saved.getId(), saved.getStatus().name());
         }
 
-        Payment payment = paymentRepository.findById(refundRequest.getPaymentId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         // [정책 확인 필요] 반품비 차감 등 부분취소 금액 산정 방식이 미확정이다(PaymentERD.md 6장
         // "반품비 처리 방식") — 확정 전까지는 전액취소로 처리한다.
         RefundExecutionService.RefundExecutionResult result = refundExecutionService.executeApprovedRefund(

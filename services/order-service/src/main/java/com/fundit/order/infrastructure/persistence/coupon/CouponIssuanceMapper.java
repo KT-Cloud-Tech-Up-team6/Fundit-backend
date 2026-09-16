@@ -17,6 +17,7 @@ public class CouponIssuanceMapper {
                 .usedFundingId(entity.getUsedFundingId())
                 .usedAt(entity.getUsedAt())
                 .restoredAt(entity.getRestoredAt())
+                .expiringNotifiedAt(entity.getExpiringNotifiedAt())
                 .build();
     }
 
@@ -30,6 +31,7 @@ public class CouponIssuanceMapper {
                 .usedFundingId(domain.getUsedFundingId())
                 .usedAt(domain.getUsedAt())
                 .restoredAt(domain.getRestoredAt())
+                .expiringNotifiedAt(domain.getExpiringNotifiedAt())
                 .build();
     }
 }

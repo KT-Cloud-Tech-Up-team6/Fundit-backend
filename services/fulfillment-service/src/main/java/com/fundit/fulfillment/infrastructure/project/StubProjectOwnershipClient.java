@@ -27,4 +27,10 @@ public class StubProjectOwnershipClient implements ProjectOwnershipClient {
         log.warn("[STUB] project-service 내부 API 미구현 — 고정값으로 대체합니다. projectId={}", projectId);
         return new UUID(1L, projectId);
     }
+
+    @Override
+    public UUID getPublicId(Long projectId) {
+        log.warn("[STUB] project-service 내부 API 미구현 — 고정값으로 대체합니다. projectId={}", projectId);
+        return new UUID(3L, projectId);
+    }
 }

@@ -49,6 +49,11 @@ public class CouponIssuancePersistenceAdapter implements CouponIssuanceRepositor
     }
 
     @Override
+    public List<CouponIssuance> findAvailableExpiringWithin(Instant now, Instant windowEnd) {
+        return jpaRepository.findAvailableExpiringWithin(now, windowEnd).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
     public CouponIssuance save(CouponIssuance issuance) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(issuance)));
     }

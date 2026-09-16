@@ -72,6 +72,12 @@ public class FundingPersistenceAdapter implements FundingRepository {
                 .stream().map(this::hydrate).toList();
     }
 
+    @Override
+    public List<Funding> findGoalAchievedByProjectId(Long projectId) {
+        return fundingJpaRepository.findByProjectIdAndStatusIn(projectId, List.of(FundingStatus.GOAL_ACHIEVED.name()))
+                .stream().map(this::hydrate).toList();
+    }
+
     private Funding hydrate(FundingJpaEntity entity) {
         List<FundingLineItemJpaEntity> lineItemEntities = lineItemJpaRepository.findByFundingId(entity.getId());
         List<Long> lineItemIds = lineItemEntities.stream().map(FundingLineItemJpaEntity::getId).toList();
