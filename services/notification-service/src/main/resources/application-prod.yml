@@ -9,6 +9,9 @@ spring:
 
 # 이 서비스에는 내부 전용 엔드포인트가 없지만 CommonWebConfig가 무조건
 # @Value("${internal-api.key}")로 주입받으므로, 없으면 빈 생성 단계에서 기동이 실패한다.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
 internal-api:
   key: ${INTERNAL_API_KEY}
 
