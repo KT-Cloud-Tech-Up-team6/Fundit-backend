@@ -20,7 +20,7 @@
 
 **아직 구현 안 된 것(범위 밖으로 확인됨, 별도 후속작업 필요)**:
 - catalog-service 이벤트 구독(찜 스냅샷 동기화) — 이벤트 스키마 미확정이라 `wishes.project_title`/`project_thumbnail_url`은 등록 시점엔 항상 null.
-- ~~`ProjectWished`/`ProjectUnwished` 이벤트 발행 — 메시지 브로커 연동 자체가 이번 범위에 없었음.~~ **→ 2026-09-16 아웃박스까지 구현(#58).** `wish_event_outbox` 적재 + `WishEventOutboxWorker`까지 끝났고, **Kafka 전송 어댑터(`KafkaWishEventTransport`)만 남았다** — 브로커 배선이 develop에 들어오면 `UnconfiguredWishEventTransport`를 교체하면 된다(project/order/payment/fulfillment 4개 서비스와 같은 상태). 소비 측인 project-service에도 토픽을 받아 `ProjectWishedEvent`로 변환하는 어댑터가 필요하다(해당 서비스 담당).
+- ~~`ProjectWished`/`ProjectUnwished` 이벤트 발행 — 메시지 브로커 연동 자체가 이번 범위에 없었음.~~ **→ 2026-09-16 구현 완료(#58).** `wish_event_outbox` 적재 + `WishEventOutboxWorker` + `KafkaWishEventTransport`까지 끝났다(파티션 키 `memberId`, Testcontainers 브로커로 검증). **남은 건 소비 측** — project-service의 `ProjectWishStatsEventSubscriber`가 인프로세스 `@EventListener`라, 토픽을 받아 `ProjectWishedEvent`로 변환하는 어댑터가 필요하다(해당 서비스 담당).
 
 ## 추가 구현 (2026-09-16, #58)
 
@@ -30,7 +30,7 @@ PM이 MEMBER-006을 "찜한 프로젝트 목록**과 찜한 판매자 목록**"�
 
 **설계 메모**: 팔로우 대상(seller)도 결국 `members` 테이블의 한 행이므로, `wishes.project_id`(타 서비스 참조, FK 아님)와 달리 **같은 DB 내 참조라 `follows.seller_id`에 FK를 걸었다.** 같은 이유로 판매자 이름을 스냅샷으로 복사하지 않고 조인으로 가져온다 — 복사하면 동기화 문제만 새로 생긴다.
 
-**MEMBER-005 찜 이벤트 아웃박스 구현** — `wish_event_outbox` 테이블(`V3`) + 워커. 상세는 아래 "아직 구현 안 된 것" 참고.
+**MEMBER-005 찜 이벤트 발행 구현** — `wish_event_outbox` 테이블(`V3`) + 워커 + Kafka 전송. 상세는 위 "아직 구현 안 된 것" 참고.
 
 ---
 
