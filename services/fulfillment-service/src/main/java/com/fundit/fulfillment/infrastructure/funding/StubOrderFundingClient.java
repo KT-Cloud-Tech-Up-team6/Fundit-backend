@@ -27,6 +27,6 @@ public class StubOrderFundingClient implements OrderFundingClient {
     @Override
     public FundingSnapshot fetch(Long fundingId) {
         log.warn("[STUB] order-service 내부 API 미구현 — 고정값으로 대체합니다. fundingId={}", fundingId);
-        return new FundingSnapshot(fundingId, new UUID(0L, fundingId));
+        return new FundingSnapshot(fundingId, new UUID(0L, fundingId), new UUID(2L, fundingId));
     }
 }

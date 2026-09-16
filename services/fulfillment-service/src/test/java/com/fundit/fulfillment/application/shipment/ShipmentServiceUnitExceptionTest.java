@@ -58,7 +58,7 @@ class ShipmentServiceUnitExceptionTest {
     void 다른_프로젝트_소속_펀딩이면_예외가_발생한다() {
         // given
         when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(999L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(999L, buyerId, UUID.randomUUID()));
 
         // when & then
         assertThatThrownBy(() -> service.registerShipment(123L, 1024L, sellerId, "CJ대한통운", "123"))
@@ -71,7 +71,7 @@ class ShipmentServiceUnitExceptionTest {
     void 이미_발송된_건에_재등록하면_예외가_발생한다() {
         // given
         when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
         Shipment shipped = Shipment.create(1024L, 123L);
         shipped.registerShipment("CJ대한통운", "123456789012");
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.of(shipped));
@@ -86,7 +86,7 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 본인_funding이_아니면_조회시_예외가_발생한다() {
         // given
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
 
         // when & then
         assertThatThrownBy(() -> service.getShipment(123L, 1024L, UUID.randomUUID()))
@@ -98,7 +98,7 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 발송_전_상태에서_수령확인하면_예외가_발생한다() {
         // given — shipments 레코드 자체가 없음
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
 
         // when & then

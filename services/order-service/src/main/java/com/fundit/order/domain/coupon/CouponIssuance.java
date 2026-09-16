@@ -23,6 +23,7 @@ public class CouponIssuance {
     private Long usedFundingId;
     private Instant usedAt;
     private Instant restoredAt;
+    private Instant expiringNotifiedAt;
 
     public static CouponIssuance issue(String couponCode, UUID ownerId) {
         return CouponIssuance.builder()
@@ -54,7 +55,17 @@ public class CouponIssuance {
         this.restoredAt = Instant.now();
     }
 
-    public void expire() {
+    /** @return true면 이번 호출로 만료 처리됨, false면 이미 AVAILABLE이 아니었음(idempotent). */
+    public boolean expireIfAvailable() {
+        if (status != CouponIssuanceStatus.AVAILABLE) {
+            return false;
+        }
         this.status = CouponIssuanceStatus.EXPIRED;
+        return true;
+    }
+
+    /** 만료임박 리마인더 발송 표시(중복 알림 방지) — 만료 상태 전이와는 별개다. */
+    public void markExpiringNotified() {
+        this.expiringNotifiedAt = Instant.now();
     }
 }

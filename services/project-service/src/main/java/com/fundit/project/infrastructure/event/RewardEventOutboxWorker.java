@@ -53,12 +53,12 @@ public class RewardEventOutboxWorker {
     private void deliver(RewardEventOutboxJpaEntity event) {
         if (RewardEventOutboxJpaEntity.TYPE_CREATED.equals(event.getEventType())) {
             transport.sendCreated(new RewardCreatedEvent(
-                    event.getRewardId(), event.getProjectId(), event.getIsLimited(), event.getQuantity()));
+                    event.getRewardId(), event.getProjectId(), event.getIsLimited(), event.getQuantity()), event.getId());
             return;
         }
         if (RewardEventOutboxJpaEntity.TYPE_UPDATED.equals(event.getEventType())) {
             transport.sendUpdated(new RewardUpdatedEvent(
-                    event.getRewardId(), event.getProjectId(), event.getIsLimited(), event.getQuantity()));
+                    event.getRewardId(), event.getProjectId(), event.getIsLimited(), event.getQuantity()), event.getId());
             return;
         }
         throw new IllegalStateException("알 수 없는 리워드 이벤트 타입: " + event.getEventType());

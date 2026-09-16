@@ -52,7 +52,7 @@ class PaymentEventOutboxWorkerUnitTest {
         // then
         ArgumentCaptor<PaymentEventTransport.PaymentCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
-        verify(transport).sendPaymentCompleted(captor.capture());
+        verify(transport).sendPaymentCompleted(captor.capture(), any());
         assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
         assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
         assertThat(event.getPublishedAt()).isNotNull();
@@ -68,7 +68,7 @@ class PaymentEventOutboxWorkerUnitTest {
                 .payload(Map.of())
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
-        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendPaymentCompleted(any());
+        doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendPaymentCompleted(any(), any());
 
         // when
         worker.publishPending();
@@ -97,7 +97,7 @@ class PaymentEventOutboxWorkerUnitTest {
 
         ArgumentCaptor<PaymentEventTransport.RefundCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.RefundCompletedTransportEvent.class);
-        verify(transport).sendRefundCompleted(captor.capture());
+        verify(transport).sendRefundCompleted(captor.capture(), any());
         assertThat(captor.getValue().fundingId()).isEqualTo(2048L);
         assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
         assertThat(captor.getValue().refundReason()).isEqualTo("CANCELLED_BY_MEMBER");
@@ -119,7 +119,7 @@ class PaymentEventOutboxWorkerUnitTest {
 
         ArgumentCaptor<PaymentEventTransport.PaymentCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
-        verify(transport).sendPaymentCompleted(captor.capture());
+        verify(transport).sendPaymentCompleted(captor.capture(), any());
         assertThat(captor.getValue().couponIssuanceId()).isEqualTo(9L);
     }
 

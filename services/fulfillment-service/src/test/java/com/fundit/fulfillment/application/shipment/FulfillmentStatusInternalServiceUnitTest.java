@@ -64,7 +64,7 @@ class FulfillmentStatusInternalServiceUnitTest {
     void 미발송이고_발송예정일이_지났으면_지연으로_판정한다() {
         // given
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID()));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
         FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
         when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
@@ -85,7 +85,7 @@ class FulfillmentStatusInternalServiceUnitTest {
     void 미발송이고_발송예정일_전이면_지연이_아니다() {
         // given
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID()));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
         FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
         when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
@@ -105,7 +105,7 @@ class FulfillmentStatusInternalServiceUnitTest {
     void 미발송이고_예상일정_정보가_없으면_지연이_아닌_것으로_보수적으로_판정한다() {
         // given
         when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID()));
+        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
         when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.empty());
 
         // when

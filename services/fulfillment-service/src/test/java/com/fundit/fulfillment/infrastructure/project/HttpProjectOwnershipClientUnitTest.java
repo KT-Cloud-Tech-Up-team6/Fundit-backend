@@ -49,6 +49,22 @@ class HttpProjectOwnershipClientUnitTest {
     }
 
     @Test
+    void 내부API키를_붙여_공개_ID를_조회한다() {
+        UUID publicId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8083/internal/projects/123"))
+                .andExpect(method(GET))
+                .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andRespond(withSuccess("""
+                        {"sellerId": "%s", "publicId": "%s"}
+                        """.formatted(UUID.randomUUID(), publicId), MediaType.APPLICATION_JSON));
+
+        UUID result = client.getPublicId(123L);
+
+        assertThat(result).isEqualTo(publicId);
+        server.verify();
+    }
+
+    @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
         server.expect(requestTo("http://localhost:8083/internal/projects/123"))
                 .andRespond(withServerError());

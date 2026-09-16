@@ -1,5 +1,6 @@
 package com.fundit.fulfillment.application.shipment;
 
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher;
 import com.fundit.fulfillment.domain.shipment.ShipmentRepository;
 import com.fundit.fulfillment.domain.shipment.ShipmentStatus;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import java.time.Instant;
 public class ShipmentDeliveryMockProcessor {
 
     private final ShipmentRepository shipmentRepository;
+    private final FulfillmentDomainEventPublisher domainEventPublisher;
 
     /** @return true면 이번 호출로 배송완료 처리됨, false면 이미 처리돼 있었음(idempotent). */
     @Transactional
@@ -28,6 +30,9 @@ public class ShipmentDeliveryMockProcessor {
                 .map(shipment -> {
                     shipment.markDelivered(Instant.now());
                     shipmentRepository.save(shipment);
+                    // payment-service PAYMENT-014(최종정산) 트리거 — 상태 전이와 같은 트랜잭션에서 적재.
+                    domainEventPublisher.publishShippingCompleted(new FulfillmentDomainEventPublisher.ShippingCompletedEvent(
+                            shipment.getFundingId(), shipment.getProjectId()));
                     return true;
                 })
                 .orElse(false);

@@ -7,13 +7,13 @@ import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
 import com.fundit.order.application.order.OrderQueryService;
 import com.fundit.order.domain.OrderErrorCode;
-import com.fundit.order.infrastructure.security.CurrentMemberArgumentResolver;
-import com.fundit.order.infrastructure.security.WebConfig;
+import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.order.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,8 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 정상 흐름은 {@link OrderControllerTest} 참고. */
 @WebMvcTest(OrderController.class)
-@Import({GlobalExceptionHandler.class, CurrentMemberArgumentResolver.class, WebConfig.class})
+@Import({GlobalExceptionHandler.class, CommonWebConfig.class})
+@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class OrderControllerExceptionTest {
+
+    private static final String INTERNAL_KEY = "test-only-internal-api-key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -51,7 +54,8 @@ class OrderControllerExceptionTest {
 
         // when & then
         mockMvc.perform(post("/api/v1/orders")
-                        .header("X-Account-Id", memberId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("""
                                 {"projectId": 123, "lineItems": [{"rewardId":1,"quantity":100}],
@@ -69,7 +73,9 @@ class OrderControllerExceptionTest {
         when(orderCancelService.cancel(memberId, orderId)).thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         // when & then
-        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isNotFound());
     }
 
@@ -82,7 +88,9 @@ class OrderControllerExceptionTest {
                 .thenThrow(new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE));
 
         // when & then
-        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-Account-Id", memberId.toString()))
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isUnprocessableEntity());
     }
 }

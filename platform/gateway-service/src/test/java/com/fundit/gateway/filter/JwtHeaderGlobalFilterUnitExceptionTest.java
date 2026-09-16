@@ -61,6 +61,21 @@ class JwtHeaderGlobalFilterUnitExceptionTest {
     }
 
     @Test
+    void GET_전용_내부_엔드포인트인_배송상태_조회도_404를_반환한다() {
+        // given — fulfillment-service의 내부 전용 배송상태 조회(FULFILLMENT-008). 회원 관련
+        // 내부 엔드포인트와 달리 POST가 아니라 GET이라, 메서드별로 다른 항목이 정확히 구분되는지 검증한다
+        ServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/internal/fundings/" + UUID.randomUUID() + "/fulfillment-status"));
+
+        // when
+        filter.filter(exchange, chain).block();
+
+        // then
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(chain.reached()).isFalse();
+    }
+
+    @Test
     void 서명이_위조된_토큰이면_401_TOKEN_INVALID를_반환한다() {
         // given
         String forged = GatewayFilterFixture.tokenSignedWithOtherKey(

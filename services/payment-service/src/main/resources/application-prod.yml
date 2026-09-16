@@ -6,6 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 internal-api:
   key: ${INTERNAL_API_KEY}
@@ -26,3 +28,11 @@ order:
     funding-client:
       mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
     base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
+
+# fulfillment-service 내부 API(FULFILLMENT-008)는 이미 구현돼 있으나 기본은 stub로 시작 —
+# 연동 확인 후 SHIPPING_STATUS_CLIENT_MODE=http로 전환(order 쪽과 동일 패턴).
+fulfillment:
+  integration:
+    shipping-status-client:
+      mode: ${SHIPPING_STATUS_CLIENT_MODE:stub}
+    base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}

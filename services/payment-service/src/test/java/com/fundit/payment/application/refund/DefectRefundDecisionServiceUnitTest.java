@@ -1,6 +1,7 @@
 package com.fundit.payment.application.refund;
 
 import com.fundit.payment.application.funding.OrderFundingClient;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
@@ -36,13 +37,15 @@ class DefectRefundDecisionServiceUnitTest {
     private OrderFundingClient orderFundingClient;
     @Mock
     private RefundExecutionService refundExecutionService;
+    @Mock
+    private PaymentNotificationPublisher paymentNotificationPublisher;
 
     private DefectRefundDecisionService defectRefundDecisionService;
 
     @BeforeEach
     void setUp() {
         defectRefundDecisionService = new DefectRefundDecisionService(refundRequestRepository, paymentRepository,
-                orderFundingClient, refundExecutionService);
+                orderFundingClient, refundExecutionService, paymentNotificationPublisher);
     }
 
     private RefundRequest defectRequest(UUID paymentId) {
@@ -74,10 +77,13 @@ class DefectRefundDecisionServiceUnitTest {
     @Test
     void 판매자_본인이_반려하면_사유와_함께_REJECTED로_전환된다() {
         // given
-        RefundRequest refundRequest = defectRequest(UUID.randomUUID());
+        Payment payment = Payment.create(FUNDING_ID, UUID.randomUUID(), "fundit-order-1", 89_000L, "주문", null, "idem");
+        payment.markCompleted("pay_key_1", "secret_1", PaymentMethod.CARD, null, Instant.now());
+        RefundRequest refundRequest = defectRequest(payment.getId());
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), SELLER_ID, "GOAL_ACHIEVED", 89_000L, "주문", null));
+        when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
         when(refundRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -86,5 +92,8 @@ class DefectRefundDecisionServiceUnitTest {
         // then
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(refundRequest.getRejectedReason()).isEqualTo("제품 이상 없음 확인됨");
+        verify(paymentNotificationPublisher).publishRefundStatusChanged(
+                new PaymentNotificationPublisher.RefundStatusChangedEvent(FUNDING_ID, payment.getMemberId(),
+                        PaymentNotificationPublisher.RefundNotificationStatus.REJECTED));
     }
 }

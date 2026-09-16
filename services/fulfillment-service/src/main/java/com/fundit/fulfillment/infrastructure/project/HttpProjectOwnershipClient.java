@@ -33,6 +33,15 @@ public class HttpProjectOwnershipClient implements ProjectOwnershipClient {
 
     @Override
     public UUID getSellerId(Long projectId) {
+        return fetch(projectId).sellerId();
+    }
+
+    @Override
+    public UUID getPublicId(Long projectId) {
+        return fetch(projectId).publicId();
+    }
+
+    private InternalProjectResponse fetch(Long projectId) {
         try {
             InternalProjectResponse response = projectServiceRestClient.get()
                     .uri("/internal/projects/{projectId}", projectId)
@@ -42,12 +51,12 @@ public class HttpProjectOwnershipClient implements ProjectOwnershipClient {
             if (response == null) {
                 throw new DependencyFailureException(new IllegalStateException("project-service 응답 본문 없음"));
             }
-            return response.sellerId();
+            return response;
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
     }
 
-    private record InternalProjectResponse(UUID sellerId) {
+    private record InternalProjectResponse(UUID sellerId, UUID publicId) {
     }
 }

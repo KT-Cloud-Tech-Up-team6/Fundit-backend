@@ -14,11 +14,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 단순 애그리거트 — FULFILLMENT-004/005/010이 발행하는 알림 이벤트의 트랜잭셔널 아웃박스 행
- * (order-service {@code FundingEventOutboxJpaEntity}와 동일 패턴). notification-service가
- * 아직 없고 메시지 브로커도 미확정이라 이 패턴을 그대로 따른다.
+ * (order-service {@code FundingEventOutboxJpaEntity}와 동일 패턴). 행 1개 = 수신자 1명이다 —
+ * ScheduleChanged(참여자 전원 대상)는 참가자 수만큼 행을 반복 적재한다.
  */
 @Getter
 @Entity
@@ -44,6 +45,13 @@ public class FulfillmentEventOutboxJpaEntity {
 
     @Column(name = "funding_id")
     private Long fundingId;
+
+    @Column(name = "member_id")
+    private UUID memberId;
+
+    /** 이벤트 타입에 따라 프로젝트 publicId(StaleUpdateReminder) 또는 펀딩 publicId(ReceiptAutoConfirmed)가 들어간다. */
+    @Column(name = "related_public_id")
+    private UUID relatedPublicId;
 
     @Column(length = 20)
     private String stage;

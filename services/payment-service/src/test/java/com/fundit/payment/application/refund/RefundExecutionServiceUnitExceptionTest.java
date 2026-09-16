@@ -3,6 +3,7 @@ package com.fundit.payment.application.refund;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.payment.application.event.PaymentEventPublisher;
+import com.fundit.payment.application.notification.PaymentNotificationPublisher;
 import com.fundit.payment.application.payment.TossApiException;
 import com.fundit.payment.application.payment.TossPaymentsClient;
 import com.fundit.payment.application.settlement.SettlementHoldService;
@@ -46,6 +47,8 @@ class RefundExecutionServiceUnitExceptionTest {
     @Mock
     private PaymentEventPublisher paymentEventPublisher;
     @Mock
+    private PaymentNotificationPublisher paymentNotificationPublisher;
+    @Mock
     private SettlementHoldService settlementHoldService;
 
     private RefundExecutionService refundExecutionService;
@@ -54,7 +57,7 @@ class RefundExecutionServiceUnitExceptionTest {
     void setUp() {
         refundExecutionService = new RefundExecutionService(paymentRepository, tossPaymentsClient,
                 paymentCancellationJpaRepository, refundRequestRepository, paymentEventPublisher,
-                settlementHoldService);
+                paymentNotificationPublisher, settlementHoldService);
     }
 
     private Payment completedPayment() {

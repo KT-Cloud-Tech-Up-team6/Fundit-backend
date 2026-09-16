@@ -183,10 +183,10 @@ PDF/엑셀 등 파일 생성 후 다운로드 URL 또는 파일 스트림 반환
 
 ## 이벤트 구독/스케줄러 구현 노트
 
-### 공통 원칙 — 브로커가 아직 없다
-레포 전체에 메시지 브로커가 아직 배선되어 있지 않습니다(order-service `FundingEventTransport`도 `UnconfiguredFundingEventTransport`만 있고 실제 broker 구현체가 없음). 그렇다고 이벤트 구독 로직 자체를 미루지 마세요 — **발행 쪽(이 서비스가 order-service로 보내는 것)과 구독 쪽(이 서비스가 order-service로부터 받는 것)을 대칭적으로 인터페이스 뒤에 완성**해두면 됩니다.
+### 공통 원칙 — 발행/구독 모두 인터페이스 뒤에서 완성한다
+메시지 브로커는 Kafka로 확정되어 order/project/fulfillment/payment 4개 서비스 모두 실제 배선이 끝났습니다(`KafkaConfig`의 producer/consumer 빈 + `Kafka{X}EventTransport`). **발행 쪽(이 서비스가 order-service로 보내는 것)과 구독 쪽(이 서비스가 order-service로부터 받는 것)을 대칭적으로 인터페이스 뒤에 완성**해두는 원칙 자체는 그대로 유지합니다 — 트랜잭션/멱등성/이벤트 발행까지 포함한 서비스 레이어 로직이 핵심이지, 브로커 배선이 핵심이 아니기 때문입니다.
 
-- **발행(Producer)**: PAYMENT-016 = 아웃박스 패턴. `payment_event_outbox`에 트랜잭션 안에서 적재 → `PaymentEventOutboxWorker`(`@Scheduled`)가 `PaymentEventTransport` 인터페이스로 전달 시도 → 브로커 미확정 구간은 `UnconfiguredPaymentEventTransport`가 예외를 던져 재시도 상태로 남김(로깅만 하고 성공 취급 안 함) — order-service `FundingEventOutboxWorker`/`FundingEventTransport`/`UnconfiguredFundingEventTransport` 3종 세트를 그대로 본뜰 것.
+- **발행(Producer)**: PAYMENT-016 = 아웃박스 패턴. `payment_event_outbox`에 트랜잭션 안에서 적재 → `PaymentEventOutboxWorker`(`@Scheduled`)가 `PaymentEventTransport` 인터페이스로 전달 시도 → 실제 구현체 `KafkaPaymentEventTransport`가 `payment.completed.v1`/`refund.completed.v1`로 발행하고, 실패 시 예외를 던져 재시도 상태로 남김(로깅만 하고 성공 취급 안 함) — order-service `FundingEventOutboxWorker`/`FundingEventTransport`/`KafkaFundingEventTransport` 3종 세트와 동일 패턴.
 - **구독(Consumer, PAYMENT-004/005/017)**: 비즈니스 로직은 "이벤트 레코드를 입력받는 애플리케이션 서비스 메서드"로 완전히 구현하고 단위 테스트도 이 메서드를 직접 호출해서 짭니다(`GoalFailedAutoRefundService.handle(FundingGoalFailedEvent event)`처럼). 실제로 이 메서드를 누가 호출하는지(Kafka 리스너/REST 콜백/기타)는 브로커가 정해지면 그때 얇은 어댑터 하나만 추가하면 됩니다 — 지금은 그 어댑터를 만들지 않고 비워둬도 되고, 골격만 원한다면 `FundingEventSubscriber` 인터페이스(예: `onGoalFailed`, `onCancelledByMember`)를 만들고 아직 아무도 구현하지 않은 상태로 둬도 무방합니다. **핵심은 서비스 레이어(트랜잭션/멱등성/이벤트 발행까지 포함한 전체 로직)를 완성하는 것이지, 브로커 배선이 아닙니다.**
 
 ### PAYMENT-004 — 이벤트 구독(`FundingCancelledByMember`)
@@ -289,4 +289,4 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
 - PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.
 - 적립금(`point_transactions`) MVP 포함 여부 미정.
-- 게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록 — 스캐폴딩 시점에 추가 필요(웹훅 경로는 인증 없이 통과하는 라우트여야 함).
+- ~~게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록~~ — 등록 완료(`platform/gateway-service/src/main/resources/application.yml`, `/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**`). 웹훅 경로(`/api/v1/payments/webhook/toss`)도 `X-User-Id` 없는 요청은 필터가 자동 통과시키므로 별도 화이트리스트 없이 정상 동작한다.

@@ -141,6 +141,19 @@ class JwtHeaderGlobalFilterUnitTest {
         assertThat(chain.reached()).isTrue();
     }
 
+    @Test
+    void 배송상태_내부_엔드포인트_차단은_등록된_메서드GET와_다르면_적용되지_않는다() {
+        // given — 내부 전용 목록은 (메서드, 경로) 조합으로 매칭된다. 같은 경로라도 POST면 대상이 아니다
+        ServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/internal/fundings/" + UUID.randomUUID() + "/fulfillment-status"));
+
+        // when
+        filter.filter(exchange, chain).block();
+
+        // then
+        assertThat(chain.reached()).isTrue();
+    }
+
     /** 체인이 실제로 받은(=다운스트림으로 나갈) 요청을 붙잡아두는 테스트용 체인. */
     private static final class RecordingChain implements GatewayFilterChain {
 
