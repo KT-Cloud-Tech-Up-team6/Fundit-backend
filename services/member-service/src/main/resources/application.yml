@@ -12,3 +12,9 @@ spring:
 springdoc:
   api-docs:
     path: /api/v1/members/api-docs
+
+# 이벤트 아웃박스 워커(MEMBER-002·005). project-service reward-event-outbox와 같은 키 모양이다.
+member-event-outbox:
+  worker-enabled: true
+  poll-interval-ms: 5000
+  batch-size: 50

@@ -1,6 +1,8 @@
 package com.fundit.member.application.member;
 
 import com.fundit.member.infrastructure.persistence.address.AddressJpaRepository;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaEntity;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
 import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreementJpaRepository;
@@ -31,6 +33,8 @@ class MemberSignupServiceUnitTest {
     private TermsAgreementJpaRepository termsAgreementJpaRepository;
     @Mock
     private AddressJpaRepository addressJpaRepository;
+    @Mock
+    private MemberEventOutboxJpaRepository memberEventOutboxJpaRepository;
     @Spy
     private TermsCatalog termsCatalog = new TermsCatalog();
 
@@ -130,5 +134,32 @@ class MemberSignupServiceUnitTest {
                     .phoneNumber(entity.getPhoneNumber())
                     .createdAt(Instant.now()).updatedAt(Instant.now()).build();
         });
+    }
+
+    /**
+     * 웰컴 쿠폰(ORDER-007)이 이 이벤트에 걸려 있다 — 적재가 빠지면 order-service가 구독을
+     * 붙여놔도 신규 가입자에게 쿠폰이 영영 안 나간다.
+     */
+    @Test
+    void 가입이_성공하면_아웃박스에_가입_이벤트를_적재한다() {
+        // given
+        UUID accountId = UUID.randomUUID();
+        when(memberJpaRepository.existsById(accountId)).thenReturn(false);
+        when(memberJpaRepository.saveAndFlush(any(MemberJpaEntity.class))).thenAnswer(invocation -> {
+            MemberJpaEntity entity = invocation.getArgument(0);
+            return MemberJpaEntity.builder().id(entity.getId()).name(entity.getName())
+                    .phoneNumber(entity.getPhoneNumber()).createdAt(Instant.now()).build();
+        });
+
+        // when
+        memberSignupService.signup(new MemberSignupService.SignupCommand(
+                accountId, "홍길동", null, "01012345678",
+                List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null));
+
+        // then
+        verify(memberEventOutboxJpaRepository).save(argThat((MemberEventOutboxJpaEntity e) ->
+                MemberEventOutboxJpaEntity.TYPE_SIGNED_UP.equals(e.getEventType())
+                        && accountId.equals(e.getMemberId())
+                        && e.getProjectId() == null));
     }
 }

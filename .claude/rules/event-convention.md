@@ -45,6 +45,8 @@ reward.create.v1           ❌  과거형 아님
 | --- | --- | --- | --- |
 | `notification.raised.v1` | member / order / payment / fulfillment / project | notification | `memberId` |
 | `member.signed-up.v1` | member | order (쿠폰 발급) | `memberId` |
+| `project.wished.v1` | member | project (찜 통계) | `memberId` |
+| `project.unwished.v1` | member | project (찜 통계) | `memberId` |
 | `reward.created.v1` | project | order (재고 동기화) | `rewardId` |
 | `reward.updated.v1` | project | order (재고 동기화) | `rewardId` |
 | `funding.succeeded.v1` | order | payment (정산), fulfillment | `fundingId` |
@@ -66,6 +68,7 @@ reward.create.v1           ❌  과거형 아님
 
 | 서비스 | `event_type` | 토픽 |
 | --- | --- | --- |
+| **member** | `PROJECT_WISHED` / `PROJECT_UNWISHED` | `project.wished.v1` / `project.unwished.v1` |
 | project | `REWARD_CREATED` / `REWARD_UPDATED` | `reward.created.v1` / `reward.updated.v1` |
 | order | `FUNDING_SUCCEEDED` | `funding.succeeded.v1` |
 | order | `FUNDING_GOAL_FAILED` | `funding.goal-failed.v1` |

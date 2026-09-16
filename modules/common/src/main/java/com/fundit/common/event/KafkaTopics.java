@@ -28,6 +28,19 @@ public final class KafkaTopics {
      */
     public static final String NOTIFICATION_RAISED = "notification.raised.v1";
 
+    /**
+     * 프로젝트 찜 등록 / 찜 해제. 발행: member / 구독: project(판매자용 찜 통계 집계).
+     * 파티션 키: <b>memberId</b>.
+     *
+     * <p>파티션 키가 projectId가 아닌 이유: 순서가 필요한 건 한 회원이 같은 프로젝트를 빠르게
+     * 찜→해제하는 경우다. 뒤집히면 지울 행이 없어 카운트가 안 내려가고, 뒤이은 wished가 +1 해서
+     * 찜하지 않은 회원이 통계에 남는다.
+     */
+    public static final String PROJECT_WISHED = "project.wished.v1";
+
+    /** @see #PROJECT_WISHED */
+    public static final String PROJECT_UNWISHED = "project.unwished.v1";
+
     /** 회원 가입 완료. 발행: member / 구독: order(신규 가입 쿠폰 발급). 파티션 키: memberId. */
     public static final String MEMBER_SIGNED_UP = "member.signed-up.v1";
 

@@ -20,52 +20,25 @@
 
 **아직 구현 안 된 것(범위 밖으로 확인됨, 별도 후속작업 필요)**:
 - catalog-service 이벤트 구독(찜 스냅샷 동기화) — 이벤트 스키마 미확정이라 `wishes.project_title`/`project_thumbnail_url`은 등록 시점엔 항상 null.
-- `ProjectWished`/`ProjectUnwished` 이벤트 발행 — 메시지 브로커 연동 자체가 이번 범위에 없었음.
+- ~~`ProjectWished`/`ProjectUnwished` 이벤트 발행 — 메시지 브로커 연동 자체가 이번 범위에 없었음.~~ **→ 2026-09-16 구현 완료(#58).** `member_event_outbox` 적재 + `MemberEventOutboxWorker` + `KafkaMemberEventTransport`까지 끝났다(파티션 키 `memberId`, Testcontainers 브로커로 검증). **남은 건 소비 측** — project-service의 `ProjectWishStatsEventSubscriber`가 인프로세스 `@EventListener`라, 토픽을 받아 `ProjectWishedEvent`로 변환하는 어댑터가 필요하다(해당 서비스 담당).
 
-## 남은 것 (TODO, 2026-09-03 기준 — 설계 확정 시점, 코드 착수 전)
+## 추가 구현 (2026-09-16, #58)
 
-### 1. 메이커 팔로우/언팔로우 (MEMBER-007)
+**MEMBER-007 메이커 팔로우 구현 완료** — `follows` 테이블(`V2`) + `PUT`/`DELETE`/`GET /api/v1/follows`.
+PM이 MEMBER-006을 "찜한 프로젝트 목록**과 찜한 판매자 목록**"으로 바꿔 팔로우 목록이 필요해졌다.
+전체 스펙은 `MemberFunctionalSpec.md`·`MemberDomainApiSpec.md`로 옮겼고 여기선 관리하지 않는다.
 
-**후순위 사유**: `follows` 테이블 자체가 스키마에 없어 신규 생성 필요.
+**설계 메모**: 팔로우 대상(seller)도 결국 `members` 테이블의 한 행이므로, `wishes.project_id`(타 서비스 참조, FK 아님)와 달리 **같은 DB 내 참조라 `follows.seller_id`에 FK를 걸었다.** 같은 이유로 판매자 이름을 스냅샷으로 복사하지 않고 조인으로 가져온다 — 복사하면 동기화 문제만 새로 생긴다.
 
-**기능 스펙**
-| 항목 | 내용 |
-| --- | --- |
-| 화면코드 | FL_B_PJ_01_03 |
-| 도메인 | 소비자 / 프로젝트 상세 |
-| Actor | 구매자 |
-| 원안 우선순위 | P2 |
-| 설명 | 관심 있는 판매자(메이커)를 팔로우한다 |
-| 비즈니스 룰 | 팔로우 관계 저장/삭제 |
-| Request | sellerId |
-| Response | 팔로우 상태 |
-| 예외 | 본인을 팔로우하려는 시도(본인이 판매자인 경우) → 400 |
-| 보안 | [S4] 본인 계정 기준 처리 |
+**MEMBER-005 찜 이벤트 발행 구현** — `member_event_outbox` 테이블(`V3`) + 워커 + Kafka 전송. 상세는 위 "아직 구현 안 된 것" 참고.
 
-**API 스펙**
-```
-PUT /api/v1/follows/{sellerId}
-```
-Auth Required: **O** / Request Body: 없음
-
-Response Body
-```json
-{ "sellerId": "018e5678-abcd-7xxx-xxxx-xxxxxxxxxxxx", "following": true }
-```
-- **Idempotent.** `INSERT ... ON CONFLICT DO NOTHING`으로 중복 팔로우 요청도 에러 없이 200 처리.
-- 본인을 팔로우하려는 시도(본인이 판매자인 경우) → 400.
-
-```
-DELETE /api/v1/follows/{sellerId}
-```
-Auth Required: **O** / Response: 없음(204 No Content)
-- **Idempotent.** 팔로우하지 않은 상대에 대한 언팔로우 요청도 204로 응답.
-
-**설계 메모**: 팔로우 대상(seller)도 결국 `members` 테이블의 한 행이므로, `wishes.project_id`(타 서비스 참조, FK 아님)와 달리 **같은 DB 내 참조라 `follows.seller_id`에 FK를 걸 수 있다.**
+**MEMBER-002 회원가입 이벤트 발행 구현** — 같은 아웃박스에 `MEMBER_SIGNED_UP`으로 적재해 `member.signed-up.v1`로 발행한다. #56이 order-service에 붙인 `MemberLifecycleEventKafkaListener`(ORDER-007 웰컴 쿠폰)가 발행 측을 기다리고 있던 자리다. **서비스당 아웃박스 한 벌** 원칙에 따라 찜과 테이블을 공유한다 — `project_id`만 찜 이벤트가 채운다.
 
 ---
 
-### 2. 리워드 품절 알림 신청 (MEMBER-008)
+## 남은 것 (TODO, 2026-09-03 기준 — 설계 확정 시점, 코드 착수 전)
+
+### 1. 리워드 품절 알림 신청 (MEMBER-008)
 
 **후순위 사유**: `reward_alerts` 테이블 자체가 스키마에 없어 신규 생성 필요.
 
@@ -107,7 +80,7 @@ Response Body
 
 ---
 
-### 3. 소셜가입 (MEMBER-003, `POST /members/social`)
+### 2. 소셜가입 (MEMBER-003, `POST /members/social`)
 
 **후순위 사유**: auth-service의 AUTH-002/008(소셜 로그인/가입) 자체가 미구현·범위 밖이라 이 엔드포인트는 호출될 일이 없음(2026-09-03 확정).
 
@@ -157,7 +130,7 @@ Response Body
 
 ---
 
-### 4. 닉네임 수정
+### 3. 닉네임 수정
 
 **2026-09-10 진행**: 저장 경로는 생겼다(이슈 #39). 가입 시 `nickname`을 **필수로** 받아 저장한다(일반·소셜 모두 `@NotBlank`). 소셜은 프론트가 제공자 닉네임으로 폼을 미리 채우지만 서버는 요청값만 쓴다 — 사용자가 고친 값이 덮어써지지 않게 하기 위함이다. **실명으로 대신 채우지 않는다**(공개 화면에 실명이 노출되면 `security.md` S9 위반). 컬럼은 nullable로 두었다 — API에서 막으므로 마이그레이션이 필요 없고, 나중에 완화할 때도 스키마를 건드리지 않는다.
 
@@ -167,7 +140,7 @@ Response Body
 
 ---
 
-### 5. AUTH-009(이메일 찾기) 연동용 member 내부 조회 엔드포인트
+### 4. AUTH-009(이메일 찾기) 연동용 member 내부 조회 엔드포인트
 
 **후순위 사유**: auth-service 쪽 AUTH-009 자체가 "프로덕트 우선순위 조정으로 후순위 확정"(auth-service 기준 2026-08-31)된 상태.
 
@@ -177,7 +150,7 @@ Response Body
 
 ---
 
-### 6. 본인인증(CI/DI) 관련 필드
+### 5. 본인인증(CI/DI) 관련 필드
 
 **후순위 사유**: auth-service도 현재 미사용 상태(`IdentityVerificationStore.VerifiedIdentity`에 필드 없음, auth-service 기준 2026-08-31).
 
@@ -185,7 +158,7 @@ Response Body
 
 ---
 
-### 7. 회원 탈퇴 플로우
+### 6. 회원 탈퇴 플로우
 
 `deleted_at` 컬럼은 있으나 이를 채우는 쓰기 경로(API/배치)가 아직 어떤 명세서에도 없음. auth-service 쪽 AUTH-012/013(고아 계정 정리 배치)과의 연동 여부도 함께 확인 필요.
 

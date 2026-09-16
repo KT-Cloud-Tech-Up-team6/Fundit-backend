@@ -59,7 +59,7 @@ class WishJpaRepositoryIntegrationTest {
         wishJpaRepository.insertIgnoringConflict(memberId, 1L);
 
         // then
-        assertThat(wishJpaRepository.findByMemberId(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
+        assertThat(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
     }
 
     @Test
@@ -81,6 +81,6 @@ class WishJpaRepositoryIntegrationTest {
         wishJpaRepository.deleteByMemberIdAndProjectId(memberId, 2L);
 
         // then
-        assertThat(wishJpaRepository.findByMemberId(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(0);
+        assertThat(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(0);
     }
 }

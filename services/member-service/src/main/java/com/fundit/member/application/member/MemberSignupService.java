@@ -4,6 +4,8 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.member.infrastructure.persistence.address.AddressJpaEntity;
 import com.fundit.member.infrastructure.persistence.address.AddressJpaRepository;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
+import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaEntity;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
 import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreementJpaEntity;
@@ -33,6 +35,7 @@ public class MemberSignupService {
     private final TermsAgreementJpaRepository termsAgreementJpaRepository;
     private final AddressJpaRepository addressJpaRepository;
     private final TermsCatalog termsCatalog;
+    private final MemberEventOutboxJpaRepository memberEventOutboxJpaRepository;
 
     @Transactional
     public SignupResult signup(SignupCommand command) {
@@ -79,6 +82,14 @@ public class MemberSignupService {
         if (command.address() != null && command.address().recipientName() != null) {
             addressJpaRepository.save(toAddressEntity(member.getId(), command.address()));
         }
+
+        // 회원 생성과 같은 트랜잭션에서 적재한다 — 가입만 커밋되고 이벤트가 사라지면
+        // order-service의 웰컴 쿠폰(ORDER-007)이 영영 발급되지 않는다. 발행은 워커가 재시도하므로
+        // 브로커가 죽어 있어도 이 API는 실패하지 않는다(auth-service의 보상 트랜잭션을 부르지 않는다).
+        memberEventOutboxJpaRepository.save(MemberEventOutboxJpaEntity.builder()
+                .eventType(MemberEventOutboxJpaEntity.TYPE_SIGNED_UP)
+                .memberId(member.getId())
+                .build());
 
         return new SignupResult(member.getId(), member.getCreatedAt());
     }
