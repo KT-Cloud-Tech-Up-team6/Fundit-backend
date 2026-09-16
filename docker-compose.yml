@@ -1,6 +1,6 @@
 services:
   kafka:
-    image: apache/kafka:3.8.0
+    image: apache/kafka:4.2.1
     container_name: fundit-kafka
     ports:
       - "127.0.0.1:9092:9092"
