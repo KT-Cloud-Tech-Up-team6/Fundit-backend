@@ -56,6 +56,12 @@ spring:
               uri: ${downstream.project-service-base-url}
               predicates:
                 - Path=/api/v1/projects/**,/api/v1/admin/projects/**,/api/v1/community/**,/api/v1/ai/**,/api/v1/live-verifications/**,/api/v1/notices/**,/api/v1/rewards/**,/api/v1/sellers/**
+            # search-service는 project-service의 /api/v1/sellers/** 캐치올과 경로가 겹치지 않는다
+            # (판매자 탭 검색은 /api/v1/search/sellers) — 정의 순서와 무관하게 안전하다.
+            - id: search-service
+              uri: ${downstream.search-service-base-url}
+              predicates:
+                - Path=/api/v1/home/**,/api/v1/categories/**,/api/v1/search/**
 
 management:
   endpoints:

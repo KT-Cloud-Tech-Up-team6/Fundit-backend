@@ -2,6 +2,7 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.project.ProjectIndexEventPublisher.ProjectIndexedEvent;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
@@ -26,6 +27,8 @@ public class ProjectReviewService {
 
     private final ProjectRepository projectRepository;
     private final ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
+    private final ProjectIndexEventPublisher projectIndexEventPublisher;
+    private final SellerProfileClient sellerProfileClient;
 
     @Transactional
     public Project decide(UUID adminId, UUID publicId, ReviewDecision decision, String rejectReason) {
@@ -50,6 +53,19 @@ public class ProjectReviewService {
 
         Project saved = projectRepository.save(project);
         reviewRequestJpaRepository.save(reviewRequest);
+
+        // SEARCH-011. 색인이 처음 생기는 시점 — DRAFT/PENDING_REVIEW는 비공개라 그전엔 검색 대상이 아니다.
+        if (decision == ReviewDecision.APPROVED) {
+            projectIndexEventPublisher.publishProjectApproved(toIndexedEvent(saved));
+        }
         return saved;
+    }
+
+    private ProjectIndexedEvent toIndexedEvent(Project project) {
+        String sellerDisplayName = sellerProfileClient.getDisplayName(project.getSellerId()).orElse(null);
+        return new ProjectIndexedEvent(
+                project.getId(), project.getPublicId(), project.getSellerId(), sellerDisplayName,
+                project.getTitle(), project.getCoverImageUrl(), project.getCategoryMajor(), project.getCategoryMinor(),
+                project.getGoalAmount(), project.getFundingStartAt(), project.getFundingDeadline(), project.getCreatedAt());
     }
 }

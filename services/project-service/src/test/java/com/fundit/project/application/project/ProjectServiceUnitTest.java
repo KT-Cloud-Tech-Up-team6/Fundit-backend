@@ -49,6 +49,10 @@ class ProjectServiceUnitTest {
     private RewardJpaRepository rewardJpaRepository;
     @Mock
     private MediaUrlValidator mediaUrlValidator;
+    @Mock
+    private ProjectIndexEventPublisher projectIndexEventPublisher;
+    @Mock
+    private SellerProfileClient sellerProfileClient;
 
     @InjectMocks
     private ProjectService projectService;
@@ -57,6 +61,15 @@ class ProjectServiceUnitTest {
         return Project.builder()
                 .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+    }
+
+    private Project ownedOngoingProject(UUID sellerId, UUID publicId) {
+        Instant now = Instant.now();
+        return Project.builder()
+                .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.ONGOING)
+                .title("기존 제목").categoryMajor("테크·가전").categoryMinor("생활가전").goalAmount(1_000_000L)
+                .fundingStartAt(now).fundingDeadline(now.plusSeconds(86_400))
+                .createdAt(now).updatedAt(now).build();
     }
 
     @Test
@@ -116,6 +129,26 @@ class ProjectServiceUnitTest {
             // then
             assertThat(result.getTitle()).isEqualTo("제목");
             assertThat(result.getCategoryMajor()).isEqualTo("테크·가전");
+            // DRAFT는 애초에 검색 색인에 없는 프로젝트라 갱신 이벤트를 발행하지 않는다(SEARCH-011).
+            verify(projectIndexEventPublisher, never()).publishProjectUpdated(any());
+        }
+
+        @Test
+        void 공개된_프로젝트를_수정하면_색인_갱신_이벤트가_발행된다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedOngoingProject(sellerId, publicId);
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(categoryJpaRepository.existsByCategoryMajorAndCategoryMinor("테크·가전", "생활가전")).thenReturn(true);
+            when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            projectService.updateBasicInfo(sellerId, publicId,
+                    new ProjectService.UpdateBasicInfoCommand(null, "테크·가전", "생활가전", "바뀐 제목", null));
+
+            // then — SEARCH-011: 이미 공개된 프로젝트는 수정 시 색인 갱신 이벤트를 발행한다.
+            verify(projectIndexEventPublisher).publishProjectUpdated(any());
         }
     }
 

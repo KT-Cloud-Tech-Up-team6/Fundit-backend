@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: search-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
+
+  kafka:
+    consumer:
+      group-id: search-service
+      # auto.offset.reset은 "커밋된 오프셋이 없거나 그 오프셋이 더 이상 유효하지 않을 때"만 적용된다.
+      # 정상 재기동은 커밋된 오프셋부터 이어 읽으므로 이 값과 무관하게 유실이 없다.
+      # earliest를 고른 이유: 색인은 read model이라, 오프셋이 사라진 상황(그룹 재생성 등)에서
+      # 과거 이벤트를 건너뛰면 project_documents가 영구히 비게 된다. 중복은 upsert(멱등)가 흡수한다.
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+springdoc:
+  api-docs:
+    path: /api/v1/search/api-docs

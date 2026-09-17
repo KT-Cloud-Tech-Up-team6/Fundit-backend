@@ -47,6 +47,7 @@ cd services/project-service && docker compose up -d
 - display_code류 컬럼은 애플리케이션에서 세팅하지 않는다: project_display_code/reward_display_code는 DB GENERATED ALWAYS AS ... STORED 컬럼이다. INSERT 시 값을 지정하려 하지 말 것.
 - funding_start_at/funding_deadline은 생성 시점에 확정하지 않는다: 심사 승인(PROJECT-030) 처리 로직에서만 값을 채운다. 그 전 단계 API에서 이 값을 요구하거나 임의로 세팅하지 않는다.
 - 리워드 수량 변경은 order-service에 동기화 이벤트가 필요하다: rewards.quantity를 생성/수정하면 order-service의 재고 원장(inventories)에 반영되도록 이벤트를 발행한다(최종적 일관성 — 동기 호출로 강결합하지 않는다).
+- **프로젝트 공개/수정은 search-service 색인에 이벤트로 통지해야 한다(SEARCH-011)**: 심사 승인(`ProjectReviewService.decide`)은 `project.approved.v1`을, 공개된(`Project.isPublic()`) 프로젝트의 `updateBasicInfo`/`updateStory`는 `project.updated.v1`을 `ProjectIndexEventPublisher`로 발행한다 — `RewardEventPublisher`와 동일한 아웃박스+Kafka 패턴(`ProjectIndexEventOutboxWorker`/`KafkaProjectIndexEventTransport`). DRAFT/PENDING_REVIEW 단계의 수정은 발행하지 않는다(애초에 검색 색인에 없는 프로젝트). `sellerDisplayName`은 `SellerProfileClient`로 채우는데, 이 클라이언트가 아직 `NoopSellerProfileClient`라 지금은 항상 `null`로 나간다.
 - 삭제는 전부 소프트 딜리트: projects/rewards/project_notice_comments 모두 deleted_at으로 처리한다. 하드 삭제(물리 DELETE)는 사용하지 않는다.
 - 커뮤니티 답변은 UPSERT: 게시글당 답변은 1개(DB 유니크 제약)이므로, 답변 등록 API를 호출할 때마다 새로 만들지 말고 기존 답변이 있으면 갱신한다.
 - categories는 읽기 전용 마스터 데이터: 프로젝트 생성/수정 시 존재 여부만 검증(FK)하고, project-service가 카테고리를 생성·수정하는 API는 만들지 않는다(시드 데이터로만 관리).

@@ -26,6 +26,10 @@ class ProjectReviewServiceUnitTest {
     private ProjectRepository projectRepository;
     @Mock
     private ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
+    @Mock
+    private ProjectIndexEventPublisher projectIndexEventPublisher;
+    @Mock
+    private SellerProfileClient sellerProfileClient;
 
     @InjectMocks
     private ProjectReviewService projectReviewService;
@@ -57,6 +61,8 @@ class ProjectReviewServiceUnitTest {
         assertThat(result.getFundingStartAt()).isNotNull();
         assertThat(result.getFundingDeadline()).isNotNull();
         assertThat(reviewRequest.getStatus()).isEqualTo(ProjectReviewRequestJpaEntity.STATUS_APPROVED);
+        // SEARCH-011 — 승인 시 색인 생성 이벤트가 발행된다.
+        org.mockito.Mockito.verify(projectIndexEventPublisher).publishProjectApproved(any());
     }
 
     @Test
@@ -79,5 +85,7 @@ class ProjectReviewServiceUnitTest {
         assertThat(result.getStatus()).isEqualTo(ProjectStatus.DRAFT);
         assertThat(reviewRequest.getStatus()).isEqualTo(ProjectReviewRequestJpaEntity.STATUS_REJECTED);
         assertThat(reviewRequest.getRejectReason()).isEqualTo("부적합");
+        // 반려는 색인 이벤트를 발행하지 않는다 — 비공개 상태로 남는다.
+        org.mockito.Mockito.verifyNoInteractions(projectIndexEventPublisher);
     }
 }
