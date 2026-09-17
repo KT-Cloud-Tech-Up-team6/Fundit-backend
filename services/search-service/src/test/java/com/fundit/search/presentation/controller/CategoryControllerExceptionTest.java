@@ -56,4 +56,15 @@ class CategoryControllerExceptionTest {
         result.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
+
+    @Test
+    void size가_1_미만이면_400을_반환한다() throws Exception {
+        // given
+        // when
+        var result = mockMvc.perform(get("/api/v1/categories/테크·가전/projects").param("size", "0"));
+
+        // then
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
 }
