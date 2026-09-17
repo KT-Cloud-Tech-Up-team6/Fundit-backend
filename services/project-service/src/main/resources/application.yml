@@ -14,6 +14,12 @@ reward-event-outbox:
   poll-interval-ms: 5000
   batch-size: 50
 
+# SEARCH-011 — project.approved.v1/project.updated.v1 발행용 아웃박스 워커.
+project-index-event-outbox:
+  worker-enabled: true
+  poll-interval-ms: 5000
+  batch-size: 50
+
 # 이미지/영상 업로드 주소 발급(S3 Presigned URL, 할일 D 확정 스펙) — bucket/region은 시크릿이
 # 아니지만 환경마다 달라 application-dev.yml/application-prod.yml에서 env로만 채운다.
 media:

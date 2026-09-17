@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.media.MediaCategory;
 import com.fundit.project.application.media.MediaUrlValidator;
+import com.fundit.project.application.project.ProjectIndexEventPublisher.ProjectIndexedEvent;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.BusinessType;
 import com.fundit.project.domain.project.IntroContentBlock;
@@ -49,6 +50,8 @@ public class ProjectService {
     private final ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     private final RewardJpaRepository rewardJpaRepository;
     private final MediaUrlValidator mediaUrlValidator;
+    private final ProjectIndexEventPublisher projectIndexEventPublisher;
+    private final SellerProfileClient sellerProfileClient;
 
     @Transactional(readOnly = true)
     public Page<ProjectListProjection> list(UUID sellerId, ProjectStatus status, Pageable pageable) {
@@ -87,7 +90,9 @@ public class ProjectService {
         BusinessType businessType = command.businessType() == null ? null : BusinessType.valueOf(command.businessType());
         project.updateBasicInfo(businessType, command.categoryMajor(), command.categoryMinor(),
                 command.title(), command.goalAmount());
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        publishIndexUpdateIfPublic(saved);
+        return saved;
     }
 
     @Transactional
@@ -105,7 +110,25 @@ public class ProjectService {
             }
         }
         project.updateStory(command.title(), command.coverImageUrl(), command.introContent());
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        publishIndexUpdateIfPublic(saved);
+        return saved;
+    }
+
+    /**
+     * SEARCH-011. 승인 전(DRAFT/PENDING_REVIEW) 수정은 애초에 색인에 없는 프로젝트를 갱신하는
+     * 셈이라 발행하지 않는다 — Project.isPublic()과 동일 기준(project-service CLAUDE.md
+     * "미공개 프로젝트 존재 여부 비노출" 원칙).
+     */
+    private void publishIndexUpdateIfPublic(Project project) {
+        if (!project.isPublic()) {
+            return;
+        }
+        String sellerDisplayName = sellerProfileClient.getDisplayName(project.getSellerId()).orElse(null);
+        projectIndexEventPublisher.publishProjectUpdated(new ProjectIndexedEvent(
+                project.getId(), project.getPublicId(), project.getSellerId(), sellerDisplayName,
+                project.getTitle(), project.getCoverImageUrl(), project.getCategoryMajor(), project.getCategoryMinor(),
+                project.getGoalAmount(), project.getFundingStartAt(), project.getFundingDeadline(), project.getCreatedAt()));
     }
 
     @Transactional

@@ -44,6 +44,20 @@ public final class KafkaTopics {
     /** 회원 가입 완료. 발행: member / 구독: order(신규 가입 쿠폰 발급). 파티션 키: memberId. */
     public static final String MEMBER_SIGNED_UP = "member.signed-up.v1";
 
+    /**
+     * 프로젝트 공개(심사 승인). 발행: project / 구독: search(색인 생성, SEARCH-011). 파티션 키: projectId.
+     * DRAFT/PENDING_REVIEW는 비공개라 이 이벤트가 오는 순간 처음 검색 색인에 행이 생긴다.
+     */
+    public static final String PROJECT_APPROVED = "project.approved.v1";
+
+    /**
+     * 공개된 프로젝트의 기본정보/소개 변경. 발행: project / 구독: search(색인 갱신, SEARCH-011).
+     * 파티션 키: projectId. {@link #PROJECT_APPROVED}와 payload 계약이 동일하다 — 구독 측은
+     * 두 토픽 모두 같은 upsert 경로로 처리해도 된다(색인에 없는 projectId 수신 시 신규 생성,
+     * 순서 역전 대비).
+     */
+    public static final String PROJECT_UPDATED = "project.updated.v1";
+
     /** 리워드 생성. 발행: project / 구독: order(재고 원장 동기화). 파티션 키: rewardId. */
     public static final String REWARD_CREATED = "reward.created.v1";
 

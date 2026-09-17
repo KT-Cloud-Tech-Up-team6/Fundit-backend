@@ -47,6 +47,8 @@ reward.create.v1           ❌  과거형 아님
 | `member.signed-up.v1` | member | order (쿠폰 발급) | `memberId` |
 | `project.wished.v1` | member | project (찜 통계) | `memberId` |
 | `project.unwished.v1` | member | project (찜 통계) | `memberId` |
+| `project.approved.v1` | project | search (색인 생성, SEARCH-011) | `projectId` |
+| `project.updated.v1` | project | search (색인 갱신, SEARCH-011) | `projectId` |
 | `reward.created.v1` | project | order (재고 동기화) | `rewardId` |
 | `reward.updated.v1` | project | order (재고 동기화) | `rewardId` |
 | `funding.succeeded.v1` | order | payment (정산), fulfillment | `fundingId` |

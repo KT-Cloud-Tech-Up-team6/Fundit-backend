@@ -1,0 +1,15 @@
+dependencies {
+    // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
+    implementation project(':modules:common-webmvc')
+    // 생 spring-kafka가 아니라 스타터를 쓴다 — Boot 4는 자동구성을 기술별 모듈로 쪼갰고,
+    // spring-kafka만 넣으면 KafkaAutoConfiguration이 클래스패스에 없어 spring.kafka.* 프로퍼티도
+    // @KafkaListener 활성화도 동작하지 않는다.
+    // 루트의 :services: 공통 블록에 넣지 않는 이유: Kafka를 안 쓰는 서비스까지 끌려간다.
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // testcontainers-bom(2.0.4)과 spring-boot-testcontainers는 루트 공통 블록에 이미 있다.
+    testImplementation 'org.testcontainers:testcontainers-kafka'
+    // Kafka 컨슈머 통합테스트에서 비동기 처리 완료를 폴링 대기하는 데 쓴다(order-service와 동일).
+    testImplementation 'org.awaitility:awaitility'
+}
