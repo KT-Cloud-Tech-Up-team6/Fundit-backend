@@ -43,7 +43,10 @@ public class KafkaConfig {
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class,
-                ProducerConfig.ACKS_CONFIG, "all");
+                ProducerConfig.ACKS_CONFIG, "all",
+                // 브로커가 죽어 있으면 send()가 메타데이터를 기다리며 기본 60초 동안 워커 스레드를
+                // 붙잡는다. 아웃박스는 다음 주기에 재시도하므로 오래 기다릴 이유가 없다.
+                ProducerConfig.MAX_BLOCK_MS_CONFIG, 5000);
         return new DefaultKafkaProducerFactory<>(props);
     }
 
