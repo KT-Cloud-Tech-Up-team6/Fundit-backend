@@ -9,10 +9,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaPaymentEventTransportUnitTest {
@@ -24,6 +28,7 @@ class KafkaPaymentEventTransportUnitTest {
 
     private void setUp() {
         transport = new KafkaPaymentEventTransport(kafkaTemplate);
+        when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
     }
 
     @SuppressWarnings("unchecked")
