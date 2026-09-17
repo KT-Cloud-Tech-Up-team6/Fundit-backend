@@ -1,5 +1,6 @@
 package com.fundit.search.application.home;
 
+import com.fundit.search.application.SearchPageLimits;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentJpaRepository;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentStatus;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectCardProjection;
@@ -15,13 +16,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class HomeFeedQueryService {
 
-    private static final int DEFAULT_SIZE = 20;
+    private static final int DEFAULT_SIZE = SearchPageLimits.DEFAULT_SIZE;
+    private static final int MAX_SIZE = SearchPageLimits.MAX_SIZE;
 
     private final ProjectDocumentJpaRepository projectDocumentJpaRepository;
 
     @Transactional(readOnly = true)
     public List<ProjectCardProjection> getHomeFeed(Integer size) {
-        int limit = (size == null || size < 1) ? DEFAULT_SIZE : size;
+        int limit = (size == null || size < 1) ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
         return projectDocumentJpaRepository.findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
                 ProjectDocumentStatus.ONGOING, PageRequest.of(0, limit));
     }

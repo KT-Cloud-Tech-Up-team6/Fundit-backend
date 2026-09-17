@@ -30,7 +30,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
+@TestPropertySource(properties = {
+        "internal-api.key=test-only-internal-api-key",
+        "search.kafka.retry.interval-ms=50",
+        "search.kafka.retry.max-attempts=2"
+})
 class ProjectIndexEventKafkaListenerIntegrationTest {
 
     @Container
@@ -47,6 +51,10 @@ class ProjectIndexEventKafkaListenerIntegrationTest {
     private ProjectDocumentJpaRepository projectDocumentJpaRepository;
 
     private String payload(long projectId, String title) {
+        return payload(projectId, title, 1L);
+    }
+
+    private String payload(long projectId, String title, long sourceVersion) {
         UUID publicId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
         Instant deadline = Instant.now().plus(30, ChronoUnit.DAYS);
@@ -54,9 +62,9 @@ class ProjectIndexEventKafkaListenerIntegrationTest {
                 {"projectId":%d,"publicId":"%s","sellerId":"%s","sellerDisplayName":"프라이팬장인",
                  "title":"%s","thumbnailUrl":"https://cdn.example.com/p/%d/thumb.jpg",
                  "categoryMajor":"테크·가전","categoryMinor":"생활가전","goalAmount":1000000,
-                 "fundingStartAt":"%s","fundingDeadline":"%s","createdAt":"%s"}
+                 "fundingStartAt":"%s","fundingDeadline":"%s","createdAt":"%s","sourceVersion":%d}
                 """.formatted(projectId, publicId, sellerId, title, projectId,
-                Instant.now(), deadline, Instant.now());
+                Instant.now(), deadline, Instant.now(), sourceVersion);
     }
 
     /**
@@ -86,13 +94,22 @@ class ProjectIndexEventKafkaListenerIntegrationTest {
     }
 
     @Test
-    void 색인이_아직_없어도_수정_이벤트만으로_새로_생긴다() {
-        // given — SEARCH-011 예외처리: 순서 역전(갱신이 승인보다 먼저 도착) 대비
+    void 색인이_아직_없어도_수정_이벤트만으로_새로_생긴다() throws Exception {
+        // given — SEARCH-011 예외처리: 최신 수정이 먼저 색인된 뒤 오래된 승인이 도착해도 제목을 덮지 않는다
+        String key = "402";
+
         // when
-        kafkaTemplate.send(KafkaTopics.PROJECT_UPDATED, payload(402L, "순서가 뒤바뀐 프로젝트"));
+        kafkaTemplate.send(KafkaTopics.PROJECT_UPDATED, key, payload(402L, "순서가 뒤바뀐 프로젝트", 20L)).get();
+        awaitTitle(402L, "순서가 뒤바뀐 프로젝트");
+        kafkaTemplate.send(KafkaTopics.PROJECT_APPROVED, key, payload(402L, "오래된 제목", 10L));
 
         // then
-        awaitTitle(402L, "순서가 뒤바뀐 프로젝트");
+        Awaitility.await().during(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(20))
+                .untilAsserted(() -> {
+                    var found = projectDocumentJpaRepository.findById(402L);
+                    assertThat(found).isPresent();
+                    assertThat(found.get().getTitle()).isEqualTo("순서가 뒤바뀐 프로젝트");
+                });
     }
 
     @Test

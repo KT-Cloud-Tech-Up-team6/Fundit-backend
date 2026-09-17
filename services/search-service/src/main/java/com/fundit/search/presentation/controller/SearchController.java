@@ -11,10 +11,10 @@ import com.fundit.search.infrastructure.persistence.projectdocument.query.Projec
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSearchSubTab;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import com.fundit.search.infrastructure.persistence.sellersummary.query.SellerCardProjection;
+import com.fundit.search.presentation.SearchPageRequests;
 import com.fundit.search.presentation.dto.ContentResponse;
 import com.fundit.search.presentation.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +50,7 @@ public class SearchController {
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = AuthHeaders.USER_ID, required = false) String accountIdHeader) {
         UUID memberId = parseOrNull(accountIdHeader);
-        var result = projectSearchService.search(keyword, subTab, sort, memberId, PageRequest.of(page, size));
+        var result = projectSearchService.search(keyword, subTab, sort, memberId, SearchPageRequests.of(page, size));
         return PageResponse.from(result);
     }
 
@@ -91,7 +91,7 @@ public class SearchController {
             @RequestParam String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        var result = sellerSearchService.search(keyword, PageRequest.of(page, size));
+        var result = sellerSearchService.search(keyword, SearchPageRequests.of(page, size));
         return PageResponse.from(result);
     }
 

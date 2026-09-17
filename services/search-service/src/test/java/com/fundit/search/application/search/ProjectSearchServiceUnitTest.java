@@ -6,13 +6,12 @@ import com.fundit.search.infrastructure.persistence.projectdocument.query.Projec
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSearchSubTab;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import com.fundit.search.infrastructure.persistence.recentkeyword.RecentSearchKeywordJpaRepository;
-import com.fundit.search.infrastructure.persistence.searchquerylog.SearchQueryLogJpaEntity;
-import com.fundit.search.infrastructure.persistence.searchquerylog.SearchQueryLogJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -33,7 +32,7 @@ class ProjectSearchServiceUnitTest {
     @Mock
     private ProjectDocumentJpaRepository projectDocumentJpaRepository;
     @Mock
-    private SearchQueryLogJpaRepository searchQueryLogJpaRepository;
+    private ApplicationEventPublisher eventPublisher;
     @Mock
     private RecentSearchKeywordJpaRepository recentSearchKeywordJpaRepository;
 
@@ -80,9 +79,11 @@ class ProjectSearchServiceUnitTest {
         org.mockito.Mockito.doThrow(new RuntimeException("DB 오류"))
                 .when(recentSearchKeywordJpaRepository).upsert(memberId, "키워드");
 
-        // when & then — 예외가 전파되지 않아야 한다
+        // when
         var result = projectSearchService.search("키워드", ProjectSearchSubTab.ONGOING, ProjectSortType.POPULAR,
                 memberId, PageRequest.of(0, 20));
+
+        // then
         org.assertj.core.api.Assertions.assertThat(result).isNotNull();
     }
 
@@ -103,7 +104,7 @@ class ProjectSearchServiceUnitTest {
     }
 
     @Test
-    void 검색이_실행되면_결과건수와_함께_로그가_적재된다() {
+    void 검색이_실행되면_결과건수와_함께_로그_이벤트가_발행된다() {
         // given
         var page = new PageImpl<ProjectCardProjection>(List.of(), PageRequest.of(0, 20), 3);
         when(projectDocumentJpaRepository.searchByKeyword(eq("키워드"), anyList(), any())).thenReturn(page);
@@ -113,9 +114,6 @@ class ProjectSearchServiceUnitTest {
                 null, PageRequest.of(0, 20));
 
         // then
-        var captor = org.mockito.ArgumentCaptor.forClass(SearchQueryLogJpaEntity.class);
-        verify(searchQueryLogJpaRepository).save(captor.capture());
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().getResultCount()).isEqualTo(3);
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().getKeyword()).isEqualTo("키워드");
+        verify(eventPublisher).publishEvent(new SearchQueryLoggedEvent(null, "키워드", 3));
     }
 }

@@ -90,6 +90,10 @@ public class ProjectDocumentJpaEntity {
     @Column(name = "indexed_at", nullable = false)
     private Instant indexedAt;
 
+    /** project-service 아웃박스 id. 더 낮은 버전의 색인 이벤트가 현재 값을 덮어쓰지 못하게 한다. */
+    @Column(name = "source_version")
+    private Long sourceVersion;
+
     @Column(name = "deleted_at")
     private Instant deletedAt;
 }

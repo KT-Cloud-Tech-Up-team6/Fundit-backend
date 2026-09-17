@@ -1,13 +1,20 @@
 package com.fundit.search.infrastructure.event;
 
+import org.apache.kafka.common.errors.SerializationException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.converter.ConversionException;
 import org.springframework.kafka.support.converter.JacksonJsonMessageConverter;
 import org.springframework.kafka.support.converter.RecordMessageConverter;
 import org.springframework.kafka.support.mapping.DefaultJacksonJavaTypeMapper;
 import org.springframework.kafka.support.mapping.JacksonJavaTypeMapper;
+import org.springframework.kafka.support.serializer.DeserializationException;
+import org.springframework.messaging.converter.MessageConversionException;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -15,6 +22,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * search-service는 소비 전용이라(발행하는 이벤트가 없음) notification-service와 동일하게
  * ConsumerFactory/ContainerFactory를 직접 만들지 않고 자동구성을 그대로 쓴다.
+ * DLT 재발행만 {@link KafkaTemplate}을 쓰며, 도메인 이벤트는 발행하지 않는다.
  */
 @Configuration
 public class KafkaConsumerConfig {
@@ -43,11 +51,22 @@ public class KafkaConsumerConfig {
     }
 
     /**
-     * 실패한 메시지 하나가 파티션을 막지 않게 로그만 남기고 다음으로 넘어간다(event-convention.md 7번).
-     * 역직렬화 실패는 결정적이라 재시도해도 결과가 같으므로 {@code FixedBackOff(0, 0)}으로 한 번만 시도한다.
+     * 역직렬화·변환 실패는 재시도해도 결과가 같아 즉시 DLT로 보낸다. 리스너 처리 실패(색인 미도착 등
+     * 일시적 오류)는 백오프로 재시도하고, 소진된 레코드는 기본 로깅 recoverer 대신 DLT로 보내
+     * 나중에 재처리할 수 있게 한다(event-convention.md 7번).
      */
     @Bean
-    public CommonErrorHandler kafkaErrorHandler() {
-        return new DefaultErrorHandler(new FixedBackOff(0L, 0L));
+    public CommonErrorHandler kafkaErrorHandler(
+            KafkaTemplate<?, ?> kafkaTemplate,
+            @Value("${search.kafka.retry.interval-ms:1000}") long intervalMs,
+            @Value("${search.kafka.retry.max-attempts:4}") long maxAttempts) {
+        DefaultErrorHandler handler = new DefaultErrorHandler(
+                new DeadLetterPublishingRecoverer(kafkaTemplate), new FixedBackOff(intervalMs, maxAttempts));
+        handler.addNotRetryableExceptions(
+                DeserializationException.class,
+                SerializationException.class,
+                MessageConversionException.class,
+                ConversionException.class);
+        return handler;
     }
 }

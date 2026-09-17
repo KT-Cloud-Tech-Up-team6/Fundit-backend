@@ -43,8 +43,11 @@ class HomeControllerTest {
 
     @Test
     void 홈_LIVE는_항상_빈_배열을_반환하는_스텁이다() throws Exception {
-        mockMvc.perform(get("/api/v1/home/lives"))
-                .andExpect(status().isOk())
+        // when
+        var result = mockMvc.perform(get("/api/v1/home/lives"));
+
+        // then
+        result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
     }
 }

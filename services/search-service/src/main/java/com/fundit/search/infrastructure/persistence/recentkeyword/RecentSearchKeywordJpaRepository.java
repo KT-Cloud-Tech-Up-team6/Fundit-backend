@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public interface RecentSearchKeywordJpaRepository extends JpaRepository<RecentSe
     void deleteByMemberId(UUID memberId);
 
     /** SEARCH-008. 같은 키워드 재검색은 searched_at만 최신화한다(멱등). */
+    @Transactional
     @Modifying
     @Query(value = "INSERT INTO recent_search_keywords (member_id, keyword, searched_at) "
             + "VALUES (:memberId, :keyword, now()) "
@@ -28,6 +30,7 @@ public interface RecentSearchKeywordJpaRepository extends JpaRepository<RecentSe
     void upsert(@Param("memberId") UUID memberId, @Param("keyword") String keyword);
 
     /** SEARCH-008. member_id당 보관 개수(정책값, 기본 10개 — SearchERD.md 5-⑧)를 초과하는 오래된 행을 지운다. */
+    @Transactional
     @Modifying
     @Query(value = "DELETE FROM recent_search_keywords WHERE member_id = :memberId AND keyword NOT IN ("
             + "SELECT keyword FROM recent_search_keywords WHERE member_id = :memberId "

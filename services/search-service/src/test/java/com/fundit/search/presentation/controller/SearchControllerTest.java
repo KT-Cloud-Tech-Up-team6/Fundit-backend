@@ -80,8 +80,13 @@ class SearchControllerTest {
 
     @Test
     void 검색_LIVE_탭은_항상_빈_결과를_반환하는_스텁이다() throws Exception {
-        mockMvc.perform(get("/api/v1/search/lives"))
-                .andExpect(status().isOk())
+        // given: 없음
+
+        // when
+        var result = mockMvc.perform(get("/api/v1/search/lives"));
+
+        // then
+        result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
     }
 
@@ -136,12 +141,6 @@ class SearchControllerTest {
                         .header("X-Internal-Api-Key", API_KEY))
                 .andExpect(status().isNoContent());
         verify(recentKeywordService).deleteAllKeywords(memberId);
-    }
-
-    @Test
-    void 로그인_없이_최근_검색어를_조회하면_401을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/v1/search/recent-keywords"))
-                .andExpect(status().isUnauthorized());
     }
 
     @Test

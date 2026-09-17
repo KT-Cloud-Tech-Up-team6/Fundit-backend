@@ -32,6 +32,7 @@ public class ProjectDocumentIndexSyncService implements ProjectIndexEventListene
         projectDocumentJpaRepository.upsertProjectInfo(
                 event.projectId(), event.publicId(), event.sellerId(), event.sellerDisplayName(),
                 event.title(), event.thumbnailUrl(), event.categoryMajor(), event.categoryMinor(),
-                event.goalAmount(), event.fundingStartAt(), event.fundingDeadline(), event.createdAt());
+                event.goalAmount(), event.fundingStartAt(), event.fundingDeadline(), event.createdAt(),
+                event.sourceVersion());
     }
 }

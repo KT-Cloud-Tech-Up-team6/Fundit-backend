@@ -60,4 +60,21 @@ class HomeFeedQueryServiceUnitTest {
                         eq(ProjectDocumentStatus.ONGOING), captor.capture());
         assertThat(captor.getValue().getPageSize()).isEqualTo(5);
     }
+
+    @Test
+    void size가_최대값을_넘으면_100으로_제한한다() {
+        // given
+        when(projectDocumentJpaRepository.findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
+                eq(ProjectDocumentStatus.ONGOING), any())).thenReturn(List.<ProjectCardProjection>of());
+
+        // when
+        homeFeedQueryService.getHomeFeed(500);
+
+        // then
+        var captor = ArgumentCaptor.forClass(Pageable.class);
+        org.mockito.Mockito.verify(projectDocumentJpaRepository)
+                .findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
+                        eq(ProjectDocumentStatus.ONGOING), captor.capture());
+        assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+    }
 }

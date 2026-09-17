@@ -31,7 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
+@TestPropertySource(properties = {
+        "internal-api.key=test-only-internal-api-key",
+        "search.kafka.retry.interval-ms=50",
+        "search.kafka.retry.max-attempts=2"
+})
 class FundingStatusKafkaListenerIntegrationTest {
 
     @Container
@@ -97,15 +101,16 @@ class FundingStatusKafkaListenerIntegrationTest {
         awaitStatus(102L, ProjectDocumentStatus.FAILED);
     }
 
-    /** 색인이 아직 없는 projectId — 예외 없이 조용히 무시되고(운영 로그만 남음) 컨슈머는 계속 진행한다. */
+    /** 색인이 아직 없는 projectId는 재시도 후 DLT로 보류되고, 같은 파티션의 다음 메시지는 처리된다. */
     @Test
-    void 색인에_없는_projectId여도_컨슈머가_멈추지_않는다() {
+    void 색인에_없는_projectId여도_컨슈머가_멈추지_않는다() throws Exception {
         // given
         projectDocumentJpaRepository.save(project(201L));
+        String key = "201";
 
-        // when — 없는 프로젝트(999) 먼저, 있는 프로젝트(201) 나중
-        kafkaTemplate.send(KafkaTopics.FUNDING_SUCCEEDED, "{\"fundingId\":3,\"projectId\":999}");
-        kafkaTemplate.send(KafkaTopics.FUNDING_SUCCEEDED, "{\"fundingId\":4,\"projectId\":201}");
+        // when — 없는 프로젝트(999) 먼저, 있는 프로젝트(201) 나중. 같은 키로 처리 순서를 고정한다.
+        kafkaTemplate.send(KafkaTopics.FUNDING_SUCCEEDED, key, "{\"fundingId\":3,\"projectId\":999}").get();
+        kafkaTemplate.send(KafkaTopics.FUNDING_SUCCEEDED, key, "{\"fundingId\":4,\"projectId\":201}");
 
         // then
         awaitStatus(201L, ProjectDocumentStatus.SUCCEEDED);

@@ -84,17 +84,24 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
      * <p>DO UPDATE 절이 status/current_amount/achievement_rate/participant_count/wish_count/deleted_at을
      * 건드리지 않는 게 핵심이다 — 이 컬럼들은 SEARCH-012/013/014가 각자 관리하는 값이라, 여기서 같이
      * 덮어쓰면 project.updated.v1(제목 수정 등) 수신만으로 이미 쌓인 펀딩 통계·찜수가 초기화된다.
+     *
+     * <p>INSERT 시 wish_count는 search_wish_stat_members 행 수로 재구성한다 — 색인보다 찜 이벤트가
+     * 먼저 도착해 가드만 쌓인 상태를 보존한다. DO UPDATE는 source_version이 더 클 때만 적용해
+     * 오래된 승인 이벤트가 최신 제목·카테고리·판매자 정보를 덮어쓰지 못하게 한다.
      */
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO project_documents (
                 project_id, project_public_id, seller_id, seller_display_name, title, thumbnail_url,
                 category_major, category_minor, status, goal_amount, funding_start_at, funding_deadline,
-                project_created_at, current_amount, achievement_rate, participant_count, wish_count, indexed_at
+                project_created_at, current_amount, achievement_rate, participant_count, wish_count,
+                indexed_at, source_version
             ) VALUES (
                 :projectId, :publicId, :sellerId, :sellerDisplayName, :title, :thumbnailUrl,
                 :categoryMajor, :categoryMinor, 'ONGOING', :goalAmount, :fundingStartAt, :fundingDeadline,
-                :projectCreatedAt, 0, 0, 0, 0, now()
+                :projectCreatedAt, 0, 0, 0,
+                (SELECT COUNT(*) FROM search_wish_stat_members WHERE project_id = :projectId),
+                now(), :sourceVersion
             )
             ON CONFLICT (project_id) DO UPDATE SET
                 project_public_id = EXCLUDED.project_public_id,
@@ -108,7 +115,11 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
                 funding_start_at = EXCLUDED.funding_start_at,
                 funding_deadline = EXCLUDED.funding_deadline,
                 project_created_at = EXCLUDED.project_created_at,
-                indexed_at = now()
+                indexed_at = now(),
+                source_version = EXCLUDED.source_version
+            WHERE project_documents.source_version IS NULL
+               OR (EXCLUDED.source_version IS NOT NULL
+                   AND EXCLUDED.source_version > project_documents.source_version)
             """, nativeQuery = true)
     void upsertProjectInfo(
             @Param("projectId") Long projectId, @Param("publicId") UUID publicId, @Param("sellerId") UUID sellerId,
@@ -116,5 +127,5 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
             @Param("thumbnailUrl") String thumbnailUrl, @Param("categoryMajor") String categoryMajor,
             @Param("categoryMinor") String categoryMinor, @Param("goalAmount") Long goalAmount,
             @Param("fundingStartAt") Instant fundingStartAt, @Param("fundingDeadline") Instant fundingDeadline,
-            @Param("projectCreatedAt") Instant projectCreatedAt);
+            @Param("projectCreatedAt") Instant projectCreatedAt, @Param("sourceVersion") Long sourceVersion);
 }

@@ -52,6 +52,9 @@ public class KafkaProjectIndexEventTransport implements ProjectIndexEventTranspo
         payload.put("fundingStartAt", event.fundingStartAt());
         payload.put("fundingDeadline", event.fundingDeadline());
         payload.put("createdAt", event.createdAt());
+        // 필드 추가(.v1 유지). 아웃박스 id는 전역 단조 증가라 순서 역전된 승인 이벤트가
+        // 최신 수정 색인을 덮어쓰지 못하게 하는 비교 값이다.
+        payload.put("sourceVersion", outboxId);
         return payload;
     }
 

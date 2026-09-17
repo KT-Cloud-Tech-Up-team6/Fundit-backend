@@ -14,10 +14,14 @@ public interface ProjectIndexEventListener {
 
     void onProjectUpdated(ProjectIndexedEvent event);
 
-    /** project-service {@code ProjectIndexEventPublisher.ProjectIndexedEvent}와 동일 계약(JSON이 계약). */
+    /**
+     * project-service {@code ProjectIndexEventPublisher.ProjectIndexedEvent}와 동일 계약(JSON이 계약).
+     * {@code sourceVersion}은 발행 측 아웃박스 id(전역 단조 증가) — 필드 추가이므로 .v1 유지
+     * (event-convention.md 6번). 구버전 이벤트는 null일 수 있다.
+     */
     record ProjectIndexedEvent(
             Long projectId, UUID publicId, UUID sellerId, String sellerDisplayName, String title,
             String thumbnailUrl, String categoryMajor, String categoryMinor, Long goalAmount,
-            Instant fundingStartAt, Instant fundingDeadline, Instant createdAt) {
+            Instant fundingStartAt, Instant fundingDeadline, Instant createdAt, Long sourceVersion) {
     }
 }

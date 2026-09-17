@@ -30,7 +30,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
+@TestPropertySource(properties = {
+        "internal-api.key=test-only-internal-api-key",
+        "search.kafka.retry.interval-ms=50",
+        "search.kafka.retry.max-attempts=2"
+})
 class WishEventKafkaListenerIntegrationTest {
 
     @Container
@@ -90,18 +94,17 @@ class WishEventKafkaListenerIntegrationTest {
     }
 
     @Test
-    void 같은_회원의_찜_이벤트가_재수신돼도_한_번만_반영된다() {
+    void 같은_회원의_찜_이벤트가_재수신돼도_한_번만_반영된다() throws Exception {
         // given — Kafka는 at-least-once라 중복 수신은 예정된 일이다
         projectDocumentJpaRepository.save(project(302L));
         UUID memberId = UUID.randomUUID();
 
         // when
-        kafkaTemplate.send(KafkaTopics.PROJECT_WISHED, payload(302L, memberId));
-        kafkaTemplate.send(KafkaTopics.PROJECT_WISHED, payload(302L, memberId));
+        kafkaTemplate.send(KafkaTopics.PROJECT_WISHED, payload(302L, memberId)).get();
+        kafkaTemplate.send(KafkaTopics.PROJECT_WISHED, payload(302L, memberId)).get();
 
         // then — search_wish_stat_members UNIQUE(PK)가 두 번째를 무시한다
-        awaitWishCount(302L, 1);
-        Awaitility.await().pollDelay(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(20))
+        Awaitility.await().during(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(20))
                 .untilAsserted(() -> assertThat(projectDocumentJpaRepository.findById(302L).orElseThrow().getWishCount())
                         .isEqualTo(1));
     }

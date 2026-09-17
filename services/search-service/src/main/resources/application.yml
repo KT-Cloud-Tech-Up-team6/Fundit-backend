@@ -19,6 +19,16 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      # 소비 실패 레코드를 DLT로 재발행할 때만 쓴다. 도메인 이벤트는 발행하지 않는다.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+search:
+  kafka:
+    retry:
+      interval-ms: 1000
+      max-attempts: 4
 
 springdoc:
   api-docs:
