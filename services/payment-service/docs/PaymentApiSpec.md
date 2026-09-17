@@ -1,9 +1,13 @@
+## 인증
+
+> `Auth Required` 엔드포인트는 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 주입한 `X-User-Id`(`AuthHeaders.USER_ID`)로 사용자를 식별합니다. 서비스는 이 헤더를 직접 파싱하지 않고 `@LoginUser CurrentUser`로 주입받습니다. 게이트웨이를 우회한 직접 호출은 `X-Internal-Api-Key`(`AuthHeaders.INTERNAL_API_KEY`)가 없어 401로 차단됩니다. 웹훅(`POST /api/v1/payments/webhook/toss`)만 로그인 인증을 요구하지 않습니다.
+
 ## 1. 결제
 
 ### 1-1. POST `/api/v1/payments` — 결제 시도 생성 (PAYMENT-001)
 
 - **권한**: 구매자(본인 주문만)
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body**
 
 ```json
@@ -12,7 +16,7 @@
 }
 ```
 
-- **처리 절차**: ① **[신규]** order-service 내부 API `GET /internal/fundings/{fundingId}` 동기 호출(서비스 간 인증 방식은 5장 하단 참고[정책 확인 필요]) → 응답으로 `memberId, status, finalAmount, orderName` 수신 ② `memberId`가 `X-Account-Id`와 다르면 `403 FORBIDDEN` ③ `status != 'PENDING'`이면 `409 FUNDING_NOT_PENDING` ④ 검증 통과 시 `Payment(PENDING)` 생성, `finalAmount`/`orderName`을 `payments.amount`/`payments.order_name`에 스냅샷
+- **처리 절차**: ① `OrderFundingClient.fetch(fundingId)`로 스냅샷을 받는다. **기본은 `StubOrderFundingClient`**(고정값). `order.integration.funding-client.mode=http`이면 `GET /internal/fundings/{fundingId}`를 `X-Internal-Api-Key`로 호출하고 `{ memberId, sellerId, status, finalAmount, orderName, couponIssuanceId }`를 기대한다. **order-service 실제 응답은 `{ projectId, memberId, fundingPublicId }`뿐이라 HTTP 모드를 켜도 결제 시도에 필요한 필드가 비어 있다.** ② 스냅샷 `memberId`가 `CurrentUser.id`와 다르면 `403 FORBIDDEN` ③ `status != 'PENDING'`이면 `409 FUNDING_NOT_PENDING` ④ 검증 통과 시 `Payment(PENDING)` 생성, `finalAmount`/`orderName`/`couponIssuanceId`를 `payments`에 스냅샷
 
 - **Response 201 Created**
 
@@ -34,14 +38,14 @@
 >
 > 결제창 호출·리다이렉트는 서버를 거치지 않는다.
 
-- **주요 에러 코드**: `FUNDING_NOT_PENDING`(409), `NOT_FOUND`(404, funding 없음), `FORBIDDEN`(403, 본인 주문 아님), **`DEPENDENCY_FAILURE`(503, 신규 — order-service 내부 API 호출 실패/타임아웃)**
+- **주요 에러 코드**: `FUNDING_NOT_PENDING`(409), `NOT_FOUND`(404, funding 없음), `FORBIDDEN`(403, 본인 주문 아님), `DEPENDENCY_FAILURE`(503, order-service 내부 API 호출 실패/타임아웃)
 
 ---
 
 ### 1-2. POST `/api/v1/payments/confirm` — 결제 승인 처리 (PAYMENT-002)
 
 - **권한**: 구매자
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body** (토스 `successUrl` 리다이렉트로 받은 쿼리 파라미터를 그대로 전달)
 
 ```json
@@ -52,7 +56,7 @@
 }
 ```
 
-- **처리 절차**: 서버가 `orderId`로 결제 시도 조회 → `amount`를 PAYMENT-001 시점 스냅샷값과 대조(불일치 시 승인 API 호출 없이 즉시 실패) → 토스 결제승인 API(`POST /v1/payments/confirm`)를 **위젯 시크릿 키**로 서버-투-서버 호출 → 성공 시 `pg_payment_key` 저장 후 `COMPLETED` → **[신규]** 같은 트랜잭션에서 `payment_event_outbox`에 `PaymentCompleted` 적재(order-service DB에 직접 쓰지 않음, PAYMENT-016 워커가 비동기 발행)
+- **처리 절차**: 서버가 `orderId`로 결제 시도 조회 → 본인 소유 검증 → `amount`를 PAYMENT-001 시점 스냅샷값과 대조(불일치 시 승인 API 호출 없이 즉시 실패) → 토스 결제승인 API(`POST /v1/payments/confirm`)를 **위젯 시크릿 키**로 서버-투-서버 호출 → 성공 시 `pg_payment_key` 저장 후 `COMPLETED` → 같은 트랜잭션에서 `payment_event_outbox`에 `PaymentCompleted` 적재(order-service DB에 직접 쓰지 않음, PAYMENT-016 워커가 `payment.completed.v1`로 비동기 발행). Kafka 페이로드는 `{ eventId, fundingId, couponIssuanceId }`이다(`paidAt`/`paymentId`는 브로커로 나가지 않음).
 
 - **Response 200 OK**
 
@@ -67,22 +71,22 @@
 }
 ```
 
-> **[신규] 주의**: 이 응답에는 주문(Funding)의 상태가 포함되지 않는다. `Funding.status`를 `FUNDING_IN_PROGRESS`로 바꾸는 것은 order-service가 `PaymentCompleted` 이벤트를 구독해 비동기로 처리하므로, 이 API가 200을 반환한 시점과 `GET /api/v1/orders/{orderId}`(order-service)에서 최신 상태가 보이는 시점 사이에 짧은 지연이 있을 수 있다. 프론트엔드는 이 API의 `status: "COMPLETED"` 자체를 결제 성공의 기준으로 삼아야 한다.
+> **주의**: 이 응답에는 주문(Funding)의 상태가 포함되지 않는다. `Funding.status`를 `FUNDING_IN_PROGRESS`로 바꾸는 것은 order-service가 `payment.completed.v1`을 구독해 비동기로 처리하므로, 이 API가 200을 반환한 시점과 `GET /api/v1/orders/{orderId}`(order-service)에서 최신 상태가 보이는 시점 사이에 짧은 지연이 있을 수 있다. 프론트엔드는 이 API의 `status: "COMPLETED"` 자체를 결제 성공의 기준으로 삼아야 한다.
 
 - **주요 에러 코드**: `PAYMENT_NOT_PENDING`(409), `PAYMENT_AMOUNT_MISMATCH`(422), `PAYMENT_EXPIRED`(410, 인증 후 10분 초과), `PG_CONFIRM_FAILED`(422, 토스 승인 API 실패 응답 — 이 경우 `Payment.status=FAILED`로 기록되고 `Funding.status`는 order-service 쪽에서 그대로 `PENDING` 유지되어 클라이언트는 1-1부터 재시도 가능)
 
-> **[신규] 레이스 컨디션 처리**: 토스 승인 자체는 성공했으나(위 응답은 정상 200 반환) 이후 `PaymentCompleted` 이벤트를 받은 order-service가 "이미 `PAYMENT_EXPIRED`"라고 판단하는 극히 드문 경우, 이 API 응답은 이미 나간 뒤이므로 별도 에러 코드로 표현하지 않는다. 대신 order-service가 `PaymentReconciliationRequired`를 발행하고 payment-service가 PAYMENT-017로 자동 전액취소한다(비동기 보상 트랜잭션, `PaymentFunctionalSpec.md` PAYMENT-002/017 참고).
+> **레이스 컨디션 처리**: 토스 승인 자체는 성공했으나(위 응답은 정상 200 반환) 이후 `payment.completed.v1`을 받은 order-service가 "이미 `PAYMENT_EXPIRED`"라고 판단하는 극히 드문 경우, 이 API 응답은 이미 나간 뒤이므로 별도 에러 코드로 표현하지 않는다. 대신 order-service가 `payment.reconciliation-required.v1`을 발행하면 payment-service가 PAYMENT-017로 자동 전액취소한다(비동기 보상 트랜잭션, `PaymentFunctionalSpec.md` PAYMENT-002/017 참고). payment 쪽 리스너·전액취소 로직은 이미 구현돼 있고, order-service의 발행이 붙으면 동작한다.
 
 ---
 
 ### 1-3. POST `/api/v1/payments/webhook/toss` — 토스 웹훅 수신 (보조)
 
-- **권한**: 시스템(토스페이먼츠 서버만 호출, 서명 검증 필수)
-- **Request Header**: 토스 웹훅 서명 헤더(수신 시 반드시 검증, S7)
-- **Request Body**: 토스 웹훅 이벤트(`PAYMENT_STATUS_CHANGED`, `CANCEL_STATUS_CHANGED` 등) 원본 페이로드
-- **Response 200 OK**: 빈 본문
-- **비고**: 1-2의 승인 흐름을 대체하지 않는 보조 상태 통지 수신용. 서명 검증 실패 시 401로 즉시 거부하고 처리하지 않는다. 웹훅 수신 URL은 개발자센터에 별도 등록해야 한다. 가상계좌(무통장입금) 지원이 확정되면 `DEPOSIT_CALLBACK` 처리가 이 엔드포인트에서 필수 로직으로 추가되어야 한다(현재 미확정, `PaymentERD.md` 6장 참고)
-- **주요 에러 코드**: `WEBHOOK_SIGNATURE_INVALID`(401)
+- **권한**: 시스템(토스페이먼츠 서버만 호출). `@LoginUser`를 요구하지 않는다. `X-User-Id`가 없는 요청은 `InternalGatewaySecretFilter`가 통과시킨다.
+- **Request Header**: 서명 헤더는 검증하지 않는다.
+- **Request Body**: 토스 웹훅 이벤트(`PAYMENT_STATUS_CHANGED`, `CANCEL_STATUS_CHANGED` 등) 원본 페이로드. 검증 대상은 `data.secret`(본문 필드)이다. 승인 시점에 저장해 둔 `payments.pg_secret`과 상수 시간 비교한다.
+- **Response 200 OK**: 빈 본문. 이 서비스가 모르는 `paymentKey`는 존재 여부를 노출하지 않기 위해 **200으로 무시**한다(토스 재시도 폭주 방지).
+- **비고**: 1-2의 승인 흐름을 대체하지 않는 보조 상태 통지 수신용. `data.secret` 누락·불일치 시 401로 즉시 거부하고 처리하지 않는다. 웹훅 수신 URL은 개발자센터에 별도 등록해야 한다. 가상계좌(무통장입금) 지원이 확정되면 `DEPOSIT_CALLBACK` 처리가 이 엔드포인트에서 필수 로직으로 추가되어야 한다(현재 미확정, `PaymentERD.md` 6장 참고)
+- **주요 에러 코드**: `WEBHOOK_SIGNATURE_INVALID`(401, 본문 `secret` 누락·불일치)
 
 ---
 
@@ -90,10 +94,8 @@
 
 ### 2-1. GET `/api/v1/refunds` — 환불 신청/처리 통합 내역 조회 (PAYMENT-003)
 
-*(변경 없음)*
-
 - **권한**: 구매자(본인 내역만)
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Query Parameter**: `page`, `size`
 - **Response 200 OK**
 
@@ -121,10 +123,8 @@
 
 ### 2-2. POST `/api/v1/refunds/defect` — 하자환불 신청 (PAYMENT-006)
 
-*(변경 없음)*
-
 - **권한**: 구매자
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body**
 
 ```json
@@ -142,14 +142,14 @@
 { "refundId": 501, "status": "REQUESTED" }
 ```
 
-- **주요 에러 코드**: `EVIDENCE_REQUIRED`(400), `FUNDING_NOT_FOUND`(404)
+- **주요 에러 코드**: `EVIDENCE_REQUIRED`(400), `NOT_FOUND`(404, 완료된 결제 없음), `FORBIDDEN`(403, 본인 주문 아님)
 
 ---
 
 ### 2-3. PATCH `/api/v1/refunds/{refundId}/decision` — 하자환불 검토/승인/반려 (PAYMENT-007)
 
 - **권한**: 판매자(해당 주문의 판매자 본인만)
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body**
 
 ```json
@@ -171,18 +171,18 @@
 - **Response 200 OK**
 
 ```json
-{ "refundId": 501, "status": "PROCESSING" }
+{ "refundId": 501, "status": "COMPLETED" }
 ```
 
-- **처리 절차**: 승인 시 `pg_payment_key` 기준 토스 취소 API 호출 → `payment_cancellations` 기록 → `refund_requests.is_full_refund` 판정(취소금액=`payments.amount`면 `true`, 반품비 차감 등으로 적으면 `false`) → 완료 시 `COMPLETED` → **[신규]** `payment_event_outbox`에 `RefundCompleted`(payload:{triggerType:'DEFECT', isFullRefund}) 적재. 반려 시에는 이벤트를 발행하지 않는다.
-- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `PG_CANCEL_FAILED`(422)
+- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **MVP는 전액 취소만 수행**한다(반품비 차감 등 부분취소 금액 산정이 미확정이라 `payments.amount` 전액을 취소). 완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceId, refundReason, fullRefund }` (`refundReason`=`POST_SUCCESS_DEFECT`, `fullRefund`=`true`). 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
+- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `PG_CANCEL_FAILED`(422), `NOT_FOUND`(404)
 
 ---
 
 ### 2-4. POST `/api/v1/refunds/shipping-delay` — 발송지연 결제취소 신청 (PAYMENT-008)
 
 - **권한**: 구매자
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body**
 
 ```json
@@ -195,8 +195,8 @@
 { "refundId": 502, "status": "COMPLETED" }
 ```
 
-- **비고**: FS-096 판정 결과(`FulfillmentDelayed`) 확인 후 접수, 승인 시 즉시 전액 취소(단순변심·미달자동과 동일하게 UNDER_REVIEW 단계 없음) → **[신규]** 완료와 동시에 `payment_event_outbox`에 `RefundCompleted`(payload:{triggerType:'SHIPPING_DELAY', isFullRefund:true}) 적재
-- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨)
+- **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`만 확인한다. `FulfillmentDelayed` 이벤트는 구독하지 않는다. 이미 발송이면 `409 ALREADY_SHIPPED`. 발송 전이면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재.
+- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_FOUND`(404), `FORBIDDEN`(403)
 
 ---
 
@@ -204,10 +204,8 @@
 
 ### 3-1. GET `/api/v1/settlements/{settlementBatchId}` — 정산 내역서 조회 (PAYMENT-009)
 
-*(변경 없음)*
-
 - **권한**: 판매자(본인 정산 건만)
-- **Request Header**: `X-Account-Id`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Response 200 OK**
 
 ```json
@@ -219,24 +217,27 @@
   "platformFeeAmount": 150000,
   "refundDeductionAmount": 89000,
   "couponDeductionAmount": 50000,
-  "totalAmount": 3298700,
+  "totalAmount": 4711000,
   "lineItems": [
     { "rewardId": 12, "rewardName": "얼리버드 세트", "optionName": "블랙", "quantity": 40, "amount": 3560000 }
   ]
 }
 ```
 
-- **비고**: `lineItems`는 order-service `funding_line_items`/`funding_line_item_options` 조회 결과를 집계해 합성
+- **비고**: `lineItems`는 order-service `funding_line_items`/`funding_line_item_options` 조회 결과를 집계해 합성. `totalAmount = max(0, gross - platformFee - refundDeduction - couponDeduction)`(선정산도 순액 100%, 70% 선지급 계수 없음).
 - **주요 에러 코드**: `FORBIDDEN`(403), `NOT_FOUND`(404)
 
 ### 3-2. GET `/api/v1/settlements/{settlementBatchId}/download` — 정산 내역서 다운로드 (PAYMENT-010)
 
 - **권한**: 판매자(본인 정산 건만)
-- **Response 200 OK**: `{ "downloadUrl": "https://.../settlement-77.pdf" }`
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Response 503 SERVICE_UNAVAILABLE**: 본인 배치 접근 권한 검증 후, 파일(PDF/엑셀) 생성이 아직 준비되지 않아 `{ "code": "SERVICE_UNAVAILABLE", "message": "정산 내역서 다운로드 기능은 준비 중입니다." }`를 반환한다. `downloadUrl`을 주지 않는다.
+- **주요 에러 코드**: `FORBIDDEN`(403), `NOT_FOUND`(404), `SERVICE_UNAVAILABLE`(503)
 
 ### 3-3. POST `/api/v1/settlements/{settlementBatchId}/disputes` — 정산 이의 신청 (PAYMENT-011)
 
 - **권한**: 판매자
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
 - **Request Body**
 
 ```json
@@ -248,7 +249,7 @@
 
 - **Response 201 Created**: `{ "disputeId": 12, "status": "RECEIVED" }`
 - **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류)
-- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 발송일로부터 7일 경과)
+- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404)
 
 ---
 
@@ -256,20 +257,60 @@
 
 | 기능 ID | 트리거 | 비고 |
 |---|---|---|
-| PAYMENT-004 | 이벤트 구독(`FundingCancelledByMember`) | 참여 취소 환불 실행, `pg_payment_key` 기준 토스 취소 API 호출 → `RefundCompleted` 발행 |
-| PAYMENT-005 | 이벤트 구독(`FundingGoalFailed`) | 미달 자동환불 일괄 실행 → 건별 `RefundCompleted` 발행 |
-| PAYMENT-012 | 배치(정산 처리 시) | 쿠폰 정산 차감 계산 |
-| PAYMENT-013 | 이벤트 구독(`FundingSucceeded`) + 5영업일 스케줄 | 선정산 배치 생성 |
-| PAYMENT-014 | 스케줄러(배송완료 +14일) | 최종정산 배치 생성 |
-| PAYMENT-015 | 스케줄러(매주 금요일) | 정산 지급 실행 |
-| **PAYMENT-016** `신규` | 내부 스케줄러(폴링) | `payment_event_outbox` 미발행 건을 브로커로 발행(order-service `funding_event_outbox` 워커와 동일 패턴) |
-| **PAYMENT-017** `신규` | 이벤트 구독(`PaymentReconciliationRequired`, order-service가 발행) | 결제 성공-재고만료 레이스 컨디션 발생 시 자동 전액취소 |
+| PAYMENT-004 | 이벤트 구독(`funding.cancelled-by-member.v1`) | 입력 `{ eventId, fundingId, projectId, memberId }`. 참여 취소 전액 환불 → `refund.completed.v1`(`refundReason`=`CANCELLED_BY_MEMBER`, `fullRefund`=`true`) |
+| PAYMENT-005 | 이벤트 구독(`funding.goal-failed.v1`) | 입력 `{ eventId, fundingId, projectId }`. **펀딩 1건당 1이벤트**(프로젝트 단위 일괄 처리 아님) → `refund.completed.v1`(`refundReason`=`GOAL_FAILURE_AUTO_REFUND`, `fullRefund`=`true`) |
+| PAYMENT-012 | 배치(정산 처리 시) | 쿠폰 정산 차감 계산(메이커 발급 쿠폰만) |
+| PAYMENT-013 | 이벤트 구독(`funding.succeeded.v1`) + 스케줄 | 입력 `{ eventId, fundingId, projectId, sellerId, achievedAt }`. 달성확정일+5영업일 후 선정산 배치. `totalAmount`는 순액 100% |
+| PAYMENT-014 | 이벤트 구독(`shipping.completed.v1`) + 스케줄 | 배송완료 +14일 후 최종정산 배치 생성 |
+| PAYMENT-015 | 스케줄러(매주 금요일) | 정산 지급 실행(`PENDING`만, `ON_HOLD` 제외) |
+| PAYMENT-016 | 내부 스케줄러(폴링) | `payment_event_outbox` 미발행 건을 `payment.completed.v1` / `refund.completed.v1`로 발행 |
+| PAYMENT-017 | 이벤트 구독(`payment.reconciliation-required.v1`) | **리스너·전액취소 로직은 payment 쪽에 구현됨.** order-service가 아직 이 토픽을 발행하지 않아 실제 트래픽은 없음. 발행되면 `trigger_type=SYSTEM_RECONCILIATION`으로 전액취소 |
+
+### 발행 이벤트 계약 (Kafka, 봉투 없이 평평한 JSON)
+
+**`payment.completed.v1`** (파티션 키 `fundingId`)
+
+```json
+{
+  "eventId": "payment:42",
+  "fundingId": 1024,
+  "couponIssuanceId": 7
+}
+```
+
+**`refund.completed.v1`** (파티션 키 `fundingId`)
+
+```json
+{
+  "eventId": "payment:77",
+  "fundingId": 1024,
+  "couponIssuanceId": 7,
+  "refundReason": "CANCELLED_BY_MEMBER",
+  "fullRefund": true
+}
+```
+
+`refundReason`은 order-service `PaymentEventListener.RefundReason` 이름과 일치한다: `GOAL_FAILURE_AUTO_REFUND` / `CANCELLED_BY_MEMBER` / `POST_SUCCESS_DEFECT` / `POST_SUCCESS_DELAY`. 필드명은 `refundReason`/`fullRefund`이다(`triggerType`/`isFullRefund`가 아님).
+
+**`notification.raised.v1`** (파티션 키 `memberId`) — 환불 상태 알림. `RefundExecutionService`가 완료·대체계좌대기 시, `DefectRefundDecisionService`가 반려 시 아웃박스에 적재한다.
+
+```json
+{
+  "eventId": "payment:88",
+  "memberId": "0198f2b1-2c3d-7a1e-9c4f-6a2b1e0d8f31",
+  "notifType": "REFUND_STATUS",
+  "title": "환불이 완료되었어요",
+  "relatedUrl": "/my/fundings/1024/refund"
+}
+```
+
+`title`은 상태에 따라 `환불이 완료되었어요` / `환불 처리를 위해 계좌 정보가 필요해요` / `환불 신청이 반려되었어요`.
 
 ---
 
-## 5. `PaymentErrorCode` (초안)
+## 5. `PaymentErrorCode`
 
-error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하는 payment-service 전용 플랫 enum입니다. `CommonErrorCode`(NOT_FOUND, FORBIDDEN, INVALID_INPUT, DEPENDENCY_FAILURE 등)는 재사용하고, 아래는 도메인 전용 코드만 정리했습니다.
+error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하는 payment-service 전용 플랫 enum입니다. `CommonErrorCode`(NOT_FOUND, FORBIDDEN, INVALID_INPUT, DEPENDENCY_FAILURE, SERVICE_UNAVAILABLE 등)는 재사용하고, 아래는 도메인 전용 코드만 정리했습니다.
 
 | 코드 | HTTP | 설명 |
 |---|---|---|
@@ -279,18 +320,19 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 | `PAYMENT_EXPIRED` | 410 | 토스 인증 후 10분 초과로 결제 만료 |
 | `PG_CONFIRM_FAILED` | 422 | 토스 결제승인 API 실패 응답 |
 | `PG_CANCEL_FAILED` | 422 | 토스 결제취소 API 실패 응답 |
-| `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 서명 검증 실패 |
+| `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 본문 `data.secret` 누락·불일치 |
 | `EVIDENCE_REQUIRED` | 400 | 하자환불 신청 시 증빙 자료 누락 |
 | `REASON_REQUIRED` | 400 | 하자환불 반려 시 사유 누락 |
-| `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송 시작됨 |
+| `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 가능 기간(7일) 경과 |
 
-> `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용(신규 코드 추가하지 않음).
+> `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용. `CommonErrorCode.NOT_FOUND`(404)는 funding/결제/환불/정산 대상을 찾지 못했을 때 재사용(`FUNDING_NOT_FOUND` 코드는 없음). `CommonErrorCode.SERVICE_UNAVAILABLE`(503)은 PAYMENT-010 미구현 다운로드에 재사용.
 
 ---
 
-## 6. ⚠️ 남은 확인 필요 사항 (이번 개정에서 신규 발견)
+## 6. 남은 확인 필요 사항
 
-- **order-service 내부 API 인증 방식**: `GET /internal/fundings/{fundingId}` 호출에 쓸 서비스 간 인증이 아직 팀 컨벤션에 없음. `X-Account-Id`는 최종 사용자 식별용이라 그대로 못 씀 — 내부 전용 네트워크 경로 + 서비스 토큰 방식 제안, 확정 필요[정책 확인 필요].
 - **`payment_event_outbox` 재시도 상한**: PAYMENT-016 예외처리의 "N회 이상 연속 실패 시 알림" N값 미정.
-- **PAYMENT-017의 `refund_requests.trigger_type` 신규값**: 기존 4개 값(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`)에 레이스 컨디션 보상용 값을 추가할지, 기존 값 중 하나를 재사용할지 결정 필요.
+- **PAYMENT-017 `SYSTEM_RECONCILIATION` → order-service `RefundReason` 매핑**: payment는 `trigger_type=SYSTEM_RECONCILIATION`으로 기록하고, Kafka `refundReason`은 임시로 `GOAL_FAILURE_AUTO_REFUND`로 보낸다(order-service enum에 대응 값이 없음). order-service 발행·enum 추가 시 재확인.
+- **PAYMENT-010 파일 생성 라이브러리**: 미정이라 현재는 503만 반환.
+- **order-service 내부 API 페이로드 불일치**: 엔드포인트 `GET /internal/fundings/{fundingId}`는 있다. 기본 모드는 stub. HTTP 클라이언트가 기대하는 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceId`는 order 응답에 아직 없다.

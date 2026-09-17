@@ -12,8 +12,13 @@
 | 8 | POST | `/api/v1/sellers/coupons` | 쿠폰 발급(메이커) | O (판매자) | ORDER-008 |
 | 9 | POST | `/api/v1/coupons/{couponCode}/claim` | 쿠폰 발급받기(소비자 능동 클레임) | O (구매자) | ORDER-012 |
 | 10 | GET | `/api/v1/coupons/me` | 쿠폰함 조회 | O (구매자) | ORDER-009 |
+| 11 | GET | `/api/v1/inventories/{rewardId}` | 잔여재고 조회(project-service 동기 호출) | X (서비스 간, 게이트웨이 미라우팅) | PROJECT-028 |
+| 12 | GET | `/internal/fundings/{fundingId}` | 내부 펀딩 스냅샷 조회 | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment 연동 |
+| 13 | GET | `/internal/projects/{projectId}/funding-participants` | 내부 펀딩 성립 참여자 조회 | 내부 키 (`InternalGatewaySecretFilter`) | fulfillment 연동 |
 
-> ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-015(쿠폰 사용처리·복원), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
+> ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 애플리케이션 로직이 있으나 `@KafkaListener` 배선이 없어 `payment.completed.v1`/`refund.completed.v1`을 소비하지 않습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
+>
+> **식별자 계약**: 공개 REST의 `orderId`는 `fundings.public_id`(UUID). Kafka 이벤트·내부 API의 `fundingId`는 `fundings.id`(Long PK). 서로 바꿔 쓰지 않는다.
 
 ---
 
@@ -34,7 +39,7 @@ GET /api/v1/projects/{projectId}/supporters
 ```json
 {
   "content": [
-    { "displayName": "구매***", "amount": 39000, "relativeTime": "3분 전" },
+    { "displayName": "구매자", "amount": 39000, "relativeTime": "3분 전" },
     { "displayName": "익명", "amount": null, "relativeTime": "10분 전" }
   ],
   "page": 0, "size": 20, "totalElements": 128, "totalPages": 7, "hasNext": true
@@ -44,7 +49,7 @@ GET /api/v1/projects/{projectId}/supporters
 **Validation / Business Rules**
 
 - 최신순 정렬, 무한스크롤(페이지네이션).
-- 공개설정에 동의하지 않은 참여자는 `displayName`을 "익명" 등으로, `amount`를 `null`로 마스킹해 개인정보 노출을 방지(S9). 공개설정 값은 member-service가 소유 — 주문 조회 시 member-service를 동기 호출하거나 `fundings` 생성 시점에 스냅샷으로 받아두는 방식 중 선택 필요[정책 확인 필요].
+- 공개설정은 member-service를 요청마다 동기 호출(`MemberDisclosureClient`)한다. 동의하지 않은 참여자는 `displayName`을 `"익명"`으로, `amount`를 `null`로 마스킹한다(S9). 동의한 참여자도 실제 닉네임은 조회하지 않고 `displayName`을 `"구매자"`로 일반화한다.
 - 참여자가 없는 프로젝트는 `content: []`로 반환(Empty State는 프론트 처리).
 
 ---
@@ -91,14 +96,13 @@ POST /api/v1/orders/preview
 
 **Validation / Business Rules**
 
-- **비영속(stateless) 계산 전용 엔드포인트.** 호출해도 DB에 아무것도 생성되지 않는다 — ORDER-003(주문 생성) 전까지 사용자가 리워드/배송지/쿠폰을 바꿀 때마다 반복 호출해 최종 금액을 미리 확인하는 용도(PRD 13.2).
+- **비영속(stateless) 계산 전용 엔드포인트.** 호출해도 DB에 아무것도 생성되지 않는다 — ORDER-003(주문 생성) 전까지 사용자가 리워드/배송지/쿠폰을 바꿀 때마다 반복 호출해 최종 금액을 미리 확인하는 용도(PRD 13.2). "임시 주문서" 레코드를 만들지 않는다.
+- 입력은 `projectId` + `lineItems`(rewardId/quantity/optionValueIds) + `shippingAddress` + 선택 `couponCodes`. `fundingId`를 받지 않는다. `shippingAddress`는 DTO에서 필수(`@NotNull`)이나 미리보기 계산에는 사용하지 않는다(배송비는 고정값).
 - `couponCodes`를 생략하면 할인 없이 계산(ORDER-002 단독 동작), 포함하면 해당 쿠폰들을 적용해 재계산(ORDER-010 동작을 겸함).
 - `couponCodes`는 **최대 2개, 그것도 `issuer_type`이 서로 달라야 함**(플랫폼쿠폰 1개 + 메이커쿠폰 1개까지만 — 16.3.3). 같은 issuer_type을 2개 보내면 `400 INVALID_INPUT`, 3개 이상 보내면 `400 INVALID_INPUT`.
-- 최대 할인 쿠폰을 자동 추천하려면 `couponCodes` 없이 호출한 뒤 `unavailableCoupons`/추천 쿠폰 목록을 함께 내려주는 방식으로 확장 가능[가정: 이번 버전은 명시적 `couponCodes` 지정만 지원].
 - 금액 계산은 항상 서버에서 수행(리워드 단가·배송비·쿠폰 할인율 모두 서버 조회값 사용), 클라이언트가 보낸 금액을 신뢰하지 않는다(S4).
-- 리워드금액 합산 + 배송비(프로젝트/리워드 정책값) + 쿠폰 할인(`FREE_SHIPPING`은 배송비 한도 내에서 할인, `coupons.max_discount_amount` 설정 시 그 한도까지) 반영.
-- 쿠폰이 최소 펀딩금액 미달·만료·본인 미보유 등으로 적용 불가능하면 `discountAmount=0`, `appliedCoupon=null`로 응답하고 사유는 `unavailableCoupons`에 코드로 안내(예: `MIN_AMOUNT_NOT_MET`, `EXPIRED`, `NOT_OWNED`).
-- **[설계 가정]** 기존 기능명세서 ORDER-010의 입력값이 "fundingId(임시 주문서)"로 되어 있었으나, ORDER-002(주문서 작성)와 ORDER-010(쿠폰 적용)이 동일 화면(13.2)의 한 흐름이라 이 문서에서는 두 기능을 하나의 stateless 미리보기 엔드포인트로 합쳤습니다. 만약 실제로 "쿠폰 적용 전에 먼저 주문(Funding) 레코드가 만들어져 있어야 한다"는 의도였다면 설계가 달라져야 하니 확인 부탁드립니다.
+- 리워드금액 합산 + **배송비 고정 3,000원**(`order.policy.default-shipping-fee`) + 쿠폰 할인(`FREE_SHIPPING`은 배송비 한도 내에서 할인, `coupons.max_discount_amount` 설정 시 그 한도까지) 반영. 프로젝트/리워드별 배송비 정책은 아직 없어 고정값이다.
+- 쿠폰이 최소 펀딩금액 미달·만료·본인 미보유 등으로 적용 불가능하면 해당 쿠폰은 `appliedCoupons`에 넣지 않고 `unavailableCoupons`에 사유 코드로 안내한다(예: `MIN_AMOUNT_NOT_MET`, `EXPIRED`, `NOT_OWNED`, `ALREADY_USED`, `NOT_FOUND`, `BUDGET_EXCEEDED`, `NOT_APPLICABLE`). preview 자체는 422를 내지 않는다.
 
 ---
 
@@ -110,24 +114,25 @@ POST /api/v1/orders
 
 **Auth Required**: O (구매자)
 
-**Request**: 미리보기(`/orders/preview`)와 동일한 바디(리워드/옵션/수량, 배송지, `couponCodes`(선택, 최대 2개 — 위 2번 엔드포인트 규칙과 동일))
+**Request**: 미리보기(`/orders/preview`)와 동일한 바디(리워드/옵션/수량, 배송지, `couponCodes`(선택, 최대 2개 — 위 2번 엔드포인트 규칙과 동일)). 배송지는 여기서 실제 저장된다.
 
-**Response Body**
+**Response**: `201 Created`
 
 ```json
 {
   "orderId": "018f9a1b-....-....-............",
   "status": "PENDING",
   "finalAmount": 39000,
-  "paymentExpiresAt": "2026-09-07T10:30:00"
+  "paymentExpiresAt": "2026-09-07T10:30:00Z"
 }
 ```
 
 **Validation / Business Rules**
 
-- 하나의 트랜잭션으로 `inventories`를 대상으로 재고 검증 및 조건부 UPDATE(낙관적 락, `version` 컬럼)로 차감 → `fundings`(status=`PENDING`, `payment_expires_at` = 생성시각 + N분[정책값, 협의 필요]) + `funding_line_items` (+ 옵션 스냅샷 `funding_line_item_options`) 생성.
-- 재고 부족 시 `409 CONFLICT`, 트랜잭션 롤백(재고 변경 없음) — 응답에 부족한 `rewardId` 포함.
-- 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행).
+- 하나의 트랜잭션으로 `inventories.available_stock`을 대상으로 재고 검증 및 조건부 UPDATE(낙관적 락, `version` 컬럼)로 차감 → `fundings`(status=`PENDING`, `payment_expires_at` = 생성시각 + **30분**, `order.policy.payment-expiry-minutes`) + `funding_line_items` (+ 옵션 스냅샷 `funding_line_item_options`) 생성. `project_title`은 project-service에서 조회해 스냅샷으로 저장한다.
+- **`reserved_stock`은 사용하지 않는다.** 차감·원복은 `available_stock`만 건드리고, `reserved_stock`은 생성 시 0으로 두고 이후에도 갱신하지 않는다.
+- 재고 부족 시 `409 CONFLICT`(`INSUFFICIENT_STOCK`), 트랜잭션 롤백(재고 변경 없음) — 부족한 `rewardId`는 메시지에 포함한다(`ErrorResponse.detail`은 null).
+- 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupons.used_budget_amount` 갱신. `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행할 예정 — 현재 리스너 미배선).
 - 금액은 서버에서 재검증(클라이언트 전달값 불신, S4), 재고 차감 쿼리는 바인딩 변수 사용(S1).
 - 응답의 `orderId`는 `fundings.public_id`(UUID). 이후 결제 요청은 payment-service의 `POST /api/v1/payments`(orderId 전달)로 이어진다(이 문서 범위 밖).
 
@@ -141,7 +146,7 @@ GET /api/v1/orders
 
 **Auth Required**: O (구매자)
 
-**Request**: Query Parameter: `status`(선택), `page`, `size`(선택, 기본 0/20)
+**Request**: Query Parameter: `status`(선택, `FundingStatus` enum), `page`, `size`(선택, 기본 0/20)
 
 **Response Body**
 
@@ -152,7 +157,7 @@ GET /api/v1/orders
       "orderId": "018f9a1b-....",
       "projectId": 123, "projectTitle": "세상에 없는 프라이팬",
       "status": "FUNDING_IN_PROGRESS", "finalAmount": 39000,
-      "createdAt": "2026-09-07T10:00:00"
+      "createdAt": "2026-09-07T10:00:00Z"
     }
   ],
   "page": 0, "size": 20, "totalElements": 3, "totalPages": 1, "hasNext": false
@@ -162,8 +167,9 @@ GET /api/v1/orders
 **Validation / Business Rules**
 
 - `member_id` 기준 본인 참여 내역만 조회(S4).
-- `status` 파라미터 미지정 시 전체 상태 반환(펀딩중/미달/제작착수~배송완료), 배송 진행 단계는 shipping-service 조회가 필요하므로 이 문서 범위 밖 — 화면에서는 이 목록 응답에 없는 배송 세부 상태를 별도 API로 조합해야 함[가정].
-- `projectTitle`은 project-service 조회 없이 즉시 응답하기 위해 `fundings` 생성 시점 스냅샷으로 저장해두는 방안을 권장[가정: `fundings`에 `project_title` 스냅샷 컬럼 추가 필요 — 현재 ERD에는 없음, project-service 실시간 조회로 대체 가능하나 응답 지연 발생].
+- `status` 파라미터 미지정 시 전체 상태 반환.
+- **`finalAmount`는 쿠폰을 적용하지 않는다.** `totalRewardAmount + shippingFee`만 합산한다. 쿠폰 할인 반영 금액은 상세(`GET /api/v1/orders/{orderId}`)만 제공한다.
+- `projectTitle`은 주문 생성 시점 스냅샷(`fundings.project_title`). 조회 시 project-service를 다시 호출하지 않는다.
 
 ---
 
@@ -175,7 +181,7 @@ GET /api/v1/orders/{orderId}
 
 **Auth Required**: O (구매자)
 
-**Request**: Path Parameter: `orderId`(public_id)
+**Request**: Path Parameter: `orderId`(public_id, UUID)
 
 **Response Body**
 
@@ -187,18 +193,22 @@ GET /api/v1/orders/{orderId}
     { "rewardId": 1, "rewardName": "얼리버드 패키지", "quantity": 1, "unitPrice": 39000,
       "options": [ { "optionGroupName": "색상", "optionValue": "화이트" } ] }
   ],
-  "shippingFee": 3000, "finalAmount": 39000,
-  "shippingAddress": { "recipientName": "홍길동", "addressLine1": "..." },
-  "paidAt": "2026-09-07T10:05:00",
+  "shippingFee": 3000, "discountAmount": 3000, "finalAmount": 39000,
+  "shippingAddress": {
+    "recipientName": "홍길동", "phoneNumber": "010-1234-5678",
+    "zipcode": "12345", "addressLine1": "...", "addressLine2": "101동 101호"
+  },
   "availableActions": ["CANCEL"]
 }
 ```
 
 **Validation / Business Rules**
 
-- `orderId`(public_id) 소유권 서버 검증 — 타인 주문 접근 시 `403 FORBIDDEN`(S4).
-- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`, `GOAL_FAILED_REFUNDED` → `[]`(자동 환불 진행, 환불내역 화면으로 안내), `GOAL_ACHIEVED`(발송 전) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, 배송 완료 후 → `["DEFECT_REFUND_REQUEST"]` — 발송지연/하자환불 신청 자체는 payment-service 엔드포인트로 연결(이 문서 범위 밖).
-- 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`.
+- `orderId`(public_id) 소유권 서버 검증 — 타인 주문 접근 시 `403 FORBIDDEN`(S4). 없으면 `404 NOT_FOUND`.
+- **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산이 다르다.
+- `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
+- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`, `GOAL_ACHIEVED` → `["SHIPPING_DELAY_REFUND_REQUEST"]`(배송완료 후 `DEFECT_REFUND_REQUEST` 구분은 fulfillment 연동 전이라 단순화), 그 외(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
+- 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`).
 
 ---
 
@@ -220,8 +230,8 @@ POST /api/v1/orders/{orderId}/cancel
 
 **Validation / Business Rules**
 
-- `fundings.status`가 `PENDING` 또는 `FUNDING_IN_PROGRESS`(=펀딩 진행중, 마감 전)인지 검증 → `status='PAYMENT_EXPIRED'`이면 `410 RESOURCE_EXPIRED`("이미 만료된 주문입니다"), 그 외(성립/미달 판정 이후 상태)는 `422 BUSINESS_RULE_VIOLATION`("펀딩이 종료되어 취소할 수 없습니다").
-- 검증 통과 시 `status=CANCELLED_BY_MEMBER`로 전이하고 차감했던 재고를 원복, `FundingCancelledByMember` 이벤트 발행(payment-service가 구독해 실제 결제취소·환불 실행, ORDER-014/PAYMENT-004 참고).
+- `fundings.status`가 `PENDING` 또는 `FUNDING_IN_PROGRESS`(=펀딩 진행중, 마감 전)인지 검증 → `status='PAYMENT_EXPIRED'`이면 `410 RESOURCE_EXPIRED`("이미 만료된 주문입니다"), 그 외(성립/미달 판정 이후 상태)는 `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`, "펀딩이 종료되어 취소할 수 없습니다").
+- 검증 통과 시 `status=CANCELLED_BY_MEMBER`로 전이하고 차감했던 `available_stock`을 원복, `funding.cancelled-by-member.v1` 이벤트 발행(payment-service가 구독해 실제 결제취소·환불 실행, ORDER-014/PAYMENT-004 참고).
 - 실제 환불 완료 여부는 이 응답에 포함하지 않음(비동기) — 환불 상태는 payment-service의 환불 내역 조회 API로 확인.
 - 본인 주문만 취소 가능, `orderId` 조작으로 타인 주문 취소 차단(S4).
 
@@ -247,7 +257,7 @@ POST /api/v1/reward-restock-notifications
 
 - `(reward_id, member_id)` upsert — 이미 신청한 리워드 재신청도 에러 없이 동일 응답(idempotent, 찜/팔로우와 동일 원칙).
 - 본인 계정 기준으로만 신청(S4).
-- 재입고/재오픈 시 notification-service가 이 신청 내역을 구독해 알림 발송(이 문서 범위 밖).
+- 재입고(품절에서 `available_stock`이 다시 양수가 됨) 시 order-service가 신청자마다 `notification.raised.v1`(`notifType=REWARD_RESTOCK`)을 발행하고 신청 레코드를 삭제한다. notification-service 배치가 이 테이블을 직접 읽지 않는다.
 - **⚠️ 확인 필요**: member-service의 `MvpImplementationSummary.md`에도 동일 기능(MEMBER-008, `POST /api/v1/reward-alerts`, 별도의 `reward_alerts` 테이블 신설안)이 후순위 항목으로 남아 있습니다. 두 서비스가 같은 기능을 서로 다른 테이블로 중복 설계하고 있는 상태이니, order-service의 `reward_restock_notify_requests`로 소유권을 확정하고 member-service `MvpImplementationSummary.md`의 MEMBER-008 항목은 제거하는 것을 권장합니다(재고 정보와 강하게 결합된 기능이라 order-service 소유가 자연스러움).
 
 ---
@@ -273,11 +283,11 @@ POST /api/v1/sellers/coupons
   "quantity": 200,
   "minFundingAmount": 30000,
   "perMemberLimit": 1,
-  "expiresAt": "2026-09-30T23:59:59"
+  "expiresAt": "2026-09-30T23:59:59Z"
 }
 ```
 
-**Response Body**
+**Response**: `201 Created`
 
 ```json
 {
@@ -291,10 +301,10 @@ POST /api/v1/sellers/coupons
 
 **Validation / Business Rules**
 
-- 본인 소유 프로젝트에만 발급 가능 — `projectId`의 `seller_id`를 project-service 조회(또는 스냅샷)로 검증(S4).
+- 본인 소유 프로젝트에만 발급 가능 — `projectId`의 `seller_id`를 project-service 내부 API로 조회해 검증(S4). 불일치 시 `403 FORBIDDEN`, 프로젝트 없음 `404 NOT_FOUND`.
 - `discountType='FREE_SHIPPING'`이면 `discountValue=0`으로 저장, 적용 시점에 해당 주문의 `shippingFee`가 할인액이 됨.
-- `budgetLimit` 초과 시(`used_budget_amount + 예상차감액 > budget_limit`) 발급 자체는 성공하되 이후 적용 단계(주문 preview)에서 소진 시 자동으로 노출 제외.
-- `couponCode`는 서버에서 생성(예: `{프로젝트코드}-{랜덤4자리}`), 클라이언트가 지정하지 않음.
+- 발급 개수 전량이 최대 한도로 사용돼도 `budgetLimit`을 넘는 명백한 경우는 발급 시점에 `422 COUPON_BUDGET_EXCEEDED`로 차단한다. 그 외(정률·무료배송처럼 상한을 알 수 없는 경우)는 발급을 허용하고 적용 단계에서 예산 소진 시 노출 제외.
+- `couponCode`는 서버에서 생성(예: `PJT{projectId}-{랜덤4자리}`), 클라이언트가 지정하지 않음.
 - 발급주체=메이커이므로 할인분은 이 메이커 정산에서 차감됨(`PaymentDomainFunctionalSpec.md`의 PAYMENT-012 "쿠폰 정산 차감" 연계 — 별도 안내 문구 없음, 판매자는 정산 화면에서 확인).
 
 ---
@@ -312,15 +322,14 @@ POST /api/v1/coupons/{couponCode}/claim
 **Response Body**
 
 ```json
-{ "couponCode": "LIVE-XY12", "issued": true, "expiresAt": "2026-09-07T21:00:00" }
+{ "couponCode": "LIVE-XY12", "issued": true, "expiresAt": "2026-09-07T21:00:00Z" }
 ```
 
 **Validation / Business Rules**
 
 - `coupons.remaining_quantity`를 `version` 낙관적 락으로 조건부 차감(`UPDATE ... WHERE remaining_quantity > 0 AND version = :v`) 후 `coupon_issuances` 생성 — 갱신 실패(동시 소진) 시 짧게 재시도, 최종 실패 시 `409 CONFLICT`("쿠폰이 모두 소진되었습니다").
-- `per_member_limit` 초과 발급 시도 → `422 BUSINESS_RULE_VIOLATION`.
-- `issue_channel='LIVE'`인 쿠폰은 `live_session_id`가 현재 진행 중(또는 정책상 허용된 유예시간 내)인지 검증 — live-service 조회 또는 이벤트 기반 캐시[가정: 이번 버전은 live-service 동기 조회].
-- 일반(`issue_channel='GENERAL'`) 쿠폰에도 동일 엔드포인트를 재사용할 수 있음 — 다만 요구사항정의서상 명시적으로 "받기" 액션이 정의된 것은 라이브 쿠폰(16.6)뿐이라, 일반 쿠폰까지 이 엔드포인트로 받는 것이 맞는지는 [정책 확인 필요].
+- `per_member_limit` 초과 발급 시도 → `422 COUPON_NOT_APPLICABLE`.
+- `issue_channel='LIVE'`인 쿠폰의 "방송 진행 중" 검증은 live-service 연동 전이라 **생략**한다. GENERAL/LIVE 구분 없이 동일 엔드포인트로 클레임한다.
 
 ---
 
@@ -332,9 +341,9 @@ GET /api/v1/coupons/me
 
 **Auth Required**: O (구매자)
 
-**Request**: Query Parameter: `status`(선택, `AVAILABLE`\|`USED`\|`EXPIRED`)
+**Request**: Query Parameter: `status`(선택, `AVAILABLE`\|`USED`\|`EXPIRED`), `page`, `size`(선택, 기본 0/20)
 
-**Response Body**
+**Response Body**: `PageResponse` (`content` + 페이지 메타)
 
 ```json
 {
@@ -342,17 +351,105 @@ GET /api/v1/coupons/me
     {
       "couponCode": "WELCOME2026", "couponName": "신규가입 축하 쿠폰",
       "discountType": "AMOUNT", "discountValue": 3000,
-      "status": "AVAILABLE", "expiresAt": "2026-12-31T23:59:59"
+      "status": "AVAILABLE", "expiresAt": "2026-12-31T23:59:59Z"
     }
-  ]
+  ],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
 }
 ```
 
 **Validation / Business Rules**
 
 - 본인 보유 쿠폰만 조회(S4).
-- 유효기간 임박 쿠폰(예: 3일 이내[정책값])은 알림 발송 대상으로 별도 표시하거나 notification-service가 별도 배치로 처리(이 문서 범위 밖)[가정].
-- 보유 쿠폰이 없으면 `content: []`.
+- 유효기간 임박(기본 3일 이내, `order.batch.coupon-expiring-reminder.window-days`) 쿠폰은 order-service 배치가 `notification.raised.v1`(`notifType=COUPON_EXPIRING`)을 발행한다. notification-service가 별도 배치로 쿠폰함을 읽지 않는다.
+- 보유 쿠폰이 없으면 `content: []` + 페이지 메타(`totalElements: 0`).
+
+---
+
+### 11. 잔여재고 조회(서비스 간)
+
+```
+GET /api/v1/inventories/{rewardId}
+```
+
+**Auth Required**: X — `@LoginUser` 없음. `InternalEndpointConfig`에도 등록하지 않아 `X-Internal-Api-Key`를 요구하지 않는다.
+
+**호출 주체**: project-service(PROJECT-028). 게이트웨이 `application.yml`이 이 경로를 order-service 라우트에 **넣지 않아** 외부(브라우저)로는 노출되지 않는다. project-service가 order-service를 직접 호출한다.
+
+**Request**: Path Parameter: `rewardId`(Long)
+
+**Response Body**
+
+```json
+{ "rewardId": 1, "remainingStock": 42 }
+```
+
+무제한 리워드이거나 재고 원장 행이 아직 없으면:
+
+```json
+{ "rewardId": 1 }
+```
+
+(`remainingStock`이 null이면 Jackson `non_null` 설정으로 필드가 생략된다. 의미는 **unlimited / no ledger**.)
+
+**Validation / Business Rules**
+
+- `inventories.available_stock`을 그대로 반환한다. 행이 없으면 empty → `remainingStock=null`.
+- 존재하지 않는 rewardId도 404가 아니라 `{ rewardId, remainingStock: null }`이다.
+
+---
+
+### 12. 내부 펀딩 스냅샷 조회
+
+```
+GET /internal/fundings/{fundingId}
+```
+
+**Auth Required**: 내부 전용. 게이트웨이가 `/internal/**`를 order-service로 라우팅하지 않아 외부 노출이 차단되고, 서비스 쪽 `InternalGatewaySecretFilter`가 `InternalEndpointConfig`에 등록된 이 경로에 `X-Internal-Api-Key`를 요구한다.
+
+**호출 주체**: payment-service / fulfillment-service. Path의 `fundingId`는 **Long PK**(`fundings.id`)이지 공개 REST의 `orderId`(UUID)가 아니다.
+
+**Request**: Path Parameter: `fundingId`(Long)
+
+**Response Body**
+
+```json
+{
+  "projectId": 123,
+  "memberId": "018f9a1b-....",
+  "fundingPublicId": "018f9a1b-...."
+}
+```
+
+**Validation / Business Rules**
+
+- 없는 `fundingId` → `404 NOT_FOUND`.
+- 현재 구현은 fulfillment가 쓰는 최소 필드(`projectId`/`memberId`/`fundingPublicId`)만 반환한다. `status`/`finalAmount`/`orderName`은 포함하지 않는다.
+
+---
+
+### 13. 내부 펀딩 성립 참여자 조회
+
+```
+GET /internal/projects/{projectId}/funding-participants
+```
+
+**Auth Required**: 내부 전용. 12번과 동일하게 게이트웨이 미라우팅 + `InternalGatewaySecretFilter`(`X-Internal-Api-Key`).
+
+**호출 주체**: fulfillment-service(알림 팬아웃 대상).
+
+**Request**: Path Parameter: `projectId`(Long)
+
+**Response Body**
+
+```json
+{ "memberIds": ["018f9a1b-....", "018f9a1c-...."] }
+```
+
+**Validation / Business Rules**
+
+- `status=GOAL_ACHIEVED`인 참여자의 `memberId` 목록. 성립 후 전액 환불(`REFUNDED_AFTER_SUCCESS`)된 건은 제외.
+- 참여자가 없으면 `{ "memberIds": [] }`.
 
 ---
 
@@ -362,47 +459,113 @@ GET /api/v1/coupons/me
 
 | 상황 | 코드 | HTTP | 관련 항목 |
 | --- | --- | --- | --- |
-| 재고 부족 | `OrderErrorCode.INSUFFICIENT_STOCK`(신규) | 409 `CONFLICT` | ORDER-003 |
-| 쿠폰 재고(remaining_quantity) 소진 | `OrderErrorCode.COUPON_EXHAUSTED`(신규) | 409 `CONFLICT` | ORDER-012 |
+| 재고 부족 | `OrderErrorCode.INSUFFICIENT_STOCK` | 409 `CONFLICT` | ORDER-003 |
+| 쿠폰 재고(remaining_quantity) 소진 | `OrderErrorCode.COUPON_EXHAUSTED` | 409 `CONFLICT` | ORDER-012 |
 | 재입고 알림 중복 신청 | 에러 아님 — idempotent 200 | - | ORDER-011 |
-| 쿠폰 최소금액 미달/만료/미보유/1인한도초과 | `OrderErrorCode.COUPON_NOT_APPLICABLE`(신규) | 422 `BUSINESS_RULE_VIOLATION` | ORDER-002, ORDER-010, ORDER-012 |
-| 같은 issuer_type 쿠폰 2개 이상 지정 | `CommonErrorCode.INVALID_INPUT`(기존) | 400 | ORDER-002, ORDER-003 |
-| 주문 상태상 취소 불가(마감 후 등) | `OrderErrorCode.ORDER_NOT_CANCELLABLE`(신규) | 422 `BUSINESS_RULE_VIOLATION` | ORDER-014 |
-| 만료된(PAYMENT_EXPIRED) 주문에 대한 조작 시도 | `CommonErrorCode.RESOURCE_EXPIRED`(기존) | 410 | ORDER-003 이후 흐름, ORDER-014 |
-| 타인 주문/리워드 접근 | `CommonErrorCode.FORBIDDEN`(기존) | 403 | ORDER-005, ORDER-014 |
-| 예산 한도 초과 쿠폰 발급 | `OrderErrorCode.COUPON_BUDGET_EXCEEDED`(신규) | 422 `BUSINESS_RULE_VIOLATION` | ORDER-008 |
-| project-service/live-service 등 외부 연동 실패 | `CommonErrorCode.DEPENDENCY_FAILURE`(기존) | 503 | ORDER-001, ORDER-012 |
-
-> 실제 구현 시 `services/order-service/docs/OrderDomainErrorCodeMapping.md`(auth-service/project-service와 동일한 별도 문서)로 분리하는 것을 권장합니다 — 이 표는 최소 요약입니다.
+| 쿠폰 최소금액 미달/만료/미보유/1인한도초과 | `OrderErrorCode.COUPON_NOT_APPLICABLE` | 422 `BUSINESS_RULE_VIOLATION` | ORDER-012(클레임). preview는 422 대신 `unavailableCoupons` |
+| 같은 issuer_type 쿠폰 2개 이상 지정 / 쿠폰 3개 이상 | `CommonErrorCode.INVALID_INPUT` | 400 | ORDER-002, ORDER-003 |
+| 주문 상태상 취소 불가(마감 후 등) | `OrderErrorCode.ORDER_NOT_CANCELLABLE` | 422 `BUSINESS_RULE_VIOLATION` | ORDER-014 |
+| 만료된(PAYMENT_EXPIRED) 주문에 대한 조작 시도 | `CommonErrorCode.RESOURCE_EXPIRED` | 410 | ORDER-014 |
+| 타인 주문 접근 | `CommonErrorCode.FORBIDDEN` | 403 | ORDER-005, ORDER-014, ORDER-008 |
+| 예산 한도 초과 쿠폰 발급/적용 | `OrderErrorCode.COUPON_BUDGET_EXCEEDED` | 422 `BUSINESS_RULE_VIOLATION` | ORDER-008, ORDER-003 |
+| project-service 등 외부 연동 실패 | `CommonErrorCode.DEPENDENCY_FAILURE` | 503 | ORDER-001, ORDER-003, ORDER-008 |
 
 ---
 
 ## 이벤트 발행/구독
 
-REST로 노출되지 않는 배치·이벤트 기반 기능(ORDER-006, 007, 013, 015, 016)은 아래와 같이 연결됩니다.
+REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 연결됩니다. **공개 REST는 `orderId`(UUID, `public_id`)를 쓰고, 이벤트·내부 API는 `fundingId`(Long PK)를 씁니다.**
 
-| 기능 ID | 유형 | 이벤트/트리거 | 방향 |
+### 구독
+
+| 기능 ID | 토픽 | 페이로드(실제 JSON) | 상태 |
 | --- | --- | --- | --- |
-| ORDER-006 | 스케줄러 → 이벤트 발행 | 프로젝트 펀딩 마감 시각 도래 → `FundingGoalFailed` / `FundingSucceeded` 발행 | order-service → (payment-service 등 구독) |
-| ORDER-007 | 이벤트/스케줄러 구독 | 신규가입(member-service)/등급산정/이벤트조건 → 플랫폼 쿠폰 자동 발급 | member-service(또는 스케줄러) → order-service |
-| ORDER-013 | 스케줄러 | `payment_expires_at` 경과한 `PENDING` 주문 → `PAYMENT_EXPIRED` 전이 및 재고 원복 | 내부 배치 |
-| ORDER-014 | API 호출 후 이벤트 발행 | 참여 취소 확정 → `FundingCancelledByMember` 발행 | order-service → payment-service 구독 |
-| ORDER-015 | 이벤트 구독 | `PaymentCompleted`/`RefundCompleted` → 쿠폰 사용완료/복원 처리 | payment-service → order-service 구독 |
-| ORDER-016 | 이벤트 구독 | `RewardCreated`/`RewardUpdated`(project-service 아웃박스) → `inventories` 동기화(⚠️ 절대값 덮어쓰기 금지, 증분 반영 필요 — 아래 반영 이력 참고) | project-service → order-service 구독 |
+| ORDER-006 | `project.funding-deadline-reached.v1` | `{ "projectId": 123, "goalAmount": 5000000 }` | `@KafkaListener` 구현됨. **project-service는 이 토픽을 아직 발행하지 않음** |
+| ORDER-007 | `member.signed-up.v1` | `{ "memberId": "<UUID>" }` | `@KafkaListener` 구현됨. 웰컴 쿠폰 1종만(`order.policy.welcome-coupon-code`) |
+| ORDER-016 | `reward.created.v1` / `reward.updated.v1` | `{ "rewardId": 1, "projectId": 123, "isLimited": true, "quantity": 100 }` | `@KafkaListener` 구현됨. `initial_quantity` 대비 델타 반영 |
+| ORDER-015 | `payment.completed.v1` / `refund.completed.v1` | (payment-service 발행 계약) | **미배선.** `PaymentEventSyncService` 로직은 있으나 `@KafkaListener`가 없어 소비하지 않음 |
+
+### 발행 (아웃박스 → Kafka, `eventId` = `"order:{outboxId}"`, 파티션 키 = `fundingId` 또는 `memberId`)
+
+**`funding.succeeded.v1`** (ORDER-006, 성립 펀딩 **건마다** 1건. `sellerId`/`achievedAt` 포함)
+
+```json
+{
+  "eventId": "order:42",
+  "fundingId": 1024,
+  "projectId": 123,
+  "sellerId": "018f9a1b-....",
+  "achievedAt": "2026-09-07T10:00:00Z"
+}
+```
+
+**`funding.goal-failed.v1`** (ORDER-006, 미달 펀딩 **건마다** 1건)
+
+```json
+{
+  "eventId": "order:43",
+  "fundingId": 1025,
+  "projectId": 123
+}
+```
+
+**`funding.cancelled-by-member.v1`** (ORDER-014. 토픽명은 `funding.cancelled.v1`이 아님)
+
+```json
+{
+  "eventId": "order:44",
+  "fundingId": 1026,
+  "projectId": 123,
+  "memberId": "018f9a1b-...."
+}
+```
+
+**`notification.raised.v1`** (재입고 ORDER-011 대기분 / 쿠폰 만료임박 ORDER-009. 파티션 키=`memberId`)
+
+```json
+{
+  "eventId": "order:45",
+  "memberId": "018f9a1b-....",
+  "notifType": "REWARD_RESTOCK",
+  "title": "신청하신 리워드가 재입고되었어요",
+  "relatedUrl": "/rewards/1"
+}
+```
+
+```json
+{
+  "eventId": "order:46",
+  "memberId": "018f9a1b-....",
+  "notifType": "COUPON_EXPIRING",
+  "title": "보유하신 쿠폰이 곧 만료돼요",
+  "relatedUrl": "/my/coupons"
+}
+```
+
+| 기능 ID | 유형 | 트리거 | 방향 |
+| --- | --- | --- | --- |
+| ORDER-006 | 이벤트 구독 → 건별 발행 | `project.funding-deadline-reached.v1` 수신 후 해당 프로젝트의 활성 펀딩마다 `funding.succeeded.v1` 또는 `funding.goal-failed.v1` | project-service → order-service → payment/fulfillment/search |
+| ORDER-007 | 이벤트 구독 | `member.signed-up.v1` → 설정된 웰컴 쿠폰 1종 `autoIssue` | member-service → order-service |
+| ORDER-013 | 스케줄러 | `payment_expires_at` 경과한 `PENDING` → `PAYMENT_EXPIRED` + `available_stock` 원복 | 내부 배치(60초) |
+| ORDER-014 | API 호출 후 발행 | 참여 취소 확정 → `funding.cancelled-by-member.v1` | order-service → payment-service |
+| ORDER-015 | 로직만 존재 | `PaymentEventSyncService`가 결제완료/환불완료 시 쿠폰 사용·복원 및 `PENDING`→`FUNDING_IN_PROGRESS` 전이를 수행하도록 짜여 있으나, Kafka 리스너가 없어 트리거되지 않음 | (미배선) |
+| ORDER-016 | 이벤트 구독 | `reward.created.v1`/`reward.updated.v1` → `inventories` 델타 동기화. 품절→재입고 시 `notification.raised.v1` | project-service → order-service |
 
 ---
 
 ## 반영 이력
 
-- **[신규 발견, 2026-09-07] `RewardCreated`/`RewardUpdated` 구독 필요**: project-service가 이미 아웃박스로 발행 중인 이벤트인데 order-service 쪽 구독 기능이 기능명세서에 없어 `OrderDomainFunctionalSpec.md`에 ORDER-016으로 추가(GitHub 코드 확인: `RewardEventPublisher`, `RewardEventOutboxWorker`).
-- **[신규 발견, 잠재 버그, 2026-09-07] `RewardUpdated` 절대값 덮어쓰기 금지**: `RewardUpdatedEvent`(rewardId, projectId, isLimited, quantity)를 그대로 `available_stock=quantity`로 덮어쓰면 이미 판매된 수량이 사라진다(예: 100개 중 60개 판매 후 판매자가 한도를 150개로 늘리면 `available_stock`은 90(=150-60)이 되어야 하는데, 절대값 덮어쓰기는 150으로 만들어 60개가 부활함). project-service의 현재 이벤트 페이로드에는 변경 전 값이 없어, `previousQuantity`를 이벤트에 추가하거나 order-service가 `inventories.initial_quantity`를 별도로 보관해 증분 계산해야 함 — `OrderDomainFunctionalSpec.md` ORDER-016 검토의견 참고. **ERD에도 `inventories.initial_quantity BIGINT` 컬럼 추가를 권장**(이번 ERD 문서에는 미반영, 구현 전 추가 필요).
-- **[설계 가정] ORDER-002/ORDER-010 통합**: 원 기능명세서의 "fundingId(임시 주문서)"라는 표현을 근거로 별도 영속 초안 엔티티를 가정하지 않고, 하나의 stateless 미리보기 엔드포인트(`POST /orders/preview`)로 설계함. 실제 의도와 다르면 확인 필요.
-- **[설계 가정] 배송 진행 상태(제작착수~배송완료)**: shipping-service 소관으로 보고 이 문서에서는 주문의 결제/취소/환불 관련 상태(fundings.status)만 다룸.
+- **[구현 동기화, 2026-09-17]** 현재 코드 기준으로 REST 누락분(재고 조회·내부 펀딩 API), 목록/상세 `finalAmount` 쿠폰 적용 차이, Kafka 실제 토픽·페이로드, ORDER-006 이벤트 구독, ORDER-015 리스너 미배선, ORDER-016 구현 완료, 배송비 3000원/만료 30분, `reserved_stock` 미사용, 쿠폰함 `PageResponse`, `notification.raised.v1` 발행을 반영.
+- **[신규 발견, 2026-09-07] `RewardCreated`/`RewardUpdated` 구독 필요**: project-service가 이미 아웃박스로 발행 중인 이벤트인데 order-service 쪽 구독 기능이 기능명세서에 없어 `OrderFunctionalSpec.md`에 ORDER-016으로 추가(GitHub 코드 확인: `RewardEventPublisher`, `RewardEventOutboxWorker`). **→ 구현 완료.** `@KafkaListener`가 `reward.created.v1`/`reward.updated.v1`을 구독하고, `inventories.initial_quantity` 대비 델타로 `available_stock`을 갱신한다.
+- **[신규 발견, 잠재 버그, 2026-09-07] `RewardUpdated` 절대값 덮어쓰기 금지**: `RewardUpdatedEvent`(rewardId, projectId, isLimited, quantity)를 그대로 `available_stock=quantity`로 덮어쓰면 이미 판매된 수량이 사라진다. **→ `initial_quantity` 컬럼 + 델타 반영으로 해소.**
+- **[설계 확정] ORDER-002/ORDER-010 통합**: 임시 주문서(`fundingId`)를 만들지 않고, stateless 미리보기 `POST /orders/preview`(`projectId` + `lineItems` + 선택 `couponCodes`)로 동작한다.
+- **[설계 가정] 배송 진행 상태(제작착수~배송완료)**: fulfillment-service 소관으로 보고 이 문서에서는 주문의 결제/취소/환불 관련 상태(fundings.status)만 다룸.
 
 ## ⚠️ 남은 확인 필요 사항
 
-- **미결제 주문 만료 유예시간(N분)**: ORDER-013/`payment_expires_at` 설정값 — PM 정책 확인 필요.
+- **ORDER-015 Kafka 리스너 미배선**: `PaymentEventSyncService`는 있으나 `@KafkaListener`가 없어 결제완료/환불완료 이벤트를 소비하지 않는다. 붙이기 전까지 쿠폰 사용확정·`PENDING`→`FUNDING_IN_PROGRESS` 전이가 일어나지 않는다.
 - **재입고 알림 신청 기능 중복**: 위 7번 엔드포인트 참고 — member-service `MvpImplementationSummary.md`의 MEMBER-008과 소유권 정리 필요.
-- **일반 쿠폰(GENERAL) "받기" 액션 허용 여부**: 9번 엔드포인트가 라이브 쿠폰 전용인지 전체 쿠폰 공용인지 확인 필요.
-- **`fundings`에 프로젝트명 스냅샷 컬럼 필요 여부**: 4번 엔드포인트(`GET /orders`)에서 매번 project-service를 실시간 조회할지, 스냅샷 컬럼을 ERD에 추가할지 결정 필요.
-- **서포터 활동 목록의 공개설정 조회 방식**: member-service 동기 호출 vs `fundings` 생성 시점 스냅샷 — 1번 엔드포인트 참고.
+- **LIVE 쿠폰 "방송 중" 검증**: claim 시 live-service 조회를 생략 중.
+- **`GET /api/v1/inventories/{rewardId}` 인증**: 게이트웨이 미라우팅으로 외부 차단만 하고, 서비스 간 호출에는 내부 키를 요구하지 않는다. project-service HTTP 클라이언트도 아직 Noop.
+- **내부 펀딩 스냅샷 필드**: payment-service HTTP 클라이언트가 기대하는 `status`/`finalAmount`/`orderName`/`sellerId`/`couponIssuanceId`는 현재 응답에 없다.
+- **`project.funding-deadline-reached.v1` 미발행**: ORDER-006 리스너는 있으나 project-service가 토픽을 발행하지 않아 성립/미달 판정이 트리거되지 않는다.
