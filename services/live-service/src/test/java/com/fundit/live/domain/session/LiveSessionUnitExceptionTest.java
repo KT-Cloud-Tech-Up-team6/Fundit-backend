@@ -13,7 +13,7 @@ class LiveSessionUnitExceptionTest {
 
     private static LiveSession live() {
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
-        session.start(Instant.parse("2026-09-10T11:00:00Z"));
+        session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         return session;
     }
 
@@ -35,7 +35,7 @@ class LiveSessionUnitExceptionTest {
         LiveSession session = live();
 
         // when & then
-        assertThatThrownBy(() -> session.start(Instant.parse("2026-09-10T12:00:00Z")))
+        assertThatThrownBy(() -> session.start(Instant.parse("2026-09-10T12:00:00Z"), "arn:chat"))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -46,7 +46,7 @@ class LiveSessionUnitExceptionTest {
         session.end(Instant.parse("2026-09-10T11:10:00Z"));
 
         // when & then
-        assertThatThrownBy(() -> session.start(Instant.parse("2026-09-10T12:00:00Z")))
+        assertThatThrownBy(() -> session.start(Instant.parse("2026-09-10T12:00:00Z"), "arn:chat"))
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> session.updateSettings(null, null, "수정", null, null))
                 .isInstanceOf(BusinessException.class);

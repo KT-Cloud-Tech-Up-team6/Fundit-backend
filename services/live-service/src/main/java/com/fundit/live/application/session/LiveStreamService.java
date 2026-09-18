@@ -30,14 +30,15 @@ public class LiveStreamService {
     public LiveSession start(UUID sellerId, UUID liveId) {
         LiveSession session = loadOwned(sellerId, liveId);
         Instant now = Instant.now();
+        String chatRoomArn;
         try {
-            ivsClient.createChatRoom(liveId.toString());
+            chatRoomArn = ivsClient.createChatRoom(liveId.toString());
         } catch (RuntimeException e) {
             session.markError("채팅방 생성 실패: " + e.getClass().getSimpleName(), now);
             sessionRepository.save(session);
             throw new DependencyFailureException(e);
         }
-        session.start(now);
+        session.start(now, chatRoomArn);
         return sessionRepository.save(session);
     }
 
