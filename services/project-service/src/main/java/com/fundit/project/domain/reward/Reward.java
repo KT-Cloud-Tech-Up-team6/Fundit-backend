@@ -26,6 +26,8 @@ public class Reward {
     private boolean isLimited;
     private Integer quantity;
     private boolean isEarlyBird;
+    private EarlyBirdDiscountType earlyBirdDiscountType;
+    private Long earlyBirdDiscountValue;
     private boolean hasOption;
     private int sortOrder;
     private boolean simpleRefundDisabled;
@@ -37,8 +39,10 @@ public class Reward {
 
     public static Reward create(Long projectId, String name, String description, String imageUrl, Long price,
                                  boolean isLimited, Integer quantity, boolean isEarlyBird,
+                                 EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
                                  List<RewardOptionGroup> optionGroups) {
         validateQuantity(isLimited, quantity);
+        validateEarlyBirdDiscount(isEarlyBird, earlyBirdDiscountType, earlyBirdDiscountValue, price);
         return Reward.builder()
                 .projectId(projectId)
                 .name(name)
@@ -48,11 +52,24 @@ public class Reward {
                 .isLimited(isLimited)
                 .quantity(quantity)
                 .isEarlyBird(isEarlyBird)
+                .earlyBirdDiscountType(isEarlyBird ? earlyBirdDiscountType : null)
+                .earlyBirdDiscountValue(isEarlyBird ? earlyBirdDiscountValue : null)
                 .hasOption(optionGroups != null && !optionGroups.isEmpty())
                 .optionGroups(optionGroups == null ? List.of() : optionGroups)
                 .sortOrder(0)
                 .simpleRefundDisabled(false)
                 .build();
+    }
+
+    /** 얼리버드 할인 적용가. 얼리버드가 아니면 null. */
+    public Long getEarlyBirdDiscountedPrice() {
+        if (!isEarlyBird || earlyBirdDiscountType == null || earlyBirdDiscountValue == null) {
+            return null;
+        }
+        return switch (earlyBirdDiscountType) {
+            case AMOUNT -> price - earlyBirdDiscountValue;
+            case RATE -> price - (price * earlyBirdDiscountValue / 100);
+        };
     }
 
     public boolean isDeleted() {
@@ -65,8 +82,10 @@ public class Reward {
      */
     public void changeBasicInfo(String name, String description, String imageUrl, Long price,
                                  boolean isLimited, Integer quantity, boolean isEarlyBird,
+                                 EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
                                  List<RewardOptionGroup> optionGroups) {
         validateQuantity(isLimited, quantity);
+        validateEarlyBirdDiscount(isEarlyBird, earlyBirdDiscountType, earlyBirdDiscountValue, price);
         this.name = name;
         this.description = description;
         this.imageUrl = imageUrl;
@@ -74,6 +93,8 @@ public class Reward {
         this.isLimited = isLimited;
         this.quantity = quantity;
         this.isEarlyBird = isEarlyBird;
+        this.earlyBirdDiscountType = isEarlyBird ? earlyBirdDiscountType : null;
+        this.earlyBirdDiscountValue = isEarlyBird ? earlyBirdDiscountValue : null;
         if (optionGroups != null) {
             this.optionGroups = optionGroups;
             this.hasOption = !optionGroups.isEmpty();
@@ -92,6 +113,29 @@ public class Reward {
         boolean valid = isLimited ? (quantity != null && quantity >= 0) : quantity == null;
         if (!valid) {
             throw new BusinessException(ProjectErrorCode.INVALID_REWARD_QUANTITY);
+        }
+    }
+
+    /**
+     * isEarlyBird=false면 할인 방식/값은 반드시 없어야 하고, true면 방식에 맞는 범위의 값이 있어야
+     * 한다 — chk_rewards_early_bird_discount DB 제약과 동일 규칙(validateQuantity와 같은 패턴).
+     */
+    private static void validateEarlyBirdDiscount(boolean isEarlyBird, EarlyBirdDiscountType type, Long value, Long price) {
+        if (!isEarlyBird) {
+            if (type != null || value != null) {
+                throw new BusinessException(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);
+            }
+            return;
+        }
+        if (type == null || value == null) {
+            throw new BusinessException(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);
+        }
+        boolean valid = switch (type) {
+            case AMOUNT -> value > 0 && value < price;
+            case RATE -> value >= 0 && value <= 100;
+        };
+        if (!valid) {
+            throw new BusinessException(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);
         }
     }
 }

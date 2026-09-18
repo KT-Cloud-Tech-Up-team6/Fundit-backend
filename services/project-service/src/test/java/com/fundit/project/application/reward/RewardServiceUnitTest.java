@@ -5,6 +5,7 @@ import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
 import com.fundit.project.domain.reward.RewardRepository;
@@ -67,7 +68,7 @@ class RewardServiceUnitTest {
 
             // when
             Reward result = rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", null, 39000L, true, 100, true, options));
+                    "얼리버드", "설명", null, 39000L, true, 100, true, EarlyBirdDiscountType.RATE, 10L, options));
 
             // then
             assertThat(result.getId()).isEqualTo(10L);
@@ -90,7 +91,7 @@ class RewardServiceUnitTest {
 
             // when
             rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", imageUrl, 39000L, false, null, false, null));
+                    "얼리버드", "설명", imageUrl, 39000L, false, null, false, null, null, null));
 
             // then
             verify(mediaUrlValidator).validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
@@ -110,7 +111,7 @@ class RewardServiceUnitTest {
 
             // when
             rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", null, 39000L, false, null, false, null));
+                    "얼리버드", "설명", null, 39000L, false, null, false, null, null, null));
 
             // then
             verify(rewardRepository, never()).replaceOptions(any(), any());
@@ -124,16 +125,16 @@ class RewardServiceUnitTest {
         void 전달된_필드만_병합해서_저장한다() {
             // given
             UUID sellerId = UUID.randomUUID();
-            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null)
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null, null, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, UUID.randomUUID());
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
-                    "새이름", null, null, null, null, null, null, null));
+                    "새이름", null, null, null, null, null, null, null, null, null));
 
             // then
             assertThat(result.getName()).isEqualTo("새이름");
@@ -141,21 +142,87 @@ class RewardServiceUnitTest {
         }
 
         @Test
+        void 얼리버드_할인방식만_전달하면_할인값은_유지한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, null, EarlyBirdDiscountType.AMOUNT, null, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isTrue();
+            assertThat(result.getEarlyBirdDiscountType()).isEqualTo(EarlyBirdDiscountType.AMOUNT);
+            assertThat(result.getEarlyBirdDiscountValue()).isEqualTo(10L);
+        }
+
+        @Test
+        void 얼리버드_할인값만_전달하면_할인방식은_유지한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, null, null, 20L, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isTrue();
+            assertThat(result.getEarlyBirdDiscountType()).isEqualTo(EarlyBirdDiscountType.RATE);
+            assertThat(result.getEarlyBirdDiscountValue()).isEqualTo(20L);
+        }
+
+        @Test
+        void 얼리버드를_끄면_할인정보가_지워진다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, false, null, null, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isFalse();
+            assertThat(result.getEarlyBirdDiscountType()).isNull();
+            assertThat(result.getEarlyBirdDiscountValue()).isNull();
+        }
+
+        @Test
         void imageUrl이_전달되면_리워드가_속한_프로젝트의_publicId로_검증한다() {
             // given
             UUID sellerId = UUID.randomUUID();
             UUID projectPublicId = UUID.randomUUID();
-            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null)
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null, null, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, projectPublicId);
             String imageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + projectPublicId + "/a.jpg";
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
-                    null, null, imageUrl, null, null, null, null, null));
+                    null, null, imageUrl, null, null, null, null, null, null, null));
 
             // then
             verify(mediaUrlValidator).validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
@@ -166,7 +233,7 @@ class RewardServiceUnitTest {
     void 삭제하면_소프트삭제된다() {
         // given
         UUID sellerId = UUID.randomUUID();
-        Reward existing = Reward.create(1L, "이름", "설명", null, 10000L, false, null, false, null)
+        Reward existing = Reward.create(1L, "이름", "설명", null, 10000L, false, null, false, null, null, null)
                 .toBuilder().id(5L).build();
         Project project = ownedProject(sellerId, UUID.randomUUID());
         when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
@@ -186,7 +253,7 @@ class RewardServiceUnitTest {
     void 환불정책_특이사항을_저장한다() {
         // given
         UUID sellerId = UUID.randomUUID();
-        Reward existing = Reward.create(1L, "이름", "설명", null, 10000L, false, null, false, null)
+        Reward existing = Reward.create(1L, "이름", "설명", null, 10000L, false, null, false, null, null, null)
                 .toBuilder().id(5L).build();
         Project project = ownedProject(sellerId, UUID.randomUUID());
         when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));

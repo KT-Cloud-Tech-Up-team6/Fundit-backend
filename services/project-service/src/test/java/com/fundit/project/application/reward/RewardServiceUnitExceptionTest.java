@@ -7,6 +7,7 @@ import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardRepository;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -65,7 +66,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
@@ -86,7 +87,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
@@ -95,11 +96,11 @@ class RewardServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_리워드를_수정하면_404_예외가_발생한다() {
         // given
-        when(rewardRepository.findById(99L)).thenReturn(Optional.empty());
+        when(rewardRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> rewardService.update(UUID.randomUUID(), 99L,
-                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null)))
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -108,19 +109,61 @@ class RewardServiceUnitExceptionTest {
     @Test
     void 타인_소유_리워드를_수정하면_403_예외가_발생한다() {
         // given
-        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null)
+        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null, null, null)
                 .toBuilder().id(5L).build();
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
 
         // when & then
         assertThatThrownBy(() -> rewardService.update(UUID.randomUUID(), 5L,
-                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null)))
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void 얼리버드가_아닌데_할인값만_전달하면_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null, null, null)
+                .toBuilder().id(5L).build();
+        Project project = Project.builder()
+                .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.update(sellerId, 5L,
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null, 10L, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);
+    }
+
+    @Test
+    void 얼리버드를_끄면서_할인방식을_전달하면_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        Reward existing = Reward.create(1L, "이름", "설명", null, 39000L, false, null, true,
+                EarlyBirdDiscountType.RATE, 10L, null)
+                .toBuilder().id(5L).build();
+        Project project = Project.builder()
+                .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.update(sellerId, 5L,
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, false,
+                        EarlyBirdDiscountType.AMOUNT, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);
     }
 }

@@ -61,16 +61,32 @@ class ProjectControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         ProjectListProjection projection = mock(ProjectListProjection.class);
+        when(projection.getId()).thenReturn(1L);
         when(projection.getProjectId()).thenReturn(UUID.randomUUID());
         when(projection.getTitle()).thenReturn("프로젝트A");
         when(projection.getStatus()).thenReturn("DRAFT");
-        when(projectService.list(eq(sellerId), isNull(), any())).thenReturn(new PageImpl<>(List.of(projection)));
+        when(projectService.list(eq(sellerId), eq(List.of()), isNull(), any())).thenReturn(new PageImpl<>(List.of(projection)));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].title").value("프로젝트A"))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void 목록조회는_비어있지_않은_상태값을_그대로_전달한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        when(projectService.list(eq(sellerId), eq(List.of(ProjectStatus.SUCCEEDED, ProjectStatus.FAILED)), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .param("status", "SUCCEEDED,FAILED"))
+                .andExpect(status().isOk());
+        verify(projectService).list(eq(sellerId), eq(List.of(ProjectStatus.SUCCEEDED, ProjectStatus.FAILED)), isNull(), any());
     }
 
     @Test
@@ -138,17 +154,17 @@ class ProjectControllerTest {
     }
 
     @Test
-    void 심사제출하면_200과_PENDING_REVIEW_상태를_반환한다() throws Exception {
+    void 공개하면_200과_ONGOING_상태를_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
-        Project submitted = draftProject(sellerId, publicId).toBuilder().status(ProjectStatus.PENDING_REVIEW).build();
-        when(projectService.submit(sellerId, publicId)).thenReturn(submitted);
+        Project published = draftProject(sellerId, publicId).toBuilder().status(ProjectStatus.ONGOING).build();
+        when(projectService.submit(sellerId, publicId)).thenReturn(published);
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+                .andExpect(jsonPath("$.status").value("ONGOING"));
     }
 
     @Test
@@ -174,7 +190,7 @@ class ProjectControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
-        var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L,
+        var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L, null, List.of(),
                 new ProjectQueryService.FundingStatusView(0, 0, 0, null), false,
                 new ProjectQueryService.SellerView(sellerId, null));
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
@@ -190,6 +206,9 @@ class ProjectControllerTest {
         // given
         UUID publicId = UUID.randomUUID();
         var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "ONGOING", 1_000_000L,
+                "https://example.com/cover.png",
+                List.of(new com.fundit.project.domain.project.IntroContentBlock(
+                        com.fundit.project.domain.project.IntroContentType.TEXT, "소개 본문")),
                 new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L), true,
                 new ProjectQueryService.SellerView(UUID.randomUUID(), null));
         when(projectQueryService.getPublicDetail(publicId)).thenReturn(view);
@@ -198,7 +217,9 @@ class ProjectControllerTest {
         mockMvc.perform(get("/api/v1/projects/" + publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ONGOING"))
-                .andExpect(jsonPath("$.hasLiveVerification").value(true));
+                .andExpect(jsonPath("$.hasLiveVerification").value(true))
+                .andExpect(jsonPath("$.coverImageUrl").value("https://example.com/cover.png"))
+                .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"));
     }
 
     @Test

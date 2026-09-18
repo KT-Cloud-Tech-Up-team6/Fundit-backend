@@ -9,10 +9,11 @@
 - **예외 처리**: 프로젝트 없음 → 빈 배열(Empty State는 프론트 처리)
 - **요구사항**: 판매자가 본인이 생성한 프로젝트 목록과 상태를 조회한다
 - **우선순위**: MVP
-- **입력값**: (선택)상태필터,페이지네이션
+- **입력값**: (선택)상태필터(다중값 지원),제목검색어,페이지네이션
 - **중분류**: 프로젝트 관리
-- **처리 내용(기술)**: 로그인 판매자 ID 기준 프로젝트 목록 조회, 상태별(준비중/진행중/종료) 구분
-- **출력값**: 프로젝트 목록(대표이미지,제목,상태,생성일,펀딩기간)
+- **처리 내용(기술)**: 로그인 판매자 ID 기준 프로젝트 목록 조회, 상태별(준비중/진행중/종료) 구분. 상태 그룹별
+  개수는 별도 엔드포인트(`GET /status-counts`)로 탭 배지에 표시한다
+- **출력값**: 프로젝트 목록(대표이미지,제목,상태,생성일,모금시작일,펀딩기간,목표금액,카테고리,현재모금액,참여자수,달성률)
 - **트리거 방식**: API 호출
 
 ---
@@ -120,13 +121,17 @@
 - **대분류**: 판매자
 - **보안/권한 고려사항**: [S1·S2·S4] 리워드명·설명 등 입력값 서버 검증 및 출력 인코딩(S2) / 소유권 검증(S4) / 가격·수량은 바인딩 변수로 저장(S1)
 - **소분류**: 리워드 등록/수정/삭제
-- **예외 처리**: 필수값(리워드명·가격·수량) 누락 → 400, `isLimited`/`quantity` 위반 → `400 INVALID_REWARD_QUANTITY`
-- **요구사항**: 리워드 구성, 가격, 수량, 옵션을 등록·관리한다
+- **예외 처리**: 필수값(리워드명·가격·수량) 누락 → 400, `isLimited`/`quantity` 위반 → `400 INVALID_REWARD_QUANTITY`,
+  얼리버드 할인 방식/값 위반 → `400 INVALID_EARLY_BIRD_DISCOUNT`
+- **요구사항**: 리워드 구성, 가격, 수량, 옵션, 얼리버드 할인을 등록·관리한다
 - **우선순위**: MVP
-- **입력값**: 리워드명,설명,이미지,가격,제한 수량,얼리버드 혜택 적용 여부 등
+- **입력값**: 리워드명,설명,이미지,가격,제한 수량,얼리버드 혜택 적용 여부,얼리버드 할인 방식(정액/정률)과 값 등
 - **중분류**: 상세페이지
-- **처리 내용(기술)**: 리워드명/설명/구성품/가격/수량(무제한·한정)/옵션(색상·사이즈 등) CRUD. 생성 시 `reward.created.v1`, 수정 시 `reward.updated.v1` 발행(파티션 키 `rewardId`, payload `projectId`는 내부 Long). 삭제·환불정책 변경은 미발행
-- **출력값**: 등록된 리워드 목록
+- **처리 내용(기술)**: 리워드명/설명/구성품/가격/수량(무제한·한정)/옵션(색상·사이즈 등)/얼리버드 할인(정액 AMOUNT 또는
+  정률 RATE, `isEarlyBird=false`면 반드시 없어야 함) CRUD. 생성 시 `reward.created.v1`, 수정 시 `reward.updated.v1`
+  발행(파티션 키 `rewardId`, payload `projectId`는 내부 Long). 삭제·환불정책 변경은 미발행. 판매자용 목록 조회는
+  DRAFT 상태에서도 소유권 검증만으로 가능(`GET /projects/{projectId}/rewards/mine`)
+- **출력값**: 등록된 리워드 목록(할인 적용가 포함)
 - **트리거 방식**: API 호출
 
 ---
@@ -228,8 +233,8 @@
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 상세페이지
-- **처리 내용(기술)**: 미공개 상태에서도 판매자 본인은 `ProjectDetailResponse` 조회 가능. 필드는 projectId/title/status/goalAmount/fundingStatus/hasLiveVerification/seller뿐이며 story/rewards/images는 포함하지 않음. 리워드·환불·LIVE는 별도 GET으로 조합. 스토리 GET은 없음
-- **출력값**: 공개 상세와 동일 DTO(요약 필드만)
+- **처리 내용(기술)**: 미공개 상태에서도 판매자 본인은 `ProjectDetailResponse` 조회 가능. 필드는 projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller이며 rewards는 포함하지 않음. 리워드(#14-1)·환불·LIVE는 별도 GET으로 조합
+- **출력값**: 공개 상세와 동일 DTO(대표이미지·소개 본문 포함, 리워드 미포함)
 - **트리거 방식**: API 호출
 
 ---
@@ -361,8 +366,8 @@
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 프로젝트 상세
-- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/fundingStatus/hasLiveVerification/seller)만 반환. story/rewards/images는 이 API에 없고 리워드·환불·LIVE GET으로 조합. 스토리 GET 없음. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 Noop이라 null. 미공개는 404
-- **출력값**: 프로젝트 상세 요약(전체 스토리/리워드 아님)
+- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller)만 반환. rewards는 이 API에 없고 리워드(#14)·환불·LIVE GET으로 조합. 대표이미지/소개 본문(coverImageUrl/introContent)은 이 응답에 포함. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 Noop이라 null. 미공개는 404
+- **출력값**: 프로젝트 상세 요약(대표이미지·소개 본문 포함, 리워드 목록은 미포함)
 - **트리거 방식**: API 호출
 
 ---
@@ -500,50 +505,43 @@
 - **예외 처리**: 품절 리워드 → 품절 표시
 - **요구사항**: 원하는 리워드와 옵션을 선택하기 위해 정보를 조회한다
 - **우선순위**: MVP
-- **입력값**: projectId
+- **입력값**: projectId(목록) 또는 rewardId(상세, #14-2)
 - **중분류**: 펀딩 참여·결제
-- **처리 내용(기술)**: 리워드별 구성·가격·옵션 조회(project-service 소유). 잔여재고는 `InventoryQueryClient`인데 현재 `NoopInventoryQueryClient`라 **항상 null**, `soldOut`은 항상 false. Kafka가 아니라 동기 조회 포트(미연동)
-- **출력값**: 리워드 목록(옵션, remainingStock=null)
+- **처리 내용(기술)**: 리워드별 구성·가격·옵션·이미지(imageUrl)·설명(description) 조회(project-service 소유). 목록(`GET /projects/{projectId}/rewards`)과 상세(`GET /rewards/{rewardId}`) 둘 다 동일한 필드 구성으로 응답한다. 잔여재고는 `InventoryQueryClient`인데 현재 `NoopInventoryQueryClient`라 **항상 null**, `soldOut`은 항상 false. Kafka가 아니라 동기 조회 포트(미연동)
+- **출력값**: 리워드 목록/상세(옵션, 이미지, 설명, remainingStock=null)
 - **트리거 방식**: API 호출
-- **검토의견(변경사항)**: 잔여재고 원장은 order-service 소유이나, 현재 HTTP 클라이언트가 Noop이라 실시간 재고가 응답에 실리지 않는다
+- **검토의견(변경사항)**: 잔여재고 원장은 order-service 소유이나, 현재 HTTP 클라이언트가 Noop이라 실시간 재고가 응답에 실리지 않는다. 배송비/예상 발송일은 아직 저장 컬럼 자체가 없어 별도 마이그레이션 필요(`ProjectDomainPendingWork.md` 참고)
 
 ---
 
-## 29. PROJECT-029 — 프로젝트 심사 제출
+## 29. PROJECT-029 — 프로젝트 공개(발행)
 
 - **PRD 코드**: -
 - **권한**: 판매자
 - **담당 서비스**: project-service
 - **대분류**: 판매자
-- **보안/권한 고려사항**: [S4] 본인 소유 프로젝트만 제출 가능
-- **소분류**: 프로젝트 심사 제출
+- **보안/권한 고려사항**: [S4] 본인 소유 프로젝트만 공개 가능
+- **소분류**: 프로젝트 공개(발행)
 - **예외 처리**: 필수 작성 항목 미완료 → `422 PROJECT_NOT_SUBMITTABLE`
-- **요구사항**: 판매자가 작성 완료한 프로젝트를 공개 전 심사에 제출한다
+- **요구사항**: 판매자가 작성 완료한 프로젝트를 공개한다
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 프로젝트 관리
-- **처리 내용(기술)**: 필수 항목은 basicInfo/story/rewards/privacyConsent(환불정책은 불필요). 완료된 DRAFT만 PENDING_REVIEW로 전환. `project_review_requests` INSERT. **심사 담당자 알림 Kafka는 발행하지 않음**
-- **출력값**: 심사 상태(심사중)
+- **처리 내용(기술)**: 필수 항목은 basicInfo/story/rewards/privacyConsent(환불정책은 불필요). 완료된 DRAFT는
+  **관리자 승인 없이 바로** ONGOING으로 전환하고 이 시점에 펀딩기간을 확정(기본 30일)한 뒤 `project.approved.v1`
+  발행(payload에 `eventId`/`sourceVersion`, `sellerDisplayName`은 Noop이라 null). **판매자 알림
+  (`notification.raised.v1`)은 발행하지 않음**
+- **출력값**: 프로젝트 상태(ONGOING)
 - **트리거 방식**: API 호출
 
 ---
 
 ## 30. PROJECT-030 — 프로젝트 심사 처리(승인/반려)
 
-- **PRD 코드**: -
-- **권한**: 관리자
-- **담당 서비스**: project-service
-- **대분류**: 운영
-- **보안/권한 고려사항**: [S4·S8] 관리자 권한 서버에서 검증(S4) / 중요 처리이므로 승인·반려 이력 로그 기록 권장(S8 원칙 준용)
-- **소분류**: 프로젝트 심사 처리(승인/반려)
-- **예외 처리**: 반려 시 사유 필수(`400 INVALID_INPUT`) / SUBMITTED 요청 없음 → `422 PROJECT_NOT_REVIEWABLE` / 비관리자 → `403 FORBIDDEN`
-- **요구사항**: 심사 담당자가 프로젝트의 적합성을 심사해 승인·반려한다
-- **우선순위**: MVP
-- **입력값**: projectId,승인/반려,(반려시)사유
-- **중분류**: 프로젝트 관리
-- **처리 내용(기술)**: `APPROVED` 시 ONGOING + 펀딩기간 확정(기본 30일) 후 `project.approved.v1` 발행(payload에 `eventId`/`sourceVersion`, `sellerDisplayName`은 Noop이라 null). `REJECTED` 시 DRAFT로 되돌림. **판매자 알림(`notification.raised.v1`)은 발행하지 않음**
-- **출력값**: 처리 결과
-- **트리거 방식**: API 호출
+- **상태**: **폐지됨**(관리자 심사 단계 자체를 없앰 — PROJECT-029에서 필수 항목 완료 시 바로 공개로 전환)
+- **폐지 사유**: 관리자 승인 없이 판매자가 직접 공개할 수 있도록 정책 변경
+- 관련 엔드포인트(`POST /api/v1/admin/projects/{projectId}/review-decision`)와 도메인/DTO/테스트,
+  `project_review_requests` 테이블은 코드베이스에서 모두 제거됨. `ProjectStatus.PENDING_REVIEW`도 제거됨
 
 ---
 
@@ -572,12 +570,12 @@
 
 | 기능 ID | 토픽 | 방향 | 상태 |
 | --- | --- | --- | --- |
-| PROJECT-030 | `project.approved.v1` | 발행 → search | ✅ 심사 승인 시. payload: `eventId, projectId(Long), publicId, sellerId, sellerDisplayName(현재 null/Noop), title, thumbnailUrl, categoryMajor, categoryMinor, goalAmount, fundingStartAt, fundingDeadline, createdAt, sourceVersion` |
-| PROJECT-004, PROJECT-006 | `project.updated.v1` | 발행 → search | ✅ 공개 프로젝트의 기본정보/스토리 수정 시에만. payload는 승인과 동일 |
+| PROJECT-029 | `project.approved.v1` | 발행 → search | ✅ 필수항목 완료로 공개(ONGOING) 전환 시. payload: `eventId, projectId(Long), publicId, sellerId, sellerDisplayName(현재 null/Noop), title, thumbnailUrl, categoryMajor, categoryMinor, goalAmount, fundingStartAt, fundingDeadline, createdAt, sourceVersion` |
+| PROJECT-004, PROJECT-006 | `project.updated.v1` | 발행 → search | ✅ 공개 프로젝트의 기본정보/스토리 수정 시에만. payload는 공개 전환과 동일 |
 | PROJECT-007 | `reward.created.v1` / `reward.updated.v1` | 발행 → order | ✅ 생성/수정 시. `projectId`는 내부 Long. 삭제·환불정책은 미발행 |
 | PROJECT-015 | 펀딩 집계 | 구독 | ❌ Kafka 컨슈머 없음. `funding_status_snapshots` 조회만 |
 | PROJECT-016 | `project.wished.v1` / `project.unwished.v1` | 구독 | ❌ Kafka 컨슈머 없음. Spring `@EventListener`만 존재(브로커 어댑터 없음) |
-| PROJECT-018, PROJECT-029, PROJECT-030 반려 | `notification.raised.v1` | 발행 | ❌ publisher 없음 |
+| PROJECT-018 | `notification.raised.v1` | 발행 | ❌ publisher 없음 |
 
 ---
 
@@ -589,11 +587,9 @@
 개인정보 수집 동의 없이 다음 단계 진행 시도	ProjectErrorCode.PRIVACY_CONSENT_REQUIRED (422)	PROJECT-005
 타 판매자 소유 프로젝트/리워드 접근(수정·삭제·미리보기 등)	CommonErrorCode.FORBIDDEN(403, 기존)	PROJECT-002, PROJECT-004~018, PROJECT-029
 DRAFT가 아닌 프로젝트 삭제 시도	ProjectErrorCode.PROJECT_NOT_DELETABLE (422)	PROJECT-002
-필수 작성 항목 미완료 상태로 심사 제출 시도	ProjectErrorCode.PROJECT_NOT_SUBMITTABLE (422)	PROJECT-029
-PENDING_REVIEW가 아니거나 SUBMITTED 심사요청 없음	ProjectErrorCode.PROJECT_NOT_REVIEWABLE (422)	PROJECT-030
-심사 반려 시 사유 누락	CommonErrorCode.INVALID_INPUT(400, 기존)	PROJECT-030
-심사 처리 API 비관리자 호출	CommonErrorCode.FORBIDDEN(403, 기존)	PROJECT-030
-미공개(DRAFT/PENDING_REVIEW) 프로젝트를 공개 상세 API로 조회	CommonErrorCode.NOT_FOUND(404, 기존)	PROJECT-020
+필수 작성 항목 미완료 상태로 공개(발행) 시도	ProjectErrorCode.PROJECT_NOT_SUBMITTABLE (422)	PROJECT-029
+얼리버드 할인 방식/값 정합성 위반	ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT (400)	PROJECT-007
+미공개(DRAFT) 프로젝트를 공개 상세 API로 조회	CommonErrorCode.NOT_FOUND(404, 기존)	PROJECT-020
 존재하지 않는 프로젝트/리워드/게시글/새소식 ID 조회	CommonErrorCode.NOT_FOUND(404, 기존)	PROJECT-013, PROJECT-018, PROJECT-020~028
 펀딩스토리 AI 생성 중 동일 세션 재요청	발생하지 않음 — Mock 동기 COMPLETED. `AI_GENERATION_IN_PROGRESS` 코드 없음	PROJECT-011
 펀딩스토리 AI 미완료 세션 반영	CommonErrorCode.BUSINESS_RULE_VIOLATION(422, 기존)	PROJECT-012

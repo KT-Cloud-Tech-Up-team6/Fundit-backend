@@ -3,12 +3,12 @@
 | # | Method | Path | 설명 | 인증 | 관련 기능 ID |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `/api/v1/projects` | 프로젝트 목록 조회(판매자) | O (판매자) | PROJECT-001 |
+| 1-1 | GET | `/api/v1/projects/status-counts` | 프로젝트 상태 그룹별 개수 조회(판매자) | O (판매자) | PROJECT-001 |
 | 2 | POST | `/api/v1/projects` | 신규 프로젝트 생성 | O (판매자) | PROJECT-003 |
 | 3 | DELETE | `/api/v1/projects/{projectId}` | 프로젝트 삭제 | O (판매자) | PROJECT-002 |
 | 4 | PATCH | `/api/v1/projects/{projectId}/basic-info` | 프로젝트 기본정보 등록/수정 | O (판매자) | PROJECT-004 |
 | 5 | POST | `/api/v1/projects/{projectId}/privacy-consent` | 개인정보 수집 동의 처리 | O (판매자) | PROJECT-005 |
-| 6 | POST | `/api/v1/projects/{projectId}/submit` | 프로젝트 심사 제출 | O (판매자) | PROJECT-029 |
-| 7 | POST | `/api/v1/admin/projects/{projectId}/review-decision` | 프로젝트 심사 처리(승인/반려) | O (운영자/관리자) | PROJECT-030 |
+| 6 | POST | `/api/v1/projects/{projectId}/submit` | 프로젝트 공개(발행) | O (판매자) | PROJECT-029 |
 | 8 | PATCH | `/api/v1/projects/{projectId}/story` | 프로젝트 소개 콘텐츠 등록 | O (판매자) | PROJECT-006 |
 | 9 | POST | `/api/v1/projects/{projectId}/media/upload-url` | 이미지/영상 업로드 주소 발급(S3 Presigned URL) | O (판매자) | PROJECT-006, PROJECT-007 |
 | 10 | POST | `/api/v1/projects/{projectId}/rewards` | 리워드 등록 | O (판매자) | PROJECT-007 |
@@ -16,6 +16,8 @@
 | 12 | DELETE | `/api/v1/rewards/{rewardId}` | 리워드 삭제 | O (판매자) | PROJECT-007 |
 | 13 | PATCH | `/api/v1/rewards/{rewardId}/refund-policy` | 환불정책 특이사항 등록 | O (판매자) | PROJECT-009 |
 | 14 | GET | `/api/v1/projects/{projectId}/rewards` | 리워드/옵션 조회 및 재고 확인(소비자) | X (공통) | PROJECT-028 |
+| 14-1 | GET | `/api/v1/projects/{projectId}/rewards/mine` | 리워드 목록 조회(판매자, 공개여부 무관) | O (판매자) | PROJECT-007 |
+| 14-2 | GET | `/api/v1/rewards/{rewardId}` | 리워드 상세 조회(소비자) | X (공통) | PROJECT-028 |
 | 15 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
 | 16 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
 | 17 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (로그인 회원, 구매이력 미검증) | PROJECT-023 |
@@ -39,6 +41,8 @@
 | 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(fulfillment/order) | 내부 키 (`X-Internal-Api-Key`) | — |
 
 > PROJECT-008(리워드 정보 제공 고시 등록)·PROJECT-027(리워드 법정고시정보 조회)은 품목마다 필요한 고시 항목이 달라 MVP에서 표준화하기 어려워 **범위 제외됐다**(PM 확정). 관련 엔드포인트(`PUT /api/v1/rewards/{rewardId}/disclosure`, `GET /api/v1/projects/{projectId}/rewards/disclosures`)는 존재하지 않으며, 도메인/DTO/테스트도 모두 제거됐다.
+>
+> PROJECT-030(프로젝트 심사 처리/승인·반려)은 관리자 승인 단계 자체가 **폐지됐다** — 필수 작성 항목이 채워지면 관리자 승인 없이 바로 공개(ONGOING)로 전환한다(PROJECT-029 참고). 관련 엔드포인트(`POST /api/v1/admin/projects/{projectId}/review-decision`)는 존재하지 않으며, 도메인/DTO/테스트, `project_review_requests` 테이블도 모두 제거됐다.
 
 ---
 
@@ -53,7 +57,8 @@ GET /api/v1/projects
 **Auth Required**: O (판매자)
 
 **Request**: **Query Parameter**
-- `status` (선택): `DRAFT`\|`PENDING_REVIEW`\|`ONGOING`\|`SUCCEEDED`\|`FAILED`
+- `status` (선택): `DRAFT`\|`ONGOING`\|`SUCCEEDED`\|`FAILED`. 콤마로 구분한 다중값 지원(예: `SUCCEEDED,FAILED`)
+- `q` (선택): 제목 부분 일치 검색(대소문자 무시)
 - `page`, `size` (선택, 기본 0/20)
 
 **Response Body**
@@ -68,7 +73,14 @@ GET /api/v1/projects
       "thumbnailUrl": "https://cdn.example.com/p/123/thumb.jpg",
       "status": "ONGOING",
       "createdAt": "2026-08-20T10:00:00",
-      "fundingDeadline": "2026-09-30T23:59:59"
+      "fundingStartAt": "2026-08-21T00:00:00",
+      "fundingDeadline": "2026-09-30T23:59:59",
+      "goalAmount": 3000000,
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "생활가전",
+      "currentAmount": 1280000,
+      "participantCount": 132,
+      "achievementRate": 128
     }
   ],
   "page": 0, "size": 20, "totalElements": 5, "totalPages": 1, "hasNext": false
@@ -80,6 +92,31 @@ GET /api/v1/projects
 - `@LoginUser`로 주입된 `CurrentUser`를 `seller_id`로 하여 본인 프로젝트만 조회(PRD 3.1, S4).
 - `status` 파라미터 미지정 시 전체 상태 반환, 프론트에서 준비중/진행중/종료 탭으로 재구성(PRD 3.1.4).
 - 결과 없음 → `content: []` (Empty State는 프론트 처리, 별도 에러 아님).
+- `currentAmount`/`participantCount`/`achievementRate`는 `funding_status_snapshots`를 페이지 단위로 배치 조회해
+  채운다(카드 수만큼 단건 호출을 반복하지 않음). 스냅샷이 없는 프로젝트는 0으로 응답.
+
+---
+
+### 1-1. 프로젝트 상태 그룹별 개수 조회(판매자)
+
+```
+GET /api/v1/projects/status-counts
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: 없음
+
+**Response Body**
+
+```json
+{ "ongoing": 3, "draft": 1, "completed": 5 }
+```
+
+**Validation / Business Rules**
+
+- 탭(진행중/준비중/완료) 배지에 표시할 개수를 한 번의 호출로 제공한다.
+- `ongoing`=ONGOING, `draft`=DRAFT, `completed`=SUCCEEDED+FAILED 합산.
 
 ---
 
@@ -172,7 +209,7 @@ PATCH /api/v1/projects/{projectId}/basic-info
 - `title`은 40자 제한(DB `VARCHAR(40)`).
 - `categoryMajor`/`categoryMinor` 조합은 `categories` 테이블에 존재해야 함(FK) — 존재하지 않는 조합 → `400 INVALID_CATEGORY`.
 - 소유권(`seller_id`) 검증 후에만 수정 가능, 타 판매자 프로젝트 접근 시 `403 FORBIDDEN`(S4).
-- 프로젝트가 이미 공개(`ONGOING`/`SUCCEEDED`/`FAILED`) 상태이면 저장 후 `project.updated.v1`을 발행한다(SEARCH-011). DRAFT/PENDING_REVIEW 수정은 발행하지 않는다.
+- 프로젝트가 이미 공개(`ONGOING`/`SUCCEEDED`/`FAILED`) 상태이면 저장 후 `project.updated.v1`을 발행한다(SEARCH-011). DRAFT 수정은 발행하지 않는다.
 
 ---
 
@@ -200,7 +237,7 @@ POST /api/v1/projects/{projectId}/privacy-consent
 
 ---
 
-### 6. 프로젝트 심사 제출
+### 6. 프로젝트 공개(발행)
 
 ```
 POST /api/v1/projects/{projectId}/submit
@@ -213,45 +250,20 @@ POST /api/v1/projects/{projectId}/submit
 **Response Body**
 
 ```json
-{ "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f", "status": "PENDING_REVIEW" }
+{ "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f", "status": "ONGOING" }
 ```
 
 **Validation / Business Rules**
 
-- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 제출 필수값이 **아니다**.
-- 위 항목이 모두 채워진 `DRAFT`만 `status=PENDING_REVIEW`로 전환. 미완료 시 `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
-- 제출 시 `project_review_requests` 행 생성(`status=SUBMITTED`). **심사 담당자 알림 Kafka(`notification.raised.v1`)는 발행하지 않는다**(publisher 없음).
-
----
-
-### 7. 프로젝트 심사 처리(승인/반려)
-
-```
-POST /api/v1/admin/projects/{projectId}/review-decision
-```
-
-**Auth Required**: O (운영자/관리자)
-
-**Request**: {
-"decision": "APPROVED",
-"rejectReason": null
-}
-
-**Response Body**
-
-```json
-{
-  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
-  "status": "ONGOING"
-}
-```
-
-**Validation / Business Rules**
-
-- `decision=APPROVED` → `project_review_requests.status=APPROVED`, `projects.status=ONGOING`(공개), `funding_start_at`/`funding_deadline` 확정(모금기간 기본값 30일, 코드 상수). 같은 트랜잭션에서 `project.approved.v1`을 아웃박스에 적재한다(SEARCH-011).
-- `decision=REJECTED` → `rejectReason` 필수(미입력 시 `400 INVALID_INPUT`), `projects.status=DRAFT`로 되돌려 재제출 가능하게 처리. **판매자 알림 Kafka(`notification.raised.v1`)는 발행하지 않는다**(publisher 없음). 반려 시 색인 이벤트도 발행하지 않는다.
-- `PENDING_REVIEW`가 아니거나 SUBMITTED 심사요청이 없으면 `422 PROJECT_NOT_REVIEWABLE`.
-- 관리자 권한은 `user.hasRole("ADMIN")`으로 서버 검증(S4). 비관리자 → `403 FORBIDDEN`.
+- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
+- 위 항목이 모두 채워진 `DRAFT`만 **관리자 승인 없이 바로** `status=ONGOING`으로 전환. 미완료 시
+  `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
+- 전환과 같은 트랜잭션에서 `funding_start_at`/`funding_deadline`을 확정(모금기간 기본값 30일, 코드 상수)하고
+  `project.approved.v1`을 아웃박스에 적재한다(SEARCH-011).
+- **판매자 알림 Kafka(`notification.raised.v1`)는 발행하지 않는다**(publisher 없음).
+- 관리자 심사 단계는 **폐지됐다** — 과거 이 엔드포인트는 `PENDING_REVIEW`로만 전환하고 별도 관리자 승인
+  (`POST /api/v1/admin/projects/{projectId}/review-decision`, PROJECT-030)이 필요했으나, 정책 변경으로 그
+  엔드포인트와 `PENDING_REVIEW` 상태, `project_review_requests` 테이블이 모두 제거됐다.
 
 ---
 
@@ -341,6 +353,8 @@ POST /api/v1/projects/{projectId}/rewards
 "isLimited": true,
 "quantity": 100,
 "isEarlyBird": true,
+"earlyBirdDiscountType": "RATE",
+"earlyBirdDiscountValue": 10,
 "options": [
 { "groupName": "색상", "values": ["화이트", "블랙"] }
 ]
@@ -356,7 +370,12 @@ POST /api/v1/projects/{projectId}/rewards
   "price": 39000,
   "isLimited": true,
   "quantity": 100,
-  "hasOption": true
+  "hasOption": true,
+  "sortOrder": 0,
+  "isEarlyBird": true,
+  "earlyBirdDiscountType": "RATE",
+  "earlyBirdDiscountValue": 10,
+  "earlyBirdDiscountedPrice": 35100
 }
 ```
 
@@ -364,6 +383,11 @@ POST /api/v1/projects/{projectId}/rewards
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`) — 위반 시 `400 INVALID_REWARD_QUANTITY`.
+- 얼리버드 할인: `isEarlyBird=false`면 `earlyBirdDiscountType`/`earlyBirdDiscountValue`는 반드시 없어야 하고,
+  `true`면 `earlyBirdDiscountType`(`AMOUNT` 정액(원) 또는 `RATE` 정률(%))과 `earlyBirdDiscountValue`가 필수다.
+  `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~100 사이 정수만 허용(DB CHECK
+  `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
+  할인 적용가로, 얼리버드가 아니면 `null`이다.
 - `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
@@ -391,6 +415,8 @@ PATCH /api/v1/rewards/{rewardId}
 
 - 소유권 검증: 리워드가 속한 프로젝트의 `seller_id`가 본인인지 확인(S4).
 - `imageUrl`을 전달하는 경우 #9로 발급받은 `fileUrl`인지 등록(#10)과 동일하게 검증한다.
+- 얼리버드 할인 방식/값 병합 규칙은 `quantity`와 동일하다: 명시적으로 전달되면 그 값을, `isEarlyBird=false`로
+  바뀌면 `null`을, 둘 다 아니면 기존 값을 유지한다. 최종 값은 등록(#10)과 같은 정합성 규칙으로 재검증한다.
 - 수정 시 `reward.updated.v1`을 발행한다(ORDER-012). payload는 생성 이벤트와 동일 계약이며 `projectId`는 내부 Long PK. 삭제·환불정책 변경은 이 토픽을 발행하지 않는다.
 - 이미 판매(주문)가 발생한 리워드의 `price` 인하/인상 등 정책은 [정책 확인 필요].
 
@@ -461,8 +487,13 @@ GET /api/v1/projects/{projectId}/rewards
     "rewardId": 1,
     "rewardDisplayCode": "R0000001",
     "name": "얼리버드 패키지",
+    "description": "얼리버드 한정 패키지 구성입니다.",
+    "imageUrl": "https://.../reward.png",
     "price": 39000,
     "isEarlyBird": true,
+    "earlyBirdDiscountType": "RATE",
+    "earlyBirdDiscountValue": 10,
+    "earlyBirdDiscountedPrice": 35100,
     "isLimited": true,
     "remainingStock": 37,
     "options": [
@@ -481,6 +512,94 @@ GET /api/v1/projects/{projectId}/rewards
 - 삭제된 리워드(`deleted_at` not null)는 응답에서 제외.
 - `remainingStock=0` → `soldOut: true`로 표시, 프론트는 '알림 신청' 버튼으로 대체(PRD 13.1.4).
 - 재고 조회가 비어 있으면 `remainingStock: null`로 응답한다. 현재 Noop 경로에서는 `503 DEPENDENCY_FAILURE`를 던지지 않는다.
+- `earlyBirdDiscountedPrice`는 얼리버드 할인 적용가(정액은 `price - earlyBirdDiscountValue`, 정률은
+  `price - price * earlyBirdDiscountValue / 100`), 얼리버드가 아니면 `null`이다.
+- **비공개(DRAFT) 프로젝트는 `404 NOT_FOUND`**(존재 여부 비노출) — 공개 여부와 무관하게 조회해야 하면 #14-1(판매자용) 사용.
+
+---
+
+### 14-1. 리워드 목록 조회(판매자)
+
+```
+GET /api/v1/projects/{projectId}/rewards/mine
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: Path Parameter: `projectId`
+
+**Response Body**
+
+```json
+[
+  {
+    "rewardId": 1,
+    "rewardDisplayCode": "R0000001",
+    "name": "얼리버드 패키지",
+    "description": "얼리버드 한정 패키지 구성입니다.",
+    "imageUrl": "https://.../reward.png",
+    "price": 39000,
+    "isLimited": true,
+    "quantity": 100,
+    "hasOption": true,
+    "sortOrder": 0,
+    "isEarlyBird": true,
+    "earlyBirdDiscountType": "RATE",
+    "earlyBirdDiscountValue": 10,
+    "earlyBirdDiscountedPrice": 35100
+  }
+]
+```
+
+**Validation / Business Rules**
+
+- #14(소비자용)와 달리 **공개 여부와 무관하게 소유권 검증만으로 조회**한다 — DRAFT 단계의 "리워드 등록/관리"
+  화면(No./리워드명/가격/수량/할인 적용여부)에서 사용.
+- 옵션 그룹/값은 담지 않는다(등록/수정 응답과 동일 — 필요하면 리워드 상세를 별도 조회).
+- 잔여재고/품절 여부는 포함하지 않는다(판매자 화면은 설정값만 보여주면 되고, order-service 조회가 필요 없다).
+- 소유권 불일치 → `403 FORBIDDEN`, 존재하지 않는 프로젝트 → `404 NOT_FOUND`.
+
+---
+
+### 14-2. 리워드 상세 조회(소비자)
+
+```
+GET /api/v1/rewards/{rewardId}
+```
+
+**Auth Required**: X (공통)
+
+**Request**: Path Parameter: `rewardId`
+
+**Response Body**
+
+```json
+{
+  "rewardId": 1,
+  "rewardDisplayCode": "R0000001",
+  "name": "얼리버드 패키지",
+  "description": "얼리버드 한정 패키지 구성입니다.",
+  "imageUrl": "https://.../reward.png",
+  "price": 39000,
+  "isEarlyBird": true,
+  "earlyBirdDiscountType": "RATE",
+  "earlyBirdDiscountValue": 10,
+  "earlyBirdDiscountedPrice": 35100,
+  "isLimited": true,
+  "remainingStock": 37,
+  "options": [
+    { "groupId": 10, "groupName": "색상", "values": [
+        { "valueId": 100, "value": "화이트" },
+        { "valueId": 101, "value": "블랙" } ] }
+  ],
+  "soldOut": false
+}
+```
+
+**Validation / Business Rules**
+
+- 응답 필드/계산 규칙은 #14(리워드 목록 조회)와 동일 — 리워드 상세페이지 단건 조회용.
+- 리워드가 속한 프로젝트가 공개 상태(ONGOING/SUCCEEDED/FAILED)가 아니면(DRAFT, 또는 리워드가 소프트 삭제됨) `404 NOT_FOUND`.
 
 ---
 
@@ -770,19 +889,21 @@ GET /api/v1/projects/{projectId}/preview
   "title": "세상에 없는 프라이팬",
   "status": "DRAFT",
   "goalAmount": 5000000,
+  "coverImageUrl": "https://.../cover.png",
+  "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null },
   "hasLiveVerification": false,
   "seller": { "sellerId": "018e9a10-....", "displayName": null }
 }
 ```
 
-공개 상세(#26)와 **동일 DTO(`ProjectDetailResponse`)** — 미공개(`DRAFT`/`PENDING_REVIEW`)에서도 소유자면 조회 가능.
+공개 상세(#26)와 **동일 DTO(`ProjectDetailResponse`)** — 미공개(`DRAFT`)에서도 소유자면 조회 가능.
 
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`fundingStatus`/`hasLiveVerification`/`seller`뿐이다. **story·rewards·images·전체 펀딩 대시보드는 포함하지 않는다.**
-- 클라이언트가 화면을 조립하려면 리워드(#14)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)을 돌려주는 GET은 없다(쓰기는 #8 PATCH).
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
 ---
@@ -805,6 +926,8 @@ GET /api/v1/projects/{projectId}
   "title": "세상에 없는 프라이팬",
   "status": "ONGOING",
   "goalAmount": 5000000,
+  "coverImageUrl": "https://.../cover.png",
+  "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
   "hasLiveVerification": true,
   "seller": { "sellerId": "...", "displayName": null }
@@ -813,8 +936,8 @@ GET /api/v1/projects/{projectId}
 
 **Validation / Business Rules**
 
-- `status`가 `DRAFT`\|`PENDING_REVIEW`인 미공개 프로젝트 조회 시 `404 NOT_FOUND`(본인이면 미리보기 API 사용).
-- 응답은 `ProjectDetailResponse`만 반환한다 — story/rewards/images를 한 번에 주지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 스토리 GET은 없다.
+- `status`가 `DRAFT`인 미공개 프로젝트 조회 시 `404 NOT_FOUND`(본인이면 미리보기 API 사용).
+- 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
 
@@ -1056,8 +1179,8 @@ GET /internal/projects/{projectId}
 
 | 기능 ID | 유형 | 토픽 | 조건 / payload |
 | --- | --- | --- | --- |
-| PROJECT-030 | 발행 | `project.approved.v1` | 심사 `APPROVED` 시 아웃박스 적재. 파티션 키: 내부 `projectId`(Long). 구독: search-service(SEARCH-011) |
-| PROJECT-004, PROJECT-006 | 발행 | `project.updated.v1` | 공개(`isPublic()`) 프로젝트의 기본정보/스토리 수정 시에만. DRAFT/PENDING_REVIEW 수정은 발행하지 않음. payload 계약은 승인 이벤트와 동일 |
+| PROJECT-029 | 발행 | `project.approved.v1` | 필수항목 완료로 ONGOING 전환 시 아웃박스 적재. 파티션 키: 내부 `projectId`(Long). 구독: search-service(SEARCH-011) |
+| PROJECT-004, PROJECT-006 | 발행 | `project.updated.v1` | 공개(`isPublic()`) 프로젝트의 기본정보/스토리 수정 시에만. DRAFT 수정은 발행하지 않음. payload 계약은 공개 전환 이벤트와 동일 |
 | PROJECT-007 | 발행 | `reward.created.v1` / `reward.updated.v1` | 리워드 생성/수정 시(삭제·환불정책 PATCH는 미발행). 파티션 키: `rewardId`. `projectId`는 **내부 Long** |
 | PROJECT-015 | 구독 | (없음) | `funding_status_snapshots` 조회만. 펀딩 집계 Kafka 컨슈머 없음 |
 | PROJECT-016 | 구독 | (없음) | Spring `@EventListener`만 존재. `project.wished.v1`/`project.unwished.v1` Kafka 컨슈머 없음 |

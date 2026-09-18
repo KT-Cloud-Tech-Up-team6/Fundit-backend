@@ -4,6 +4,9 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
+import com.fundit.project.domain.reward.Reward;
+import com.fundit.project.domain.reward.RewardRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaEntity;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardOptionGroupJpaEntity;
@@ -22,6 +25,7 @@ import java.util.UUID;
 public class RewardQueryService {
 
     private final ProjectRepository projectRepository;
+    private final RewardRepository rewardRepository;
     private final RewardJpaRepository rewardJpaRepository;
     private final RewardOptionGroupJpaRepository optionGroupJpaRepository;
     private final RewardOptionValueJpaRepository optionValueJpaRepository;
@@ -35,6 +39,28 @@ public class RewardQueryService {
                 .toList();
     }
 
+    /** 리워드 상세 조회(소비자) — 리워드가 속한 프로젝트가 공개 상태일 때만 조회 가능하다. */
+    @Transactional(readOnly = true)
+    public RewardConsumerView getForConsumer(Long rewardId) {
+        RewardJpaEntity reward = rewardJpaRepository.findByIdAndDeletedAtIsNull(rewardId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        projectRepository.findById(reward.getProjectId())
+                .filter(Project::isPublic)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return toConsumerView(reward);
+    }
+
+    /** 판매자용 — 공개 여부와 무관하게 소유권 검증만으로 조회한다(DRAFT 포함). */
+    @Transactional(readOnly = true)
+    public List<Reward> listForSeller(UUID sellerId, UUID projectPublicId) {
+        Project project = projectRepository.findByPublicId(projectPublicId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (!project.isOwnedBy(sellerId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        return rewardRepository.findByProjectId(project.getId());
+    }
+
     private RewardConsumerView toConsumerView(RewardJpaEntity reward) {
         Integer remainingStock = inventoryQueryClient.getRemainingStock(reward.getId()).orElse(null);
         boolean soldOut = remainingStock != null && remainingStock <= 0;
@@ -45,8 +71,20 @@ public class RewardQueryService {
                         .toList()
                 : List.of();
 
-        return new RewardConsumerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(), reward.getPrice(),
-                reward.getIsEarlyBird(), reward.getIsLimited(), remainingStock, options, soldOut);
+        return new RewardConsumerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
+                reward.getDescription(), reward.getImageUrl(), reward.getPrice(),
+                reward.getIsEarlyBird(), reward.getEarlyBirdDiscountType(), reward.getEarlyBirdDiscountValue(),
+                earlyBirdDiscountedPrice(reward), reward.getIsLimited(), remainingStock, options, soldOut);
+    }
+
+    private Long earlyBirdDiscountedPrice(RewardJpaEntity reward) {
+        if (!reward.getIsEarlyBird() || reward.getEarlyBirdDiscountType() == null || reward.getEarlyBirdDiscountValue() == null) {
+            return null;
+        }
+        return switch (reward.getEarlyBirdDiscountType()) {
+            case AMOUNT -> reward.getPrice() - reward.getEarlyBirdDiscountValue();
+            case RATE -> reward.getPrice() - (reward.getPrice() * reward.getEarlyBirdDiscountValue() / 100);
+        };
     }
 
     private RewardOptionGroupView toGroupView(RewardOptionGroupJpaEntity group) {
@@ -70,7 +108,9 @@ public class RewardQueryService {
     }
 
     public record RewardConsumerView(
-            Long rewardId, String rewardDisplayCode, String name, Long price, boolean isEarlyBird,
+            Long rewardId, String rewardDisplayCode, String name, String description, String imageUrl,
+            Long price, boolean isEarlyBird,
+            EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue, Long earlyBirdDiscountedPrice,
             boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut) {
     }
 }

@@ -11,10 +11,12 @@ import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.infrastructure.persistence.project.query.ProjectListProjection;
 import com.fundit.project.presentation.dto.CommonRefundPolicyResponse;
 import com.fundit.project.presentation.dto.FundingStatusResponse;
 import com.fundit.project.presentation.dto.FundingStatusSummaryResponse;
 import com.fundit.project.presentation.dto.IntroContentBlockRequest;
+import com.fundit.project.presentation.dto.IntroContentBlockResponse;
 import com.fundit.project.presentation.dto.PageResponse;
 import com.fundit.project.presentation.dto.PrivacyConsentRequest;
 import com.fundit.project.presentation.dto.PrivacyConsentResponse;
@@ -23,6 +25,7 @@ import com.fundit.project.presentation.dto.ProjectBasicInfoResponse;
 import com.fundit.project.presentation.dto.ProjectCreateResponse;
 import com.fundit.project.presentation.dto.ProjectDetailResponse;
 import com.fundit.project.presentation.dto.ProjectListItemResponse;
+import com.fundit.project.presentation.dto.ProjectStatusCountsResponse;
 import com.fundit.project.presentation.dto.ProjectStatusResponse;
 import com.fundit.project.presentation.dto.ProjectStoryRequest;
 import com.fundit.project.presentation.dto.ProjectStoryResponse;
@@ -49,6 +52,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -65,23 +69,44 @@ public class ProjectController {
     private final ProjectStatsService projectStatsService;
 
     @Operation(summary = "판매자 프로젝트 목록 조회",
-            description = "로그인한 판매자 본인의 프로젝트를 상태별로 페이지네이션 조회한다. status 미지정 시 전체 상태.")
+            description = "로그인한 판매자 본인의 프로젝트를 상태별로 페이지네이션 조회한다. "
+                    + "status는 콤마로 구분한 다중값을 지원하며 미지정 시 전체 상태. q는 제목 부분 일치 검색.")
     @GetMapping
     public PageResponse<ProjectListItemResponse> list(
             @LoginUser CurrentUser user,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT,
                     "page는 0 이상, size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
-        ProjectStatus statusFilter = parseStatus(status);
+        List<ProjectStatus> statusFilter = parseStatuses(status);
 
-        var result = projectService.list(user.id(), statusFilter, PageRequest.of(page, size))
-                .map(p -> new ProjectListItemResponse(p.getProjectId(), p.getProjectDisplayCode(), p.getTitle(),
-                        p.getThumbnailUrl(), p.getStatus(), p.getCreatedAt(), p.getFundingDeadline()));
+        var pageResult = projectService.list(user.id(), statusFilter, q, PageRequest.of(page, size));
+        List<Long> internalIds = pageResult.getContent().stream().map(ProjectListProjection::getId).toList();
+        var fundingStatusByProjectId = projectStatsService.getFundingStatusBatch(internalIds);
+
+        var result = pageResult.map(p -> {
+            var funding = fundingStatusByProjectId.get(p.getId());
+            long currentAmount = funding == null ? 0L : funding.currentAmount();
+            int participantCount = funding == null ? 0 : funding.participantCount();
+            int achievementRate = funding == null ? 0 : funding.achievementRate();
+            return new ProjectListItemResponse(p.getProjectId(), p.getProjectDisplayCode(), p.getTitle(),
+                    p.getThumbnailUrl(), p.getStatus(), p.getCreatedAt(), p.getFundingStartAt(), p.getFundingDeadline(),
+                    p.getGoalAmount(), p.getCategoryMajor(), p.getCategoryMinor(),
+                    currentAmount, participantCount, achievementRate);
+        });
         return PageResponse.from(result);
+    }
+
+    @Operation(summary = "판매자 프로젝트 상태별 개수 조회",
+            description = "탭(진행중/준비중/완료)에 표시할 상태 그룹별 개수를 한 번에 조회한다.")
+    @GetMapping("/status-counts")
+    public ProjectStatusCountsResponse statusCounts(@LoginUser CurrentUser user) {
+        var counts = projectService.countByStatusGroup(user.id());
+        return new ProjectStatusCountsResponse(counts.ongoing(), counts.draft(), counts.completed());
     }
 
     @Operation(summary = "프로젝트 생성(DRAFT)",
@@ -126,8 +151,8 @@ public class ProjectController {
         return new PrivacyConsentResponse(projectId, consentedAt);
     }
 
-    @Operation(summary = "심사 제출",
-            description = "필수 작성 항목이 모두 채워진 DRAFT 프로젝트를 PENDING_REVIEW로 전환한다(PROJECT_NOT_SUBMITTABLE).")
+    @Operation(summary = "프로젝트 공개",
+            description = "필수 작성 항목이 모두 채워진 DRAFT 프로젝트를 관리자 승인 없이 바로 ONGOING(공개)으로 전환한다(PROJECT_NOT_SUBMITTABLE).")
     @PostMapping("/{projectId}/submit")
     public ProjectStatusResponse submit(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
         Project project = projectService.submit(user.id(), projectId);
@@ -152,7 +177,7 @@ public class ProjectController {
     }
 
     @Operation(summary = "공개 상세 조회",
-            description = "소비자용 프로젝트 상세. 비공개(DRAFT/PENDING_REVIEW) 프로젝트는 존재 여부를 비노출하기 위해 다른 코드가 아닌 404로 응답한다.")
+            description = "소비자용 프로젝트 상세. 비공개(DRAFT) 프로젝트는 존재 여부를 비노출하기 위해 다른 코드가 아닌 404로 응답한다.")
     @GetMapping("/{projectId}")
     public ProjectDetailResponse getPublicDetail(@PathVariable UUID projectId) {
         return toDetailResponse(projectQueryService.getPublicDetail(projectId));
@@ -191,18 +216,30 @@ public class ProjectController {
     private ProjectDetailResponse toDetailResponse(ProjectQueryService.ProjectDetailView view) {
         var fundingStatus = view.fundingStatus();
         return new ProjectDetailResponse(view.projectId(), view.title(), view.status(), view.goalAmount(),
+                view.coverImageUrl(), toIntroContentResponse(view.introContent()),
                 new FundingStatusSummaryResponse(fundingStatus.currentAmount(), fundingStatus.achievementRate(),
                         fundingStatus.participantCount(), fundingStatus.remainingDays()),
                 view.hasLiveVerification(),
                 new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()));
     }
 
-    private ProjectStatus parseStatus(String status) {
+    private List<IntroContentBlockResponse> toIntroContentResponse(List<IntroContentBlock> blocks) {
+        if (blocks == null) return List.of();
+        return blocks.stream()
+                .map(b -> new IntroContentBlockResponse(b.type().name(), b.value()))
+                .toList();
+    }
+
+    /** 콤마로 구분한 다중 상태값을 지원한다(예: SUCCEEDED,FAILED). 미지정 시 빈 리스트(=전체 상태). */
+    private List<ProjectStatus> parseStatuses(String status) {
         if (status == null || status.isBlank()) {
-            return null;
+            return List.of();
         }
         try {
-            return ProjectStatus.valueOf(status);
+            return Arrays.stream(status.split(",", -1))
+                    .map(String::trim)
+                    .map(ProjectStatus::valueOf)
+                    .toList();
         } catch (IllegalArgumentException e) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "status 값이 올바르지 않습니다: " + status);
         }

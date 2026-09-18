@@ -53,7 +53,7 @@ class RewardPersistenceAdapterConcurrencyTest {
                 .publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
                 .createdAt(now).updatedAt(now).build()).getId();
         Long rewardId = rewardRepository.save(
-                Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null)).getId();
+                Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null)).getId();
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);

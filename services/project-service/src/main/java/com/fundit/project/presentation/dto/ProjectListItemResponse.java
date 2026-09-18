@@ -10,6 +10,13 @@ public record ProjectListItemResponse(
         String thumbnailUrl,
         String status,
         Instant createdAt,
-        Instant fundingDeadline
+        Instant fundingStartAt,
+        Instant fundingDeadline,
+        Long goalAmount,
+        String categoryMajor,
+        String categoryMinor,
+        long currentAmount,
+        int participantCount,
+        int achievementRate
 ) {
 }

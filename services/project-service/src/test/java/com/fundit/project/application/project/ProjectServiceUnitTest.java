@@ -10,8 +10,6 @@ import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
-import com.fundit.project.infrastructure.persistence.reviewrequest.ProjectReviewRequestJpaEntity;
-import com.fundit.project.infrastructure.persistence.reviewrequest.ProjectReviewRequestJpaRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,8 +41,6 @@ class ProjectServiceUnitTest {
     private CategoryJpaRepository categoryJpaRepository;
     @Mock
     private ProjectPrivacyConsentJpaRepository privacyConsentJpaRepository;
-    @Mock
-    private ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     @Mock
     private RewardJpaRepository rewardJpaRepository;
     @Mock
@@ -219,10 +215,10 @@ class ProjectServiceUnitTest {
     }
 
     @Nested
-    class 심사_제출 {
+    class 공개_전환 {
 
         @Test
-        void 필수항목이_모두_완료되면_PENDING_REVIEW로_전환된다() {
+        void 필수항목이_모두_완료되면_바로_ONGOING으로_전환된다() {
             // given
             UUID sellerId = UUID.randomUUID();
             UUID publicId = UUID.randomUUID();
@@ -242,8 +238,10 @@ class ProjectServiceUnitTest {
             Project result = projectService.submit(sellerId, publicId);
 
             // then
-            assertThat(result.getStatus()).isEqualTo(ProjectStatus.PENDING_REVIEW);
-            verify(reviewRequestJpaRepository).save(any(ProjectReviewRequestJpaEntity.class));
+            assertThat(result.getStatus()).isEqualTo(ProjectStatus.ONGOING);
+            assertThat(result.getFundingStartAt()).isNotNull();
+            assertThat(result.getFundingDeadline()).isNotNull();
+            verify(projectIndexEventPublisher).publishProjectApproved(any());
         }
     }
 }
