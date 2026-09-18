@@ -75,6 +75,21 @@ class ProjectControllerTest {
     }
 
     @Test
+    void 목록조회는_비어있지_않은_상태값을_그대로_전달한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        when(projectService.list(eq(sellerId), eq(List.of(ProjectStatus.SUCCEEDED, ProjectStatus.FAILED)), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .param("status", "SUCCEEDED,FAILED"))
+                .andExpect(status().isOk());
+        verify(projectService).list(eq(sellerId), eq(List.of(ProjectStatus.SUCCEEDED, ProjectStatus.FAILED)), isNull(), any());
+    }
+
+    @Test
     void 생성하면_201과_DRAFT_상태를_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();

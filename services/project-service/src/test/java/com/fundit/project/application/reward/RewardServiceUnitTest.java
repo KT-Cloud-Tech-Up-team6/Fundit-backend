@@ -142,6 +142,72 @@ class RewardServiceUnitTest {
         }
 
         @Test
+        void 얼리버드_할인방식만_전달하면_할인값은_유지한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, null, EarlyBirdDiscountType.AMOUNT, null, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isTrue();
+            assertThat(result.getEarlyBirdDiscountType()).isEqualTo(EarlyBirdDiscountType.AMOUNT);
+            assertThat(result.getEarlyBirdDiscountValue()).isEqualTo(10L);
+        }
+
+        @Test
+        void 얼리버드_할인값만_전달하면_할인방식은_유지한다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, null, null, 20L, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isTrue();
+            assertThat(result.getEarlyBirdDiscountType()).isEqualTo(EarlyBirdDiscountType.RATE);
+            assertThat(result.getEarlyBirdDiscountValue()).isEqualTo(20L);
+        }
+
+        @Test
+        void 얼리버드를_끄면_할인정보가_지워진다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 39000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 10L, null)
+                    .toBuilder().id(5L).build();
+            Project project = ownedProject(sellerId, UUID.randomUUID());
+            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+            when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Reward result = rewardService.update(sellerId, 5L, new RewardService.UpdateRewardCommand(
+                    null, null, null, null, null, null, false, null, null, null));
+
+            // then
+            assertThat(result.isEarlyBird()).isFalse();
+            assertThat(result.getEarlyBirdDiscountType()).isNull();
+            assertThat(result.getEarlyBirdDiscountValue()).isNull();
+        }
+
+        @Test
         void imageUrl이_전달되면_리워드가_속한_프로젝트의_publicId로_검증한다() {
             // given
             UUID sellerId = UUID.randomUUID();

@@ -18,6 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -53,6 +56,16 @@ class ProjectControllerExceptionTest {
                         .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .param("status", "NOT_A_STATUS"))
                 .andExpect(status().isBadRequest());
+        verify(projectService, never()).list(any(), any(), any(), any());
+    }
+
+    @Test
+    void status에_빈_토큰이_있으면_400을_반환한다() throws Exception {
+        mockMvc.perform(get("/api/v1/projects")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .param("status", ",,"))
+                .andExpect(status().isBadRequest());
+        verify(projectService, never()).list(any(), any(), any(), any());
     }
 
     @Test

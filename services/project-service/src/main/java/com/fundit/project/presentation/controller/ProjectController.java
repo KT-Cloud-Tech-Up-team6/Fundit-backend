@@ -227,9 +227,8 @@ public class ProjectController {
             return List.of();
         }
         try {
-            return Arrays.stream(status.split(","))
+            return Arrays.stream(status.split(",", -1))
                     .map(String::trim)
-                    .filter(s -> !s.isEmpty())
                     .map(ProjectStatus::valueOf)
                     .toList();
         } catch (IllegalArgumentException e) {

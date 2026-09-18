@@ -75,18 +75,22 @@ public class RewardService {
             quantity = reward.getQuantity();
         }
         boolean isEarlyBird = command.isEarlyBird() != null ? command.isEarlyBird() : reward.isEarlyBird();
-        // 할인 방식/값 병합: 명시적으로 왔으면 그 값을, isEarlyBird=false로 바뀌면 null을,
+        // 할인 방식/값 병합: 필드별로 명시적으로 왔으면 그 값을, isEarlyBird=false로 바뀌면 null을,
         // 둘 다 아니면 기존 값을 유지한다 — quantity와 동일한 병합 패턴.
         EarlyBirdDiscountType earlyBirdDiscountType;
-        Long earlyBirdDiscountValue;
         if (command.earlyBirdDiscountType() != null) {
             earlyBirdDiscountType = command.earlyBirdDiscountType();
-            earlyBirdDiscountValue = command.earlyBirdDiscountValue();
         } else if (Boolean.FALSE.equals(command.isEarlyBird())) {
             earlyBirdDiscountType = null;
-            earlyBirdDiscountValue = null;
         } else {
             earlyBirdDiscountType = reward.getEarlyBirdDiscountType();
+        }
+        Long earlyBirdDiscountValue;
+        if (command.earlyBirdDiscountValue() != null) {
+            earlyBirdDiscountValue = command.earlyBirdDiscountValue();
+        } else if (Boolean.FALSE.equals(command.isEarlyBird())) {
+            earlyBirdDiscountValue = null;
+        } else {
             earlyBirdDiscountValue = reward.getEarlyBirdDiscountValue();
         }
 
