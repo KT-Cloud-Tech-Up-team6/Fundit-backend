@@ -2,6 +2,11 @@
 
 > `Auth Required` 엔드포인트는 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 주입한 `X-User-Id`(`AuthHeaders.USER_ID`)로 사용자를 식별합니다. 서비스는 이 헤더를 직접 파싱하지 않고 `@LoginUser CurrentUser`로 주입받습니다. 게이트웨이를 우회한 직접 호출은 `X-Internal-Api-Key`(`AuthHeaders.INTERNAL_API_KEY`)가 없어 401로 차단됩니다. 웹훅(`POST /api/v1/payments/webhook/toss`)만 로그인 인증을 요구하지 않습니다.
 
+> **식별자 계약 (cross-service ID 통일 #69)**: `fundingId`의 정본은 order-service `orderId`(`fundings.public_id`, UUID)다.
+> - **v2** `POST /api/v2/payments`, `POST /api/v2/payments/confirm`, `POST /api/v2/refunds/defect`, `POST /api/v2/refunds/shipping-delay`, `GET /api/v2/refunds`는 UUID `fundingId`를 그대로 받는다/돌려준다. 승인/목록 응답의 `fundingId`도 UUID(`PaymentConfirmResponseV2`/`RefundSummaryResponseV2`).
+> - **v1**은 레거시 Long(order-service 내부 PK)을 받아 내부 API로 UUID로 해석한다. v1 승인/목록 응답의 Long `fundingId`는 항상 null — 값이 필요하면 v2를 쓴다.
+> - v2 HTTP 연동은 `GET /internal/orders/{orderId}`를 쓰고, v1은 `GET /internal/fundings/{fundingId}`(Long PK)를 쓴다.
+
 ## 1. 결제
 
 ### 1-1. POST `/api/v1/payments` — 결제 시도 생성 (PAYMENT-001)

@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** FULFILLMENT-003 — 프로젝트 단위 제작·배송 진행 현황 조회(API #1, 공통·인증 불필요). */
 @Service
@@ -38,7 +39,7 @@ public class FulfillmentQueryService {
     }
 
     @Transactional(readOnly = true)
-    public ProjectFulfillmentView getProjectFulfillment(Long projectId) {
+    public ProjectFulfillmentView getProjectFulfillment(UUID projectId) {
         FulfillmentTracker tracker = trackerRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND,
                         "제작·배송 트래커가 없습니다. 아직 펀딩이 성립되지 않은 프로젝트일 수 있습니다."));
@@ -90,7 +91,7 @@ public class FulfillmentQueryService {
                                  Instant plannedEndAt, String detailText, Instant updatedAt) {
     }
 
-    public record ProjectFulfillmentView(Long projectId, FulfillmentStage currentStage, Instant lastUpdatedAt,
+    public record ProjectFulfillmentView(UUID projectId, FulfillmentStage currentStage, Instant lastUpdatedAt,
                                           boolean updateOverdue, List<StageSnapshot> stages,
                                           List<FulfillmentScheduleChangeJpaEntity> scheduleChanges) {
     }

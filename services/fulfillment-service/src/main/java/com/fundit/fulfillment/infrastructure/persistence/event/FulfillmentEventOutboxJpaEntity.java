@@ -40,11 +40,19 @@ public class FulfillmentEventOutboxJpaEntity {
     @Column(name = "event_type", nullable = false, length = 32)
     private String eventType;
 
-    @Column(name = "project_id")
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다. */
+    @Column(name = "project_id", updatable = false)
     private Long projectId;
 
-    @Column(name = "funding_id")
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다. */
+    @Column(name = "funding_id", updatable = false)
     private Long fundingId;
+
+    @Column(name = "project_public_id")
+    private UUID projectPublicId;
+
+    @Column(name = "funding_order_id")
+    private UUID fundingOrderId;
 
     @Column(name = "member_id")
     private UUID memberId;

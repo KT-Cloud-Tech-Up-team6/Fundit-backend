@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class DefectRefundRequestServiceUnitExceptionTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
 
     @Mock
     private PaymentRepository paymentRepository;

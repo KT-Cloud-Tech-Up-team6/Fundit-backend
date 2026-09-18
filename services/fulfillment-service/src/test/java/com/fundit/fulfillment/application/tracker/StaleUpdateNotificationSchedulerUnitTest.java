@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -36,31 +37,31 @@ class StaleUpdateNotificationSchedulerUnitTest {
     @Test
     void 대상_트래커마다_미등록_알림을_발행한다() {
         // given
-        FulfillmentTracker t1 = FulfillmentTracker.create(1L);
-        FulfillmentTracker t2 = FulfillmentTracker.create(2L);
+        FulfillmentTracker t1 = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        FulfillmentTracker t2 = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000002"));
         when(trackerRepository.findStale(any())).thenReturn(List.of(t1, t2));
 
         // when
         scheduler.run();
 
         // then
-        verify(notificationPublisher).publishStaleUpdateReminder(new StaleUpdateReminderEvent(1L));
-        verify(notificationPublisher).publishStaleUpdateReminder(new StaleUpdateReminderEvent(2L));
+        verify(notificationPublisher).publishStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000001")));
+        verify(notificationPublisher).publishStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000002")));
     }
 
     @Test
     void 한_건이_실패해도_나머지는_계속_처리한다() {
         // given
-        FulfillmentTracker t1 = FulfillmentTracker.create(1L);
-        FulfillmentTracker t2 = FulfillmentTracker.create(2L);
+        FulfillmentTracker t1 = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        FulfillmentTracker t2 = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000002"));
         when(trackerRepository.findStale(any())).thenReturn(List.of(t1, t2));
         doThrow(new RuntimeException("발행 실패")).when(notificationPublisher)
-                .publishStaleUpdateReminder(new StaleUpdateReminderEvent(1L));
+                .publishStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000001")));
 
         // when
         scheduler.run();
 
         // then
-        verify(notificationPublisher, times(1)).publishStaleUpdateReminder(new StaleUpdateReminderEvent(2L));
+        verify(notificationPublisher, times(1)).publishStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000002")));
     }
 }

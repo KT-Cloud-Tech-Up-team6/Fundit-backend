@@ -16,6 +16,6 @@ public interface FundingSucceededListener {
 
     void onFundingSucceeded(FundingSucceededEvent event);
 
-    record FundingSucceededEvent(Long fundingId, Long projectId, UUID sellerId, Instant achievedAt) {
+    record FundingSucceededEvent(Long fundingId, Long projectId, UUID sellerId, Instant achievedAt, UUID orderId) {
     }
 }

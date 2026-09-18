@@ -18,7 +18,7 @@ public class OrderPreviewService {
 
     private final OrderPricingService orderPricingService;
 
-    public OrderPricingService.PricingResult preview(UUID memberId, Long projectId,
+    public OrderPricingService.PricingResult preview(UUID memberId, UUID projectId,
                                                        List<OrderLineItemRequest> lineItems,
                                                        List<String> couponCodes) {
         return orderPricingService.calculate(memberId, projectId, lineItems, couponCodes);

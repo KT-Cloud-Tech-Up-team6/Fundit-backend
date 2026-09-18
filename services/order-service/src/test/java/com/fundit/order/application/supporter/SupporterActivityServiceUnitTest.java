@@ -58,7 +58,7 @@ class SupporterActivityServiceUnitTest {
         when(memberDisclosureClient.isPublicConsent(memberId)).thenReturn(true);
 
         // when
-        var result = supporterActivityService.list(1L, PageRequest.of(0, 20));
+        var result = supporterActivityService.list(UUID.randomUUID(), PageRequest.of(0, 20));
 
         // then
         assertThat(result.getContent()).singleElement().satisfies(activity -> {
@@ -76,7 +76,7 @@ class SupporterActivityServiceUnitTest {
         when(memberDisclosureClient.isPublicConsent(memberId)).thenReturn(false);
 
         // when
-        var result = supporterActivityService.list(1L, PageRequest.of(0, 20));
+        var result = supporterActivityService.list(UUID.randomUUID(), PageRequest.of(0, 20));
 
         // then
         assertThat(result.getContent()).singleElement().satisfies(activity -> {

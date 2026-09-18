@@ -16,7 +16,7 @@ class RewardUnitTest {
         void 한정수량이면_수량과_함께_생성된다() {
             // when
             Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, true, 100, true,
-                    EarlyBirdDiscountType.RATE, 10L, null);
+                    EarlyBirdDiscountType.RATE, 10L, null, null, null);
 
             // then
             assertThat(reward.isLimited()).isTrue();
@@ -27,7 +27,7 @@ class RewardUnitTest {
         @Test
         void 무제한이면_수량없이_생성된다() {
             // when
-            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null);
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
 
             // then
             assertThat(reward.isLimited()).isFalse();
@@ -40,11 +40,21 @@ class RewardUnitTest {
             List<RewardOptionGroup> options = List.of(new RewardOptionGroup("색상", List.of("화이트", "블랙")));
 
             // when
-            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, options);
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, options, null, null);
 
             // then
             assertThat(reward.isHasOption()).isTrue();
             assertThat(reward.getOptionGroups()).hasSize(1);
+        }
+
+        @Test
+        void 배송비와_예상_발송일이_함께_저장된다() {
+            // when
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, 3000L, 7);
+
+            // then
+            assertThat(reward.getShippingFee()).isEqualTo(3000L);
+            assertThat(reward.getEstimatedDeliveryDays()).isEqualTo(7);
         }
     }
 
@@ -55,7 +65,7 @@ class RewardUnitTest {
         void 정액_할인이면_가격에서_할인액을_뺀_값이_적용가다() {
             // when
             Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, true,
-                    EarlyBirdDiscountType.AMOUNT, 9000L, null);
+                    EarlyBirdDiscountType.AMOUNT, 9000L, null, null, null);
 
             // then
             assertThat(reward.getEarlyBirdDiscountedPrice()).isEqualTo(30000L);
@@ -65,7 +75,7 @@ class RewardUnitTest {
         void 정률_할인이면_가격에서_비율만큼_뺀_값이_적용가다() {
             // when
             Reward reward = Reward.create(1L, "얼리버드", "설명", null, 40000L, false, null, true,
-                    EarlyBirdDiscountType.RATE, 10L, null);
+                    EarlyBirdDiscountType.RATE, 10L, null, null, null);
 
             // then
             assertThat(reward.getEarlyBirdDiscountedPrice()).isEqualTo(36000L);
@@ -74,7 +84,7 @@ class RewardUnitTest {
         @Test
         void 얼리버드가_아니면_적용가가_없다() {
             // when
-            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null);
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
 
             // then
             assertThat(reward.getEarlyBirdDiscountedPrice()).isNull();
@@ -87,11 +97,11 @@ class RewardUnitTest {
         @Test
         void 옵션을_전달하지_않으면_hasOption이_바뀌지_않는다() {
             // given
-            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null);
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
 
             // when
             reward.changeBasicInfo("새이름", "새설명", null, 40000L, false, null, true,
-                    EarlyBirdDiscountType.RATE, 10L, null);
+                    EarlyBirdDiscountType.RATE, 10L, null, null, null);
 
             // then
             assertThat(reward.getName()).isEqualTo("새이름");
@@ -102,7 +112,7 @@ class RewardUnitTest {
     @Test
     void 환불정책_특이사항을_변경한다() {
         // given
-        Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null);
+        Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
 
         // when
         reward.changeRefundPolicy(true);
@@ -114,7 +124,7 @@ class RewardUnitTest {
     @Test
     void 삭제하면_deletedAt이_채워진다() {
         // given
-        Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null);
+        Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
 
         // when
         reward.delete();

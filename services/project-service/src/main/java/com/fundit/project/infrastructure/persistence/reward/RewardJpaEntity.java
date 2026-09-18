@@ -76,6 +76,12 @@ public class RewardJpaEntity {
     @Column(name = "simple_refund_disabled", nullable = false)
     private Boolean simpleRefundDisabled;
 
+    @Column(name = "shipping_fee")
+    private Long shippingFee;
+
+    @Column(name = "estimated_delivery_days")
+    private Integer estimatedDeliveryDays;
+
     @Generated(event = EventType.INSERT)
     @Column(name = "reward_display_code", insertable = false, updatable = false)
     private String rewardDisplayCode;

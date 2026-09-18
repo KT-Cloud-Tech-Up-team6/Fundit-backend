@@ -1,6 +1,7 @@
 package com.fundit.order.application.catalog;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * ORDER-004 목록 응답의 projectTitle 스냅샷을 채우기 위한 부가 조회(핵심 주문 흐름에 필수는 아님).
@@ -9,5 +10,5 @@ import java.util.Optional;
  */
 public interface ProjectSummaryClient {
 
-    Optional<String> getProjectTitle(Long projectId);
+    Optional<String> getProjectTitle(UUID projectId);
 }

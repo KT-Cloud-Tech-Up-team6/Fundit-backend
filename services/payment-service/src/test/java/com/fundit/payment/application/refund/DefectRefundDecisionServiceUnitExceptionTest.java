@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DefectRefundDecisionServiceUnitExceptionTest {
 
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
 
     @Mock
     private RefundRequestRepository refundRequestRepository;
@@ -77,7 +77,7 @@ class DefectRefundDecisionServiceUnitExceptionTest {
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L,
-                        "주문", null));
+                        "주문", null, FUNDING_ID));
 
         // when & then
         assertThatThrownBy(() -> defectRefundDecisionService.decide(UUID.randomUUID(), 1L, true, null))

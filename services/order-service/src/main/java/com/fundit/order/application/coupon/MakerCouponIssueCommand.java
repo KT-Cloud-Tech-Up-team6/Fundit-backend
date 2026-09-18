@@ -3,9 +3,10 @@ package com.fundit.order.application.coupon;
 import com.fundit.order.domain.coupon.DiscountType;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record MakerCouponIssueCommand(
-        Long projectId,
+        UUID projectId,
         String couponName,
         DiscountType discountType,
         long discountValue,

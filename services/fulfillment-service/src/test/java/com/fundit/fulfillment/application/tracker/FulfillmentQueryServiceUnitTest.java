@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,16 +44,16 @@ class FulfillmentQueryServiceUnitTest {
     @Test
     void 현재_단계_기준으로_각_단계의_상태를_계산한다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
         tracker.markProgressUpdated(Instant.now());
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(eq(1L), any()))
                 .thenReturn(Optional.empty());
         when(scheduleChangeJpaRepository.findByTrackerIdOrderByChangedAtDesc(1L)).thenReturn(List.of());
 
         // when
-        var view = service.getProjectFulfillment(123L);
+        var view = service.getProjectFulfillment(UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // then
         assertThat(view.currentStage()).isEqualTo(FulfillmentStage.SHIPPING_OUT);
@@ -68,15 +69,15 @@ class FulfillmentQueryServiceUnitTest {
     @Test
     void 마지막_갱신후_기준일이_지나면_updateOverdue가_true다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
         tracker.markProgressUpdated(Instant.now().minus(8, ChronoUnit.DAYS));
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(eq(1L), any()))
                 .thenReturn(Optional.empty());
         when(scheduleChangeJpaRepository.findByTrackerIdOrderByChangedAtDesc(1L)).thenReturn(List.of());
 
         // when
-        var view = service.getProjectFulfillment(123L);
+        var view = service.getProjectFulfillment(UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // then
         assertThat(view.updateOverdue()).isTrue();
@@ -85,16 +86,16 @@ class FulfillmentQueryServiceUnitTest {
     @Test
     void DELIVERY_단계면_미갱신이어도_updateOverdue는_false다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
         tracker.advanceTo(FulfillmentStage.DELIVERY);
         // last_updated_at을 갱신하지 않은 채로 둔다(null)
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(eq(1L), any()))
                 .thenReturn(Optional.empty());
         when(scheduleChangeJpaRepository.findByTrackerIdOrderByChangedAtDesc(1L)).thenReturn(List.of());
 
         // when
-        var view = service.getProjectFulfillment(123L);
+        var view = service.getProjectFulfillment(UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // then
         assertThat(view.updateOverdue()).isFalse();

@@ -3,14 +3,15 @@ package com.fundit.fulfillment.domain.tracker;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface FulfillmentTrackerRepository {
 
-    boolean existsByProjectId(Long projectId);
+    boolean existsByProjectId(UUID projectId);
 
     FulfillmentTracker save(FulfillmentTracker tracker);
 
-    Optional<FulfillmentTracker> findByProjectId(Long projectId);
+    Optional<FulfillmentTracker> findByProjectId(UUID projectId);
 
     /**
      * FULFILLMENT-004 배치 대상 조회 — DELIVERY가 아니면서 threshold 이전에 마지막으로 갱신된

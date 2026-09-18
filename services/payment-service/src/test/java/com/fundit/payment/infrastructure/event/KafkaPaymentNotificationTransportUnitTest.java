@@ -43,7 +43,7 @@ class KafkaPaymentNotificationTransportUnitTest {
 
         // when
         transport.sendRefundStatusChanged(
-                new RefundStatusChangedEvent(1024L, memberId, RefundNotificationStatus.COMPLETED), 42L);
+                new RefundStatusChangedEvent(new UUID(0L, 1024L), memberId, RefundNotificationStatus.COMPLETED), 42L);
 
         // then
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
@@ -63,7 +63,7 @@ class KafkaPaymentNotificationTransportUnitTest {
 
         // when
         transport.sendRefundStatusChanged(
-                new RefundStatusChangedEvent(1024L, memberId, RefundNotificationStatus.REJECTED), 43L);
+                new RefundStatusChangedEvent(new UUID(0L, 1024L), memberId, RefundNotificationStatus.REJECTED), 43L);
 
         // then
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);

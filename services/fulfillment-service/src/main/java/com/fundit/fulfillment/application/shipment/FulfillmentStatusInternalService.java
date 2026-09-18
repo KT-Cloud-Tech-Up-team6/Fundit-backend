@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * FULFILLMENT-008 — payment-service 연동 내부 API(API #8). shipments 레코드가 있으면 그 값을
@@ -31,7 +32,7 @@ public class FulfillmentStatusInternalService {
     private final FulfillmentStageDetailJpaRepository stageDetailJpaRepository;
 
     @Transactional(readOnly = true)
-    public FulfillmentStatusView getStatus(Long fundingId) {
+    public FulfillmentStatusView getStatus(UUID fundingId) {
         Optional<Shipment> shipment = shipmentRepository.findByFundingId(fundingId);
         if (shipment.isPresent()) {
             Shipment s = shipment.get();
@@ -49,6 +50,12 @@ public class FulfillmentStatusInternalService {
                 .orElse(false);
 
         return new FulfillmentStatusView(false, delayed, null, null);
+    }
+
+    /** v1 payment — 레거시 Long PK를 order-service에서 orderId(UUID)로 해석한 뒤 UUID 경로를 탄다. */
+    @Transactional(readOnly = true)
+    public FulfillmentStatusView getStatus(Long fundingId) {
+        return getStatus(orderFundingClient.fetchByInternalId(fundingId).fundingPublicId());
     }
 
     public record FulfillmentStatusView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,

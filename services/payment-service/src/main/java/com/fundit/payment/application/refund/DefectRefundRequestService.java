@@ -22,7 +22,7 @@ public class DefectRefundRequestService {
     private final RefundRequestRepository refundRequestRepository;
 
     @Transactional
-    public DefectRefundRequestResult request(UUID accountId, Long fundingId, String reasonDetail,
+    public DefectRefundRequestResult request(UUID accountId, UUID fundingId, String reasonDetail,
                                                List<String> evidenceUrls) {
         Payment payment = paymentRepository.findCompletedByFundingId(fundingId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

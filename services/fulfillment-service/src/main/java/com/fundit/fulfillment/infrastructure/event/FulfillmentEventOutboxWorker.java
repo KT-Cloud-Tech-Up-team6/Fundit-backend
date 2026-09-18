@@ -57,14 +57,14 @@ public class FulfillmentEventOutboxWorker {
     private void deliver(FulfillmentEventOutboxJpaEntity event) {
         switch (event.getEventType()) {
             case FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER -> transport.sendStaleUpdateReminder(
-                    new StaleUpdateReminderEvent(event.getProjectId()), event.getMemberId(),
+                    new StaleUpdateReminderEvent(event.getProjectPublicId()), event.getMemberId(),
                     event.getRelatedPublicId(), event.getId());
             case FulfillmentEventOutboxJpaEntity.TYPE_SCHEDULE_CHANGED -> transport.sendScheduleChanged(
-                    new ScheduleChangedEvent(event.getProjectId(), FulfillmentStage.valueOf(event.getStage()),
+                    new ScheduleChangedEvent(event.getProjectPublicId(), FulfillmentStage.valueOf(event.getStage()),
                             ScheduleChangeReasonType.valueOf(event.getReasonType()), event.getNewPlannedDate()),
                     event.getMemberId(), event.getRelatedPublicId(), event.getId());
             case FulfillmentEventOutboxJpaEntity.TYPE_RECEIPT_AUTO_CONFIRMED -> transport.sendReceiptAutoConfirmed(
-                    new ReceiptAutoConfirmedEvent(event.getFundingId()), event.getMemberId(),
+                    new ReceiptAutoConfirmedEvent(event.getFundingOrderId()), event.getMemberId(),
                     event.getRelatedPublicId(), event.getId());
             default -> throw new IllegalStateException("알 수 없는 알림 이벤트 타입: " + event.getEventType());
         }

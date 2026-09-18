@@ -54,7 +54,7 @@ public class OrderCreateService {
     }
 
     @Transactional
-    public OrderCreateResult create(UUID memberId, Long projectId, List<OrderLineItemRequest> lineItemRequests,
+    public OrderCreateResult create(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
                                      ShippingAddress shippingAddress, List<String> couponCodes) {
         OrderPricingService.PricingResult pricing =
                 orderPricingService.calculate(memberId, projectId, lineItemRequests, couponCodes);

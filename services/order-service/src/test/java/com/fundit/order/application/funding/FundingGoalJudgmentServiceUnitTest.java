@@ -1,5 +1,6 @@
 package com.fundit.order.application.funding;
 
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
@@ -13,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,12 +29,14 @@ class FundingGoalJudgmentServiceUnitTest {
     private FundingRepository fundingRepository;
     @Mock
     private FundingEventPublisher fundingEventPublisher;
+    @Mock
+    private ProjectOwnershipClient projectOwnershipClient;
 
     @InjectMocks
     private FundingGoalJudgmentService service;
 
-    private Funding funding(Long id, long unitPrice, int quantity) {
-        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(10L)
+    private Funding funding(Long id, long unitPrice, int quantity, UUID projectId) {
+        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(projectId)
                 .status(FundingStatus.FUNDING_IN_PROGRESS)
                 .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now())
@@ -43,8 +47,10 @@ class FundingGoalJudgmentServiceUnitTest {
     @Test
     void 목표금액을_달성하면_GOAL_ACHIEVED로_전이하고_FundingSucceeded를_발행한다() {
         // given — 누적 60,000 >= 목표 50,000
-        Funding funding = funding(1L, 30_000L, 2);
-        when(fundingRepository.findActiveByProjectId(10L)).thenReturn(List.of(funding));
+        UUID projectPublicId = UUID.randomUUID();
+        Funding funding = funding(1L, 30_000L, 2, projectPublicId);
+        when(projectOwnershipClient.findPublicId(10L)).thenReturn(Optional.of(projectPublicId));
+        when(fundingRepository.findActiveByProjectId(projectPublicId)).thenReturn(List.of(funding));
         when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
@@ -59,8 +65,10 @@ class FundingGoalJudgmentServiceUnitTest {
     @Test
     void 목표금액에_미달하면_GOAL_FAILED_REFUNDED로_전이하고_FundingGoalFailed를_발행한다() {
         // given — 누적 10,000 < 목표 50,000
-        Funding funding = funding(1L, 10_000L, 1);
-        when(fundingRepository.findActiveByProjectId(10L)).thenReturn(List.of(funding));
+        UUID projectPublicId = UUID.randomUUID();
+        Funding funding = funding(1L, 10_000L, 1, projectPublicId);
+        when(projectOwnershipClient.findPublicId(10L)).thenReturn(Optional.of(projectPublicId));
+        when(fundingRepository.findActiveByProjectId(projectPublicId)).thenReturn(List.of(funding));
         when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when

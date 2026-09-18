@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class PaymentCreateServiceUnitExceptionTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
 
     @Mock
     private OrderFundingClient orderFundingClient;
@@ -42,7 +42,8 @@ class PaymentCreateServiceUnitExceptionTest {
         // given
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
-                new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "PENDING", 89_000L, "주문", null));
+                new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "PENDING", 89_000L, "주문", null,
+                        FUNDING_ID));
 
         // when & then
         assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))
@@ -55,7 +56,8 @@ class PaymentCreateServiceUnitExceptionTest {
         // given
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
-                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "FUNDING_IN_PROGRESS", 89_000L, "주문", null));
+                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "FUNDING_IN_PROGRESS", 89_000L, "주문",
+                        null, FUNDING_ID));
 
         // when & then
         assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))

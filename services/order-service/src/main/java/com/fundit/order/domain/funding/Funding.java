@@ -21,7 +21,12 @@ public class Funding {
     private final Long id;
     private final UUID publicId;
     private final UUID memberId;
-    private final Long projectId;
+    /**
+     * project-service의 publicId(UUID) — cross-service ID 통일(#69) 이전에는 project-service
+     * 내부 Long PK를 그대로 들고 있었다. 레거시 Long 값은 DB의 {@code project_id} 컬럼에만
+     * 과거 데이터 조회·백필용으로 남아 있고, 도메인 레벨에서는 더 이상 추적하지 않는다.
+     */
+    private final UUID projectId;
     private final String projectTitle;
     private final Long liveSessionId;
     private FundingStatus status;
@@ -32,7 +37,7 @@ public class Funding {
     private final List<FundingLineItem> lineItems;
     private final Instant createdAt;
 
-    public static Funding create(UUID memberId, Long projectId, String projectTitle, ShippingAddress shippingAddress,
+    public static Funding create(UUID memberId, UUID projectId, String projectTitle, ShippingAddress shippingAddress,
                                   long shippingFee, List<FundingLineItem> lineItems, Instant paymentExpiresAt) {
         return Funding.builder()
                 .publicId(UUID.randomUUID())

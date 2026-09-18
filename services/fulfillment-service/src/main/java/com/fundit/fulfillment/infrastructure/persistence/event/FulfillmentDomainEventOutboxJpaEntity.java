@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /** 단순 애그리거트 — shipping.completed.v1 등 도메인 이벤트의 트랜잭셔널 아웃박스 행. */
 @Getter
@@ -33,11 +34,19 @@ public class FulfillmentDomainEventOutboxJpaEntity {
     @Column(name = "event_type", nullable = false, length = 32)
     private String eventType;
 
-    @Column(name = "funding_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다. */
+    @Column(name = "funding_id", updatable = false)
     private Long fundingId;
 
-    @Column(name = "project_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다. */
+    @Column(name = "project_id", updatable = false)
     private Long projectId;
+
+    @Column(name = "funding_order_id")
+    private UUID fundingOrderId;
+
+    @Column(name = "project_public_id")
+    private UUID projectPublicId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -3,6 +3,7 @@ package com.fundit.payment.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.payment.PaymentConfirmService;
 import com.fundit.payment.application.payment.PaymentCreateService;
 import com.fundit.payment.application.payment.TossWebhookService;
@@ -42,6 +43,8 @@ class PaymentControllerExceptionTest {
     private PaymentConfirmService paymentConfirmService;
     @MockitoBean
     private TossWebhookService tossWebhookService;
+    @MockitoBean
+    private OrderFundingClient orderFundingClient;
 
     @Test
     void 내부키가_없으면_401을_반환한다() throws Exception {
@@ -55,7 +58,11 @@ class PaymentControllerExceptionTest {
     @Test
     void 주문이_PENDING이_아니면_409를_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
-        when(paymentCreateService.create(memberId, 1024L))
+        UUID orderId = new UUID(2L, 1024L);
+        when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "FUNDING_IN_PROGRESS", 89_000L, "주문",
+                        null, orderId));
+        when(paymentCreateService.create(memberId, orderId))
                 .thenThrow(new BusinessException(PaymentErrorCode.FUNDING_NOT_PENDING));
 
         mockMvc.perform(post("/api/v1/payments")

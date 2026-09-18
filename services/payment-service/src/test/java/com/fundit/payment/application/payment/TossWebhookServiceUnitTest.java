@@ -30,7 +30,7 @@ class TossWebhookServiceUnitTest {
     @Test
     void 서명이_일치하면_예외_없이_처리한다() {
         // given
-        Payment payment = Payment.create(1L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        Payment payment = Payment.create(new UUID(0L, 1L), UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
         payment.markCompleted("pay_key_1", "webhook-secret", com.fundit.payment.domain.payment.PaymentMethod.CARD,
                 null, java.time.Instant.now());
         when(paymentRepository.findByPgPaymentKey("pay_key_1")).thenReturn(Optional.of(payment));

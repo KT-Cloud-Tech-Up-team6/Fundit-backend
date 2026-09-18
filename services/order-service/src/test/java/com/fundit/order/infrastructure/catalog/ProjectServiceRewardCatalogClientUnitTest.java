@@ -9,6 +9,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,6 +18,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class ProjectServiceRewardCatalogClientUnitTest {
+
+    private static final UUID PROJECT_ID = UUID.fromString("018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f");
 
     private MockRestServiceServer server;
     private ProjectServiceRewardCatalogClient client;
@@ -31,7 +34,7 @@ class ProjectServiceRewardCatalogClientUnitTest {
     @Test
     void 리워드와_옵션을_스냅샷으로_변환한다() {
         // given
-        server.expect(requestTo("http://localhost:8083/api/v1/projects/123/rewards"))
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + PROJECT_ID + "/rewards"))
                 .andRespond(withSuccess("""
                         [
                           {"rewardId": 1, "rewardDisplayCode": "R1", "name": "얼리버드 패키지", "price": 10000,
@@ -43,7 +46,7 @@ class ProjectServiceRewardCatalogClientUnitTest {
                         """, MediaType.APPLICATION_JSON));
 
         // when
-        List<RewardSnapshot> result = client.getRewards(123L);
+        List<RewardSnapshot> result = client.getRewards(PROJECT_ID);
 
         // then
         assertThat(result).singleElement().satisfies(reward -> {
@@ -63,11 +66,11 @@ class ProjectServiceRewardCatalogClientUnitTest {
     @Test
     void 응답이_없으면_빈_목록을_반환한다() {
         // given
-        server.expect(requestTo("http://localhost:8083/api/v1/projects/123/rewards"))
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + PROJECT_ID + "/rewards"))
                 .andRespond(withSuccess());
 
         // when
-        List<RewardSnapshot> result = client.getRewards(123L);
+        List<RewardSnapshot> result = client.getRewards(PROJECT_ID);
 
         // then
         assertThat(result).isEmpty();
@@ -76,11 +79,11 @@ class ProjectServiceRewardCatalogClientUnitTest {
     @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
         // given
-        server.expect(requestTo("http://localhost:8083/api/v1/projects/123/rewards"))
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + PROJECT_ID + "/rewards"))
                 .andRespond(withServerError());
 
         // when & then
-        assertThatThrownBy(() -> client.getRewards(123L))
+        assertThatThrownBy(() -> client.getRewards(PROJECT_ID))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

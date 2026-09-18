@@ -1,5 +1,6 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -25,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -62,9 +64,14 @@ class OrderControllerTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
+
+    /** REQUEST_BODY의 레거시 projectId(123)가 컨트롤러에서 해석해내는 UUID — 모든 preview/create 테스트가 공유한다. */
+    private static final UUID RESOLVED_PROJECT_ID = UUID.randomUUID();
 
     private Funding funding(UUID memberId, UUID publicId, FundingStatus status) {
-        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(123L).projectTitle("프로젝트")
+        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(UUID.randomUUID()).projectTitle("프로젝트")
                 .status(status).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
                 .lineItems(List.of()).createdAt(Instant.now()).build();
@@ -74,8 +81,9 @@ class OrderControllerTest {
     void 미리보기_요청하면_금액이_계산되어_200을_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
+        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
         var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 0L, 13_000L, List.of(), List.of(), List.of());
-        when(orderPreviewService.preview(eq(memberId), eq(123L), any(), any())).thenReturn(pricing);
+        when(orderPreviewService.preview(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any())).thenReturn(pricing);
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
@@ -91,11 +99,12 @@ class OrderControllerTest {
     void 미리보기_응답에_적용쿠폰과_미적용쿠폰이_포함된다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
+        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
         var applied = new OrderPricingService.AppliedCoupon(1L, "WELCOME10", IssuerType.PLATFORM, DiscountType.RATE, 1_000L);
         var unavailable = new OrderPricingService.UnavailableCoupon("EXPIRED10", "EXPIRED");
         var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 1_000L, 12_000L,
                 List.of(), List.of(applied), List.of(unavailable));
-        when(orderPreviewService.preview(eq(memberId), eq(123L), any(), any())).thenReturn(pricing);
+        when(orderPreviewService.preview(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any())).thenReturn(pricing);
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
@@ -141,7 +150,8 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
-        when(orderCreateService.create(eq(memberId), eq(123L), any(), any(), any()))
+        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
+        when(orderCreateService.create(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any(), any()))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L));
 
         // when & then

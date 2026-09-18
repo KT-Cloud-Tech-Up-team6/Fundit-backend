@@ -15,7 +15,7 @@ class FundingUnitExceptionTest {
 
     private Funding newFunding() {
         List<FundingLineItem> lineItems = List.of(new FundingLineItem(null, 1L, "리워드", 1, 10_000L, List.of()));
-        return Funding.create(UUID.randomUUID(), 10L, "프로젝트", new ShippingAddress("홍길동", "010", "12345", "주소", null),
+        return Funding.create(UUID.randomUUID(), UUID.randomUUID(), "프로젝트", new ShippingAddress("홍길동", "010", "12345", "주소", null),
                 3_000L, lineItems, Instant.now().plusSeconds(3600));
     }
 

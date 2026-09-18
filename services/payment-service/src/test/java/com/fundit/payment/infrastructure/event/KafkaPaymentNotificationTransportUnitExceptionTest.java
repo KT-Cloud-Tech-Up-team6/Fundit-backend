@@ -45,7 +45,7 @@ class KafkaPaymentNotificationTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendRefundStatusChanged(
-                new RefundStatusChangedEvent(1024L, UUID.randomUUID(), RefundNotificationStatus.COMPLETED), 1L))
+                new RefundStatusChangedEvent(new UUID(0L, 1024L), UUID.randomUUID(), RefundNotificationStatus.COMPLETED), 1L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
@@ -57,7 +57,7 @@ class KafkaPaymentNotificationTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendRefundStatusChanged(
-                new RefundStatusChangedEvent(1024L, UUID.randomUUID(), RefundNotificationStatus.REJECTED), 2L))
+                new RefundStatusChangedEvent(new UUID(0L, 1024L), UUID.randomUUID(), RefundNotificationStatus.REJECTED), 2L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

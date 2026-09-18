@@ -32,13 +32,13 @@ class OutboxPaymentNotificationPublisherUnitTest {
 
         // when
         publisher.publishRefundStatusChanged(
-                new RefundStatusChangedEvent(1024L, memberId, RefundNotificationStatus.COMPLETED));
+                new RefundStatusChangedEvent(new UUID(0L, 1024L), memberId, RefundNotificationStatus.COMPLETED));
 
         // then
         ArgumentCaptor<NotificationOutboxJpaEntity> captor = ArgumentCaptor.forClass(NotificationOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
         assertThat(captor.getValue().getMemberId()).isEqualTo(memberId);
-        assertThat(captor.getValue().getFundingId()).isEqualTo(1024L);
+        assertThat(captor.getValue().getFundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(captor.getValue().getStatus()).isEqualTo("COMPLETED");
     }
 }

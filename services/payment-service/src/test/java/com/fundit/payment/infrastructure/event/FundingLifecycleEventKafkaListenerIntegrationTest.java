@@ -90,8 +90,8 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
     @Test
     void 참여취소_이벤트를_실제_카프카로_보내면_결제가_전액취소된다() {
         // given — 완료된 결제 하나를 미리 심어둔다
-        Long fundingId = 7001L;
-        Payment payment = Payment.create(fundingId, UUID.randomUUID(), "fundit-order-cancel-1",
+        UUID orderId = new UUID(0L, 7001L);
+        Payment payment = Payment.create(orderId, UUID.randomUUID(), "fundit-order-cancel-1",
                 50_000L, "테스트 주문", null, "idem-cancel-1");
         payment.markCompleted("pay_key_cancel_1", "secret_1", PaymentMethod.CARD,
                 null, Instant.now());
@@ -101,9 +101,9 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
 
         // when — order-service FundingEventTransport.sendCancelledByMember()가 실제로 보낼 payload 형태
         String json = """
-                {"eventId":"order:1","fundingId":%d,"projectId":42,"memberId":"%s"}
-                """.formatted(fundingId, payment.getMemberId());
-        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, String.valueOf(fundingId), json));
+                {"eventId":"order:1","fundingId":7001,"projectId":42,"memberId":"%s","orderId":"%s"}
+                """.formatted(payment.getMemberId(), orderId);
+        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, "7001", json));
         producer.flush();
 
         // then — 컨슈머가 비동기로 처리하므로 폴링으로 기다린다
@@ -118,8 +118,8 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
     @Test
     void 목표미달_이벤트를_실제_카프카로_보내면_결제가_전액취소된다() {
         // given
-        Long fundingId = 7002L;
-        Payment payment = Payment.create(fundingId, UUID.randomUUID(), "fundit-order-cancel-2",
+        UUID orderId = new UUID(0L, 7002L);
+        Payment payment = Payment.create(orderId, UUID.randomUUID(), "fundit-order-cancel-2",
                 30_000L, "테스트 주문", null, "idem-cancel-2");
         payment.markCompleted("pay_key_cancel_2", "secret_2", PaymentMethod.CARD,
                 null, Instant.now());
@@ -129,9 +129,9 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
 
         // when — order-service FundingEventTransport.sendGoalFailed()가 실제로 보낼 payload 형태
         String json = """
-                {"eventId":"order:2","fundingId":%d,"projectId":42}
-                """.formatted(fundingId);
-        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_GOAL_FAILED, String.valueOf(fundingId), json));
+                {"eventId":"order:2","fundingId":7002,"projectId":42,"orderId":"%s"}
+                """.formatted(orderId);
+        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_GOAL_FAILED, "7002", json));
         producer.flush();
 
         // then
@@ -146,8 +146,8 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
     @Test
     void 알수없는_필드가_섞여있어도_역직렬화가_실패하지_않는다() {
         // given — event-convention.md 6번: 소비자는 모르는 필드를 무시해야 한다.
-        Long fundingId = 7003L;
-        Payment payment = Payment.create(fundingId, UUID.randomUUID(), "fundit-order-cancel-3",
+        UUID orderId = new UUID(0L, 7003L);
+        Payment payment = Payment.create(orderId, UUID.randomUUID(), "fundit-order-cancel-3",
                 20_000L, "테스트 주문", null, "idem-cancel-3");
         payment.markCompleted("pay_key_cancel_3", "secret_3", PaymentMethod.CARD,
                 null, Instant.now());
@@ -156,9 +156,9 @@ class FundingLifecycleEventKafkaListenerIntegrationTest {
                 .thenReturn(new TossPaymentsClient.TossCancelResult("txn_3", Instant.now(), 20_000L));
 
         String json = """
-                {"eventId":"order:3","sourceService":"order","fundingId":%d,"projectId":42,"memberId":"%s"}
-                """.formatted(fundingId, payment.getMemberId());
-        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, String.valueOf(fundingId), json));
+                {"eventId":"order:3","sourceService":"order","fundingId":7003,"projectId":42,"memberId":"%s","orderId":"%s"}
+                """.formatted(payment.getMemberId(), orderId);
+        producer.send(new ProducerRecord<>(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, "7003", json));
         producer.flush();
 
         await().atMost(Duration.ofSeconds(15))

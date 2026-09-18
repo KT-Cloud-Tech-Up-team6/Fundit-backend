@@ -30,7 +30,7 @@ class PaymentExpirationBatchSchedulerUnitTest {
     private PaymentExpirationBatchScheduler scheduler;
 
     private Funding fundingWithId(Long id) {
-        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(10L)
+        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
                 .status(FundingStatus.PENDING).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now()).lineItems(List.of()).createdAt(Instant.now()).build();
     }

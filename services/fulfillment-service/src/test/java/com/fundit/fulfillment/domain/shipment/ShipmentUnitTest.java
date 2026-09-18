@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ShipmentUnitTest {
@@ -11,11 +13,11 @@ class ShipmentUnitTest {
     @Test
     void 생성하면_PREPARING_상태로_시작한다() {
         // when
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // then
-        assertThat(shipment.getFundingId()).isEqualTo(1024L);
-        assertThat(shipment.getProjectId()).isEqualTo(123L);
+        assertThat(shipment.getFundingId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001024"));
+        assertThat(shipment.getProjectId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PREPARING);
         assertThat(shipment.canConfirmReceipt()).isFalse();
     }
@@ -23,7 +25,7 @@ class ShipmentUnitTest {
     @Test
     void 발송정보를_등록하면_SHIPPED로_전환된다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // when
         shipment.registerShipment("CJ대한통운", "123456789012");
@@ -38,7 +40,7 @@ class ShipmentUnitTest {
     @Test
     void 배송완료_처리하면_DELIVERED로_전환되고_수령확인이_가능해진다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
 
         // when
@@ -52,7 +54,7 @@ class ShipmentUnitTest {
     @Test
     void 배송완료_후_수령확인하면_RECEIPT_CONFIRMED로_전환된다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(Instant.now());
 
@@ -68,7 +70,7 @@ class ShipmentUnitTest {
     @Test
     void 이미_수령확인된_건에_다시_요청하면_idempotent하게_유지된다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(Instant.now());
         shipment.confirmReceipt(Instant.now(), false);
@@ -85,7 +87,7 @@ class ShipmentUnitTest {
     @Test
     void 자동확정_처리하면_receiptAutoConfirmed가_true가_된다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(Instant.now());
 

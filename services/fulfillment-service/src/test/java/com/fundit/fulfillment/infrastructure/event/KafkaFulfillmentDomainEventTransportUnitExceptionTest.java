@@ -41,7 +41,7 @@ class KafkaFulfillmentDomainEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendShippingCompleted(
-                new ShippingCompletedEvent(1L, 1L), UUID.randomUUID(), Instant.now(), 1L))
+                new ShippingCompletedEvent(UUID.fromString("00000000-0000-0000-0000-000000000001"), UUID.fromString("00000000-0000-0000-0000-000000000001")), UUID.randomUUID(), Instant.now(), 1L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
@@ -53,7 +53,7 @@ class KafkaFulfillmentDomainEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendShippingCompleted(
-                new ShippingCompletedEvent(2L, 2L), UUID.randomUUID(), Instant.now(), 2L))
+                new ShippingCompletedEvent(UUID.fromString("00000000-0000-0000-0000-000000000002"), UUID.fromString("00000000-0000-0000-0000-000000000002")), UUID.randomUUID(), Instant.now(), 2L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

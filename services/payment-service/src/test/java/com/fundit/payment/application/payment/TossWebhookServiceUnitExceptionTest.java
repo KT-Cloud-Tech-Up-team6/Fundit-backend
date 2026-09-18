@@ -48,7 +48,7 @@ class TossWebhookServiceUnitExceptionTest {
     @Test
     void 저장된_secret과_다르면_서명_검증_실패다() {
         // given
-        Payment payment = Payment.create(1L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        Payment payment = Payment.create(new UUID(0L, 1L), UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
         payment.markCompleted("pay_key_1", "real-secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findByPgPaymentKey("pay_key_1")).thenReturn(Optional.of(payment));
 
@@ -62,7 +62,7 @@ class TossWebhookServiceUnitExceptionTest {
     @Test
     void 아직_secret이_없는_결제는_서명_검증_실패다() {
         // given
-        Payment payment = Payment.create(1L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        Payment payment = Payment.create(new UUID(0L, 1L), UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
         when(paymentRepository.findByPgPaymentKey("pay_key_1")).thenReturn(Optional.of(payment));
 
         // when & then

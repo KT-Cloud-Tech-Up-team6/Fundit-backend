@@ -9,7 +9,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
+import java.util.UUID;
 
+/** projectId는 아직 레거시 Long(v1) 계약 — 컨트롤러가 project-service에서 UUID를 먼저 해석한다. */
 public record MakerCouponIssueRequest(
         @NotNull Long projectId,
         @NotBlank String couponName,
@@ -23,8 +25,8 @@ public record MakerCouponIssueRequest(
         @NotNull @Future Instant expiresAt
 ) {
 
-    public MakerCouponIssueCommand toCommand() {
-        return new MakerCouponIssueCommand(projectId, couponName, discountType, discountValue, maxDiscountAmount,
-                budgetLimit, quantity, minFundingAmount, perMemberLimit, expiresAt);
+    public MakerCouponIssueCommand toCommand(UUID resolvedProjectId) {
+        return new MakerCouponIssueCommand(resolvedProjectId, couponName, discountType, discountValue,
+                maxDiscountAmount, budgetLimit, quantity, minFundingAmount, perMemberLimit, expiresAt);
     }
 }

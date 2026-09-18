@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /** shipments 매핑 전용. */
 @Getter
@@ -29,11 +30,19 @@ public class ShipmentJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "funding_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다(과거 데이터 조회 전용). */
+    @Column(name = "funding_id", updatable = false)
     private Long fundingId;
 
-    @Column(name = "project_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다(과거 데이터 조회 전용). */
+    @Column(name = "project_id", updatable = false)
     private Long projectId;
+
+    @Column(name = "funding_order_id")
+    private UUID fundingOrderId;
+
+    @Column(name = "project_public_id")
+    private UUID projectPublicId;
 
     @Column(nullable = false, length = 20)
     private String status;

@@ -20,7 +20,7 @@ public interface PaymentEventPublisher {
 
     void publishRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(UUID paymentId, Long fundingId, Long couponIssuanceId, Instant paidAt) {
+    record PaymentCompletedEvent(UUID paymentId, UUID fundingId, Long couponIssuanceId, Instant paidAt) {
     }
 
     /**
@@ -31,7 +31,7 @@ public interface PaymentEventPublisher {
         GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
     }
 
-    record RefundCompletedEvent(UUID paymentId, Long fundingId, Long couponIssuanceId,
+    record RefundCompletedEvent(UUID paymentId, UUID fundingId, Long couponIssuanceId,
                                  RefundReason refundReason, boolean fullRefund) {
     }
 }

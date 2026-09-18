@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -18,8 +19,8 @@ public class ShipmentPersistenceAdapter implements ShipmentRepository {
     private final ShipmentMapper mapper;
 
     @Override
-    public Optional<Shipment> findByFundingId(Long fundingId) {
-        return jpaRepository.findByFundingId(fundingId).map(mapper::toDomain);
+    public Optional<Shipment> findByFundingId(UUID fundingId) {
+        return jpaRepository.findByFundingOrderId(fundingId).map(mapper::toDomain);
     }
 
     @Override

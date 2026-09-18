@@ -3,10 +3,11 @@ package com.fundit.fulfillment.domain.shipment;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ShipmentRepository {
 
-    Optional<Shipment> findByFundingId(Long fundingId);
+    Optional<Shipment> findByFundingId(UUID fundingId);
 
     Shipment save(Shipment shipment);
 

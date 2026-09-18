@@ -43,20 +43,27 @@ public class PaymentPersistenceAdapter implements PaymentRepository {
     }
 
     @Override
-    public Optional<Payment> findCompletedByFundingId(Long fundingId) {
-        return jpaRepository.findByCompletedFundingId(fundingId).map(mapper::toDomain);
+    public Optional<Payment> findCompletedByFundingId(UUID fundingId) {
+        return jpaRepository.findByCompletedFundingOrderId(fundingId).map(mapper::toDomain);
     }
 
     @Override
-    public Optional<Payment> findCompletedOrCancelledByFundingId(Long fundingId) {
-        return jpaRepository.findFirstByFundingIdAndStatusInOrderByCreatedAtDesc(fundingId,
+    public Optional<Payment> findCompletedOrCancelledByFundingId(UUID fundingId) {
+        return jpaRepository.findFirstByFundingOrderIdAndStatusInOrderByCreatedAtDesc(fundingId,
                         List.of(PaymentStatus.COMPLETED.name(), PaymentStatus.CANCELLED.name()))
                 .map(mapper::toDomain);
     }
 
     @Override
-    public Optional<Payment> findPendingByFundingId(Long fundingId) {
-        return jpaRepository.findFirstByFundingIdAndStatusOrderByCreatedAtDesc(fundingId, PaymentStatus.PENDING.name())
+    public Optional<Payment> findCompletedOrCancelledByInternalFundingId(Long internalFundingId) {
+        return jpaRepository.findFirstByFundingIdAndStatusInOrderByCreatedAtDesc(internalFundingId,
+                        List.of(PaymentStatus.COMPLETED.name(), PaymentStatus.CANCELLED.name()))
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<Payment> findPendingByFundingId(UUID fundingId) {
+        return jpaRepository.findFirstByFundingOrderIdAndStatusOrderByCreatedAtDesc(fundingId, PaymentStatus.PENDING.name())
                 .map(mapper::toDomain);
     }
 

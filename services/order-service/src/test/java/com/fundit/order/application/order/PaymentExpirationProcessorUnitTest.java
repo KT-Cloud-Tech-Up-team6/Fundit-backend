@@ -35,7 +35,7 @@ class PaymentExpirationProcessorUnitTest {
     private PaymentExpirationProcessor processor;
 
     private Funding pendingFunding() {
-        return Funding.builder().id(1L).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(10L)
+        return Funding.builder().id(1L).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
                 .status(FundingStatus.PENDING).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now().minusSeconds(1))
                 .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 2, 10_000L, List.of())))

@@ -51,7 +51,7 @@ public class Coupon {
      * ALL/PROJECT만 정확히 검증하고, CATEGORY/MAKER는 이번 MVP 범위에서는 항상 적용 가능한
      * 것으로 취급한다[가정 — project-service의 카테고리/판매자 조회가 필요해 후속 보강 필요].
      */
-    public boolean matchesProject(Long projectId) {
+    public boolean matchesProject(UUID projectId) {
         return switch (targetScope) {
             case ALL, CATEGORY, MAKER -> true;
             case PROJECT -> targetRefId != null && targetRefId.equals(String.valueOf(projectId));

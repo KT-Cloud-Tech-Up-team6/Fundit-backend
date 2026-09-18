@@ -14,6 +14,7 @@ public enum ProjectErrorCode implements ErrorCode {
     GOAL_AMOUNT_TOO_LOW(400, "목표 금액은 50만원 이상이어야 합니다."),
     INVALID_CATEGORY(400, "존재하지 않는 카테고리 조합입니다."),
     INVALID_REWARD_QUANTITY(400, "리워드 수량 설정이 올바르지 않습니다."),
+    INVALID_REWARD_SHIPPING_INFO(400, "리워드 배송비/예상 발송일 설정이 올바르지 않습니다."),
     INVALID_EARLY_BIRD_DISCOUNT(400, "얼리버드 할인 설정이 올바르지 않습니다."),
     PRIVACY_CONSENT_REQUIRED(422, "개인정보 수집 동의가 필요합니다."),
     PROJECT_NOT_DELETABLE(422, "준비중 상태의 프로젝트만 삭제할 수 있습니다."),

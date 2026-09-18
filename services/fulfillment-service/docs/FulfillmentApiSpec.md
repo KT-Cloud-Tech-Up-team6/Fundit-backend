@@ -5,6 +5,11 @@
 > **재검토 변경사항(2차)**: `fullfillmentFunctionalSpec.md` 2차 검토에서 발견된 두 가지 수정사항을 반영했습니다 — (1) FULFILLMENT-006/#5의 "전체 funding 발송 완료 시 DELIVERY 자동 전이" 로직 제거(판정 불가능한 로직이었음), (2) FULFILLMENT-008/#8이 미발송 funding의 `projectId`를 order-service 내부 API로 조회하도록 수정. 겸사겸사 #5·6·7 경로에 `projectId`를 추가해 소유권 검증을 단순화했습니다.
 >
 > **현재 구현 기준**: 판매자/구매자 API는 `@LoginUser CurrentUser`로 식별한다(게이트웨이가 JWT를 `X-User-Id`로 변환). `X-Account-Id`는 쓰지 않는다. Jackson `default-property-inclusion: non_null`이라 null 필드는 응답 JSON에서 생략한다 — 예시에도 `"필드": null`을 넣지 않는다.
+>
+> **식별자 계약 (cross-service ID 통일 #69)**: `projectId`는 project-service `publicId`(UUID), `fundingId`는 order-service `orderId`(UUID).
+> - **v2** `/api/v2/projects/{projectId}/fulfillment/**`, `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment/**`가 정본이다.
+> - **v1** Long 경로는 서버가 UUID로 해석하는 어댑터다. v1 응답의 Long id 필드는 항상 null(생략) — 값이 필요하면 v2를 쓴다.
+> - 내부 `GET /internal/fundings/{fundingId}/fulfillment-status`의 path는 UUID(orderId). 레거시 Long은 `GET /internal/fundings/id/{fundingId}/fulfillment-status`.
 
 ## 엔드포인트 목록
 
@@ -17,7 +22,15 @@
 | 5 | POST | `/api/v1/projects/{projectId}/fundings/{fundingId}/shipment` | 발송정보 등록(발송 처리) | O (판매자) | FULFILLMENT-006 |
 | 6 | GET | `/api/v1/projects/{projectId}/fundings/{fundingId}/shipment` | 배송현황(발송정보) 조회 | O (구매자) | FULFILLMENT-003 |
 | 7 | POST | `/api/v1/projects/{projectId}/fundings/{fundingId}/shipment/confirm-receipt` | 수령 확인 처리 | O (구매자) | FULFILLMENT-009 |
-| 8 | GET | `/internal/fundings/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(payment-service 연동) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 8 | GET | `/internal/fundings/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(UUID orderId) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 8-1 | GET | `/internal/fundings/id/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(레거시 Long PK) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 9 | GET | `/api/v2/projects/{projectId}/fulfillment` | 제작·배송 진행 현황 조회(UUID) | X (공통) | FULFILLMENT-003 |
+| 10 | PATCH | `/api/v2/projects/{projectId}/fulfillment/stage` | 단계 전환(UUID) | O (판매자) | FULFILLMENT-002 |
+| 11 | POST | `/api/v2/projects/{projectId}/fulfillment/stage-details` | 단계별 예상일정·상세 진행 내용 등록(UUID) | O (판매자) | FULFILLMENT-002 |
+| 12 | POST | `/api/v2/projects/{projectId}/fulfillment/schedule-changes` | 일정 변경·지연사유 등록(UUID) | O (판매자) | FULFILLMENT-005 |
+| 13 | POST | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment` | 발송정보 등록(UUID) | O (판매자) | FULFILLMENT-006 |
+| 14 | GET | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment` | 배송현황 조회(UUID) | O (구매자) | FULFILLMENT-003 |
+| 15 | POST | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment/confirm-receipt` | 수령 확인(UUID) | O (구매자) | FULFILLMENT-009 |
 
 > FULFILLMENT-001(트래커 초기화), FULFILLMENT-004(미등록 알림), FULFILLMENT-007(배송완료 목업 처리), FULFILLMENT-010(미확인 자동확정)은 이벤트/스케줄러로만 트리거되어 REST 엔드포인트가 없습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >

@@ -7,12 +7,13 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface FulfillmentTrackerJpaRepository extends JpaRepository<FulfillmentTrackerJpaEntity, Long> {
 
-    boolean existsByProjectId(Long projectId);
+    boolean existsByProjectPublicId(UUID projectPublicId);
 
-    Optional<FulfillmentTrackerJpaEntity> findByProjectId(Long projectId);
+    Optional<FulfillmentTrackerJpaEntity> findByProjectPublicId(UUID projectPublicId);
 
     @Query("SELECT t FROM FulfillmentTrackerJpaEntity t WHERE t.currentStage <> 'DELIVERY' "
             + "AND (t.lastUpdatedAt IS NULL OR t.lastUpdatedAt < :threshold)")

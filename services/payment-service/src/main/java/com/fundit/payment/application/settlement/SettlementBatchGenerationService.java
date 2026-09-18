@@ -49,7 +49,7 @@ public class SettlementBatchGenerationService {
         Instant periodStart = null;
 
         for (SettlementScheduleJpaEntity entry : entries) {
-            Optional<Payment> maybePayment = paymentRepository.findCompletedOrCancelledByFundingId(entry.getFundingId());
+            Optional<Payment> maybePayment = paymentRepository.findCompletedOrCancelledByInternalFundingId(entry.getFundingId());
             if (maybePayment.isEmpty()) {
                 log.warn("정산 대상 결제를 찾을 수 없어 건너뜁니다. fundingId={}", entry.getFundingId());
                 entry.markProcessed();

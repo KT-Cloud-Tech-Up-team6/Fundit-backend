@@ -11,6 +11,6 @@ public interface PaymentReconciliationListener {
 
     void onPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event);
 
-    record PaymentReconciliationRequiredEvent(Long fundingId, UUID paymentId) {
+    record PaymentReconciliationRequiredEvent(Long fundingId, UUID paymentId, UUID orderId) {
     }
 }

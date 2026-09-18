@@ -32,8 +32,12 @@ public class RefundRequestJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "funding_id", nullable = false)
+    @Column(name = "funding_id", updatable = false)
     private Long fundingId;
+
+    /** order-service {@code Funding.publicId}(외부 노출 orderId). */
+    @Column(name = "funding_order_id")
+    private UUID fundingOrderId;
 
     @Column(name = "payment_id", nullable = false)
     private UUID paymentId;

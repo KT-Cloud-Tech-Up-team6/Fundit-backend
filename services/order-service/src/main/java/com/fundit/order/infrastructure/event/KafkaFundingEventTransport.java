@@ -5,6 +5,7 @@ import com.fundit.common.event.KafkaTopics;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingCancelledByMemberEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingGoalFailedEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingSucceededEvent;
+import com.fundit.order.domain.funding.FundingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,7 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
     private static final Duration SEND_TIMEOUT = Duration.ofSeconds(10);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final FundingRepository fundingRepository;
 
     @Override
     public void sendGoalFailed(FundingGoalFailedEvent event, Long outboxId) {
@@ -43,6 +45,7 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         payload.put("eventId", SERVICE_NAME + ":" + outboxId);
         payload.put("fundingId", event.fundingId());
         payload.put("projectId", event.projectId());
+        enrichPublicIds(payload, event.fundingId());
         send(KafkaTopics.FUNDING_GOAL_FAILED, String.valueOf(event.fundingId()), payload);
     }
 
@@ -54,6 +57,7 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         payload.put("projectId", event.projectId());
         payload.put("sellerId", sellerId);
         payload.put("achievedAt", achievedAt);
+        enrichPublicIds(payload, event.fundingId());
         send(KafkaTopics.FUNDING_SUCCEEDED, String.valueOf(event.fundingId()), payload);
     }
 
@@ -64,6 +68,7 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         payload.put("fundingId", event.fundingId());
         payload.put("projectId", event.projectId());
         payload.put("memberId", event.memberId());
+        enrichPublicIds(payload, event.fundingId());
         send(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, String.valueOf(event.fundingId()), payload);
     }
 
@@ -85,5 +90,12 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         } catch (ExecutionException | TimeoutException | RuntimeException e) {
             throw new DependencyFailureException(e);
         }
+    }
+
+    private void enrichPublicIds(Map<String, Object> payload, Long fundingId) {
+        fundingRepository.findById(fundingId).ifPresent(funding -> {
+            payload.put("orderId", funding.getPublicId());
+            payload.put("projectPublicId", funding.getProjectId());
+        });
     }
 }

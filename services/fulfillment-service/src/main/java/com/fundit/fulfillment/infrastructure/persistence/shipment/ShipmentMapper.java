@@ -10,8 +10,8 @@ class ShipmentMapper {
     Shipment toDomain(ShipmentJpaEntity entity) {
         return Shipment.builder()
                 .id(entity.getId())
-                .fundingId(entity.getFundingId())
-                .projectId(entity.getProjectId())
+                .fundingId(entity.getFundingOrderId())
+                .projectId(entity.getProjectPublicId())
                 .status(ShipmentStatus.valueOf(entity.getStatus()))
                 .carrier(entity.getCarrier())
                 .trackingNumber(entity.getTrackingNumber())
@@ -27,8 +27,8 @@ class ShipmentMapper {
     ShipmentJpaEntity toEntity(Shipment domain) {
         return ShipmentJpaEntity.builder()
                 .id(domain.getId())
-                .fundingId(domain.getFundingId())
-                .projectId(domain.getProjectId())
+                .fundingOrderId(domain.getFundingId())
+                .projectPublicId(domain.getProjectId())
                 .status(domain.getStatus().name())
                 .carrier(domain.getCarrier())
                 .trackingNumber(domain.getTrackingNumber())

@@ -20,7 +20,8 @@ import java.util.UUID;
 public class Payment {
 
     private final UUID id;
-    private final Long fundingId;
+    /** order-service {@code Funding.publicId}(외부 노출 orderId). */
+    private final UUID fundingId;
     private final UUID memberId;
     private final String pgOrderId;
     private String pgPaymentKey;
@@ -37,7 +38,7 @@ public class Payment {
     private final Instant createdAt;
     private Instant updatedAt;
 
-    public static Payment create(Long fundingId, UUID memberId, String pgOrderId, long amount, String orderName,
+    public static Payment create(UUID fundingId, UUID memberId, String pgOrderId, long amount, String orderName,
                                   Long couponIssuanceId, String idempotencyKey) {
         return Payment.builder()
                 .id(UUID.randomUUID())

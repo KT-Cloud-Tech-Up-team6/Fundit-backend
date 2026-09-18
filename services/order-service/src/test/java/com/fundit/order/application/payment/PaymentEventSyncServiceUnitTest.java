@@ -36,7 +36,7 @@ class PaymentEventSyncServiceUnitTest {
     private PaymentEventSyncService paymentEventSyncService;
 
     private Funding funding(Long id, FundingStatus status) {
-        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(10L)
+        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
                 .status(status).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now()).lineItems(List.of()).createdAt(Instant.now()).build();
     }

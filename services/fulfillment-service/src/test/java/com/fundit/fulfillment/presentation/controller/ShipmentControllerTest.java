@@ -3,9 +3,13 @@ package com.fundit.fulfillment.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.fulfillment.application.funding.OrderFundingClient;
+import com.fundit.fulfillment.application.funding.OrderFundingClient.FundingSnapshot;
+import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
 import com.fundit.fulfillment.application.shipment.ShipmentService;
 import com.fundit.fulfillment.domain.shipment.Shipment;
 import com.fundit.fulfillment.presentation.GlobalExceptionHandler;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -31,20 +35,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ShipmentControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID PROJECT_ID = UUID.fromString("00000000-0000-0000-0000-000000000123");
+    private static final UUID FUNDING_ID = UUID.fromString("00000000-0000-0000-0000-000000001024");
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private ShipmentService shipmentService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
+    @MockitoBean
+    private OrderFundingClient orderFundingClient;
+
+    @BeforeEach
+    void setUp() {
+        when(projectOwnershipClient.getPublicId(123L)).thenReturn(PROJECT_ID);
+        when(orderFundingClient.fetchByInternalId(1024L))
+                .thenReturn(new FundingSnapshot(PROJECT_ID, UUID.randomUUID(), FUNDING_ID));
+    }
 
     @Test
     void 발송정보를_등록하면_200을_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(FUNDING_ID, PROJECT_ID);
         shipment.registerShipment("CJ대한통운", "123456789012");
-        when(shipmentService.registerShipment(eq(123L), eq(1024L), eq(sellerId), eq("CJ대한통운"), eq("123456789012")))
+        when(shipmentService.registerShipment(eq(PROJECT_ID), eq(FUNDING_ID), eq(sellerId), eq("CJ대한통운"), eq("123456789012")))
                 .thenReturn(shipment);
 
         // when & then
@@ -55,7 +72,8 @@ class ShipmentControllerTest {
                         .content("{\"carrier\": \"CJ대한통운\", \"trackingNumber\": \"123456789012\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SHIPPED"))
-                .andExpect(jsonPath("$.carrier").value("CJ대한통운"));
+                .andExpect(jsonPath("$.carrier").value("CJ대한통운"))
+                .andExpect(jsonPath("$.fundingId").doesNotExist());
     }
 
     @Test
@@ -77,7 +95,7 @@ class ShipmentControllerTest {
     void 발송_전이면_PREPARING을_반환한다() throws Exception {
         // given
         UUID buyerId = UUID.randomUUID();
-        when(shipmentService.getShipment(123L, 1024L, buyerId)).thenReturn(Shipment.create(1024L, 123L));
+        when(shipmentService.getShipment(PROJECT_ID, FUNDING_ID, buyerId)).thenReturn(Shipment.create(FUNDING_ID, PROJECT_ID));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/123/fundings/1024/shipment")
@@ -105,11 +123,11 @@ class ShipmentControllerTest {
     void 수령확인하면_200을_반환한다() throws Exception {
         // given
         UUID buyerId = UUID.randomUUID();
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(FUNDING_ID, PROJECT_ID);
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(java.time.Instant.now());
         shipment.confirmReceipt(java.time.Instant.now(), false);
-        when(shipmentService.confirmReceipt(123L, 1024L, buyerId)).thenReturn(shipment);
+        when(shipmentService.confirmReceipt(PROJECT_ID, FUNDING_ID, buyerId)).thenReturn(shipment);
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/123/fundings/1024/shipment/confirm-receipt")

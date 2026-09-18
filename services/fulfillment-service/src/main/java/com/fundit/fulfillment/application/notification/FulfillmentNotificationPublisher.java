@@ -4,6 +4,7 @@ import com.fundit.fulfillment.domain.schedulechange.ScheduleChangeReasonType;
 import com.fundit.fulfillment.domain.tracker.FulfillmentStage;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * fulfillment-service가 발행하는 알림 이벤트의 아웃바운드 포트(FULFILLMENT-004/005/010).
@@ -24,13 +25,13 @@ public interface FulfillmentNotificationPublisher {
     /** FULFILLMENT-010 — 미확인 자동확정 시 구매자 안내 알림. */
     void publishReceiptAutoConfirmed(ReceiptAutoConfirmedEvent event);
 
-    record StaleUpdateReminderEvent(Long projectId) {
+    record StaleUpdateReminderEvent(UUID projectId) {
     }
 
-    record ScheduleChangedEvent(Long projectId, FulfillmentStage stage, ScheduleChangeReasonType reasonType,
+    record ScheduleChangedEvent(UUID projectId, FulfillmentStage stage, ScheduleChangeReasonType reasonType,
                                  Instant newPlannedDate) {
     }
 
-    record ReceiptAutoConfirmedEvent(Long fundingId) {
+    record ReceiptAutoConfirmedEvent(UUID fundingId) {
     }
 }

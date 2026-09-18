@@ -3,6 +3,7 @@ package com.fundit.fulfillment.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
 import com.fundit.fulfillment.application.tracker.FulfillmentQueryService;
 import com.fundit.fulfillment.application.tracker.ScheduleChangeService;
 import com.fundit.fulfillment.application.tracker.StageProgressService;
@@ -11,6 +12,7 @@ import com.fundit.fulfillment.domain.tracker.FulfillmentTracker;
 import com.fundit.fulfillment.infrastructure.persistence.schedulechange.FulfillmentScheduleChangeJpaEntity;
 import com.fundit.fulfillment.infrastructure.persistence.stagedetail.FulfillmentStageDetailJpaEntity;
 import com.fundit.fulfillment.presentation.GlobalExceptionHandler;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -38,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class FulfillmentControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID PROJECT_ID = UUID.fromString("00000000-0000-0000-0000-000000000123");
 
     @Autowired
     private MockMvc mockMvc;
@@ -48,21 +51,29 @@ class FulfillmentControllerTest {
     private StageProgressService stageProgressService;
     @MockitoBean
     private ScheduleChangeService scheduleChangeService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
+
+    @BeforeEach
+    void setUp() {
+        when(projectOwnershipClient.getPublicId(123L)).thenReturn(PROJECT_ID);
+        when(projectOwnershipClient.getPublicId(999L)).thenReturn(UUID.fromString("00000000-0000-0000-0000-000000000999"));
+    }
 
     @Test
     void 진행현황을_조회하면_200을_반환한다() throws Exception {
         // given
-        var view = new FulfillmentQueryService.ProjectFulfillmentView(123L, FulfillmentStage.SHIPPING_OUT,
+        var view = new FulfillmentQueryService.ProjectFulfillmentView(PROJECT_ID, FulfillmentStage.SHIPPING_OUT,
                 Instant.parse("2026-09-08T10:00:00Z"), false,
                 List.of(new FulfillmentQueryService.StageSnapshot(FulfillmentStage.SHIPPING_OUT,
                         FulfillmentQueryService.StageProgressStatus.IN_PROGRESS, null, null, "포장 완료", Instant.now())),
                 List.of());
-        when(fulfillmentQueryService.getProjectFulfillment(123L)).thenReturn(view);
+        when(fulfillmentQueryService.getProjectFulfillment(PROJECT_ID)).thenReturn(view);
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/123/fulfillment"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.projectId").value(123))
+                .andExpect(jsonPath("$.projectId").doesNotExist())
                 .andExpect(jsonPath("$.currentStage").value("SHIPPING_OUT"))
                 .andExpect(jsonPath("$.isUpdateOverdue").value(false));
     }
@@ -70,7 +81,7 @@ class FulfillmentControllerTest {
     @Test
     void 트래커가_없으면_404를_반환한다() throws Exception {
         // given
-        when(fulfillmentQueryService.getProjectFulfillment(999L))
+        when(fulfillmentQueryService.getProjectFulfillment(UUID.fromString("00000000-0000-0000-0000-000000000999")))
                 .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND, "트래커가 없습니다."));
 
         // when & then
@@ -82,9 +93,9 @@ class FulfillmentControllerTest {
     void 단계를_전환하면_200을_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L);
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
-        when(stageProgressService.transitionStage(123L, sellerId, FulfillmentStage.SHIPPING_OUT)).thenReturn(tracker);
+        when(stageProgressService.transitionStage(PROJECT_ID, sellerId, FulfillmentStage.SHIPPING_OUT)).thenReturn(tracker);
 
         // when & then
         mockMvc.perform(patch("/api/v1/projects/123/fulfillment/stage")

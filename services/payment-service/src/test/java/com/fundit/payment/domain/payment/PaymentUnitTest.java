@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PaymentUnitTest {
 
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
     private static final UUID MEMBER_ID = UUID.randomUUID();
 
     private Payment newPendingPayment() {

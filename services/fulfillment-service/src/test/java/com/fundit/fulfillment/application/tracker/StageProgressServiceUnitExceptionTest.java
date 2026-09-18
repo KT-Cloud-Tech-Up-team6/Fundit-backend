@@ -40,13 +40,13 @@ class StageProgressServiceUnitExceptionTest {
     @BeforeEach
     void setUp() {
         service = new StageProgressService(trackerRepository, stageDetailJpaRepository, projectOwnershipClient);
-        lenient().when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        lenient().when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
     }
 
     @Test
     void 본인_소유가_아니면_예외가_발생한다() {
         // when & then
-        assertThatThrownBy(() -> service.transitionStage(123L, otherAccountId, FulfillmentStage.SHIPPING_OUT))
+        assertThatThrownBy(() -> service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), otherAccountId, FulfillmentStage.SHIPPING_OUT))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -55,10 +55,10 @@ class StageProgressServiceUnitExceptionTest {
     @Test
     void 트래커가_없으면_예외가_발생한다() {
         // given
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.empty());
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> service.transitionStage(123L, sellerId, FulfillmentStage.SHIPPING_OUT))
+        assertThatThrownBy(() -> service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.SHIPPING_OUT))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.NOT_FOUND));
@@ -67,12 +67,12 @@ class StageProgressServiceUnitExceptionTest {
     @Test
     void 이전_단계로_역행하면_예외가_발생한다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L);
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
 
         // when & then
-        assertThatThrownBy(() -> service.transitionStage(123L, sellerId, FulfillmentStage.MANUFACTURING))
+        assertThatThrownBy(() -> service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.MANUFACTURING))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.INVALID_STAGE_TRANSITION));

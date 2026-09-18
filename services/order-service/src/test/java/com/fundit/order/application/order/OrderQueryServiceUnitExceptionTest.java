@@ -50,7 +50,7 @@ class OrderQueryServiceUnitExceptionTest {
     void 본인_주문이_아니면_FORBIDDEN_예외가_발생한다() {
         // given
         UUID orderId = UUID.randomUUID();
-        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(UUID.randomUUID()).projectId(10L)
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
                 .status(FundingStatus.PENDING).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800)).lineItems(List.of())
                 .createdAt(Instant.now()).build();

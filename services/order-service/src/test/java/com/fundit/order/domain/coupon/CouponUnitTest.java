@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -90,15 +91,16 @@ class CouponUnitTest {
         void ALL이면_어떤_프로젝트든_매칭된다() {
             Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
                     .targetScope(CouponTargetScope.ALL).build();
-            assertThat(coupon.matchesProject(999L)).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID())).isTrue();
         }
 
         @Test
         void PROJECT면_targetRefId가_같을때만_매칭된다() {
+            UUID projectId = UUID.randomUUID();
             Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
-                    .targetScope(CouponTargetScope.PROJECT).targetRefId("10").build();
-            assertThat(coupon.matchesProject(10L)).isTrue();
-            assertThat(coupon.matchesProject(11L)).isFalse();
+                    .targetScope(CouponTargetScope.PROJECT).targetRefId(projectId.toString()).build();
+            assertThat(coupon.matchesProject(projectId)).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID())).isFalse();
         }
     }
 
