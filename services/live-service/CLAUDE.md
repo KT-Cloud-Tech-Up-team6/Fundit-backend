@@ -14,14 +14,20 @@ LIVE 관련 작업을 시작하기 전에 **`services/live-service/docs/LiveFunc
 
 API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니다.
 
-> 확인 상태: 스키마·엔드포인트는 초안 ERD를 현재 `develop`에 대조해 정리했습니다(중복 테이블 2건 제거, 저장소 없던 API 5건에 테이블 추가).
-> 확정: WebSocket 인증 경로(IVS Chat 직결) / 쿠폰 소유 서비스(order 위임) / LIVE 검증 답변 소유(project) / 질문요약 전달(Kafka) / 하이라이트 클립 최대 3개 / 대표질문 고정 삭제.
+> 확인 상태: 27블록(MVP 11 / P1 9 / P2 7) 구현 완료. 엔드포인트 33개, 테스트 124개.
 >
-> **미결 2건 (둘 다 MVP 차단 아님)**
-> - 하이라이트 성과 통계(요구사항정의서 6.6.4) **집계 주체 미정** — 소비자 하이라이트 노출을 project에 넘겨 조회·클릭이 live를 거치지 않고, 펀딩 전환 기여는 order 집계가 필요하다. P2라 착수 전에 정하면 된다.
-> - 소비자 LIVE 목록 구성(요구사항정의서 11.1.2의 실시간 순위·팔로우 판매자·추천) **범위 미정** — 현재 API는 `status` 필터뿐이다. PM 확인 대기.
+> **외부 연동 2개는 스텁이다.** 자격증명·계약이 확정되면 클래스 하나씩 추가하고 프로퍼티만 바꾼다.
+> - `live.ivs.mode=stub` → `StubIvsClient`. 실제는 `AwsIvsClient`(AWS SDK ivs·ivschat, 의존성은 이미 있음)
+> - `live.ai.mode=stub` → `StubAiClient`. AI 서버 주소·계약 확정 후 `HttpAiClient`
 >
-> 전달 사항: order의 `MakerCouponIssueService` 확장 요청(`전달-order-라이브쿠폰-연동.md`).
+> **AI 결과 수신 방식은 가정이다** — AI가 live의 내부 엔드포인트로 밀어주는 구조로 만들었다
+> (`POST /internal/v1/lives/{liveId}/cue-sheet`, `.../highlights`). 확인요청 회신이 "BE가 폴링"으로
+> 오면 내부 엔드포인트 2개를 빼고 AI job 식별자 컬럼과 폴링 스케줄러를 넣는다 —
+> **도메인·서비스·컨트롤러는 그대로다.**
+>
+> **미결 1건**: 하이라이트 성과 통계의 `fundingConversionCount`. 조회·클릭은 소비자 공개 조회
+> 엔드포인트가 세지만 펀딩 전환 기여는 order 집계가 필요하고 그 주체가 정해지지 않았다.
+> 채울 수 없는 필드를 응답에 두면 프론트가 0을 실제 값으로 오해하므로 **응답에서 뺐다.**
 
 ## 도메인 테이블
 - `live_channels` — IVS 채널(영구 자원). `seller_id` UNIQUE라 **판매자당 1개**다. 동시에 두 방송을 송출할 수 없다는 뜻이고, "동일 프로젝트 반복 LIVE"는 순차 진행이라 이 제약으로 충분하다.

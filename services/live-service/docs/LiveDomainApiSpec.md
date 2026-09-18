@@ -379,7 +379,9 @@ Validation / Business Rules
 - 송출 오류 시 상태를 `ERROR`로 두고 `error_detail`을 함께 저장한다(요구사항정의서 6.3.4). 응답은 사유를 일반화해 내보낸다(S10).
 - **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다.
 - 질문요약이 완성되면 **`live.questions-summarized.v1`을 추가로 발행**해 project-service가 LIVE 검증 탭을 채우게 한다(아래 "질문요약 발행" 절).
-- **시작 시 `notification.raised.v1`을 발행**해 알림 신청자에게 LIVE 시작 알림이 나가게 한다. 신청자 목록은 notification-service가 갖고 있으므로 live는 발행만 한다.
+- **시작 시 `live.started.v1`을 발행**한다. `notification.raised.v1`을 직접 쏘지 않는 이유: 그 토픽은
+  수신자(`memberId`)가 채워져 있어야 하는데 신청자 목록(`live_notify_requests`)은 notification이 소유한다.
+  live는 누구에게 보낼지 알 방법이 없다. notification이 이 도메인 이벤트를 구독해 알림을 만든다.
 
 ---
 
@@ -645,7 +647,7 @@ GET     /api/v1/lives/{liveId}/highlights/stats
 Response Body — 통계
 
 ```json
-{ "items": [ { "highlightId": "0199e2...", "viewCount": 1200, "clickCount": 85, "fundingConversionCount": 14 } ] }
+{ "items": [ { "highlightId": "0199e2...", "viewCount": 1200, "clickCount": 85 } ] }
 ```
 
 > ⚠️ **이 엔드포인트는 P2이고 집계 주체가 미정이다.** 세 수치 모두 지금 설계로는 채워지지 않는다

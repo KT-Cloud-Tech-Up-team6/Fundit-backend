@@ -31,4 +31,10 @@ public class InternalEndpointConfig {
     public InternalEndpoint cueSheetCallbackEndpoint() {
         return new InternalEndpoint("POST", "/internal/v1/lives/{liveId}/cue-sheet");
     }
+
+    /** AI가 하이라이트 생성 결과를 밀어주는 경로. */
+    @Bean
+    public InternalEndpoint highlightCallbackEndpoint() {
+        return new InternalEndpoint("POST", "/internal/v1/lives/{liveId}/highlights");
+    }
 }
