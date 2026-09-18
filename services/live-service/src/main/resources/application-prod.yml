@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+# 채팅 적재(/internal/v1/lives/chat/messages)와 방송 상태 조회가 내부 전용이라
+# CommonWebConfig가 이 값을 주입받는다. 없으면 빈 생성 단계에서 기동이 실패한다.
+internal-api:
+  key: ${INTERNAL_API_KEY}
+
+live:
+  ivs:
+    mode: ${LIVE_IVS_MODE:stub}
+
+# 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
+springdoc:
+  api-docs:
+    enabled: false

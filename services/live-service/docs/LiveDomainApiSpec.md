@@ -233,7 +233,7 @@ Response Body
 ```json
 {
   "content": [
-    { "liveId": "0199...", "title": "...", "status": "DRAFT", "projectId": "0199...",
+    { "liveId": "0199...", "introText": "...", "status": "DRAFT", "projectId": "0199...",
       "scheduledStartAt": null, "createdAt": "2026-09-10T18:00:00+09:00" }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
@@ -733,7 +733,7 @@ GET /api/v1/lives/banner
 Response Body
 
 ```json
-{ "items": [ { "liveId": "0199...", "title": "...", "thumbnailUrl": "...", "viewerCount": 234 } ] }
+{ "items": [ { "liveId": "0199...", "introText": "...", "thumbnailUrl": "...", "viewerCount": 234 } ] }
 ```
 
 ```
@@ -745,7 +745,7 @@ Response Body
 ```json
 {
   "content": [
-    { "liveId": "0199...", "title": "...", "status": "LIVE", "viewerCount": 234, "thumbnailUrl": "...",
+    { "liveId": "0199...", "introText": "...", "status": "LIVE", "viewerCount": 234, "thumbnailUrl": "...",
       "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128 }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
@@ -754,6 +754,8 @@ Response Body
 
 Validation / Business Rules
 
+- **응답에 `title`이 없다.** 요구사항정의서 6.2.4.1의 LIVE 입력 항목은 카테고리·소개 문구·방송 예정일뿐이고
+  LIVE 제목 입력이 없다. 목록 카드에 노출할 문구는 `introText`(소개 문구)다.
 - `status`: `SCHEDULED`(오픈 예정) / `LIVE`(진행 중) / `ENDED`(다시보기). 생략 시 전체.
 - **`DRAFT` 상태는 소비자 목록에 절대 나오지 않는다** — 설정이 끝나지 않은 방송이다.
 - 인증 불필요. 조회 조건은 바인딩 변수로 처리한다(S1).
