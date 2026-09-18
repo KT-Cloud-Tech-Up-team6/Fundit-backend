@@ -3,6 +3,7 @@ package com.fundit.live.application.session;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import com.fundit.live.domain.session.LiveStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +23,7 @@ import static org.mockito.BDDMockito.given;
 class LiveStreamServiceUnitTest {
 
     @Mock private LiveSessionRepository sessionRepository;
+    @Mock private LiveEventOutboxJpaRepository outboxRepository;
     @Mock private IvsClient ivsClient;
 
     @InjectMocks private LiveStreamService liveStreamService;

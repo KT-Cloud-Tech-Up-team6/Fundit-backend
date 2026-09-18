@@ -3,6 +3,8 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.chat.ChatTokenService;
+import com.fundit.live.application.chat.VodChatQueryService;
+import com.fundit.live.application.like.LiveLikeService;
 import com.fundit.live.application.session.LiveCreateService;
 import com.fundit.live.application.session.LivePlaybackService;
 import com.fundit.live.application.session.LiveQueryService;
@@ -48,6 +50,8 @@ class LiveControllerTest {
     @MockitoBean private LiveQueryService liveQueryService;
     @MockitoBean private LivePlaybackService livePlaybackService;
     @MockitoBean private ChatTokenService chatTokenService;
+    @MockitoBean private LiveLikeService liveLikeService;
+    @MockitoBean private VodChatQueryService vodChatQueryService;
 
     private final UUID userId = UUID.randomUUID();
 
@@ -189,5 +193,82 @@ class LiveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ENDED"))
                 .andExpect(jsonPath("$.actualEndAt").exists());
+    }
+
+    @Test
+    void 채팅_토큰은_capabilities를_함께_내려준다() throws Exception {
+        // given
+        when(chatTokenService.issue(any(), any())).thenReturn(
+                new ChatTokenService.ChatToken("tok", "arn:room", List.of("SEND_MESSAGE")));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/lives/{liveId}/chat/token", UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("tok"))
+                .andExpect(jsonPath("$.capabilities[0]").value("SEND_MESSAGE"));
+    }
+
+    @Test
+    void 시청_정보는_인증_없이_조회된다() throws Exception {
+        // given — 방송 자체가 공개다
+        when(livePlaybackService.playback(any())).thenReturn(
+                new LivePlaybackService.Playback(UUID.randomUUID(), "LIVE", "https://play",
+                        UUID.randomUUID(), 3, null));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/playback", UUID.randomUUID()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("LIVE"));
+    }
+
+    @Test
+    void 다시보기_정보도_인증_없이_조회된다() throws Exception {
+        // given
+        when(livePlaybackService.vod(any())).thenReturn(
+                new LivePlaybackService.Playback(UUID.randomUUID(), "VOD", "https://vod",
+                        UUID.randomUUID(), 3, java.time.Instant.parse("2026-09-10T12:00:00Z")));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/vod", UUID.randomUUID()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("VOD"))
+                .andExpect(jsonPath("$.vodReadyAt").exists());
+    }
+
+    @Test
+    void 좋아요와_취소는_둘_다_204다() throws Exception {
+        // given & when & then — idempotent라 몇 번을 보내도 결과가 같다
+        UUID liveId = UUID.randomUUID();
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/lives/{liveId}/like", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/lives/{liveId}/like", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void VOD_채팅은_경과초를_계산해_내려준다() throws Exception {
+        // given — 방송 시작 기준 60초에 온 메시지
+        java.time.Instant started = java.time.Instant.parse("2026-09-10T11:00:00Z");
+        when(vodChatQueryService.findByRange(any(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(new VodChatQueryService.VodChat(started, List.of(
+                        com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity.builder()
+                                .senderId(UUID.randomUUID()).content("좋아요")
+                                .sentAt(started.plusSeconds(60)).build())));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/vod/chat", UUID.randomUUID())
+                        .param("fromSec", "0").param("toSec", "120"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].offsetSec").value(60))
+                .andExpect(jsonPath("$[0].content").value("좋아요"));
     }
 }

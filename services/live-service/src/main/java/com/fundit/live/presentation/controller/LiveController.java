@@ -3,6 +3,8 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.live.application.chat.ChatTokenService;
+import com.fundit.live.application.chat.VodChatQueryService;
+import com.fundit.live.application.like.LiveLikeService;
 import com.fundit.live.application.session.LiveCreateService;
 import com.fundit.live.application.session.LivePlaybackService;
 import com.fundit.live.application.session.LiveQueryService;
@@ -12,6 +14,7 @@ import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.presentation.dto.ChatTokenResponse;
 import com.fundit.live.presentation.dto.LiveCreateRequest;
 import com.fundit.live.presentation.dto.PlaybackResponse;
+import com.fundit.live.presentation.dto.VodChatMessageResponse;
 import com.fundit.live.presentation.dto.LiveCreateResponse;
 import com.fundit.live.presentation.dto.LiveSettingsRequest;
 import com.fundit.live.presentation.dto.LiveStatusResponse;
@@ -23,7 +26,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,6 +58,8 @@ public class LiveController {
     private final LiveQueryService liveQueryService;
     private final LivePlaybackService livePlaybackService;
     private final ChatTokenService chatTokenService;
+    private final LiveLikeService liveLikeService;
+    private final VodChatQueryService vodChatQueryService;
 
     /** LIVE 생성(요구사항정의서 6.1.4). 본인 소유 프로젝트만. 생성 직후 DRAFT다. */
     @PostMapping
@@ -129,5 +136,33 @@ public class LiveController {
     @GetMapping("/{liveId}/vod")
     public PlaybackResponse vod(@PathVariable UUID liveId) {
         return PlaybackResponse.from(livePlaybackService.vod(liveId));
+    }
+
+    /** LIVE 좋아요(요구사항정의서 11.2.4). idempotent — 두 번 눌러도 카운트는 1이다. */
+    @PutMapping("/{liveId}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void like(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        liveLikeService.like(user.id(), liveId);
+    }
+
+    /** 좋아요 취소. 누른 적 없어도 204다 — 취소도 idempotent해야 한다. */
+    @DeleteMapping("/{liveId}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlike(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        liveLikeService.unlike(user.id(), liveId);
+    }
+
+    /**
+     * 다시보기 시간대별 채팅(요구사항정의서 11.4.4). <b>구간</b>으로 받는다 —
+     * 시점 1개씩 왕복하면 요청 수가 방송 길이만큼 늘어난다.
+     */
+    @GetMapping("/{liveId}/vod/chat")
+    public List<VodChatMessageResponse> vodChat(@PathVariable UUID liveId,
+                                                @RequestParam int fromSec,
+                                                @RequestParam int toSec) {
+        var vodChat = vodChatQueryService.findByRange(liveId, fromSec, toSec);
+        return vodChat.messages().stream()
+                .map(m -> VodChatMessageResponse.from(m, vodChat.broadcastStartedAt()))
+                .toList();
     }
 }
