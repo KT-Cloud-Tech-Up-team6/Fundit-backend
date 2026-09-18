@@ -11,7 +11,7 @@ class PaymentMapper {
     Payment toDomain(PaymentJpaEntity entity) {
         return Payment.builder()
                 .id(entity.getId())
-                .fundingId(entity.getFundingId())
+                .fundingId(entity.getFundingOrderId())
                 .memberId(entity.getMemberId())
                 .pgOrderId(entity.getPgOrderId())
                 .pgPaymentKey(entity.getPgPaymentKey())
@@ -32,7 +32,7 @@ class PaymentMapper {
     PaymentJpaEntity toEntity(Payment domain) {
         return PaymentJpaEntity.builder()
                 .id(domain.getId())
-                .fundingId(domain.getFundingId())
+                .fundingOrderId(domain.getFundingId())
                 .memberId(domain.getMemberId())
                 .pgOrderId(domain.getPgOrderId())
                 .pgPaymentKey(domain.getPgPaymentKey())

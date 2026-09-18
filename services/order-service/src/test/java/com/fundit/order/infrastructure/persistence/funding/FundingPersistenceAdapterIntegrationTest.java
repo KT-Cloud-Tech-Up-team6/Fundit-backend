@@ -37,7 +37,7 @@ class FundingPersistenceAdapterIntegrationTest {
     @Autowired
     private FundingRepository fundingRepository;
 
-    private Funding newFunding(UUID memberId, Long projectId, FundingStatus status, Instant paymentExpiresAt) {
+    private Funding newFunding(UUID memberId, UUID projectId, FundingStatus status, Instant paymentExpiresAt) {
         List<FundingLineItemOption> options = List.of(new FundingLineItemOption(null, 10L, "색상", 100L, "화이트"));
         List<FundingLineItem> lineItems = List.of(new FundingLineItem(null, 5L, "얼리버드 패키지", 2, 10_000L, options));
         Funding funding = Funding.create(memberId, projectId, "프로젝트",
@@ -53,7 +53,7 @@ class FundingPersistenceAdapterIntegrationTest {
     void 생성하면_라인아이템과_옵션이_함께_저장된다() {
         // given
         UUID memberId = UUID.randomUUID();
-        Funding funding = newFunding(memberId, 1L, FundingStatus.PENDING, Instant.now().plusSeconds(1800));
+        Funding funding = newFunding(memberId, UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800));
 
         // when
         Funding saved = fundingRepository.save(funding);
@@ -71,7 +71,7 @@ class FundingPersistenceAdapterIntegrationTest {
     void 상태만_바꿔_다시_저장해도_라인아이템이_중복_적재되지_않는다() {
         // given
         UUID memberId = UUID.randomUUID();
-        Funding saved = fundingRepository.save(newFunding(memberId, 1L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        Funding saved = fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
         Funding loaded = fundingRepository.findByPublicId(saved.getPublicId()).orElseThrow();
 
         // when
@@ -88,9 +88,9 @@ class FundingPersistenceAdapterIntegrationTest {
     void 회원ID로_페이징_조회한다() {
         // given
         UUID memberId = UUID.randomUUID();
-        fundingRepository.save(newFunding(memberId, 1L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(memberId, 2L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(UUID.randomUUID(), 3L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
 
         // when
         var page = fundingRepository.findByMemberId(memberId, null, PageRequest.of(0, 20));
@@ -103,8 +103,8 @@ class FundingPersistenceAdapterIntegrationTest {
     void 상태필터를_지정하면_해당_상태만_조회한다() {
         // given
         UUID memberId = UUID.randomUUID();
-        fundingRepository.save(newFunding(memberId, 1L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(memberId, 2L, FundingStatus.CANCELLED_BY_MEMBER, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.CANCELLED_BY_MEMBER, Instant.now().plusSeconds(1800)));
 
         // when
         var page = fundingRepository.findByMemberId(memberId, FundingStatus.CANCELLED_BY_MEMBER, PageRequest.of(0, 20));
@@ -117,31 +117,37 @@ class FundingPersistenceAdapterIntegrationTest {
     @Test
     void 결제만료시각이_지난_PENDING_건만_조회한다() {
         // given
-        fundingRepository.save(newFunding(UUID.randomUUID(), 1L, FundingStatus.PENDING, Instant.now().minusSeconds(60)));
-        fundingRepository.save(newFunding(UUID.randomUUID(), 2L, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(UUID.randomUUID(), 3L, FundingStatus.CANCELLED_BY_MEMBER, Instant.now().minusSeconds(60)));
+        UUID expiredProjectId = UUID.randomUUID();
+        fundingRepository.save(newFunding(UUID.randomUUID(), expiredProjectId, FundingStatus.PENDING, Instant.now().minusSeconds(60)));
+        fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.CANCELLED_BY_MEMBER, Instant.now().minusSeconds(60)));
 
         // when
         List<Funding> targets = fundingRepository.findPendingExpiredBefore(Instant.now());
 
         // then
         assertThat(targets).hasSize(1);
-        assertThat(targets.get(0).getProjectId()).isEqualTo(1L);
+        assertThat(targets.get(0).getProjectId()).isEqualTo(expiredProjectId);
     }
 
+    /**
+     * findActiveByProjectId는 project_public_id(UUID) 기준으로 조회한다.
+     * 레거시 project_id만 있고 UUID가 없는 행은 백필 전에 이 조회에 잡히지 않는다.
+     */
     @Test
     void 프로젝트의_활성_참여건만_조회한다() {
         // given
-        Long projectId = 7L;
-        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.CANCELLED_BY_MEMBER, Instant.now().plusSeconds(1800)));
-        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.PAYMENT_EXPIRED, Instant.now().plusSeconds(1800)));
+        UUID projectPublicId = UUID.randomUUID();
+        fundingRepository.save(newFunding(UUID.randomUUID(), projectPublicId, FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(UUID.randomUUID(), projectPublicId, FundingStatus.CANCELLED_BY_MEMBER, Instant.now().plusSeconds(1800)));
+        fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
 
         // when
-        List<Funding> active = fundingRepository.findActiveByProjectId(projectId);
+        List<Funding> active = fundingRepository.findActiveByProjectId(projectPublicId);
 
         // then
         assertThat(active).hasSize(1);
         assertThat(active.get(0).getStatus()).isEqualTo(FundingStatus.PENDING);
+        assertThat(active.get(0).getProjectId()).isEqualTo(projectPublicId);
     }
 }

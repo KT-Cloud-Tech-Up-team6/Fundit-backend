@@ -33,7 +33,7 @@ public class NotificationOutboxJpaEntity {
     private UUID memberId;
 
     @Column(name = "funding_id", nullable = false)
-    private Long fundingId;
+    private UUID fundingId;
 
     @Column(nullable = false, length = 30)
     private String status;

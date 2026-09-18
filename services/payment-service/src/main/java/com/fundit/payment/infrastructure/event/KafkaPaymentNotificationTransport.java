@@ -18,9 +18,7 @@ import java.util.concurrent.TimeoutException;
  * {@link PaymentNotificationTransport}의 실제 구현체 — Kafka {@code notification.raised.v1}로
  * 발행한다. 문구는 합리적 기본값이며 실제 프로덕트 카피는 상수만 바꾸면 된다.
  *
- * <p>relatedUrl은 임시로 내부 fundingId를 그대로 쓴다 — payment-service는 아직 order-service의
- * fundingPublicId를 받아오지 않는다(OrderFundingClient가 stub 모드, PAYMENT-001 연동 이슈로 남음).
- * 그 연동이 붙으면 이 값을 publicId로 교체해야 한다[TODO].
+ * <p>relatedUrl은 order-service publicId(UUID)를 경로에 쓴다.
  */
 @Component
 @RequiredArgsConstructor

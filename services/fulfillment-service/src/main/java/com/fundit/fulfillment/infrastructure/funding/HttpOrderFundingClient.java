@@ -12,11 +12,9 @@ import org.springframework.web.client.RestClientException;
 import java.util.UUID;
 
 /**
- * order-service 내부 API 실제 구현체. order-service가 {@code GET /internal/fundings/{fundingId}}를
- * 실제로 노출하면 {@code order.integration.funding-client.mode=http}로 전환해 활성화한다
- * (payment-service {@code HttpOrderFundingClient}와 동일 패턴 — 인증은
- * {@link AuthHeaders#INTERNAL_API_KEY} 공유 시크릿을 그대로 사용, order-service의
- * {@code InternalGatewaySecretFilter}가 이 값을 검증한다는 전제).
+ * order-service 내부 API 실제 구현체. 주 경로는 {@code GET /internal/orders/{orderId}}(UUID)이고,
+ * 레거시 Long PK 조회는 {@code GET /internal/fundings/{fundingId}}를 쓴다.
+ * 인증은 {@link AuthHeaders#INTERNAL_API_KEY} 공유 시크릿을 그대로 사용한다.
  */
 @Component
 @ConditionalOnProperty(prefix = "order.integration.funding-client", name = "mode", havingValue = "http")
@@ -32,10 +30,19 @@ public class HttpOrderFundingClient implements OrderFundingClient {
     }
 
     @Override
-    public FundingSnapshot fetch(Long fundingId) {
+    public FundingSnapshot fetch(UUID orderId) {
+        return fetchUri("/internal/orders/{orderId}", orderId);
+    }
+
+    @Override
+    public FundingSnapshot fetchByInternalId(Long fundingId) {
+        return fetchUri("/internal/fundings/{fundingId}", fundingId);
+    }
+
+    private FundingSnapshot fetchUri(String uri, Object id) {
         try {
             InternalFundingResponse response = orderServiceRestClient.get()
-                    .uri("/internal/fundings/{fundingId}", fundingId)
+                    .uri(uri, id)
                     .header(AuthHeaders.INTERNAL_API_KEY, internalApiKey)
                     .retrieve()
                     .body(InternalFundingResponse.class);
@@ -48,6 +55,6 @@ public class HttpOrderFundingClient implements OrderFundingClient {
         }
     }
 
-    private record InternalFundingResponse(Long projectId, UUID memberId, UUID fundingPublicId) {
+    private record InternalFundingResponse(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId) {
     }
 }

@@ -45,13 +45,13 @@ class ScheduleChangeServiceUnitExceptionTest {
     void setUp() {
         service = new ScheduleChangeService(trackerRepository, stageDetailJpaRepository, scheduleChangeJpaRepository,
                 projectOwnershipClient, notificationPublisher);
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
     }
 
     @Test
     void OTHER_사유인데_상세사유가_없으면_예외가_발생한다() {
         // when & then
-        assertThatThrownBy(() -> service.registerScheduleChange(123L, sellerId, FulfillmentStage.SHIPPING_OUT,
+        assertThatThrownBy(() -> service.registerScheduleChange(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.SHIPPING_OUT,
                 ScheduleChangeReasonType.OTHER, null, Instant.now()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
@@ -62,7 +62,7 @@ class ScheduleChangeServiceUnitExceptionTest {
     @Test
     void 본인_소유가_아니면_예외가_발생한다() {
         // when & then
-        assertThatThrownBy(() -> service.registerScheduleChange(123L, UUID.randomUUID(), FulfillmentStage.SHIPPING_OUT,
+        assertThatThrownBy(() -> service.registerScheduleChange(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.randomUUID(), FulfillmentStage.SHIPPING_OUT,
                 ScheduleChangeReasonType.STOCK_SHORTAGE, null, Instant.now()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())

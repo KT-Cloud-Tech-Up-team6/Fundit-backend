@@ -12,7 +12,7 @@ class PaymentJpaEntityUnitTest {
     void persist_전에_생성시각을_채운다() {
         PaymentJpaEntity entity = PaymentJpaEntity.builder()
                 .id(UUID.randomUUID())
-                .fundingId(1L)
+                .fundingOrderId(new UUID(0L, 1L))
                 .memberId(UUID.randomUUID())
                 .pgOrderId("fundit-1")
                 .amount(1000L)

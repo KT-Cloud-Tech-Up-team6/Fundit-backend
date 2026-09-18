@@ -39,18 +39,18 @@ class StageProgressServiceUnitTest {
     @BeforeEach
     void setUp() {
         service = new StageProgressService(trackerRepository, stageDetailJpaRepository, projectOwnershipClient);
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
     }
 
     @Test
     void 본인_소유_프로젝트면_단계를_전환한다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L);
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(trackerRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when
-        FulfillmentTracker result = service.transitionStage(123L, sellerId, FulfillmentStage.SHIPPING_OUT);
+        FulfillmentTracker result = service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.SHIPPING_OUT);
 
         // then
         assertThat(result.getCurrentStage()).isEqualTo(FulfillmentStage.SHIPPING_OUT);
@@ -59,8 +59,8 @@ class StageProgressServiceUnitTest {
     @Test
     void 상세내용을_등록하면_트래커의_마지막_갱신시각이_리셋된다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.save(any())).thenAnswer(inv -> {
             FulfillmentStageDetailJpaEntity entity = inv.getArgument(0);
             return FulfillmentStageDetailJpaEntity.builder()
@@ -71,7 +71,7 @@ class StageProgressServiceUnitTest {
         });
 
         // when
-        FulfillmentStageDetailJpaEntity saved = service.registerStageDetail(123L, sellerId,
+        FulfillmentStageDetailJpaEntity saved = service.registerStageDetail(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId,
                 FulfillmentStage.MANUFACTURING, null, null, "생산 시작");
 
         // then

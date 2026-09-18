@@ -33,7 +33,7 @@ public class ScheduleChangeService {
     private final FulfillmentNotificationPublisher notificationPublisher;
 
     @Transactional
-    public FulfillmentScheduleChangeJpaEntity registerScheduleChange(Long projectId, UUID sellerId,
+    public FulfillmentScheduleChangeJpaEntity registerScheduleChange(UUID projectId, UUID sellerId,
                                                                       FulfillmentStage stage,
                                                                       ScheduleChangeReasonType reasonType,
                                                                       String reasonDetail, Instant newPlannedDate) {
@@ -76,7 +76,7 @@ public class ScheduleChangeService {
         return change;
     }
 
-    private void verifyOwnership(Long projectId, UUID sellerId) {
+    private void verifyOwnership(UUID projectId, UUID sellerId) {
         UUID actualSellerId = projectOwnershipClient.getSellerId(projectId);
         if (!actualSellerId.equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);

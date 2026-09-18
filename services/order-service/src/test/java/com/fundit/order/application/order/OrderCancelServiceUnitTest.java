@@ -37,7 +37,7 @@ class OrderCancelServiceUnitTest {
     private OrderCancelService orderCancelService;
 
     private Funding pendingFunding(UUID memberId, UUID publicId) {
-        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(10L).projectTitle("프로젝트")
+        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(UUID.randomUUID()).projectTitle("프로젝트")
                 .status(FundingStatus.PENDING)
                 .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
@@ -60,7 +60,8 @@ class OrderCancelServiceUnitTest {
         // then
         assertThat(result.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
         verify(inventoryRepository).increaseStock(5L, 3);
+        // projectId(Long)는 cross-service ID 통일(#69) 이후 Funding이 더 이상 추적하지 않아 null로 발행한다.
         verify(fundingEventPublisher).publishFundingCancelledByMember(
-                new FundingEventPublisher.FundingCancelledByMemberEvent(1L, 10L, memberId));
+                new FundingEventPublisher.FundingCancelledByMemberEvent(1L, null, memberId));
     }
 }

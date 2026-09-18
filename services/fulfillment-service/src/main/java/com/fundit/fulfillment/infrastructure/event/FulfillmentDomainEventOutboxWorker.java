@@ -63,9 +63,9 @@ public class FulfillmentDomainEventOutboxWorker {
                 // 로컬에 없어(project-service 소유) 배선 계층에서 조회한다(order-service와 동일 이유).
                 // 실패(타임아웃·5xx·미존재 포함) 시 DependencyFailureException이 그대로 전파되고,
                 // 이 메서드를 감싼 publishPending()의 try-catch가 재시도 대상으로 기록한다.
-                UUID sellerId = projectOwnershipClient.getSellerId(event.getProjectId());
+                UUID sellerId = projectOwnershipClient.getSellerId(event.getProjectPublicId());
                 transport.sendShippingCompleted(
-                        new ShippingCompletedEvent(event.getFundingId(), event.getProjectId()),
+                        new ShippingCompletedEvent(event.getFundingOrderId(), event.getProjectPublicId()),
                         sellerId, event.getCreatedAt(), event.getId());
             }
             default -> throw new IllegalStateException("알 수 없는 도메인 이벤트 타입: " + event.getEventType());

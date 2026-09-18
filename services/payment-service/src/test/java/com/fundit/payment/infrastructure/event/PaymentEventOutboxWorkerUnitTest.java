@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +42,7 @@ class PaymentEventOutboxWorkerUnitTest {
         payload.put("paidAt", "2026-09-08T14:23:11Z");
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
-                .fundingId(1024L)
+                .fundingId(new UUID(0L, 1024L))
                 .payload(payload)
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
@@ -53,7 +54,7 @@ class PaymentEventOutboxWorkerUnitTest {
         ArgumentCaptor<PaymentEventTransport.PaymentCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
         verify(transport).sendPaymentCompleted(captor.capture(), any());
-        assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
+        assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
         assertThat(event.getPublishedAt()).isNotNull();
     }
@@ -64,7 +65,7 @@ class PaymentEventOutboxWorkerUnitTest {
         setUp();
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
-                .fundingId(1024L)
+                .fundingId(new UUID(0L, 1024L))
                 .payload(Map.of())
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
@@ -88,7 +89,7 @@ class PaymentEventOutboxWorkerUnitTest {
         payload.put("fullRefund", true);
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_REFUND_COMPLETED)
-                .fundingId(2048L)
+                .fundingId(new UUID(0L, 2048L))
                 .payload(payload)
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
@@ -98,7 +99,7 @@ class PaymentEventOutboxWorkerUnitTest {
         ArgumentCaptor<PaymentEventTransport.RefundCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.RefundCompletedTransportEvent.class);
         verify(transport).sendRefundCompleted(captor.capture(), any());
-        assertThat(captor.getValue().fundingId()).isEqualTo(2048L);
+        assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 2048L));
         assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
         assertThat(captor.getValue().refundReason()).isEqualTo("CANCELLED_BY_MEMBER");
         assertThat(captor.getValue().fullRefund()).isTrue();
@@ -110,7 +111,7 @@ class PaymentEventOutboxWorkerUnitTest {
         setUp();
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
-                .fundingId(1L)
+                .fundingId(new UUID(0L, 1L))
                 .payload(Map.of("couponIssuanceId", "9"))
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
@@ -128,7 +129,7 @@ class PaymentEventOutboxWorkerUnitTest {
         setUp();
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType("UnknownType")
-                .fundingId(1L)
+                .fundingId(new UUID(0L, 1L))
                 .payload(Map.of())
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));

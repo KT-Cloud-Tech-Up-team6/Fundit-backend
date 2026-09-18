@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 class PaymentConfirmServiceUnitTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -58,7 +58,7 @@ class PaymentConfirmServiceUnitTest {
 
         // then
         assertThat(result.status()).isEqualTo(PaymentStatus.COMPLETED.name());
-        verify(settlementHoldService).openHold(payment.getId(), FUNDING_ID, 89_000L);
+        verify(settlementHoldService).openHold(payment.getId(), null, 89_000L);
         verify(paymentEventPublisher).publishPaymentCompleted(any());
     }
 

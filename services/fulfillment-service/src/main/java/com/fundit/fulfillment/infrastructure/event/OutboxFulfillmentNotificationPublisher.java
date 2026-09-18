@@ -35,7 +35,7 @@ public class OutboxFulfillmentNotificationPublisher implements FulfillmentNotifi
         UUID projectPublicId = projectOwnershipClient.getPublicId(event.projectId());
         outboxRepository.save(FulfillmentEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER)
-                .projectId(event.projectId())
+                .projectPublicId(event.projectId())
                 .memberId(sellerId)
                 .relatedPublicId(projectPublicId)
                 .build());
@@ -47,7 +47,7 @@ public class OutboxFulfillmentNotificationPublisher implements FulfillmentNotifi
         for (UUID memberId : fundingParticipantsClient.listParticipantMemberIds(event.projectId())) {
             outboxRepository.save(FulfillmentEventOutboxJpaEntity.builder()
                     .eventType(FulfillmentEventOutboxJpaEntity.TYPE_SCHEDULE_CHANGED)
-                    .projectId(event.projectId())
+                    .projectPublicId(event.projectId())
                     .memberId(memberId)
                     .relatedPublicId(projectPublicId)
                     .stage(event.stage().name())
@@ -62,7 +62,7 @@ public class OutboxFulfillmentNotificationPublisher implements FulfillmentNotifi
         var snapshot = orderFundingClient.fetch(event.fundingId());
         outboxRepository.save(FulfillmentEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentEventOutboxJpaEntity.TYPE_RECEIPT_AUTO_CONFIRMED)
-                .fundingId(event.fundingId())
+                .fundingOrderId(event.fundingId())
                 .memberId(snapshot.memberId())
                 .relatedPublicId(snapshot.fundingPublicId())
                 .build());

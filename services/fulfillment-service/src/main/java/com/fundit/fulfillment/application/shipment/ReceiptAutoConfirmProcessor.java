@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * FULFILLMENT-010 — 미확인 배송 자동 확정 한 건. 상태 전이와 안내 알림 발행을 한 트랜잭션으로
@@ -24,7 +25,7 @@ public class ReceiptAutoConfirmProcessor {
 
     /** @return true면 이번 호출로 자동확정 처리됨, false면 이미 처리돼 있었음(idempotent). */
     @Transactional
-    public boolean autoConfirmOne(Long fundingId) {
+    public boolean autoConfirmOne(UUID fundingId) {
         return shipmentRepository.findByFundingId(fundingId)
                 .filter(shipment -> shipment.getStatus() == ShipmentStatus.DELIVERED)
                 .map(shipment -> {

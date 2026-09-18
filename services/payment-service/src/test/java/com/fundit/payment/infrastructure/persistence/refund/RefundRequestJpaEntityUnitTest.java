@@ -11,7 +11,7 @@ class RefundRequestJpaEntityUnitTest {
     @Test
     void persist_전에_신청시각을_채운다() {
         RefundRequestJpaEntity entity = RefundRequestJpaEntity.builder()
-                .fundingId(1L)
+                .fundingOrderId(new UUID(0L, 1L))
                 .paymentId(UUID.randomUUID())
                 .triggerType("DEFECT")
                 .status("REQUESTED")

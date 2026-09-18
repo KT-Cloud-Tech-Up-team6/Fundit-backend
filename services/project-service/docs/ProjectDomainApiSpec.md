@@ -38,8 +38,10 @@
 | 32 | GET | `/api/v1/projects/{projectId}/live-verifications` | 방송종료 후 LIVE검증 질문/답변 조회(소비자) | X (공통) | PROJECT-019 |
 | 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
 | 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
-| 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(fulfillment/order) | 내부 키 (`X-Internal-Api-Key`) | — |
+| 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(Long PK, v1/Kafka 해석용) | 내부 키 (`X-Internal-Api-Key`) | — |
 
+> **식별자 계약 (cross-service ID 통일 #69)**: 공개 REST의 `projectId`는 항상 `publicId`(UUID)다. 다운스트림 공개 API도 같은 UUID를 받는다 — order `POST /api/v2/orders`, fulfillment `/api/v2/projects/{projectId}/**`. payment의 `fundingId`는 order-service `orderId`(UUID). 이 서비스의 Long 내부 PK는 `GET /internal/projects/{projectId}`와 Kafka 파티션 키에만 남는다.
+>
 > PROJECT-008(리워드 정보 제공 고시 등록)·PROJECT-027(리워드 법정고시정보 조회)은 품목마다 필요한 고시 항목이 달라 MVP에서 표준화하기 어려워 **범위 제외됐다**(PM 확정). 관련 엔드포인트(`PUT /api/v1/rewards/{rewardId}/disclosure`, `GET /api/v1/projects/{projectId}/rewards/disclosures`)는 존재하지 않으며, 도메인/DTO/테스트도 모두 제거됐다.
 >
 > PROJECT-030(프로젝트 심사 처리/승인·반려)은 관리자 승인 단계 자체가 **폐지됐다** — 필수 작성 항목이 채워지면 관리자 승인 없이 바로 공개(ONGOING)로 전환한다(PROJECT-029 참고). 관련 엔드포인트(`POST /api/v1/admin/projects/{projectId}/review-decision`)는 존재하지 않으며, 도메인/DTO/테스트, `project_review_requests` 테이블도 모두 제거됐다.
@@ -1169,7 +1171,9 @@ GET /internal/projects/{projectId}
 
 **Auth Required**: 내부 전용 — JWT/`@LoginUser`가 아니라 `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`를 요구한다. `InternalEndpointConfig`가 `GET /internal/projects/{projectId}`를 내부 엔드포인트로 등록한다. 키 없거나 불일치 → `401 UNAUTHORIZED`.
 
-**Request**: Path Parameter: `projectId` — **외부 UUID(`public_id`)가 아니라 내부 Long PK** (`projects.id`). fulfillment-service·order-service가 서비스 간 HTTP로 호출한다.
+**Request**: Path Parameter: `projectId` — **내부 Long PK** (`projects.id`). 공개 UUID가 아니다.
+
+**호출 주체**: order/fulfillment의 **v1 Long 어댑터**와 Kafka `projectId`(Long) 해석, order `FundingProjectPublicIdBackfillRunner`. UUID 기준 소유권/제목 조회는 공개 상세 `GET /api/v1/projects/{projectId}`를 쓴다.
 
 **Response Body**
 

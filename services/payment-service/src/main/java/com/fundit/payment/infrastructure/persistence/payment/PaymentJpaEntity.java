@@ -27,8 +27,13 @@ public class PaymentJpaEntity {
     @Id
     private UUID id;
 
-    @Column(name = "funding_id", nullable = false)
+    /** 레거시 — order-service 내부 PK. 신규 행은 null, 애플리케이션이 쓰지 않는다. */
+    @Column(name = "funding_id", updatable = false)
     private Long fundingId;
+
+    /** order-service {@code Funding.publicId}(외부 노출 orderId). */
+    @Column(name = "funding_order_id")
+    private UUID fundingOrderId;
 
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
@@ -73,11 +78,11 @@ public class PaymentJpaEntity {
     private Instant updatedAt;
 
     /**
-     * DB가 계산하는 생성 컬럼(GENERATED ALWAYS AS ... STORED, V1 마이그레이션 참고) — 애플리케이션이
-     * 값을 쓰지 않는다(insertable/updatable false). {@code findByCompletedFundingId} 조회에만 쓰인다.
+     * DB가 계산하는 생성 컬럼(GENERATED ALWAYS AS ... STORED, V3 마이그레이션 참고) — 애플리케이션이
+     * 값을 쓰지 않는다(insertable/updatable false). {@code findByCompletedFundingOrderId} 조회에만 쓰인다.
      */
-    @Column(name = "completed_funding_id", insertable = false, updatable = false)
-    private Long completedFundingId;
+    @Column(name = "completed_funding_order_id", insertable = false, updatable = false)
+    private UUID completedFundingOrderId;
 
     @PrePersist
     protected void onCreate() {

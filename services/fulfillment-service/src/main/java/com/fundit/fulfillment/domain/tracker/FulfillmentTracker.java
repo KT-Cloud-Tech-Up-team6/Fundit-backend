@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 복잡한 애그리거트(persistence-convention.md 기준) — 5단계 순방향 전용 상태 전이 불변식이 있다.
@@ -16,13 +17,13 @@ import java.time.Instant;
 public class FulfillmentTracker {
 
     private final Long id;
-    private final Long projectId;
+    private final UUID projectId;
     private FulfillmentStage currentStage;
     private Instant lastUpdatedAt;
     private final Instant createdAt;
 
     /** FULFILLMENT-001 — FundingSucceeded 이벤트 구독 시 생성되는 유일한 경로. */
-    public static FulfillmentTracker create(Long projectId) {
+    public static FulfillmentTracker create(UUID projectId) {
         return FulfillmentTracker.builder()
                 .projectId(projectId)
                 .currentStage(FulfillmentStage.PRODUCTION_START)

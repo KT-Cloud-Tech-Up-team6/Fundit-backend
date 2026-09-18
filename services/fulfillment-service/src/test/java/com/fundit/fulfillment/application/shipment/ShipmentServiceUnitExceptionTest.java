@@ -45,10 +45,10 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 본인_소유_프로젝트가_아니면_예외가_발생한다() {
         // given
-        lenient().when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        lenient().when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
 
         // when & then
-        assertThatThrownBy(() -> service.registerShipment(123L, 1024L, UUID.randomUUID(), "CJ대한통운", "123"))
+        assertThatThrownBy(() -> service.registerShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.randomUUID(), "CJ대한통운", "123"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -57,11 +57,11 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 다른_프로젝트_소속_펀딩이면_예외가_발생한다() {
         // given
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(999L, buyerId, UUID.randomUUID()));
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000999"), buyerId, UUID.randomUUID()));
 
         // when & then
-        assertThatThrownBy(() -> service.registerShipment(123L, 1024L, sellerId, "CJ대한통운", "123"))
+        assertThatThrownBy(() -> service.registerShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), sellerId, "CJ대한통운", "123"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -70,14 +70,14 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 이미_발송된_건에_재등록하면_예외가_발생한다() {
         // given
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
-        Shipment shipped = Shipment.create(1024L, 123L);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
+        Shipment shipped = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipped.registerShipment("CJ대한통운", "123456789012");
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.of(shipped));
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipped));
 
         // when & then
-        assertThatThrownBy(() -> service.registerShipment(123L, 1024L, sellerId, "우체국택배", "999"))
+        assertThatThrownBy(() -> service.registerShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), sellerId, "우체국택배", "999"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.ALREADY_SHIPPED));
@@ -86,10 +86,10 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 본인_funding이_아니면_조회시_예외가_발생한다() {
         // given
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
 
         // when & then
-        assertThatThrownBy(() -> service.getShipment(123L, 1024L, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.getShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.randomUUID()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -98,11 +98,11 @@ class ShipmentServiceUnitExceptionTest {
     @Test
     void 발송_전_상태에서_수령확인하면_예외가_발생한다() {
         // given — shipments 레코드 자체가 없음
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, buyerId, UUID.randomUUID()));
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> service.confirmReceipt(123L, 1024L, buyerId))
+        assertThatThrownBy(() -> service.confirmReceipt(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), buyerId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.NOT_YET_DELIVERED));

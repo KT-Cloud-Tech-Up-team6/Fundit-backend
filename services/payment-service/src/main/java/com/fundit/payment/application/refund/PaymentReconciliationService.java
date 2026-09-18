@@ -2,6 +2,8 @@ package com.fundit.payment.application.refund;
 
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -13,11 +15,18 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PaymentReconciliationService implements PaymentReconciliationListener {
 
+    private static final Logger log = LoggerFactory.getLogger(PaymentReconciliationService.class);
+
     private final RefundExecutionService refundExecutionService;
 
     @Override
     public void onPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event) {
-        refundExecutionService.executeFullRefund(event.fundingId(), RefundTriggerType.SYSTEM_RECONCILIATION,
+        if (event.orderId() == null) {
+            log.warn("orderId가 없는 레거시 PaymentReconciliationRequired 이벤트는 건너뜁니다. fundingId={}",
+                    event.fundingId());
+            return;
+        }
+        refundExecutionService.executeFullRefund(event.orderId(), RefundTriggerType.SYSTEM_RECONCILIATION,
                 "재고 확보 실패로 인한 시스템 자동 환불");
     }
 }

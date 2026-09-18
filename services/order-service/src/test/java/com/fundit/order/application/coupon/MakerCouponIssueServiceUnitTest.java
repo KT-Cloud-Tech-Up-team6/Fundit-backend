@@ -32,9 +32,11 @@ class MakerCouponIssueServiceUnitTest {
     @InjectMocks
     private MakerCouponIssueService makerCouponIssueService;
 
+    private static final UUID PROJECT_ID = UUID.randomUUID();
+
     private MakerCouponIssueCommand command(DiscountType discountType, long discountValue, Long maxDiscountAmount,
                                              Long budgetLimit, int quantity) {
-        return new MakerCouponIssueCommand(123L, "오픈 기념 할인", discountType, discountValue, maxDiscountAmount,
+        return new MakerCouponIssueCommand(PROJECT_ID, "오픈 기념 할인", discountType, discountValue, maxDiscountAmount,
                 budgetLimit, quantity, 30_000L, 1, Instant.now().plus(30, ChronoUnit.DAYS));
     }
 
@@ -42,7 +44,7 @@ class MakerCouponIssueServiceUnitTest {
     void 본인_소유_프로젝트면_쿠폰이_발급된다() {
         // given
         UUID sellerId = UUID.randomUUID();
-        when(projectOwnershipClient.findSellerId(123L)).thenReturn(Optional.of(sellerId));
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.of(sellerId));
         when(couponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
@@ -53,14 +55,14 @@ class MakerCouponIssueServiceUnitTest {
         verify(couponRepository).save(captor.capture());
         assertThat(captor.getValue().getIssuerId()).isEqualTo(sellerId);
         assertThat(captor.getValue().getRemainingQuantity()).isEqualTo(200);
-        assertThat(coupon.getCouponCode()).startsWith("P123-");
+        assertThat(coupon.getCouponCode()).startsWith("MK-");
     }
 
     @Test
     void FREE_SHIPPING이면_discountValue가_0으로_저장된다() {
         // given
         UUID sellerId = UUID.randomUUID();
-        when(projectOwnershipClient.findSellerId(123L)).thenReturn(Optional.of(sellerId));
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.of(sellerId));
         when(couponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when

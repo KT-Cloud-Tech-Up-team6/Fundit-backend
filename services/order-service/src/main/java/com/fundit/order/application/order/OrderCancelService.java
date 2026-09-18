@@ -42,8 +42,11 @@ public class OrderCancelService {
 
         Funding saved = fundingRepository.save(funding);
 
+        // FundingCancelledByMemberEvent.projectId는 이벤트 계약(Long, project-service 내부 PK)이 그대로인데
+        // Funding은 cross-service ID 통일(#69) 이후 UUID만 들고 있어 값을 채울 수 없다 — 알려진 한계로
+        // null로 발행한다(payment-service PAYMENT-004는 fundingId만으로 결제를 조회해 처리하므로 영향 없음).
         fundingEventPublisher.publishFundingCancelledByMember(
-                new FundingEventPublisher.FundingCancelledByMemberEvent(saved.getId(), saved.getProjectId(), memberId));
+                new FundingEventPublisher.FundingCancelledByMemberEvent(saved.getId(), null, memberId));
 
         return saved;
     }

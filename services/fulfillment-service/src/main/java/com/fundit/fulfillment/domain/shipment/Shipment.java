@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 복잡한 애그리거트(persistence-convention.md 기준) — {@code PREPARING→SHIPPED→DELIVERED→
@@ -17,8 +18,8 @@ import java.time.Instant;
 public class Shipment {
 
     private final Long id;
-    private final Long fundingId;
-    private final Long projectId;
+    private final UUID fundingId;
+    private final UUID projectId;
     private ShipmentStatus status;
     private String carrier;
     private String trackingNumber;
@@ -30,7 +31,7 @@ public class Shipment {
     private Instant updatedAt;
 
     /** FULFILLMENT-006 — 발송정보 등록 시 shipments 행 자체가 없으면 PREPARING으로 새로 만든다. */
-    public static Shipment create(Long fundingId, Long projectId) {
+    public static Shipment create(UUID fundingId, UUID projectId) {
         return Shipment.builder()
                 .fundingId(fundingId)
                 .projectId(projectId)

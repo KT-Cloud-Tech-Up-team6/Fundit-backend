@@ -49,14 +49,14 @@ class ScheduleChangeServiceUnitTest {
     void setUp() {
         service = new ScheduleChangeService(trackerRepository, stageDetailJpaRepository, scheduleChangeJpaRepository,
                 projectOwnershipClient, notificationPublisher);
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
     }
 
     @Test
     void 기존_예상일정을_스냅샷하고_새_일정으로_갱신하며_알림을_발행한다() {
         // given
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         Instant oldPlannedDate = Instant.parse("2026-09-05T00:00:00Z");
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
                 .thenReturn(Optional.of(FulfillmentStageDetailJpaEntity.builder()
@@ -73,7 +73,7 @@ class ScheduleChangeServiceUnitTest {
         Instant newPlannedDate = Instant.parse("2026-09-10T00:00:00Z");
 
         // when
-        FulfillmentScheduleChangeJpaEntity result = service.registerScheduleChange(123L, sellerId,
+        FulfillmentScheduleChangeJpaEntity result = service.registerScheduleChange(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId,
                 FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE, "부자재 입고 지연", newPlannedDate);
 
         // then
@@ -88,7 +88,7 @@ class ScheduleChangeServiceUnitTest {
         assertThat(detailCaptor.getValue().getDetailText()).isEqualTo("포장 완료");
 
         verify(notificationPublisher).publishScheduleChanged(
-                new ScheduleChangedEvent(123L, FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE,
+                new ScheduleChangedEvent(UUID.fromString("00000000-0000-0000-0000-000000000123"), FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE,
                         newPlannedDate));
     }
 }

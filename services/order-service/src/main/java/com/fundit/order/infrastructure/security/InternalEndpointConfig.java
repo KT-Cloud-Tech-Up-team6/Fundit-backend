@@ -18,6 +18,12 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/fundings/{fundingId}");
     }
 
+    /** cross-service ID 통일(#69) — 외부 노출 orderId(UUID)로 펀딩 스냅샷을 조회하는 내부 API. */
+    @Bean
+    public InternalEndpoint fundingByOrderIdInternalEndpoint() {
+        return new InternalEndpoint("GET", "/internal/orders/{orderId}");
+    }
+
     /** fulfillment-service가 알림 팬아웃 대상(펀딩 성립 참여자)을 조회하는 내부 API. */
     @Bean
     public InternalEndpoint fundingParticipantsInternalEndpoint() {

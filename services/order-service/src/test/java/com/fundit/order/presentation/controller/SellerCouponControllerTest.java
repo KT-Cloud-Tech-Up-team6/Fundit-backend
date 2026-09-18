@@ -1,5 +1,6 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.coupon.MakerCouponIssueService;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponTargetScope;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -38,11 +40,14 @@ class SellerCouponControllerTest {
 
     @MockitoBean
     private MakerCouponIssueService makerCouponIssueService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
 
     @Test
     void 메이커_쿠폰을_발급하면_201을_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
+        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(UUID.randomUUID()));
         Coupon coupon = Coupon.builder().id(1L).couponCode("PJT123-A1B2").couponName("오픈 기념 할인")
                 .discountType(DiscountType.RATE).discountValue(10).maxDiscountAmount(5_000L)
                 .budgetLimit(1_000_000L).usedBudgetAmount(0)

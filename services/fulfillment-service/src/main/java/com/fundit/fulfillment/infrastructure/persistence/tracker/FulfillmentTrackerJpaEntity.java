@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /** fulfillment_trackers 매핑 전용. */
 @Getter
@@ -28,8 +29,12 @@ public class FulfillmentTrackerJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다(과거 데이터 조회 전용). */
+    @Column(name = "project_id", updatable = false)
     private Long projectId;
+
+    @Column(name = "project_public_id")
+    private UUID projectPublicId;
 
     @Column(name = "current_stage", nullable = false, length = 20)
     private String currentStage;

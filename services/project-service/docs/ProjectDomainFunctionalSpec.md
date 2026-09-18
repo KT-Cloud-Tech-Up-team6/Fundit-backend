@@ -554,11 +554,11 @@
 - **보안/권한 고려사항**: [S4] 게이트웨이/내부 호출만 허용. `InternalEndpointConfig`가 `GET /internal/projects/{projectId}`를 내부 전용으로 등록. 키 없거나 불일치 → `401 UNAUTHORIZED`. JWT/`@LoginUser` 아님
 - **소분류**: 내부 프로젝트 스냅샷 조회
 - **예외 처리**: 없음 → `404 NOT_FOUND` / 내부 키 실패 → `401 UNAUTHORIZED`
-- **요구사항**: fulfillment-service·order-service가 판매자 소유권(`sellerId`)과 공개 UUID를 조회한다
+- **요구사항**: fulfillment-service·order-service가 레거시 Long PK로 판매자 소유권(`sellerId`)과 공개 UUID를 조회한다
 - **우선순위**: MVP
-- **입력값**: 내부 `projectId`(Long PK, 공개 UUID 아님)
+- **입력값**: 내부 `projectId`(Long PK). v2 UUID 경로는 이 API를 쓰지 않고 `GET /api/v1/projects/{publicId}`를 쓴다
 - **중분류**: 내부 연동
-- **처리 내용(기술)**: `projects.id`로 조회해 `sellerId`/`publicId`만 반환
+- **처리 내용(기술)**: `projects.id`로 조회해 `sellerId`/`publicId`만 반환. cross-service ID 통일(#69) 이후에는 v1 어댑터·Kafka Long 해석·백필 전용
 - **출력값**: sellerId, publicId
 - **트리거 방식**: 서비스 간 HTTP
 

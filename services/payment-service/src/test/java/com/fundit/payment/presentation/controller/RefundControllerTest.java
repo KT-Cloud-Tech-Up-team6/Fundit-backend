@@ -1,6 +1,7 @@
 package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
 import com.fundit.payment.application.refund.DefectRefundRequestService;
 import com.fundit.payment.application.refund.RefundQueryService;
@@ -36,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RefundControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID ORDER_ID = new UUID(2L, 1024L);
 
     @Autowired
     private MockMvc mockMvc;
@@ -48,13 +50,15 @@ class RefundControllerTest {
     private DefectRefundDecisionService defectRefundDecisionService;
     @MockitoBean
     private ShippingDelayRefundService shippingDelayRefundService;
+    @MockitoBean
+    private OrderFundingClient orderFundingClient;
 
     @Test
     void 본인_환불내역을_조회하면_200을_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
         Instant requestedAt = Instant.parse("2026-09-08T01:00:00Z");
         when(refundQueryService.listMyRefunds(eq(memberId), any())).thenReturn(
-                new PageImpl<>(List.of(new RefundQueryService.RefundSummary(3L, 1024L, "DEFECT", "REQUESTED",
+                new PageImpl<>(List.of(new RefundQueryService.RefundSummary(3L, ORDER_ID, "DEFECT", "REQUESTED",
                         89_000L, requestedAt)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/v1/refunds")
@@ -63,13 +67,17 @@ class RefundControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].refundId").value(3))
                 .andExpect(jsonPath("$.content[0].triggerType").value("DEFECT"))
+                .andExpect(jsonPath("$.content[0].fundingId").doesNotExist())
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
     void 하자환불을_신청하면_201을_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
-        when(defectRefundRequestService.request(eq(memberId), eq(1024L), eq("[DAMAGED] 파손"), any()))
+        when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L, "주문", null,
+                        ORDER_ID));
+        when(defectRefundRequestService.request(eq(memberId), eq(ORDER_ID), eq("[DAMAGED] 파손"), any()))
                 .thenReturn(new DefectRefundRequestService.DefectRefundRequestResult(11L, "REQUESTED"));
 
         mockMvc.perform(post("/api/v1/refunds/defect")
@@ -102,7 +110,10 @@ class RefundControllerTest {
     @Test
     void 발송지연_취소를_신청하면_201을_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
-        when(shippingDelayRefundService.requestCancel(memberId, 1024L))
+        when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L, "주문", null,
+                        ORDER_ID));
+        when(shippingDelayRefundService.requestCancel(memberId, ORDER_ID))
                 .thenReturn(new ShippingDelayRefundService.ShippingDelayRefundResult(12L, "COMPLETED"));
 
         mockMvc.perform(post("/api/v1/refunds/shipping-delay")

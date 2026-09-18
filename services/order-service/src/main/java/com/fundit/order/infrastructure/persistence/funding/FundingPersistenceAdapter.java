@@ -66,15 +66,15 @@ public class FundingPersistenceAdapter implements FundingRepository {
     }
 
     @Override
-    public List<Funding> findActiveByProjectId(Long projectId) {
+    public List<Funding> findActiveByProjectId(UUID projectId) {
         List<String> activeStatuses = List.of(FundingStatus.PENDING.name(), FundingStatus.FUNDING_IN_PROGRESS.name());
-        return fundingJpaRepository.findByProjectIdAndStatusIn(projectId, activeStatuses)
+        return fundingJpaRepository.findByProjectPublicIdAndStatusIn(projectId, activeStatuses)
                 .stream().map(this::hydrate).toList();
     }
 
     @Override
-    public List<Funding> findGoalAchievedByProjectId(Long projectId) {
-        return fundingJpaRepository.findByProjectIdAndStatusIn(projectId, List.of(FundingStatus.GOAL_ACHIEVED.name()))
+    public List<Funding> findGoalAchievedByProjectId(UUID projectId) {
+        return fundingJpaRepository.findByProjectPublicIdAndStatusIn(projectId, List.of(FundingStatus.GOAL_ACHIEVED.name()))
                 .stream().map(this::hydrate).toList();
     }
 

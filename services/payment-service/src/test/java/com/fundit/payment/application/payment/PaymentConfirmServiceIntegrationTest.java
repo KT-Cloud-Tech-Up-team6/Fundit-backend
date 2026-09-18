@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -56,7 +57,7 @@ class PaymentConfirmServiceIntegrationTest {
     @Test
     void 승인에_성공하면_결제완료와_아웃박스_적재가_같은_트랜잭션에_들어간다() {
         // given
-        Payment payment = Payment.create(1024L, java.util.UUID.randomUUID(), "fundit-order-1",
+        Payment payment = Payment.create(new UUID(0L, 1024L), java.util.UUID.randomUUID(), "fundit-order-1",
                 89_000L, "테스트 주문", 7L, "idem-1");
         Payment saved = paymentRepository.save(payment);
         when(tossPaymentsClient.confirm(anyString(), anyString(), anyLong())).thenReturn(
@@ -74,13 +75,13 @@ class PaymentConfirmServiceIntegrationTest {
         var pending = outboxRepository.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, 10));
         assertThat(pending).extracting(PaymentEventOutboxJpaEntity::getEventType)
                 .contains(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED);
-        assertThat(pending).extracting(PaymentEventOutboxJpaEntity::getFundingId).contains(1024L);
+        assertThat(pending).extracting(PaymentEventOutboxJpaEntity::getFundingId).contains(saved.getFundingId());
     }
 
     @Test
     void 승인에_실패하면_결제는_FAILED로_남고_아웃박스에는_아무것도_남지_않는다() {
         // given
-        Payment payment = Payment.create(2048L, java.util.UUID.randomUUID(), "fundit-order-2",
+        Payment payment = Payment.create(new UUID(0L, 2048L), java.util.UUID.randomUUID(), "fundit-order-2",
                 50_000L, "테스트 주문", null, "idem-2");
         Payment saved = paymentRepository.save(payment);
         when(tossPaymentsClient.confirm(anyString(), anyString(), anyLong()))
@@ -93,6 +94,6 @@ class PaymentConfirmServiceIntegrationTest {
         Payment reloaded = paymentRepository.findByPgOrderId("fundit-order-2").orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(PaymentStatus.FAILED);
         var pending = outboxRepository.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, 10));
-        assertThat(pending).extracting(PaymentEventOutboxJpaEntity::getFundingId).doesNotContain(2048L);
+        assertThat(pending).extracting(PaymentEventOutboxJpaEntity::getFundingId).doesNotContain(saved.getFundingId());
     }
 }

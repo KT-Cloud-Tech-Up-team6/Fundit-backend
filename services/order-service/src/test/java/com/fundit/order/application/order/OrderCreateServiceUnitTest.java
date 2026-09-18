@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class OrderCreateServiceUnitTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
-    private static final Long PROJECT_ID = 10L;
+    private static final UUID PROJECT_ID = UUID.randomUUID();
     private static final Long REWARD_ID = 1L;
 
     @Mock

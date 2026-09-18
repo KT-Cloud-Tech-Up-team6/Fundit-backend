@@ -29,7 +29,7 @@ public class ShipmentService {
 
     /** FULFILLMENT-006 — API #5. */
     @Transactional
-    public Shipment registerShipment(Long projectId, Long fundingId, UUID sellerId, String carrier,
+    public Shipment registerShipment(UUID projectId, UUID fundingId, UUID sellerId, String carrier,
                                       String trackingNumber) {
         verifyProjectOwnership(projectId, sellerId);
         verifyFundingBelongsToProject(fundingId, projectId);
@@ -45,7 +45,7 @@ public class ShipmentService {
      * 상태의 가상 뷰를 그대로 반환한다(저장하지 않음).
      */
     @Transactional(readOnly = true)
-    public Shipment getShipment(Long projectId, Long fundingId, UUID buyerId) {
+    public Shipment getShipment(UUID projectId, UUID fundingId, UUID buyerId) {
         verifyFundingOwnership(fundingId, buyerId);
         return shipmentRepository.findByFundingId(fundingId)
                 .orElseGet(() -> Shipment.create(fundingId, projectId));
@@ -53,7 +53,7 @@ public class ShipmentService {
 
     /** FULFILLMENT-009 — API #7. */
     @Transactional
-    public Shipment confirmReceipt(Long projectId, Long fundingId, UUID buyerId) {
+    public Shipment confirmReceipt(UUID projectId, UUID fundingId, UUID buyerId) {
         verifyFundingOwnership(fundingId, buyerId);
         // shipments 행 자체가 없으면(아직 발송 전) "배송완료 전" 상태와 동일하게 취급한다.
         Shipment shipment = shipmentRepository.findByFundingId(fundingId)
@@ -62,7 +62,7 @@ public class ShipmentService {
         return shipmentRepository.save(shipment);
     }
 
-    private void verifyProjectOwnership(Long projectId, UUID sellerId) {
+    private void verifyProjectOwnership(UUID projectId, UUID sellerId) {
         UUID actualSellerId = projectOwnershipClient.getSellerId(projectId);
         if (!actualSellerId.equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
@@ -70,14 +70,14 @@ public class ShipmentService {
     }
 
     /** 경로의 projectId가 실제로 그 funding의 프로젝트인지 order-service로 교차 검증한다[가정]. */
-    private void verifyFundingBelongsToProject(Long fundingId, Long projectId) {
+    private void verifyFundingBelongsToProject(UUID fundingId, UUID projectId) {
         FundingSnapshot snapshot = orderFundingClient.fetch(fundingId);
         if (!projectId.equals(snapshot.projectId())) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "해당 프로젝트에 속한 펀딩이 아닙니다.");
         }
     }
 
-    private void verifyFundingOwnership(Long fundingId, UUID buyerId) {
+    private void verifyFundingOwnership(UUID fundingId, UUID buyerId) {
         FundingSnapshot snapshot = orderFundingClient.fetch(fundingId);
         if (!buyerId.equals(snapshot.memberId())) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);

@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -17,7 +18,7 @@ public class ProjectServiceRewardCatalogClient implements RewardCatalogClient {
     private final RestClient projectServiceRestClient;
 
     @Override
-    public List<RewardSnapshot> getRewards(Long projectId) {
+    public List<RewardSnapshot> getRewards(UUID projectId) {
         try {
             ProjectRewardResponse[] response = projectServiceRestClient.get()
                     .uri("/api/v1/projects/{projectId}/rewards", projectId)

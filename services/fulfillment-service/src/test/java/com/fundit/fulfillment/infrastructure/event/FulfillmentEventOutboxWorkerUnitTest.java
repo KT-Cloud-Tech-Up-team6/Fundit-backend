@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +38,7 @@ class FulfillmentEventOutboxWorkerUnitTest {
         setUp();
         FulfillmentEventOutboxJpaEntity event = FulfillmentEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER)
-                .projectId(123L)
+                .projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123"))
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
 
@@ -47,7 +48,7 @@ class FulfillmentEventOutboxWorkerUnitTest {
         // then
         ArgumentCaptor<StaleUpdateReminderEvent> captor = ArgumentCaptor.forClass(StaleUpdateReminderEvent.class);
         verify(transport).sendStaleUpdateReminder(captor.capture(), any(), any(), any());
-        assertThat(captor.getValue().projectId()).isEqualTo(123L);
+        assertThat(captor.getValue().projectId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         assertThat(event.getPublishedAt()).isNotNull();
     }
 
@@ -57,7 +58,7 @@ class FulfillmentEventOutboxWorkerUnitTest {
         setUp();
         FulfillmentEventOutboxJpaEntity event = FulfillmentEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER)
-                .projectId(123L)
+                .projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123"))
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
         doThrow(new IllegalStateException("브로커 미구성")).when(transport).sendStaleUpdateReminder(any(), any(), any(), any());

@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,10 +39,10 @@ class FulfillmentQueryServiceUnitExceptionTest {
     @Test
     void 트래커가_없으면_예외가_발생한다() {
         // given
-        when(trackerRepository.findByProjectId(999L)).thenReturn(Optional.empty());
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000999"))).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> service.getProjectFulfillment(999L))
+        assertThatThrownBy(() -> service.getProjectFulfillment(UUID.fromString("00000000-0000-0000-0000-000000000999")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.NOT_FOUND));

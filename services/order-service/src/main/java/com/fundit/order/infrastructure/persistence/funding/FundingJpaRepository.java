@@ -4,6 +4,7 @@ import com.fundit.order.infrastructure.persistence.funding.query.SupporterActivi
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,7 +23,8 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
 
     List<FundingJpaEntity> findByStatusAndPaymentExpiresAtBefore(String status, Instant threshold);
 
-    List<FundingJpaEntity> findByProjectIdAndStatusIn(Long projectId, List<String> statuses);
+    /** ORDER-006/내부 API — project-service publicId(UUID) 기준. */
+    List<FundingJpaEntity> findByProjectPublicIdAndStatusIn(UUID projectPublicId, List<String> statuses);
 
     /**
      * ORDER-001 — 취소/만료된 참여를 제외한 서포터 활동 목록(최신순). 금액은 쿠폰 할인 반영 전
@@ -31,8 +33,15 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
     @Query("select f.memberId as memberId, f.createdAt as createdAt, "
             + "coalesce(sum(li.unitPrice * li.quantity), 0) as amount "
             + "from FundingJpaEntity f join FundingLineItemJpaEntity li on li.fundingId = f.id "
-            + "where f.projectId = :projectId and f.status not in ('CANCELLED_BY_MEMBER', 'PAYMENT_EXPIRED') "
+            + "where f.projectPublicId = :projectId and f.status not in ('CANCELLED_BY_MEMBER', 'PAYMENT_EXPIRED') "
             + "group by f.memberId, f.createdAt "
             + "order by f.createdAt desc")
-    Page<SupporterActivityProjection> findSupporterActivity(@Param("projectId") Long projectId, Pageable pageable);
+    Page<SupporterActivityProjection> findSupporterActivity(@Param("projectId") UUID projectId, Pageable pageable);
+
+    /** cross-service ID 통일(#69) 백필 대상 — 레거시 Long project_id는 있지만 UUID가 아직 안 채워진 행. */
+    List<FundingJpaEntity> findByProjectIdIsNotNullAndProjectPublicIdIsNull();
+
+    @Modifying
+    @Query("update FundingJpaEntity f set f.projectPublicId = :projectPublicId where f.id = :id")
+    void updateProjectPublicId(@Param("id") Long id, @Param("projectPublicId") UUID projectPublicId);
 }

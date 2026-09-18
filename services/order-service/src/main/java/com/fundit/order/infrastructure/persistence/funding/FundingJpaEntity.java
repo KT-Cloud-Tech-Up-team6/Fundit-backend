@@ -42,8 +42,12 @@ public class FundingJpaEntity {
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "project_id", nullable = false)
+    /** 레거시 컬럼 — 더 이상 애플리케이션이 쓰지 않는다(과거 데이터 조회·백필 전용). Funding.java 참고. */
+    @Column(name = "project_id", updatable = false)
     private Long projectId;
+
+    @Column(name = "project_public_id")
+    private UUID projectPublicId;
 
     @Column(name = "project_title", nullable = false, length = 100)
     private String projectTitle;

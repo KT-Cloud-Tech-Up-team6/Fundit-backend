@@ -15,9 +15,15 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class InternalEndpointConfig {
 
-    /** payment-service PAYMENT-006/008 판정용 배송 상태 내부 조회(FULFILLMENT-008). */
+    /** payment-service PAYMENT-006/008 판정용 배송 상태 내부 조회(FULFILLMENT-008) — orderId(UUID). */
     @Bean
     public InternalEndpoint fulfillmentStatusInternalEndpoint() {
         return new InternalEndpoint("GET", "/internal/fundings/{fundingId}/fulfillment-status");
+    }
+
+    /** 레거시 — v1 payment가 order-service 내부 PK(Long)로 호출하는 배송 상태 조회. */
+    @Bean
+    public InternalEndpoint fulfillmentStatusByInternalIdEndpoint() {
+        return new InternalEndpoint("GET", "/internal/fundings/id/{fundingId}/fulfillment-status");
     }
 }

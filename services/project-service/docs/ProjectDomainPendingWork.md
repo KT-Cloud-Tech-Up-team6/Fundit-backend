@@ -28,15 +28,16 @@
 ## 4. cross-service ID(Long ↔ UUID) 불일치 (order/payment/fulfillment 스키마 변경 필요)
 
 - **배경**: project-service는 대외로 `Project.publicId`(UUID)만 노출하는데(내부 PK는 `Project.id`, Long), order-service/fulfillment-service는 여전히 project-service의 **Long 내부 PK**를 `projectId`로 그대로 요구한다. payment-service도 order-service의 UUID `orderId`(`Funding.publicId`)가 아니라 order-service **내부 PK인 Long `fundingId`**를 받는다. 즉 조회(UUID) → 주문/결제/배송(Long) 경계에서 클라이언트가 서로 다른 타입의 ID를 들고 다녀야 하는 상태.
-- **실태 (2026-09-18 조사 기준)**:
+- **실태 (2026-09-18, #69 컷오버 후)**:
   | 서비스 | 필드 | 타입 |
   |---|---|---|
-  | project-service | `projectId`(대외 노출) | UUID |
-  | order-service | 요청/엔티티/응답의 `projectId` | **Long** (project-service 내부 PK 그대로 요구) |
+  | project-service | `projectId`(대외 노출) | UUID (변경 없음) |
+  | order-service | v2 `projectId` / 도메인 `Funding.projectId` | UUID (project-service `publicId`) |
   | order-service | `orderId`(`Funding.publicId`) | UUID |
-  | payment-service | `fundingId` | **Long** (order-service 내부 PK, `orderId` UUID 아님) |
-  | fulfillment-service | `projectId`, `fundingId` (path/엔티티/응답 전부) | **Long** |
-  | member-service | Follow `sellerId` | UUID (project-service와 일치, 문제 없음) |
-- **영향**: 프론트가 프로젝트 조회 응답의 `projectId`(UUID)를 그대로 주문 생성에 넘기면 실패한다. 주문 생성 응답의 UUID `orderId`만으로는 결제(Long `fundingId` 필요)를 호출할 수 없다.
-- **필요 작업**: project-service 단독으로 해결할 수 없고 **order-service/payment-service/fulfillment-service 세 곳의 스키마·API 계약을 함께 바꿔야 하는 cross-service 작업**이다. 각 서비스에서 기존 마이그레이션은 수정 금지이므로 새 UUID 컬럼 추가 → dual-write/백필 → 컷오버 순서의 다단계 마이그레이션이 필요. project-service 쪽 작업(있다면)만 이 문서에서 트래킹하고, 전체 진행 순서·우선순위는 별도 cross-service 문서/이슈로 관리한다.
-- **상태**: 미착수 — cross-service 논의 필요
+  | payment-service | v2 `fundingId` / 도메인 `Payment.fundingId` | UUID (order-service `orderId`) |
+  | fulfillment-service | v2 `projectId` / `fundingId` | UUID / UUID |
+  | member-service | Follow `sellerId` | UUID (문제 없음) |
+- **영향(해소)**: 프론트가 프로젝트 조회 응답의 `projectId`(UUID)를 `POST /api/v2/orders`에 그대로 넘기고, 주문 응답의 `orderId`를 `POST /api/v2/payments`의 `fundingId`로 그대로 넘긴다. v1 Long 경로는 어댑터로 유지한다.
+- **완료된 작업**: order/payment/fulfillment 공개 API `/api/v2/` UUID 계약, v1 Long 어댑터, DB UUID 컬럼 추가(Expand) + order `FundingProjectPublicIdBackfillRunner`. project-service 코드 변경 없음 — 공개 API는 원래 UUID만 노출. 소유권/제목 조회는 v2가 `GET /api/v1/projects/{publicId}`를, v1/Kafka Long 해석만 `GET /internal/projects/{longPk}`를 쓴다.
+- **후속(이 이슈 범위 밖)**: 레거시 Long 컬럼 DROP(Contract), Kafka `fundingId` Long 제거(지금은 v1 페이로드에 `orderId`/`projectPublicId` UUID 필드 추가).
+- **상태**: 완료

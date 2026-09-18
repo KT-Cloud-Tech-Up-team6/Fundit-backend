@@ -35,14 +35,14 @@ class OutboxPaymentEventPublisherUnitTest {
         Instant paidAt = Instant.parse("2026-09-08T01:00:00Z");
 
         publisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
-                paymentId, 1024L, 7L, paidAt));
+                paymentId, new UUID(0L, 1024L), 7L, paidAt));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
         PaymentEventOutboxJpaEntity saved = captor.getValue();
         assertThat(saved.getEventType()).isEqualTo(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED);
         assertThat(saved.getPaymentId()).isEqualTo(paymentId);
-        assertThat(saved.getFundingId()).isEqualTo(1024L);
+        assertThat(saved.getFundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(saved.getPayload().get("couponIssuanceId")).isEqualTo(7L);
         assertThat(saved.getPayload().get("paidAt")).isEqualTo(paidAt.toString());
     }
@@ -50,7 +50,7 @@ class OutboxPaymentEventPublisherUnitTest {
     @Test
     void paidAt이_없으면_payload에_null을_넣는다() {
         publisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
-                UUID.randomUUID(), 1L, null, null));
+                UUID.randomUUID(), new UUID(0L, 1L), null, null));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
@@ -63,7 +63,7 @@ class OutboxPaymentEventPublisherUnitTest {
         UUID paymentId = UUID.randomUUID();
 
         publisher.publishRefundCompleted(new PaymentEventPublisher.RefundCompletedEvent(
-                paymentId, 1024L, 7L, PaymentEventPublisher.RefundReason.POST_SUCCESS_DEFECT, false));
+                paymentId, new UUID(0L, 1024L), 7L, PaymentEventPublisher.RefundReason.POST_SUCCESS_DEFECT, false));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());

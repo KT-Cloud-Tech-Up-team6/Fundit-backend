@@ -30,7 +30,7 @@ class FundingInternalQueryServiceUnitTest {
     @InjectMocks
     private FundingInternalQueryService service;
 
-    private Funding funding(Long id, UUID publicId, UUID memberId, Long projectId) {
+    private Funding funding(Long id, UUID publicId, UUID memberId, UUID projectId) {
         return Funding.builder().id(id).publicId(publicId).memberId(memberId).projectId(projectId)
                 .status(FundingStatus.GOAL_ACHIEVED)
                 .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
@@ -44,15 +44,35 @@ class FundingInternalQueryServiceUnitTest {
         // given
         UUID publicId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
-        when(fundingRepository.findById(1024L)).thenReturn(Optional.of(funding(1024L, publicId, memberId, 7L)));
+        UUID projectId = UUID.randomUUID();
+        when(fundingRepository.findById(1024L)).thenReturn(Optional.of(funding(1024L, publicId, memberId, projectId)));
 
         // when
         var snapshot = service.getSnapshot(1024L);
 
         // then
-        assertThat(snapshot.projectId()).isEqualTo(7L);
+        assertThat(snapshot.fundingId()).isEqualTo(1024L);
+        assertThat(snapshot.projectId()).isEqualTo(projectId);
         assertThat(snapshot.memberId()).isEqualTo(memberId);
         assertThat(snapshot.fundingPublicId()).isEqualTo(publicId);
+    }
+
+    @Test
+    void orderId로_조회하면_스냅샷을_반환한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(fundingRepository.findByPublicId(publicId)).thenReturn(Optional.of(
+                funding(1024L, publicId, memberId, projectId)));
+
+        // when
+        var snapshot = service.getSnapshotByOrderId(publicId);
+
+        // then
+        assertThat(snapshot.fundingId()).isEqualTo(1024L);
+        assertThat(snapshot.fundingPublicId()).isEqualTo(publicId);
+        assertThat(snapshot.projectId()).isEqualTo(projectId);
     }
 
     @Test
@@ -67,14 +87,15 @@ class FundingInternalQueryServiceUnitTest {
     @Test
     void 펀딩이_성립된_참여자의_memberId_목록을_반환한다() {
         // given
+        UUID projectId = UUID.randomUUID();
         UUID memberId1 = UUID.randomUUID();
         UUID memberId2 = UUID.randomUUID();
-        when(fundingRepository.findGoalAchievedByProjectId(7L)).thenReturn(List.of(
-                funding(1L, UUID.randomUUID(), memberId1, 7L),
-                funding(2L, UUID.randomUUID(), memberId2, 7L)));
+        when(fundingRepository.findGoalAchievedByProjectId(projectId)).thenReturn(List.of(
+                funding(1L, UUID.randomUUID(), memberId1, projectId),
+                funding(2L, UUID.randomUUID(), memberId2, projectId)));
 
         // when
-        var memberIds = service.listGoalAchievedParticipantMemberIds(7L);
+        var memberIds = service.listGoalAchievedParticipantMemberIds(projectId);
 
         // then
         assertThat(memberIds).containsExactlyInAnyOrder(memberId1, memberId2);

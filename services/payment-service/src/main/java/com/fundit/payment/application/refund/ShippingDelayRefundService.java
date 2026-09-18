@@ -25,7 +25,7 @@ public class ShippingDelayRefundService {
     private final RefundExecutionService refundExecutionService;
 
     @Transactional
-    public ShippingDelayRefundResult requestCancel(UUID accountId, Long fundingId) {
+    public ShippingDelayRefundResult requestCancel(UUID accountId, UUID fundingId) {
         Payment payment = paymentRepository.findCompletedByFundingId(fundingId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!payment.isOwnedBy(accountId)) {

@@ -53,7 +53,7 @@ class OrderQueryServiceUnitTest {
         // given
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(10L)
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(UUID.randomUUID())
                 .status(FundingStatus.PENDING).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
                 .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 2, 10_000L, List.of())))

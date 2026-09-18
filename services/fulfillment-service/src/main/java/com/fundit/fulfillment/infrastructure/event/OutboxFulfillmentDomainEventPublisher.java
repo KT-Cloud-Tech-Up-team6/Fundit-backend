@@ -20,8 +20,8 @@ public class OutboxFulfillmentDomainEventPublisher implements FulfillmentDomainE
     public void publishShippingCompleted(ShippingCompletedEvent event) {
         outboxRepository.save(FulfillmentDomainEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPPING_COMPLETED)
-                .fundingId(event.fundingId())
-                .projectId(event.projectId())
+                .fundingOrderId(event.fundingId())
+                .projectPublicId(event.projectId())
                 .build());
     }
 }

@@ -33,19 +33,46 @@ class HttpOrderFundingClientUnitTest {
     }
 
     @Test
-    void 내부API키를_붙여_펀딩_스냅샷을_조회한다() {
+    void 내부API키를_붙여_orderId로_펀딩_스냅샷을_조회한다() {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8084/internal/orders/" + orderId))
+                .andExpect(method(GET))
+                .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andRespond(withSuccess("""
+                        {"fundingId": 1024, "projectId": "%s", "memberId": "%s", "fundingPublicId": "%s"}
+                        """.formatted(projectId, memberId, orderId), MediaType.APPLICATION_JSON));
+
+        // when
+        var snapshot = client.fetch(orderId);
+
+        // then
+        assertThat(snapshot.projectId()).isEqualTo(projectId);
+        assertThat(snapshot.memberId()).isEqualTo(memberId);
+        assertThat(snapshot.fundingPublicId()).isEqualTo(orderId);
+        server.verify();
+    }
+
+    @Test
+    void 내부API키를_붙여_레거시_PK로_펀딩_스냅샷을_조회한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
         UUID fundingPublicId = UUID.randomUUID();
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andRespond(withSuccess("""
-                        {"projectId": 123, "memberId": "%s", "fundingPublicId": "%s"}
-                        """.formatted(memberId, fundingPublicId), MediaType.APPLICATION_JSON));
+                        {"fundingId": 1024, "projectId": "%s", "memberId": "%s", "fundingPublicId": "%s"}
+                        """.formatted(projectId, memberId, fundingPublicId), MediaType.APPLICATION_JSON));
 
-        var snapshot = client.fetch(1024L);
+        // when
+        var snapshot = client.fetchByInternalId(1024L);
 
-        assertThat(snapshot.projectId()).isEqualTo(123L);
+        // then
+        assertThat(snapshot.projectId()).isEqualTo(projectId);
         assertThat(snapshot.memberId()).isEqualTo(memberId);
         assertThat(snapshot.fundingPublicId()).isEqualTo(fundingPublicId);
         server.verify();
@@ -53,10 +80,13 @@ class HttpOrderFundingClientUnitTest {
 
     @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
-        server.expect(requestTo("http://localhost:8084/internal/fundings/1024"))
+        // given
+        UUID orderId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8084/internal/orders/" + orderId))
                 .andRespond(withServerError());
 
-        assertThatThrownBy(() -> client.fetch(1024L))
+        // when & then
+        assertThatThrownBy(() -> client.fetch(orderId))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

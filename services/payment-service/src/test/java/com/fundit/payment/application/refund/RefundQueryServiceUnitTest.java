@@ -42,8 +42,8 @@ class RefundQueryServiceUnitTest {
             }
 
             @Override
-            public Long getFundingId() {
-                return 1024L;
+            public UUID getFundingId() {
+                return new UUID(0L, 1024L);
             }
 
             @Override
@@ -76,7 +76,7 @@ class RefundQueryServiceUnitTest {
         // then
         assertThat(page.getContent()).singleElement().satisfies(summary -> {
             assertThat(summary.refundId()).isEqualTo(3L);
-            assertThat(summary.fundingId()).isEqualTo(1024L);
+            assertThat(summary.fundingId()).isEqualTo(new UUID(0L, 1024L));
             assertThat(summary.triggerType()).isEqualTo("DEFECT");
             assertThat(summary.status()).isEqualTo("REQUESTED");
             assertThat(summary.amount()).isEqualTo(89_000L);

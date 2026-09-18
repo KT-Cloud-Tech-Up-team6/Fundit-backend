@@ -47,7 +47,7 @@ public class MakerCouponIssueService {
                 command.budgetLimit(), command.quantity());
 
         Coupon coupon = Coupon.builder()
-                .couponCode(generateCouponCode(command.projectId()))
+                .couponCode(generateCouponCode())
                 .couponName(command.couponName())
                 .discountType(discountType)
                 .discountValue(discountValue)
@@ -95,11 +95,16 @@ public class MakerCouponIssueService {
         }
     }
 
-    private String generateCouponCode(Long projectId) {
+    /**
+     * cross-service ID 통일(#69) 이전에는 "P{projectId}-{random4}" 형태로 코드에 프로젝트 식별자를
+     * 실었는데, projectId가 UUID(36자)로 바뀌면서 그 형태로는 coupon_code VARCHAR(30)을 넘긴다 —
+     * 식별자를 코드에 싣지 않고 순수 랜덤 문자열로 바꾼다(충돌 위험은 랜덤 길이를 늘려 상쇄).
+     */
+    private String generateCouponCode() {
         StringBuilder random = new StringBuilder();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 10; i++) {
             random.append(CODE_CHARS.charAt(ThreadLocalRandom.current().nextInt(CODE_CHARS.length())));
         }
-        return "P" + projectId + "-" + random;
+        return "MK-" + random;
     }
 }

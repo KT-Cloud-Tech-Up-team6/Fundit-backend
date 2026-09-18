@@ -27,7 +27,7 @@ class RefundRequestMapperUnitTest {
         AlternateRefundAccount account = new AlternateRefundAccount("국민", "홍길동", "123-456");
         RefundRequest domain = RefundRequest.builder()
                 .id(3L)
-                .fundingId(1024L)
+                .fundingId(new UUID(0L, 1024L))
                 .paymentId(UUID.randomUUID())
                 .triggerType(RefundTriggerType.GOAL_FAILED_AUTO)
                 .status(RefundRequestStatus.REQUESTED)
@@ -54,7 +54,7 @@ class RefundRequestMapperUnitTest {
 
     @Test
     void 대체계좌가_없으면_암호문도_null이다() {
-        RefundRequest domain = RefundRequest.requestDefect(1024L, UUID.randomUUID(), "파손", List.of("url"));
+        RefundRequest domain = RefundRequest.requestDefect(new UUID(0L, 1024L), UUID.randomUUID(), "파손", List.of("url"));
 
         RefundRequestJpaEntity entity = mapper.toEntity(domain);
         RefundRequest restored = mapper.toDomain(entity);

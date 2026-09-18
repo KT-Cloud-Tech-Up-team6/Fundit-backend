@@ -22,8 +22,8 @@ public interface FundingRepository {
     List<Funding> findPendingExpiredBefore(Instant threshold);
 
     /** ORDER-006 배치 대상 조회 — 아직 판정되지 않은(마감 전 진행 중) 해당 프로젝트의 참여 건. */
-    List<Funding> findActiveByProjectId(Long projectId);
+    List<Funding> findActiveByProjectId(UUID projectId);
 
     /** 내부 API — 알림 팬아웃 대상(펀딩 성립 후 아직 환불되지 않은 참여자)만 조회. */
-    List<Funding> findGoalAchievedByProjectId(Long projectId);
+    List<Funding> findGoalAchievedByProjectId(UUID projectId);
 }

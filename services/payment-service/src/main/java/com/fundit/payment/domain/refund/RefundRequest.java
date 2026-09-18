@@ -18,7 +18,8 @@ import java.util.UUID;
 public class RefundRequest {
 
     private final Long id;
-    private final Long fundingId;
+    /** order-service {@code Funding.publicId}(외부 노출 orderId). */
+    private final UUID fundingId;
     private final UUID paymentId;
     private final RefundTriggerType triggerType;
     private RefundRequestStatus status;
@@ -31,7 +32,7 @@ public class RefundRequest {
     private Instant processedAt;
 
     /** PAYMENT-006 — 하자환불 신청. 증빙 누락 시 신청 자체를 차단한다. */
-    public static RefundRequest requestDefect(Long fundingId, UUID paymentId, String reasonDetail,
+    public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, String reasonDetail,
                                                List<String> evidenceUrls) {
         if (evidenceUrls == null || evidenceUrls.isEmpty()) {
             throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
@@ -50,7 +51,7 @@ public class RefundRequest {
      * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 처리되는 유형(단순변심/미달자동/
      * 발송지연/시스템 재조정). 토스 취소가 이미 성공했다는 전제로 곧바로 COMPLETED로 기록한다.
      */
-    public static RefundRequest completeImmediately(RefundTriggerType triggerType, Long fundingId, UUID paymentId,
+    public static RefundRequest completeImmediately(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
                                                       boolean isFullRefund) {
         if (triggerType == RefundTriggerType.DEFECT) {
             throw new IllegalArgumentException("DEFECT는 즉시 처리 대상이 아닙니다(판매자 검토 필요).");
@@ -72,7 +73,7 @@ public class RefundRequest {
      * 참여자의 대체 계좌 입력을 기다려야 하는 상태. {@code COMPLETED}로 확정하지 않고
      * {@code REQUESTED}로 남겨 재처리 대상임을 표시한다.
      */
-    public static RefundRequest awaitingAlternateAccount(RefundTriggerType triggerType, Long fundingId,
+    public static RefundRequest awaitingAlternateAccount(RefundTriggerType triggerType, UUID fundingId,
                                                            UUID paymentId) {
         return RefundRequest.builder()
                 .fundingId(fundingId)

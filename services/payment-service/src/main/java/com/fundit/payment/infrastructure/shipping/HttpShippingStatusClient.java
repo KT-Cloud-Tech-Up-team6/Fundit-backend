@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.UUID;
+
 /**
  * fulfillment-service 내부 API(FULFILLMENT-008) 실제 구현체.
  * {@code fulfillment.integration.shipping-status-client.mode=http}로 전환해 활성화한다
@@ -30,6 +32,15 @@ public class HttpShippingStatusClient implements ShippingStatusClient {
 
     @Override
     public ShippingStatus fetch(Long fundingId) {
+        return get(fundingId);
+    }
+
+    @Override
+    public ShippingStatus fetch(UUID orderId) {
+        return get(orderId);
+    }
+
+    private ShippingStatus get(Object fundingId) {
         try {
             ShippingStatus response = fulfillmentServiceRestClient.get()
                     .uri("/internal/fundings/{fundingId}/fulfillment-status", fundingId)

@@ -19,7 +19,7 @@ class RefundRequestMapper {
     RefundRequest toDomain(RefundRequestJpaEntity entity) {
         return RefundRequest.builder()
                 .id(entity.getId())
-                .fundingId(entity.getFundingId())
+                .fundingId(entity.getFundingOrderId())
                 .paymentId(entity.getPaymentId())
                 .triggerType(RefundTriggerType.valueOf(entity.getTriggerType()))
                 .status(RefundRequestStatus.valueOf(entity.getStatus()))
@@ -36,7 +36,7 @@ class RefundRequestMapper {
     RefundRequestJpaEntity toEntity(RefundRequest domain) {
         return RefundRequestJpaEntity.builder()
                 .id(domain.getId())
-                .fundingId(domain.getFundingId())
+                .fundingOrderId(domain.getFundingId())
                 .paymentId(domain.getPaymentId())
                 .triggerType(domain.getTriggerType().name())
                 .status(domain.getStatus().name())

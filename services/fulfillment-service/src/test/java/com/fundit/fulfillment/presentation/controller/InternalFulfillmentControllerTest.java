@@ -14,6 +14,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InternalFulfillmentControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000001024");
 
     @Autowired
     private MockMvc mockMvc;
@@ -34,13 +36,13 @@ class InternalFulfillmentControllerTest {
     private FulfillmentStatusInternalService fulfillmentStatusInternalService;
 
     @Test
-    void 내부_키가_있으면_배송상태를_반환한다() throws Exception {
+    void 내부_키가_있으면_UUID_경로로_배송상태를_반환한다() throws Exception {
         // given
-        when(fulfillmentStatusInternalService.getStatus(1024L))
+        when(fulfillmentStatusInternalService.getStatus(ORDER_ID))
                 .thenReturn(new FulfillmentStatusView(true, false, Instant.parse("2026-09-11T09:00:00Z"), null));
 
         // when & then
-        mockMvc.perform(get("/internal/fundings/1024/fulfillment-status")
+        mockMvc.perform(get("/internal/fundings/" + ORDER_ID + "/fulfillment-status")
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isAlreadyShipped").value(true))
@@ -48,8 +50,22 @@ class InternalFulfillmentControllerTest {
     }
 
     @Test
+    void 레거시_PK_경로로도_배송상태를_반환한다() throws Exception {
+        // given
+        when(fulfillmentStatusInternalService.getStatus(1024L))
+                .thenReturn(new FulfillmentStatusView(false, true, null, null));
+
+        // when & then
+        mockMvc.perform(get("/internal/fundings/id/1024/fulfillment-status")
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isAlreadyShipped").value(false))
+                .andExpect(jsonPath("$.isDelayed").value(true));
+    }
+
+    @Test
     void 내부_키가_없으면_401을_반환한다() throws Exception {
-        mockMvc.perform(get("/internal/fundings/1024/fulfillment-status"))
+        mockMvc.perform(get("/internal/fundings/" + ORDER_ID + "/fulfillment-status"))
                 .andExpect(status().isUnauthorized());
     }
 }
