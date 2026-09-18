@@ -29,3 +29,19 @@
 - **확인 필요**: 프론트가 실제로 API 요청에 `quantity: -1`을 리터럴로 보내려는 것인지(계약 변경 필요), 아니면 기획 문서상의 개념 설명일 뿐이고 실제 연동은 `isLimited:false`로 충분한지.
 - **필요 작업(계약 변경이 필요할 경우)**: `RewardCreateRequest`/`RewardUpdateRequest`에서 `quantity: -1`을 무제한으로 해석하도록 검증 로직 변경, 또는 API 스펙 문서에 "무제한 시 quantity 생략" 규칙을 명시해 FE와 합의
 - **상태**: FE 협의 대기
+
+## 4. cross-service ID(Long ↔ UUID) 불일치 (order/payment/fulfillment 스키마 변경 필요)
+
+- **배경**: project-service는 대외로 `Project.publicId`(UUID)만 노출하는데(내부 PK는 `Project.id`, Long), order-service/fulfillment-service는 여전히 project-service의 **Long 내부 PK**를 `projectId`로 그대로 요구한다. payment-service도 order-service의 UUID `orderId`(`Funding.publicId`)가 아니라 order-service **내부 PK인 Long `fundingId`**를 받는다. 즉 조회(UUID) → 주문/결제/배송(Long) 경계에서 클라이언트가 서로 다른 타입의 ID를 들고 다녀야 하는 상태.
+- **실태 (2026-09-18 조사 기준)**:
+  | 서비스 | 필드 | 타입 |
+  |---|---|---|
+  | project-service | `projectId`(대외 노출) | UUID |
+  | order-service | 요청/엔티티/응답의 `projectId` | **Long** (project-service 내부 PK 그대로 요구) |
+  | order-service | `orderId`(`Funding.publicId`) | UUID |
+  | payment-service | `fundingId` | **Long** (order-service 내부 PK, `orderId` UUID 아님) |
+  | fulfillment-service | `projectId`, `fundingId` (path/엔티티/응답 전부) | **Long** |
+  | member-service | Follow `sellerId` | UUID (project-service와 일치, 문제 없음) |
+- **영향**: 프론트가 프로젝트 조회 응답의 `projectId`(UUID)를 그대로 주문 생성에 넘기면 실패한다. 주문 생성 응답의 UUID `orderId`만으로는 결제(Long `fundingId` 필요)를 호출할 수 없다.
+- **필요 작업**: project-service 단독으로 해결할 수 없고 **order-service/payment-service/fulfillment-service 세 곳의 스키마·API 계약을 함께 바꿔야 하는 cross-service 작업**이다. 각 서비스에서 기존 마이그레이션은 수정 금지이므로 새 UUID 컬럼 추가 → dual-write/백필 → 컷오버 순서의 다단계 마이그레이션이 필요. project-service 쪽 작업(있다면)만 이 문서에서 트래킹하고, 전체 진행 순서·우선순위는 별도 cross-service 문서/이슈로 관리한다.
+- **상태**: 미착수 — cross-service 논의 필요
