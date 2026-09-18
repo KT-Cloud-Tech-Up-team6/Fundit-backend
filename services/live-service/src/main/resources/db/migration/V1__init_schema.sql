@@ -58,10 +58,11 @@ CREATE TABLE live_sessions
     -- 외부 노출용 UUID. API 경로(/api/v1/lives/{liveId})와 공유 링크가 이 값을 쓴다.
     -- 내부 PK(BIGINT)를 URL에 노출하면 전체 방송 수가 추측된다.
     public_id          UUID         NOT NULL,
-    -- project-service 내부 PK(BIGINT). 외부 API는 projects.public_id(UUID)를 받고
-    -- 서비스가 변환해서 저장한다 — 초안 API 예시가 UUID인데 컬럼이 BIGINT라
-    -- 타입이 어긋나 있던 지점이다.
-    project_id         BIGINT       NOT NULL,           -- project-service 참조, FK 아님
+    -- project-service의 projects.public_id(UUID)를 그대로 저장한다.
+    -- 처음엔 내부 PK(BIGINT)로 두고 "서비스가 변환한다"고 적었으나, project-service에
+    -- publicId → 내부 id를 알려주는 경로가 없다(내부 API /internal/projects/{id}는
+    -- Long만 받는다). 변환할 방법이 없으므로 외부 식별자를 그대로 쓴다.
+    project_id         UUID         NOT NULL,           -- project-service 참조, FK 아님
     channel_id         BIGINT       NOT NULL,           -- 같은 DB, 실제 FK
     category_major     VARCHAR(30),                     -- 연결 프로젝트 값이 기본, 개별 덮어쓰기 가능
     category_minor     VARCHAR(30),

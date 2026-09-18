@@ -23,8 +23,8 @@ public class LiveSession {
     private final Long id;
     /** 외부 노출용 liveId. 내부 PK(BIGINT)를 URL에 흘리면 전체 방송 수가 추측된다. */
     private final UUID publicId;
-    /** project-service 내부 PK(BIGINT). 외부 API는 projects.public_id(UUID)로 받아 변환해 저장한다. */
-    private final Long projectId;
+    /** project-service의 projects.public_id. 변환 없이 그대로 저장한다(V1 주석 참고). */
+    private final UUID projectId;
     private final Long channelId;
 
     private String categoryMajor;
@@ -47,7 +47,7 @@ public class LiveSession {
     private final String ivsChatRoomArn;
     private final Instant createdAt;
 
-    public static LiveSession create(Long channelId, Long projectId) {
+    public static LiveSession create(Long channelId, UUID projectId) {
         return LiveSession.builder()
                 .publicId(UUID.randomUUID())
                 .channelId(channelId)
@@ -67,7 +67,7 @@ public class LiveSession {
      */
     public void updateSettings(String categoryMajor, String categoryMinor, String introText,
                                String thumbnailUrl, Instant scheduledStartAt) {
-        requireNotStarted();
+        requireStartable();
         if (categoryMajor != null) this.categoryMajor = categoryMajor;
         if (categoryMinor != null) this.categoryMinor = categoryMinor;
         if (introText != null) this.introText = introText;
@@ -82,7 +82,7 @@ public class LiveSession {
 
     /** 송출 시작. DRAFT(즉시 시작)와 SCHEDULED(예약분) 둘 다 허용한다. */
     public void start(Instant now) {
-        requireNotStarted();
+        requireStartable();
         this.status = LiveStatus.LIVE;
         this.actualStartAt = now;
         this.errorDetail = null;
@@ -113,8 +113,20 @@ public class LiveSession {
         return this.status != LiveStatus.DRAFT;
     }
 
-    private void requireNotStarted() {
-        if (this.status != LiveStatus.DRAFT && this.status != LiveStatus.SCHEDULED) {
+    /**
+     * 아직 방송 전이라 설정·시작이 가능한 상태인지. 아니면 409를 던진다.
+     *
+     * <p><b>외부 자원을 만들기 전에 먼저 부르라고 public으로 열어뒀다.</b> IVS 채팅방을 만든 뒤에
+     * 검증하면 이미 끝난 방송에 시작 요청이 들어왔을 때 두 갈래로 다 깨진다 —
+     * IVS가 실패하면 ENDED가 ERROR로 덮여 다시보기 조회가 막히고,
+     * 성공하면 채팅방만 만들어진 채 409가 나 자원이 샌다.
+     *
+     * <p>ERROR를 허용하는 이유: 송출 실패는 재시도할 수 있어야 한다(요구사항정의서 6.3.4의
+     * "오류상태를 안내"는 끝이 아니라 다시 시도하라는 뜻이다). 막아두면 실패한 방송은
+     * 영영 못 열고 판매자가 LIVE를 새로 만들어야 한다.
+     */
+    public void requireStartable() {
+        if (this.status == LiveStatus.LIVE || this.status == LiveStatus.ENDED) {
             throw new BusinessException(CommonErrorCode.CONFLICT, "이미 시작되었거나 종료된 방송입니다.");
         }
     }
