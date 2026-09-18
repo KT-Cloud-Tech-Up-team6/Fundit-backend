@@ -16,4 +16,11 @@ public interface LiveSessionRepository {
     LiveSession save(LiveSession session);
 
     Optional<LiveSession> findOwned(UUID publicId, UUID sellerId);
+
+    /**
+     * 소유권 없이 조회한다. <b>내부 전용 경로(AI 결과 수신)에서만 쓴다</b> —
+     * 호출자가 사용자가 아니라 AI 서버라 대조할 sellerId가 없다.
+     * 사용자 요청 경로에서 이걸 쓰면 인가가 사라진다.
+     */
+    Optional<LiveSession> findOwnedAny(UUID publicId);
 }

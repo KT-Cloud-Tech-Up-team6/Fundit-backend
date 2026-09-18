@@ -3,6 +3,7 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.chat.ChatIngestService;
+import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
@@ -40,6 +41,7 @@ class InternalLiveControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private ChatIngestService chatIngestService;
+    @MockitoBean private CueSheetService cueSheetService;
     @MockitoBean private LiveSessionJpaRepository sessionRepository;
     @MockitoBean private LiveChannelJpaRepository channelRepository;
 
@@ -101,5 +103,26 @@ class InternalLiveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LIVE"))
                 .andExpect(jsonPath("$.sellerId").value(sellerId.toString()));
+    }
+
+    @Test
+    void AI가_큐시트_결과를_밀어주면_204다() throws Exception {
+        // given & when & then — 우리가 폴링하면 스케줄러와 job 식별자 컬럼이 따라붙는다
+        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "status": "COMPLETED", "segments": "[{\\"order\\":1}]" }
+                                """))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 내부_키가_없으면_큐시트_결과를_주입할_수_없다() throws Exception {
+        // given & when & then — 열려 있으면 임의 큐시트 주입이 가능하다(S4)
+        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"status\": \"COMPLETED\", \"segments\": \"[]\" }"))
+                .andExpect(status().isUnauthorized());
     }
 }

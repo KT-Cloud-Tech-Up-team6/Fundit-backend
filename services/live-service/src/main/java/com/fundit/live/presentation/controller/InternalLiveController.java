@@ -3,6 +3,7 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.chat.ChatIngestService;
+import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class InternalLiveController {
 
     private final ChatIngestService chatIngestService;
+    private final CueSheetService cueSheetService;
     private final LiveSessionJpaRepository sessionRepository;
     private final LiveChannelJpaRepository channelRepository;
 
@@ -53,5 +55,21 @@ public class InternalLiveController {
                 .getSellerId();
         return new InternalLiveStatusResponse(session.getPublicId(), session.getId(),
                 session.getStatus().name(), sellerId);
+    }
+
+    /**
+     * AI 큐시트 생성 결과 수신. AI가 완료되면 이 경로로 밀어준다 —
+     * 우리가 폴링하면 스케줄러와 job 식별자 컬럼이 따라붙는데 얻는 게 없다.
+     *
+     * <p>외부 응답을 그대로 신뢰하지 않고 필요한 값의 존재를 확인한 뒤 저장한다(S7).
+     */
+    @PostMapping("/internal/v1/lives/{liveId}/cue-sheet")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void applyCueSheet(@PathVariable UUID liveId, @RequestBody CueSheetCallback callback) {
+        cueSheetService.applyResult(liveId, callback.status(), callback.segments(), callback.failureReason());
+    }
+
+    /** AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다. */
+    public record CueSheetCallback(String status, String segments, String failureReason) {
     }
 }
