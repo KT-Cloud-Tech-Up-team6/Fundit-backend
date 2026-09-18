@@ -20,6 +20,8 @@ public record RewardUpdateRequest(
         @Pattern(regexp = "AMOUNT|RATE", message = "earlyBirdDiscountType은 AMOUNT, RATE 중 하나여야 합니다.")
         String earlyBirdDiscountType,
         @PositiveOrZero Long earlyBirdDiscountValue,
-        @Valid List<RewardOptionRequest> options
+        @Valid List<RewardOptionRequest> options,
+        @PositiveOrZero Long shippingFee,
+        @PositiveOrZero Integer estimatedDeliveryDays
 ) {
 }

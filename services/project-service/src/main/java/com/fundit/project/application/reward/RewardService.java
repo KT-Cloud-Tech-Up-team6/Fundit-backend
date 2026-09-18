@@ -41,7 +41,8 @@ public class RewardService {
 
         Reward reward = Reward.create(project.getId(), command.name(), command.description(), command.imageUrl(),
                 command.price(), command.isLimited(), command.quantity(), command.isEarlyBird(),
-                command.earlyBirdDiscountType(), command.earlyBirdDiscountValue(), command.optionGroups());
+                command.earlyBirdDiscountType(), command.earlyBirdDiscountValue(), command.optionGroups(),
+                command.shippingFee(), command.estimatedDeliveryDays());
         Reward saved = rewardRepository.save(reward);
         if (reward.getOptionGroups() != null && !reward.getOptionGroups().isEmpty()) {
             rewardRepository.replaceOptions(saved.getId(), reward.getOptionGroups());
@@ -94,9 +95,13 @@ public class RewardService {
         } else {
             earlyBirdDiscountValue = reward.getEarlyBirdDiscountValue();
         }
+        Long shippingFee = command.shippingFee() != null ? command.shippingFee() : reward.getShippingFee();
+        Integer estimatedDeliveryDays = command.estimatedDeliveryDays() != null
+                ? command.estimatedDeliveryDays() : reward.getEstimatedDeliveryDays();
 
         reward.changeBasicInfo(name, description, imageUrl, price, isLimited, quantity, isEarlyBird,
-                earlyBirdDiscountType, earlyBirdDiscountValue, command.optionGroups());
+                earlyBirdDiscountType, earlyBirdDiscountValue, command.optionGroups(),
+                shippingFee, estimatedDeliveryDays);
         Reward saved = rewardRepository.save(reward);
         if (command.optionGroups() != null) {
             rewardRepository.replaceOptions(saved.getId(), command.optionGroups());
@@ -146,13 +151,13 @@ public class RewardService {
             String name, String description, String imageUrl, Long price,
             boolean isLimited, Integer quantity, boolean isEarlyBird,
             EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
-            List<RewardOptionGroup> optionGroups) {
+            List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays) {
     }
 
     public record UpdateRewardCommand(
             String name, String description, String imageUrl, Long price,
             Boolean isLimited, Integer quantity, Boolean isEarlyBird,
             EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
-            List<RewardOptionGroup> optionGroups) {
+            List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays) {
     }
 }

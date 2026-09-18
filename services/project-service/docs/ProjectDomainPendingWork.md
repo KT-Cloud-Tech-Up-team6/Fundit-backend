@@ -6,12 +6,10 @@
 
 ## 1. 리워드 배송비 · 예상 발송일 (마이그레이션 필요)
 
-- **배경**: 프론트엔드 요청(V02) — 리워드 상세페이지에 배송비, 예상 발송일 표시 필요. 현재 `rewards` 테이블에 해당 컬럼 자체가 없음.
-- **필요 작업**:
-  - `V13__add_reward_shipping_info.sql` 신규 마이그레이션 (`shipping_fee BIGINT`, `estimated_delivery_date` 등 — 컬럼명/타입/nullable 여부 확정 필요)
-  - `Reward` 도메인 / `RewardJpaEntity` / `RewardMapper` / 생성·수정 요청 DTO / 응답 DTO 반영
-- **선행 확인 필요**: 배송비가 리워드마다 다른지 프로젝트 전체 공통인지, 예상 발송일이 고정 날짜인지 "펀딩 종료 후 N일" 같은 상대값인지 — 기획 확인 후 컬럼 설계 확정
-- **상태**: 미착수
+- **배경**: 프론트엔드 요청(V02) — 리워드 상세페이지에 배송비, 예상 발송일 표시 필요. 기존 `rewards` 테이블에 해당 컬럼 자체가 없었음.
+- **완료된 작업**: 기획 확인 전까지 유연한 기본 스키마로 우선 구현(`V13__add_reward_shipping_info.sql`) — `shipping_fee BIGINT`(리워드별 nullable, NULL=미설정), `estimated_delivery_days INTEGER`(펀딩 종료 후 N일, 상대값). `Reward` 도메인(`changeShippingInfo`류 없이 `create`/`changeBasicInfo`에 통합, `validateShippingInfo`로 0 이상만 허용) / `RewardJpaEntity` / `RewardMapper` / `RewardCreateRequest`/`RewardUpdateRequest` / `RewardResponse`/`RewardConsumerResponse` 전부 반영.
+- **선행 확인 필요(여전히 남음)**: 배송비가 리워드마다 다른지 프로젝트 전체 공통인지, 예상 발송일이 고정 날짜인지 상대값인지는 여전히 기획 미확정 — 답이 다르게 나오면 후속 마이그레이션(새 컬럼 추가, 기존 컬럼은 수정 금지 원칙 유지)으로 조정.
+- **상태**: 1차 구현 완료, 기획 확정 시 스키마 재조정 가능성 있음
 
 ## 2. 리워드 실제 재고 연동 (order-service 의존)
 

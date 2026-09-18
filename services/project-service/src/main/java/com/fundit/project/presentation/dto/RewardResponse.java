@@ -14,6 +14,8 @@ public record RewardResponse(
         boolean isEarlyBird,
         String earlyBirdDiscountType,
         Long earlyBirdDiscountValue,
-        Long earlyBirdDiscountedPrice
+        Long earlyBirdDiscountedPrice,
+        Long shippingFee,
+        Integer estimatedDeliveryDays
 ) {
 }

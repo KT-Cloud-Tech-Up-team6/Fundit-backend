@@ -56,7 +56,7 @@ public class RewardController {
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 quantity.isLimited(), quantity.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
                 toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
-                toOptionGroups(request.options())));
+                toOptionGroups(request.options()), request.shippingFee(), request.estimatedDeliveryDays()));
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(reward));
     }
 
@@ -70,7 +70,7 @@ public class RewardController {
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 quantity.isLimited(), quantity.quantity(), request.isEarlyBird(),
                 toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
-                toOptionGroups(request.options())));
+                toOptionGroups(request.options()), request.shippingFee(), request.estimatedDeliveryDays()));
         return toResponse(reward);
     }
 
@@ -152,7 +152,8 @@ public class RewardController {
                 reward.getPrice(), reward.isLimited(), reward.getQuantity(), reward.isHasOption(),
                 reward.getSortOrder(), reward.isEarlyBird(),
                 reward.getEarlyBirdDiscountType() == null ? null : reward.getEarlyBirdDiscountType().name(),
-                reward.getEarlyBirdDiscountValue(), reward.getEarlyBirdDiscountedPrice());
+                reward.getEarlyBirdDiscountValue(), reward.getEarlyBirdDiscountedPrice(),
+                reward.getShippingFee(), reward.getEstimatedDeliveryDays());
     }
 
     private RewardConsumerResponse toConsumerResponse(RewardQueryService.RewardConsumerView v) {
@@ -165,6 +166,6 @@ public class RewardController {
                         .map(g -> new RewardOptionGroupResponse(g.groupId(), g.groupName(),
                                 g.values().stream().map(val -> new RewardOptionValueResponse(val.valueId(), val.value())).toList()))
                         .toList(),
-                v.soldOut());
+                v.soldOut(), v.shippingFee(), v.estimatedDeliveryDays());
     }
 }

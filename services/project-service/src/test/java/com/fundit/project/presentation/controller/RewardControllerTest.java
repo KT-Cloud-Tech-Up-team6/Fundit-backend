@@ -45,7 +45,7 @@ class RewardControllerTest {
 
     private Reward reward(Long id) {
         return Reward.create(1L, "얼리버드", "설명", null, 39000L, true, 100, true,
-                EarlyBirdDiscountType.RATE, 10L, null).toBuilder().id(id).build();
+                EarlyBirdDiscountType.RATE, 10L, null, null, null).toBuilder().id(id).build();
     }
 
     @Test
@@ -134,6 +134,29 @@ class RewardControllerTest {
     }
 
     @Test
+    void 배송비와_예상_발송일을_등록_요청에_담으면_그대로_전달한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+
+        // when
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"배송비리워드","description":"설명","price":10000,"isLimited":false,"shippingFee":3000,"estimatedDeliveryDays":7}
+                                """))
+                .andExpect(status().isCreated());
+
+        // then
+        ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        assertThat(captor.getValue().shippingFee()).isEqualTo(3000L);
+        assertThat(captor.getValue().estimatedDeliveryDays()).isEqualTo(7);
+    }
+
+    @Test
     void 리워드를_수정하면_200을_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
@@ -180,7 +203,7 @@ class RewardControllerTest {
         // given
         UUID projectId = UUID.randomUUID();
         var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", "설명", "https://example.com/image.png",
-                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
+                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false, null, null);
         when(rewardQueryService.listForConsumer(projectId)).thenReturn(List.of(view));
 
         // when & then
@@ -194,14 +217,16 @@ class RewardControllerTest {
     void 소비자용_리워드_상세를_조회한다() throws Exception {
         // given
         var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", "설명", "https://example.com/image.png",
-                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
+                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false, 3000L, 7);
         when(rewardQueryService.getForConsumer(1L)).thenReturn(view);
 
         // when & then
         mockMvc.perform(get("/api/v1/rewards/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description").value("설명"))
-                .andExpect(jsonPath("$.imageUrl").value("https://example.com/image.png"));
+                .andExpect(jsonPath("$.imageUrl").value("https://example.com/image.png"))
+                .andExpect(jsonPath("$.shippingFee").value(3000))
+                .andExpect(jsonPath("$.estimatedDeliveryDays").value(7));
     }
 
     @Test
