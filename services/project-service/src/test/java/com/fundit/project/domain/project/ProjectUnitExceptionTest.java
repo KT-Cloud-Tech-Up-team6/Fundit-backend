@@ -47,50 +47,26 @@ class ProjectUnitExceptionTest {
     }
 
     @Test
-    void 필수항목이_미완료인_DRAFT는_제출할_수_없다() {
+    void 필수항목이_미완료인_DRAFT는_공개할_수_없다() {
         // given
         Project project = draftProject();
 
         // when & then
-        assertThatThrownBy(project::submit)
+        assertThatThrownBy(() -> project.publish(Instant.now(), Instant.now().plusSeconds(60)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
     }
 
     @Test
-    void DRAFT가_아니면_제출할_수_없다() {
+    void DRAFT가_아니면_공개할_수_없다() {
         // given
-        Project project = draftProject().toBuilder().status(ProjectStatus.PENDING_REVIEW).build();
+        Project project = draftProject().toBuilder().status(ProjectStatus.ONGOING).build();
 
         // when & then
-        assertThatThrownBy(project::submit)
+        assertThatThrownBy(() -> project.publish(Instant.now(), Instant.now().plusSeconds(60)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
-    }
-
-    @Test
-    void PENDING_REVIEW가_아니면_승인할_수_없다() {
-        // given
-        Project project = draftProject();
-
-        // when & then
-        assertThatThrownBy(() -> project.approve(Instant.now(), Instant.now().plusSeconds(60)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ProjectErrorCode.PROJECT_NOT_REVIEWABLE);
-    }
-
-    @Test
-    void PENDING_REVIEW가_아니면_반려할_수_없다() {
-        // given
-        Project project = draftProject();
-
-        // when & then
-        assertThatThrownBy(project::reject)
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ProjectErrorCode.PROJECT_NOT_REVIEWABLE);
     }
 }

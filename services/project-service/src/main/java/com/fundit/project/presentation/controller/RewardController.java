@@ -4,6 +4,7 @@ import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.reward.RewardQueryService;
 import com.fundit.project.application.reward.RewardService;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
 import com.fundit.project.presentation.dto.RewardConsumerResponse;
@@ -53,6 +54,7 @@ public class RewardController {
         Reward reward = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 request.isLimited(), request.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
+                toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
                 toOptionGroups(request.options())));
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(reward));
     }
@@ -65,6 +67,7 @@ public class RewardController {
         Reward reward = rewardService.update(user.id(), rewardId, new RewardService.UpdateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 request.isLimited(), request.quantity(), request.isEarlyBird(),
+                toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
                 toOptionGroups(request.options())));
         return toResponse(reward);
     }
@@ -93,12 +96,23 @@ public class RewardController {
     public List<RewardConsumerResponse> listForConsumer(@PathVariable UUID projectId) {
         return rewardQueryService.listForConsumer(projectId).stream()
                 .map(v -> new RewardConsumerResponse(v.rewardId(), v.rewardDisplayCode(), v.name(), v.price(),
-                        v.isEarlyBird(), v.isLimited(), v.remainingStock(),
+                        v.isEarlyBird(), v.earlyBirdDiscountType() == null ? null : v.earlyBirdDiscountType().name(),
+                        v.earlyBirdDiscountValue(), v.earlyBirdDiscountedPrice(),
+                        v.isLimited(), v.remainingStock(),
                         v.options().stream()
                                 .map(g -> new RewardOptionGroupResponse(g.groupId(), g.groupName(),
                                         g.values().stream().map(val -> new RewardOptionValueResponse(val.valueId(), val.value())).toList()))
                                 .toList(),
                         v.soldOut()))
+                .toList();
+    }
+
+    @Operation(summary = "리워드 목록 조회(판매자)",
+            description = "공개 여부와 무관하게 본인 프로젝트의 리워드 목록을 조회한다(DRAFT 포함).")
+    @GetMapping("/projects/{projectId}/rewards/mine")
+    public List<RewardResponse> listForSeller(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        return rewardQueryService.listForSeller(user.id(), projectId).stream()
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -109,8 +123,15 @@ public class RewardController {
                 .toList();
     }
 
+    private EarlyBirdDiscountType toDiscountType(String earlyBirdDiscountType) {
+        return earlyBirdDiscountType == null ? null : EarlyBirdDiscountType.valueOf(earlyBirdDiscountType);
+    }
+
     private RewardResponse toResponse(Reward reward) {
         return new RewardResponse(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
-                reward.getPrice(), reward.isLimited(), reward.getQuantity(), reward.isHasOption());
+                reward.getPrice(), reward.isLimited(), reward.getQuantity(), reward.isHasOption(),
+                reward.getSortOrder(), reward.isEarlyBird(),
+                reward.getEarlyBirdDiscountType() == null ? null : reward.getEarlyBirdDiscountType().name(),
+                reward.getEarlyBirdDiscountValue(), reward.getEarlyBirdDiscountedPrice());
     }
 }

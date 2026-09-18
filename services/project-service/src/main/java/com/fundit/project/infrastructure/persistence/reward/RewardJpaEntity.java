@@ -1,7 +1,10 @@
 package com.fundit.project.infrastructure.persistence.reward;
 
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -56,6 +59,13 @@ public class RewardJpaEntity {
 
     @Column(name = "is_early_bird", nullable = false)
     private Boolean isEarlyBird;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "early_bird_discount_type", length = 10)
+    private EarlyBirdDiscountType earlyBirdDiscountType;
+
+    @Column(name = "early_bird_discount_value")
+    private Long earlyBirdDiscountValue;
 
     @Column(name = "has_option", nullable = false)
     private Boolean hasOption;

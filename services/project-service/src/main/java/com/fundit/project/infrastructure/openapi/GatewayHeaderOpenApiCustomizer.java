@@ -36,7 +36,8 @@ public class GatewayHeaderOpenApiCustomizer {
             components.addSecuritySchemes(USER_ID_SCHEME, headerScheme(AuthHeaders.USER_ID,
                     "로컬 테스트용 — 실제로는 게이트웨이가 JWT의 sub 클레임에서 꺼내 주입하는 계정 ID(UUID)."));
             components.addSecuritySchemes(USER_ROLES_SCHEME, headerScheme(AuthHeaders.USER_ROLES,
-                    "로컬 테스트용 — 관리자 전용 API(PROJECT-030)는 ADMIN을 넣어야 한다."));
+                    "로컬 테스트용 — 이 서비스는 현재 role을 검사하는 API가 없다(관리자 심사 단계 폐지). "
+                            + "비워둬도 되고, 값을 넣고 싶으면 예: MEMBER."));
             components.addSecuritySchemes(INTERNAL_KEY_SCHEME, headerScheme(AuthHeaders.INTERNAL_API_KEY,
                     "로컬 테스트용 — application-local.yml의 internal-api.key와 동일한 값이어야 InternalGatewaySecretFilter를 통과한다."));
             openApi.setComponents(components);

@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** 펀딩 현황 조회, 찜·알림신청 건수 조회(판매자용) — PROJECT-015, PROJECT-016. */
 @Service
@@ -45,6 +47,18 @@ public class ProjectStatsService {
 
         return new FundingStatusView(currentAmount, achievementRate, participantCount,
                 openNotifyCount, wishCount, rewardStats, remainingDays, lastSyncedAt);
+    }
+
+    /**
+     * 목록 화면용 배치 조회 — 카드 수만큼 단건 조회를 반복하지 않도록 프로젝트 목록 페이지의
+     * projectId(내부 PK) 전체를 한 번에 조회한다. 없는 프로젝트는 결과 맵에서 생략된다
+     * (호출부가 기본값 0으로 처리).
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, FundingStatusSnapshotView> getFundingStatusBatch(List<Long> projectIds) {
+        return fundingStatusSnapshotJpaRepository.findAllById(projectIds).stream()
+                .collect(Collectors.toMap(FundingStatusSnapshotJpaEntity::getProjectId,
+                        s -> new FundingStatusSnapshotView(s.getCurrentAmount(), s.getAchievementRate(), s.getParticipantCount())));
     }
 
     @Transactional
@@ -90,5 +104,8 @@ public class ProjectStatsService {
     }
 
     public record WishStatsView(int wishCount, long openNotifyCount) {
+    }
+
+    public record FundingStatusSnapshotView(long currentAmount, int achievementRate, int participantCount) {
     }
 }

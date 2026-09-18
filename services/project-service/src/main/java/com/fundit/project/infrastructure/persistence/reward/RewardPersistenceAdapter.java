@@ -58,4 +58,11 @@ public class RewardPersistenceAdapter implements RewardRepository {
     public Optional<Reward> findById(Long id) {
         return rewardJpaRepository.findByIdAndDeletedAtIsNull(id).map(mapper::toDomain);
     }
+
+    @Override
+    public List<Reward> findByProjectId(Long projectId) {
+        return rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(projectId).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }

@@ -10,8 +10,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 복잡한 애그리거트(persistence-convention.md 기준) — DRAFT→PENDING_REVIEW→ONGOING/DRAFT
- * 상태 전이 규칙과 목표금액 등 불변식이 있어 도메인/영속성을 완전히 분리한다.
+ * 복잡한 애그리거트(persistence-convention.md 기준) — DRAFT→ONGOING 상태 전이 규칙과
+ * 목표금액 등 불변식이 있어 도메인/영속성을 완전히 분리한다. 관리자 심사 단계는 폐지됐다
+ * (필수 항목 완료 시 바로 공개) — {@link #publish} 참고.
  */
 @Getter
 @Builder(toBuilder = true)
@@ -42,7 +43,7 @@ public class Project {
     }
 
     /**
-     * DRAFT/PENDING_REVIEW는 비공개다. 공개 상세(PROJECT-020)뿐 아니라 리워드/새소식/커뮤니티/
+     * DRAFT는 비공개다. 공개 상세(PROJECT-020)뿐 아니라 리워드/새소식/커뮤니티/
      * LIVE검증처럼 프로젝트에 딸린 소비자용 하위 리소스 조회에도 동일 기준을 적용해, 존재 여부가
      * 간접적으로 노출되지 않게 한다(CLAUDE.md "미공개 프로젝트 존재 여부 비노출" 원칙).
      */
@@ -91,29 +92,16 @@ public class Project {
         this.deletedAt = Instant.now();
     }
 
-    /** 필수 작성 항목이 모두 채워진 DRAFT 상태에서만 심사 제출 가능. */
-    public void submit() {
+    /**
+     * 필수 작성 항목이 모두 채워진 DRAFT 상태에서 바로 공개(ONGOING)로 전환한다. 이 시점에
+     * 펀딩 기간이 처음 확정된다. 관리자 심사 단계는 폐지됐다 — DRAFT 다음은 바로 ONGOING이다.
+     */
+    public void publish(Instant fundingStartAt, Instant fundingDeadline) {
         if (status != ProjectStatus.DRAFT || !hasCompletedBasicInfo() || !hasStory()) {
             throw new BusinessException(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
-        }
-        this.status = ProjectStatus.PENDING_REVIEW;
-    }
-
-    /** 심사 승인 — PENDING_REVIEW 상태에서만 가능. 이 시점에 펀딩 기간이 처음 확정된다. */
-    public void approve(Instant fundingStartAt, Instant fundingDeadline) {
-        if (status != ProjectStatus.PENDING_REVIEW) {
-            throw new BusinessException(ProjectErrorCode.PROJECT_NOT_REVIEWABLE);
         }
         this.status = ProjectStatus.ONGOING;
         this.fundingStartAt = fundingStartAt;
         this.fundingDeadline = fundingDeadline;
-    }
-
-    /** 심사 반려 — PENDING_REVIEW 상태에서만 가능. 재제출 가능하도록 DRAFT로 되돌린다. */
-    public void reject() {
-        if (status != ProjectStatus.PENDING_REVIEW) {
-            throw new BusinessException(ProjectErrorCode.PROJECT_NOT_REVIEWABLE);
-        }
-        this.status = ProjectStatus.DRAFT;
     }
 }

@@ -31,7 +31,7 @@ public class ProjectQueryService {
     private final RewardJpaRepository rewardJpaRepository;
     private final SellerProfileClient sellerProfileClient;
 
-    /** 미공개(DRAFT/PENDING_REVIEW) 상태여도 본인 소유면 조회 가능(PROJECT-013). */
+    /** 미공개(DRAFT) 상태여도 본인 소유면 조회 가능(PROJECT-013). */
     @Transactional(readOnly = true)
     public ProjectDetailView getPreview(UUID sellerId, UUID projectPublicId) {
         Project project = projectRepository.findByPublicId(projectPublicId)

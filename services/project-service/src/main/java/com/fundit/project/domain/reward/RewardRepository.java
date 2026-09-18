@@ -13,4 +13,7 @@ public interface RewardRepository {
 
     /** 소프트 삭제된 리워드는 제외한다. */
     Optional<Reward> findById(Long id);
+
+    /** 소프트 삭제된 리워드는 제외한다. 정렬 순서(sortOrder) 오름차순. */
+    List<Reward> findByProjectId(Long projectId);
 }

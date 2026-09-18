@@ -3,6 +3,7 @@ package com.fundit.project.presentation.controller;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.reward.RewardQueryService;
 import com.fundit.project.application.reward.RewardService;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,8 @@ class RewardControllerTest {
     private RewardQueryService rewardQueryService;
 
     private Reward reward(Long id) {
-        return Reward.create(1L, "얼리버드", "설명", null, 39000L, true, 100, true, null).toBuilder().id(id).build();
+        return Reward.create(1L, "얼리버드", "설명", null, 39000L, true, 100, true,
+                EarlyBirdDiscountType.RATE, 10L, null).toBuilder().id(id).build();
     }
 
     @Test
@@ -109,7 +111,8 @@ class RewardControllerTest {
     void 소비자용_리워드_목록을_조회한다() throws Exception {
         // given
         UUID projectId = UUID.randomUUID();
-        var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", 39000L, true, true, 37, List.of(), false);
+        var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", 39000L, true,
+                EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
         when(rewardQueryService.listForConsumer(projectId)).thenReturn(List.of(view));
 
         // when & then
@@ -117,5 +120,20 @@ class RewardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].remainingStock").value(37))
                 .andExpect(jsonPath("$[0].soldOut").value(false));
+    }
+
+    @Test
+    void 판매자용_리워드_목록을_조회한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(rewardQueryService.listForSeller(sellerId, projectId)).thenReturn(List.of(reward(1L)));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/projects/" + projectId + "/rewards/mine")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rewardId").value(1))
+                .andExpect(jsonPath("$[0].earlyBirdDiscountType").value("RATE"));
     }
 }

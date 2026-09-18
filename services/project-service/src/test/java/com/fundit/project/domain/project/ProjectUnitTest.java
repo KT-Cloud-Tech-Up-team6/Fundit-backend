@@ -44,9 +44,8 @@ class ProjectUnitTest {
         }
 
         @Test
-        void DRAFT_PENDING_REVIEW는_비공개상태다() {
+        void DRAFT는_비공개상태다() {
             assertThat(draftProject().isPublic()).isFalse();
-            assertThat(draftProject().toBuilder().status(ProjectStatus.PENDING_REVIEW).build().isPublic()).isFalse();
         }
     }
 
@@ -135,10 +134,10 @@ class ProjectUnitTest {
     }
 
     @Nested
-    class 심사_제출 {
+    class 공개_전환 {
 
         @Test
-        void 필수항목이_완료된_DRAFT면_PENDING_REVIEW로_전환된다() {
+        void 필수항목이_완료된_DRAFT면_바로_ONGOING으로_전환되고_펀딩기간이_확정된다() {
             // given
             Project project = draftProject().toBuilder()
                     .businessType(BusinessType.SOLE)
@@ -146,48 +145,16 @@ class ProjectUnitTest {
                     .title("제목").goalAmount(1_000_000L)
                     .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "본문")))
                     .build();
-
-            // when
-            project.submit();
-
-            // then
-            assertThat(project.getStatus()).isEqualTo(ProjectStatus.PENDING_REVIEW);
-        }
-    }
-
-    @Nested
-    class 심사_승인 {
-
-        @Test
-        void PENDING_REVIEW면_ONGOING으로_전환되고_펀딩기간이_확정된다() {
-            // given
-            Project project = draftProject().toBuilder().status(ProjectStatus.PENDING_REVIEW).build();
             Instant start = Instant.now();
             Instant deadline = start.plusSeconds(60);
 
             // when
-            project.approve(start, deadline);
+            project.publish(start, deadline);
 
             // then
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ONGOING);
             assertThat(project.getFundingStartAt()).isEqualTo(start);
             assertThat(project.getFundingDeadline()).isEqualTo(deadline);
-        }
-    }
-
-    @Nested
-    class 심사_반려 {
-
-        @Test
-        void PENDING_REVIEW면_DRAFT로_되돌아간다() {
-            // given
-            Project project = draftProject().toBuilder().status(ProjectStatus.PENDING_REVIEW).build();
-
-            // when
-            project.reject();
-
-            // then
-            assertThat(project.getStatus()).isEqualTo(ProjectStatus.DRAFT);
         }
     }
 }

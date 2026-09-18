@@ -10,7 +10,6 @@ import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
-import com.fundit.project.infrastructure.persistence.reviewrequest.ProjectReviewRequestJpaRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,8 +37,6 @@ class ProjectServiceUnitExceptionTest {
     private CategoryJpaRepository categoryJpaRepository;
     @Mock
     private ProjectPrivacyConsentJpaRepository privacyConsentJpaRepository;
-    @Mock
-    private ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     @Mock
     private RewardJpaRepository rewardJpaRepository;
     @Mock

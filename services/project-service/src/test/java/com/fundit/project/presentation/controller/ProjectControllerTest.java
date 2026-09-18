@@ -61,10 +61,11 @@ class ProjectControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         ProjectListProjection projection = mock(ProjectListProjection.class);
+        when(projection.getId()).thenReturn(1L);
         when(projection.getProjectId()).thenReturn(UUID.randomUUID());
         when(projection.getTitle()).thenReturn("프로젝트A");
         when(projection.getStatus()).thenReturn("DRAFT");
-        when(projectService.list(eq(sellerId), isNull(), any())).thenReturn(new PageImpl<>(List.of(projection)));
+        when(projectService.list(eq(sellerId), eq(List.of()), isNull(), any())).thenReturn(new PageImpl<>(List.of(projection)));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
@@ -138,17 +139,17 @@ class ProjectControllerTest {
     }
 
     @Test
-    void 심사제출하면_200과_PENDING_REVIEW_상태를_반환한다() throws Exception {
+    void 공개하면_200과_ONGOING_상태를_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
-        Project submitted = draftProject(sellerId, publicId).toBuilder().status(ProjectStatus.PENDING_REVIEW).build();
-        when(projectService.submit(sellerId, publicId)).thenReturn(submitted);
+        Project published = draftProject(sellerId, publicId).toBuilder().status(ProjectStatus.ONGOING).build();
+        when(projectService.submit(sellerId, publicId)).thenReturn(published);
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + publicId + "/submit").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+                .andExpect(jsonPath("$.status").value("ONGOING"));
     }
 
     @Test

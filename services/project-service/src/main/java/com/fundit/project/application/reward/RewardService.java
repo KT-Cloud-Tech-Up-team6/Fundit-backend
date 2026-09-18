@@ -6,6 +6,7 @@ import com.fundit.project.application.media.MediaCategory;
 import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
+import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
 import com.fundit.project.domain.reward.RewardRepository;
@@ -38,7 +39,8 @@ public class RewardService {
         }
 
         Reward reward = Reward.create(project.getId(), command.name(), command.description(), command.imageUrl(),
-                command.price(), command.isLimited(), command.quantity(), command.isEarlyBird(), command.optionGroups());
+                command.price(), command.isLimited(), command.quantity(), command.isEarlyBird(),
+                command.earlyBirdDiscountType(), command.earlyBirdDiscountValue(), command.optionGroups());
         Reward saved = rewardRepository.save(reward);
         if (reward.getOptionGroups() != null && !reward.getOptionGroups().isEmpty()) {
             rewardRepository.replaceOptions(saved.getId(), reward.getOptionGroups());
@@ -73,8 +75,23 @@ public class RewardService {
             quantity = reward.getQuantity();
         }
         boolean isEarlyBird = command.isEarlyBird() != null ? command.isEarlyBird() : reward.isEarlyBird();
+        // 할인 방식/값 병합: 명시적으로 왔으면 그 값을, isEarlyBird=false로 바뀌면 null을,
+        // 둘 다 아니면 기존 값을 유지한다 — quantity와 동일한 병합 패턴.
+        EarlyBirdDiscountType earlyBirdDiscountType;
+        Long earlyBirdDiscountValue;
+        if (command.earlyBirdDiscountType() != null) {
+            earlyBirdDiscountType = command.earlyBirdDiscountType();
+            earlyBirdDiscountValue = command.earlyBirdDiscountValue();
+        } else if (Boolean.FALSE.equals(command.isEarlyBird())) {
+            earlyBirdDiscountType = null;
+            earlyBirdDiscountValue = null;
+        } else {
+            earlyBirdDiscountType = reward.getEarlyBirdDiscountType();
+            earlyBirdDiscountValue = reward.getEarlyBirdDiscountValue();
+        }
 
-        reward.changeBasicInfo(name, description, imageUrl, price, isLimited, quantity, isEarlyBird, command.optionGroups());
+        reward.changeBasicInfo(name, description, imageUrl, price, isLimited, quantity, isEarlyBird,
+                earlyBirdDiscountType, earlyBirdDiscountValue, command.optionGroups());
         Reward saved = rewardRepository.save(reward);
         if (command.optionGroups() != null) {
             rewardRepository.replaceOptions(saved.getId(), command.optionGroups());
@@ -115,11 +132,15 @@ public class RewardService {
 
     public record CreateRewardCommand(
             String name, String description, String imageUrl, Long price,
-            boolean isLimited, Integer quantity, boolean isEarlyBird, List<RewardOptionGroup> optionGroups) {
+            boolean isLimited, Integer quantity, boolean isEarlyBird,
+            EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
+            List<RewardOptionGroup> optionGroups) {
     }
 
     public record UpdateRewardCommand(
             String name, String description, String imageUrl, Long price,
-            Boolean isLimited, Integer quantity, Boolean isEarlyBird, List<RewardOptionGroup> optionGroups) {
+            Boolean isLimited, Integer quantity, Boolean isEarlyBird,
+            EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
+            List<RewardOptionGroup> optionGroups) {
     }
 }

@@ -7,6 +7,11 @@ public record RewardResponse(
         Long price,
         boolean isLimited,
         Integer quantity,
-        boolean hasOption
+        boolean hasOption,
+        int sortOrder,
+        boolean isEarlyBird,
+        String earlyBirdDiscountType,
+        Long earlyBirdDiscountValue,
+        Long earlyBirdDiscountedPrice
 ) {
 }

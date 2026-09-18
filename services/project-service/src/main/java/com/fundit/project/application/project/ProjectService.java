@@ -17,8 +17,6 @@ import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPriva
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.query.ProjectListProjection;
-import com.fundit.project.infrastructure.persistence.reviewrequest.ProjectReviewRequestJpaEntity;
-import com.fundit.project.infrastructure.persistence.reviewrequest.ProjectReviewRequestJpaRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
@@ -27,19 +25,25 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * 프로젝트 생성/관리 슬라이스(project-service CLAUDE.md MVP 범위) — 판매자 관점의
- * 목록/생성/삭제/기본정보/소개/개인정보동의/심사제출을 다룬다. 심사 승인·반려(관리자)는
- * {@link ProjectReviewService} 참고.
+ * 목록/생성/삭제/기본정보/소개/개인정보동의/공개(발행)를 다룬다. 관리자 심사 단계는
+ * 폐지됐다 — 필수 항목이 모두 채워지면 {@link #submit}에서 바로 공개(ONGOING)로 전환한다.
  */
 @Service
 @RequiredArgsConstructor
 public class ProjectService {
+
+    // [가정] PRD/API 명세서 어디에도 펀딩 기간(모금기간) 기본값이 명시돼 있지 않아 30일로 가정한다.
+    // 기획에서 값이 확정되면 이 상수만 바꾸면 된다.
+    private static final Duration DEFAULT_FUNDING_PERIOD = Duration.ofDays(30);
 
     private final ProjectRepository projectRepository;
     // 목록 조회는 persistence-convention.md §3(조회 전용 프로젝션) 예외에 따라
@@ -47,15 +51,37 @@ public class ProjectService {
     private final ProjectJpaRepository projectJpaRepository;
     private final CategoryJpaRepository categoryJpaRepository;
     private final ProjectPrivacyConsentJpaRepository privacyConsentJpaRepository;
-    private final ProjectReviewRequestJpaRepository reviewRequestJpaRepository;
     private final RewardJpaRepository rewardJpaRepository;
     private final MediaUrlValidator mediaUrlValidator;
     private final ProjectIndexEventPublisher projectIndexEventPublisher;
     private final SellerProfileClient sellerProfileClient;
 
+    /** statuses가 비어있으면 전체 상태를 대상으로 한다. */
     @Transactional(readOnly = true)
-    public Page<ProjectListProjection> list(UUID sellerId, ProjectStatus status, Pageable pageable) {
-        return projectJpaRepository.findList(sellerId, status == null ? null : status.name(), pageable);
+    public Page<ProjectListProjection> list(UUID sellerId, List<ProjectStatus> statuses, String q, Pageable pageable) {
+        List<String> statusNames = (statuses == null || statuses.isEmpty())
+                ? Arrays.stream(ProjectStatus.values()).map(Enum::name).toList()
+                : statuses.stream().map(Enum::name).toList();
+        String keyword = (q == null || q.isBlank()) ? null : q.trim();
+        return projectJpaRepository.findList(sellerId, statusNames, keyword, pageable);
+    }
+
+    /** 상태 그룹별(진행중/준비중/완료) 프로젝트 개수. */
+    @Transactional(readOnly = true)
+    public ProjectStatusCounts countByStatusGroup(UUID sellerId) {
+        long draft = 0, ongoing = 0, completed = 0;
+        for (var row : projectJpaRepository.countBySellerIdGroupByStatus(sellerId)) {
+            ProjectStatus status = ProjectStatus.valueOf(row.getStatus());
+            switch (status) {
+                case DRAFT -> draft += row.getCount();
+                case ONGOING -> ongoing += row.getCount();
+                case SUCCEEDED, FAILED -> completed += row.getCount();
+            }
+        }
+        return new ProjectStatusCounts(ongoing, draft, completed);
+    }
+
+    public record ProjectStatusCounts(long ongoing, long draft, long completed) {
     }
 
     @Transactional
@@ -116,7 +142,7 @@ public class ProjectService {
     }
 
     /**
-     * SEARCH-011. 승인 전(DRAFT/PENDING_REVIEW) 수정은 애초에 색인에 없는 프로젝트를 갱신하는
+     * SEARCH-011. 공개 전(DRAFT) 수정은 애초에 색인에 없는 프로젝트를 갱신하는
      * 셈이라 발행하지 않는다 — Project.isPublic()과 동일 기준(project-service CLAUDE.md
      * "미공개 프로젝트 존재 여부 비노출" 원칙).
      */
@@ -146,6 +172,7 @@ public class ProjectService {
         return consentedAt;
     }
 
+    /** 필수 작성 항목이 모두 채워지면 관리자 승인 없이 바로 공개(ONGOING)로 전환한다. */
     @Transactional
     public Project submit(UUID sellerId, UUID publicId) {
         Project project = loadOwned(sellerId, publicId);
@@ -156,14 +183,16 @@ public class ProjectService {
                     "필수 작성 항목이 완료되지 않았습니다: " + String.join(", ", missing));
         }
 
-        project.submit();
+        Instant now = Instant.now();
+        project.publish(now, now.plus(DEFAULT_FUNDING_PERIOD));
         Project saved = projectRepository.save(project);
 
-        reviewRequestJpaRepository.save(ProjectReviewRequestJpaEntity.builder()
-                .projectId(saved.getId())
-                .status(ProjectReviewRequestJpaEntity.STATUS_SUBMITTED)
-                .submittedAt(Instant.now())
-                .build());
+        // SEARCH-011. 색인이 처음 생기는 시점 — DRAFT는 비공개라 그전엔 검색 대상이 아니다.
+        String sellerDisplayName = sellerProfileClient.getDisplayName(saved.getSellerId()).orElse(null);
+        projectIndexEventPublisher.publishProjectApproved(new ProjectIndexedEvent(
+                saved.getId(), saved.getPublicId(), saved.getSellerId(), sellerDisplayName,
+                saved.getTitle(), saved.getCoverImageUrl(), saved.getCategoryMajor(), saved.getCategoryMinor(),
+                saved.getGoalAmount(), saved.getFundingStartAt(), saved.getFundingDeadline(), saved.getCreatedAt()));
         return saved;
     }
 

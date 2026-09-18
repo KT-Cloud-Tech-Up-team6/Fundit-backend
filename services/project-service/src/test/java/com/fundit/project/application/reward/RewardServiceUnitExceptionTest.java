@@ -48,7 +48,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -65,7 +65,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
@@ -86,7 +86,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
@@ -99,7 +99,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.update(UUID.randomUUID(), 99L,
-                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null)))
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -108,7 +108,7 @@ class RewardServiceUnitExceptionTest {
     @Test
     void 타인_소유_리워드를_수정하면_403_예외가_발생한다() {
         // given
-        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null)
+        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null, null, null)
                 .toBuilder().id(5L).build();
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
@@ -118,7 +118,7 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.update(UUID.randomUUID(), 5L,
-                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null)))
+                new RewardService.UpdateRewardCommand(null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
