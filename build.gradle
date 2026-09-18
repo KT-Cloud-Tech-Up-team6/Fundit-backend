@@ -108,6 +108,9 @@ configure(subprojects.findAll { it.path.startsWith(':services:') }) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
         runtimeOnly 'org.postgresql:postgresql'
+        // 배포 헬스체크(/actuator/health)용. platform:gateway-service는 자체 build.gradle에 이미 있다.
+        // 노출 범위는 Boot 기본값(health)을 그대로 쓴다 — application.yml에 따로 선언하지 않는다.
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
         implementation 'org.springframework.boot:spring-boot-starter-flyway'
         implementation 'org.flywaydb:flyway-database-postgresql'
 
