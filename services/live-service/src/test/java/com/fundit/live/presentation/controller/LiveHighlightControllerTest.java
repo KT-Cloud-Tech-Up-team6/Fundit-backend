@@ -82,7 +82,7 @@ class LiveHighlightControllerTest {
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].viewCount").value(12))
+                .andExpect(jsonPath("$[0].impressionCount").value(12))
                 .andExpect(jsonPath("$[0].fundingConversionCount").doesNotExist());
     }
 

@@ -34,11 +34,7 @@ public class HighlightService {
     /** 방송 종료 후 자동 생성 요청. 다시보기가 없으면 판별할 영상이 없다. */
     @Transactional
     public void requestGeneration(UUID sellerId, UUID liveId) {
-        LiveSession session = loadOwned(sellerId, liveId);
-        if (session.getVodUrl() == null) {
-            throw new BusinessException(CommonErrorCode.CONFLICT,
-                    "다시보기가 저장되지 않아 하이라이트를 만들 수 없습니다.");
-        }
+        LiveSession session = loadOwnedWithVod(sellerId, liveId);
         aiClient.requestHighlights(liveId.toString(), session.getVodUrl());
     }
 
@@ -75,7 +71,8 @@ public class HighlightService {
 
     @Transactional
     public void regenerate(UUID sellerId, UUID liveId, UUID highlightId) {
-        LiveSession session = loadOwned(sellerId, liveId);
+        // 재생성도 같은 영상이 필요하다. 가드를 호출부마다 붙이면 세 번째 호출부에서 또 빠진다.
+        LiveSession session = loadOwnedWithVod(sellerId, liveId);
         loadOwnedHighlight(sellerId, liveId, highlightId).markRegenerating();
         aiClient.requestHighlights(liveId.toString(), session.getVodUrl());
     }
@@ -138,6 +135,16 @@ public class HighlightService {
                     .clickCount(0)
                     .build());
         }
+    }
+
+    /** AI에 영상을 넘기는 경로가 전부 지나는 지점. 다시보기가 없으면 판별할 대상이 없다. */
+    private LiveSession loadOwnedWithVod(UUID sellerId, UUID liveId) {
+        LiveSession session = loadOwned(sellerId, liveId);
+        if (session.getVodUrl() == null) {
+            throw new BusinessException(CommonErrorCode.CONFLICT,
+                    "다시보기가 저장되지 않아 하이라이트를 만들 수 없습니다.");
+        }
+        return session;
     }
 
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {

@@ -35,6 +35,10 @@ class LiveSessionMapper {
                 .build();
     }
 
+    /**
+     * <b>신규 생성 전용이다.</b> 갱신에 쓰면 전 컬럼 merge가 되어 도메인이 쓰지 않는
+     * 값(likeCount·vodUrl)까지 되돌린다 — 갱신은 어댑터의 {@code applyFrom}이 한다.
+     */
     static LiveSessionJpaEntity toEntity(LiveSession session) {
         return LiveSessionJpaEntity.builder()
                 .id(session.getId())

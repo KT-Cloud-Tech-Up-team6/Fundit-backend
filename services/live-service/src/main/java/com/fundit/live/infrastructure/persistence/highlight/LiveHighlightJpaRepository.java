@@ -22,8 +22,11 @@ public interface LiveHighlightJpaRepository extends JpaRepository<LiveHighlightJ
     long countBySessionIdAndKind(Long sessionId, String kind);
 
     /**
-     * 조회·클릭 카운터. 조회 후 세팅하면 동시 요청에서 갱신이 덮어써진다 —
-     * DB에서 한 문장으로 더한다.
+     * <b>노출 수</b>를 올린다 — 공개 목록이 한 번 열릴 때 그 세션의 공개 항목이 전부 +1 된다.
+     * "이 클립이 몇 번 재생됐나"가 아니라 "목록에 몇 번 실렸나"다. 클립 단위 재생을 세려면
+     * 재생 이벤트를 받을 엔드포인트가 필요한데 아직 없다 — 생기면 그때 컬럼을 나눈다.
+     *
+     * <p>조회 후 세팅하면 동시 요청에서 갱신이 덮어써지므로 DB에서 한 문장으로 더한다.
      */
     @Modifying
     @Query(value = "UPDATE live_highlights SET view_count = view_count + 1 WHERE session_id = :sessionId "

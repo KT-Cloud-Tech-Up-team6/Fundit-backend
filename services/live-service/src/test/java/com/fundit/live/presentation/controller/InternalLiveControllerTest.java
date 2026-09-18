@@ -127,4 +127,15 @@ class InternalLiveControllerTest {
                         .content("{ \"status\": \"COMPLETED\", \"segments\": \"[]\" }"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void 필수값이_빠진_하이라이트_콜백은_400이다() throws Exception {
+        // given & when & then — 검증이 없으면 NOT NULL 제약 위반으로 500이 나고,
+        // AI가 잘못 보낸 건데 우리 서버 오류로 보인다
+        mockMvc.perform(post("/internal/v1/lives/{liveId}/highlights", UUID.randomUUID())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"sceneLabel\":\"DEMO\",\"startSec\":10,\"status\":\"COMPLETED\"}]"))
+                .andExpect(status().isBadRequest());
+    }
 }

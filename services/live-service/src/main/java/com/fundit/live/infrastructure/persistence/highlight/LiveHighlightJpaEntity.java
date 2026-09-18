@@ -1,5 +1,7 @@
 package com.fundit.live.infrastructure.persistence.highlight;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -80,8 +82,21 @@ public class LiveHighlightJpaEntity {
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
-    /** 판매자 검토·수정(요구사항정의서 6.6.4). null은 건드리지 않는다. */
+    /**
+     * 판매자 검토·수정(요구사항정의서 6.6.4). null은 건드리지 않는다.
+     *
+     * <p>구간을 검증하는 이유: 뒤집힌 구간이 저장되면 클립 URL은 멀쩡한데 재생만 깨진다.
+     * 엔티티가 자기 불변식을 지켜야 호출부가 늘어도 안 샌다.
+     */
     public void edit(Integer startSec, Integer endSec, String sceneLabel, String title, String caption) {
+        int newStart = startSec != null ? startSec : this.startSec;
+        Integer newEnd = endSec != null ? endSec : this.endSec;
+        if (newStart < 0) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "시작 위치는 0 이상이어야 합니다.");
+        }
+        if (newEnd != null && newEnd <= newStart) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "종료 위치가 시작보다 뒤여야 합니다.");
+        }
         if (startSec != null) this.startSec = startSec;
         if (endSec != null) this.endSec = endSec;
         if (sceneLabel != null) this.sceneLabel = sceneLabel;
