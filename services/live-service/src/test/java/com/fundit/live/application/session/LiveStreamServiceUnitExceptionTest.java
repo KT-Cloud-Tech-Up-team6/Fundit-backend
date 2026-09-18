@@ -71,7 +71,7 @@ class LiveStreamServiceUnitExceptionTest {
     void 종료된_방송은_IVS를_부르기_전에_거부된다() {
         // given — 검증이 IVS 호출 뒤에 있으면 채팅방만 만들어진 채 409가 나 자원이 샌다
         LiveSession ended = LiveSession.create(1L, UUID.randomUUID());
-        ended.start(Instant.parse("2026-09-10T11:00:00Z"));
+        ended.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         ended.end(Instant.parse("2026-09-10T11:10:00Z"));
         given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(ended));
 
@@ -89,7 +89,7 @@ class LiveStreamServiceUnitExceptionTest {
         // given — markError가 상태 검증 없이 불리면 ENDED가 ERROR가 되고
         // LivePlaybackService가 status == ENDED를 보므로 다시보기 조회까지 막힌다
         LiveSession ended = LiveSession.create(1L, UUID.randomUUID());
-        ended.start(Instant.parse("2026-09-10T11:00:00Z"));
+        ended.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         ended.end(Instant.parse("2026-09-10T11:10:00Z"));
         given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(ended));
 

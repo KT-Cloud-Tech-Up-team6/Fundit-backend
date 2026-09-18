@@ -2,12 +2,16 @@ package com.fundit.live.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.live.application.chat.ChatTokenService;
 import com.fundit.live.application.session.LiveCreateService;
+import com.fundit.live.application.session.LivePlaybackService;
 import com.fundit.live.application.session.LiveQueryService;
 import com.fundit.live.application.session.LiveSettingsService;
 import com.fundit.live.application.session.LiveStreamService;
 import com.fundit.live.domain.session.LiveStatus;
+import com.fundit.live.presentation.dto.ChatTokenResponse;
 import com.fundit.live.presentation.dto.LiveCreateRequest;
+import com.fundit.live.presentation.dto.PlaybackResponse;
 import com.fundit.live.presentation.dto.LiveCreateResponse;
 import com.fundit.live.presentation.dto.LiveSettingsRequest;
 import com.fundit.live.presentation.dto.LiveStatusResponse;
@@ -47,6 +51,8 @@ public class LiveController {
     private final LiveSettingsService liveSettingsService;
     private final LiveStreamService liveStreamService;
     private final LiveQueryService liveQueryService;
+    private final LivePlaybackService livePlaybackService;
+    private final ChatTokenService chatTokenService;
 
     /** LIVE 생성(요구사항정의서 6.1.4). 본인 소유 프로젝트만. 생성 직후 DRAFT다. */
     @PostMapping
@@ -102,5 +108,26 @@ public class LiveController {
     @GetMapping("/banner")
     public List<LiveSummaryResponse> banner() {
         return liveQueryService.findLiveBanner().stream().map(LiveSummaryResponse::from).toList();
+    }
+
+    /**
+     * IVS Chat 접속 토큰 발급(요구사항정의서 6.4.4.1). 판매자·소비자 공통 경로다 —
+     * 호출자가 방송 소유자인지 보고 capabilities를 정한다.
+     */
+    @PostMapping("/{liveId}/chat/token")
+    public ChatTokenResponse chatToken(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return ChatTokenResponse.from(chatTokenService.issue(user.id(), liveId));
+    }
+
+    /** LIVE 시청 정보(요구사항정의서 11.2.4). 종료된 방송은 다시보기로 자동 전환된다. */
+    @GetMapping("/{liveId}/playback")
+    public PlaybackResponse playback(@PathVariable UUID liveId) {
+        return PlaybackResponse.from(livePlaybackService.playback(liveId));
+    }
+
+    /** 다시보기 재생 정보(요구사항정의서 11.4.4). */
+    @GetMapping("/{liveId}/vod")
+    public PlaybackResponse vod(@PathVariable UUID liveId) {
+        return PlaybackResponse.from(livePlaybackService.vod(liveId));
     }
 }

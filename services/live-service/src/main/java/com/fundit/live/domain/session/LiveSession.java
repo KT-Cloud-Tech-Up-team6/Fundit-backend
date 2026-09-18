@@ -44,7 +44,7 @@ public class LiveSession {
     private final String vodUrl;
     private final Instant vodReadyAt;
     private final int likeCount;
-    private final String ivsChatRoomArn;
+    private String ivsChatRoomArn;
     private final Instant createdAt;
 
     public static LiveSession create(Long channelId, UUID projectId) {
@@ -80,9 +80,15 @@ public class LiveSession {
         }
     }
 
-    /** 송출 시작. DRAFT(즉시 시작)와 SCHEDULED(예약분) 둘 다 허용한다. */
-    public void start(Instant now) {
+    /**
+     * 송출 시작. DRAFT(즉시 시작)와 SCHEDULED(예약분) 둘 다 허용한다.
+     *
+     * <p>채팅방 ARN을 여기서 받는 이유: 채팅 적재가 룸 ARN으로 세션을 찾으므로
+     * 저장하지 않으면 들어온 메시지를 어느 방송에 붙일지 알 수 없다.
+     */
+    public void start(Instant now, String chatRoomArn) {
         requireStartable();
+        this.ivsChatRoomArn = chatRoomArn;
         this.status = LiveStatus.LIVE;
         this.actualStartAt = now;
         this.errorDetail = null;

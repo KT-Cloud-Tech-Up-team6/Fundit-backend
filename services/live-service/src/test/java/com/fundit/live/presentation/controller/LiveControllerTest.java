@@ -2,7 +2,9 @@ package com.fundit.live.presentation.controller;
 
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.live.application.chat.ChatTokenService;
 import com.fundit.live.application.session.LiveCreateService;
+import com.fundit.live.application.session.LivePlaybackService;
 import com.fundit.live.application.session.LiveQueryService;
 import com.fundit.live.application.session.LiveSettingsService;
 import com.fundit.live.application.session.LiveStreamService;
@@ -44,6 +46,8 @@ class LiveControllerTest {
     @MockitoBean private LiveSettingsService liveSettingsService;
     @MockitoBean private LiveStreamService liveStreamService;
     @MockitoBean private LiveQueryService liveQueryService;
+    @MockitoBean private LivePlaybackService livePlaybackService;
+    @MockitoBean private ChatTokenService chatTokenService;
 
     private final UUID userId = UUID.randomUUID();
 
@@ -158,7 +162,7 @@ class LiveControllerTest {
     void 시작하면_LIVE_상태를_돌려준다() throws Exception {
         // given
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
-        session.start(java.time.Instant.parse("2026-09-10T11:00:00Z"));
+        session.start(java.time.Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         when(liveStreamService.start(any(), any())).thenReturn(session);
 
         // when & then
@@ -174,7 +178,7 @@ class LiveControllerTest {
     void 종료하면_ENDED_상태를_돌려준다() throws Exception {
         // given
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
-        session.start(java.time.Instant.parse("2026-09-10T11:00:00Z"));
+        session.start(java.time.Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         session.end(java.time.Instant.parse("2026-09-10T11:10:00Z"));
         when(liveStreamService.end(any(), any())).thenReturn(session);
 

@@ -99,7 +99,7 @@ class LiveSessionPersistenceAdapterIntegrationTest {
         LiveSession loaded = sessionRepository.findOwned(saved.getPublicId(), sellerId).orElseThrow();
 
         // when
-        loaded.start(Instant.parse("2026-09-10T11:00:00Z"));
+        loaded.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         sessionRepository.save(loaded);
         flushAndClear();
         LiveSession after = sessionRepository.findOwned(saved.getPublicId(), sellerId).orElseThrow();

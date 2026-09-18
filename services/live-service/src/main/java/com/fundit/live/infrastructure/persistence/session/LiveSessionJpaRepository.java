@@ -46,4 +46,10 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     Page<LiveSessionJpaEntity> findPublic(@Param("status") LiveStatus status, Pageable pageable);
 
     List<LiveSessionJpaEntity> findByStatusOrderByActualStartAtDesc(LiveStatus status);
+
+    /** 소유권 검증이 필요 없는 공개 조회(시청 정보·VOD·채팅 토큰). */
+    Optional<LiveSessionJpaEntity> findByPublicId(UUID publicId);
+
+    /** 채팅 적재에서 룸 ARN → 세션 변환. ARN이 세션 컬럼이라 조인 없이 단일 조회다. */
+    Optional<LiveSessionJpaEntity> findByIvsChatRoomArn(String ivsChatRoomArn);
 }

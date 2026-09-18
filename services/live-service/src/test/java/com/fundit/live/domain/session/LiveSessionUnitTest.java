@@ -71,7 +71,7 @@ class LiveSessionUnitTest {
             Instant now = Instant.parse("2026-09-10T11:00:00Z");
 
             // when
-            session.start(now);
+            session.start(now, "arn:chat");
 
             // then
             assertThat(session.getStatus()).isEqualTo(LiveStatus.LIVE);
@@ -82,7 +82,7 @@ class LiveSessionUnitTest {
         void 종료하면_ENDED로_전이하고_종료시각을_남긴다() {
             // given
             LiveSession session = draft();
-            session.start(Instant.parse("2026-09-10T11:00:00Z"));
+            session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
             Instant end = Instant.parse("2026-09-10T11:10:00Z");
 
             // when
@@ -100,7 +100,7 @@ class LiveSessionUnitTest {
             session.markError("채팅방 생성 실패", Instant.parse("2026-09-10T10:00:00Z"));
 
             // when — ERROR는 재시도 가능한 상태다
-            session.start(Instant.parse("2026-09-10T11:00:00Z"));
+            session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
 
             // then
             assertThat(session.getErrorDetail()).isNull();
