@@ -22,7 +22,9 @@ on:
       - "CI - search-service"
       - "CI - gateway-service"
     types: [completed]
-    branches: [main, develop]
+    # 인프라팀 규격: Backend Role의 OIDC 인증 허용 브랜치가 develop뿐이다.
+    # main을 넣으면 AssumeRole이 거부돼 실패한다.
+    branches: [develop]
 
 env:
   AWS_REGION: ap-northeast-2
@@ -72,7 +74,6 @@ jobs:
       actions: read     # 다른 run의 artifact 다운로드
     env:
       SERVICE: ${{ needs.resolve.outputs.service }}
-      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
     steps:
       # 공용 Dockerfile만 있으면 된다
       - uses: actions/checkout@v7
@@ -93,26 +94,33 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          # IAM Role ARN은 시크릿이 아니다 — 이 값만으로는 아무것도 못 하고,
+          # Role의 신뢰 정책이 우리 레포·브랜치를 지목해야 인증된다(인프라팀 배포 문서).
+          role-to-assume: arn:aws:iam::899957568205:role/fundit-backend-ci-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 태그에 commit SHA를 넣는다 — latest만으로는 어떤 커밋이 떠 있는지 역추적할 수 없다.
-      # ECR 리포지토리 이름은 서비스명과 같고, 리포지토리는 미리 생성돼 있어야 한다.
+      # 인프라팀 ECR 규격(전달 문서):
+      #   리포지토리 = fundit-backend 하나를 전 MSA가 공유하고, 서비스 구분은 태그로 한다
+      #   태그 = sha-<서비스명>-<commit sha>
+      #
+      # 태그가 반드시 `sha-`로 시작해야 한다 — ECR 수명주기(Lifecycle) 정책이 이 접두사를 기준으로
+      # 잡혀 있다. 그래서 latest 태그는 붙이지 않는다(규칙 위반이고 정책 대상에서 어긋난다).
       - name: Build and push image
         env:
-          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.SERVICE }}
+          IMAGE: ${{ steps.ecr.outputs.registry }}/fundit-backend
+          IMAGE_TAG: sha-${{ needs.resolve.outputs.service }}-${{ github.event.workflow_run.head_sha }}
         run: |
           JAR=$(ls build-jar/*.jar | head -n 1)
           echo "이미지: $IMAGE:$IMAGE_TAG (jar: $JAR)"
           docker build \
+            --platform linux/amd64 \
             -f infra/docker/Dockerfile \
             --build-arg JAR_FILE="$JAR" \
             --build-arg SERVER_PORT=8080 \
             -t "$IMAGE:$IMAGE_TAG" \
-            -t "$IMAGE:latest" \
             .
-          docker push --all-tags "$IMAGE"
+          docker push "$IMAGE:$IMAGE_TAG"
