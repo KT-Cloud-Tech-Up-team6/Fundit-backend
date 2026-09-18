@@ -15,13 +15,11 @@
 
 ## 2. 리워드 실제 재고 연동 (order-service 의존)
 
-- **배경**: `RewardConsumerResponse.soldOut`/`remainingStock` 필드는 이미 응답에 존재하지만, 실제 값을 채우는 `InventoryQueryClient`가 [`NoopInventoryQueryClient`](../src/main/java/com/fundit/project/infrastructure/inventory/NoopInventoryQueryClient.java)로만 구현되어 있어 항상 빈 값(null)을 반환한다. 이 스텁은 "order-service가 아직 스캐폴딩되지 않았을 때" 만든 placeholder인데, 현재는 order-service가 이미 존재한다.
-- **결과적으로 지금은**: 얼리버드 리워드 재고가 소진돼도 응답상 `soldOut`이 항상 `false`로 나가 소비자 화면에서 품절 처리가 실제로 동작하지 않음.
-- **필요 작업**:
-  - order-service에 재고(잔여 수량) 조회용 API(내부 엔드포인트)가 있는지 확인 — 없다면 order-service 쪽에 먼저 추가 요청
-  - 있다면 `InventoryQueryClient`의 실제 HTTP 구현체 작성 후 `NoopInventoryQueryClient` 대체, 타임아웃 설정(서비스 간 동기 호출 규칙 준수)
-- **선행 확인 필요**: order-service 담당(본인 소유 도메인이면 order-service 쪽 엔드포인트 존재 여부부터 확인)
-- **상태**: 미착수
+- **배경**: `RewardConsumerResponse.soldOut`/`remainingStock` 필드는 이미 응답에 존재하지만, 실제 값을 채우는 `InventoryQueryClient`가 `NoopInventoryQueryClient`로만 구현되어 있어 항상 빈 값(null)을 반환했다. 이 스텁은 "order-service가 아직 스캐폴딩되지 않았을 때" 만든 placeholder였는데, order-service가 이미 존재하고 `GET /api/v1/inventories/{rewardId}`도 이미 노출돼 있어 바로 연동 가능했다.
+- **완료된 작업**:
+  - order-service: `GET /api/v1/inventories/{rewardId}`를 `InternalEndpointConfig`에 등록해 `X-Internal-Api-Key` 검증 추가(기존엔 게이트웨이 라우트 제외만 있고 2차 방어선이 빠져 있던 보안 공백)
+  - project-service: [`HttpInventoryQueryClient`](../src/main/java/com/fundit/project/infrastructure/inventory/HttpInventoryQueryClient.java)로 실제 HTTP 연동 — [`StubInventoryQueryClient`](../src/main/java/com/fundit/project/infrastructure/inventory/StubInventoryQueryClient.java)(구 Noop)는 `order.integration.inventory-client.mode=stub`일 때만 활성화, dev/prod 기본값은 `http`. 실패 시 `DependencyFailureException` 대신 빈 값으로 degrade(soldOut 표시는 best-effort)
+- **상태**: 완료
 
 ## 3. 리워드 수량 "무제한" 표기 계약 정리 (FE 협의 필요)
 

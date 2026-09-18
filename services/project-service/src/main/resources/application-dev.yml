@@ -16,3 +16,10 @@ media:
 
 internal-api:
   key: ${INTERNAL_API_KEY}
+
+# order-service 재고 조회(GET /api/v1/inventories/{rewardId})는 이미 배선 완료 — dev는 실제 호출로 확인한다.
+order:
+  integration:
+    inventory-client:
+      mode: ${INVENTORY_CLIENT_MODE:http}
+    base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
