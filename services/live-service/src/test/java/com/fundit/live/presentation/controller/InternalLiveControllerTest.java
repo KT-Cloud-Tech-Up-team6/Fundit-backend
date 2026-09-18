@@ -4,6 +4,7 @@ import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.chat.ChatIngestService;
 import com.fundit.live.application.cuesheet.CueSheetService;
+import com.fundit.live.application.highlight.HighlightService;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
@@ -42,6 +43,7 @@ class InternalLiveControllerTest {
 
     @MockitoBean private ChatIngestService chatIngestService;
     @MockitoBean private CueSheetService cueSheetService;
+    @MockitoBean private HighlightService highlightService;
     @MockitoBean private LiveSessionJpaRepository sessionRepository;
     @MockitoBean private LiveChannelJpaRepository channelRepository;
 

@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.chat.ChatIngestService;
 import com.fundit.live.application.cuesheet.CueSheetService;
+import com.fundit.live.application.highlight.HighlightService;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,6 +33,7 @@ public class InternalLiveController {
 
     private final ChatIngestService chatIngestService;
     private final CueSheetService cueSheetService;
+    private final HighlightService highlightService;
     private final LiveSessionJpaRepository sessionRepository;
     private final LiveChannelJpaRepository channelRepository;
 
@@ -71,5 +74,23 @@ public class InternalLiveController {
 
     /** AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다. */
     public record CueSheetCallback(String status, String segments, String failureReason) {
+    }
+
+    /**
+     * AI 하이라이트 생성 결과 수신. 클립 개수 상한(방송 1회당 3개)은 여기서 서버가 검증한다 —
+     * AI가 더 보내도 초과분은 받지 않는다(요구사항정의서 6.6.3).
+     */
+    @PostMapping("/internal/v1/lives/{liveId}/highlights")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void applyHighlights(@PathVariable UUID liveId, @RequestBody List<HighlightCallback> callbacks) {
+        highlightService.applyGenerated(liveId, callbacks.stream()
+                .map(c -> new HighlightService.GeneratedHighlight(c.kind(), c.sceneLabel(), c.title(),
+                        c.startSec(), c.endSec(), c.clipUrl(), c.caption(), c.status()))
+                .toList());
+    }
+
+    /** AI가 돌려주는 하이라이트 1건. status는 COMPLETED 또는 FAILED다. */
+    public record HighlightCallback(String kind, String sceneLabel, String title, int startSec,
+                                    Integer endSec, String clipUrl, String caption, String status) {
     }
 }
