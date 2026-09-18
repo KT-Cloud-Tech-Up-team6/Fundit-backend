@@ -1,6 +1,7 @@
 package com.fundit.project.presentation.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 
@@ -13,7 +14,8 @@ public record RewardUpdateRequest(
         String imageUrl,
         @PositiveOrZero Long price,
         Boolean isLimited,
-        @PositiveOrZero Integer quantity,
+        /** -1은 "무제한" sentinel — 서버가 isLimited:false + quantity:null로 정규화한다({@code RewardController}). */
+        @Min(-1) Integer quantity,
         Boolean isEarlyBird,
         @Pattern(regexp = "AMOUNT|RATE", message = "earlyBirdDiscountType은 AMOUNT, RATE 중 하나여야 합니다.")
         String earlyBirdDiscountType,

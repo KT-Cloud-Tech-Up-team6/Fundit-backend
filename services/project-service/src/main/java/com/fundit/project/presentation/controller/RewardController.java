@@ -51,9 +51,10 @@ public class RewardController {
     public ResponseEntity<RewardResponse> create(
             @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @Valid @RequestBody RewardCreateRequest request) {
+        NormalizedQuantity quantity = normalizeUnlimitedQuantity(request.isLimited(), request.quantity());
         Reward reward = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
-                request.isLimited(), request.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
+                quantity.isLimited(), quantity.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
                 toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
                 toOptionGroups(request.options())));
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(reward));
@@ -64,9 +65,10 @@ public class RewardController {
     public RewardResponse update(
             @LoginUser CurrentUser user, @PathVariable Long rewardId,
             @Valid @RequestBody RewardUpdateRequest request) {
+        NormalizedQuantity quantity = normalizeUnlimitedQuantity(request.isLimited(), request.quantity());
         Reward reward = rewardService.update(user.id(), rewardId, new RewardService.UpdateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
-                request.isLimited(), request.quantity(), request.isEarlyBird(),
+                quantity.isLimited(), quantity.quantity(), request.isEarlyBird(),
                 toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
                 toOptionGroups(request.options())));
         return toResponse(reward);
@@ -113,6 +115,24 @@ public class RewardController {
         return rewardQueryService.listForSeller(user.id(), projectId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private static final int UNLIMITED_QUANTITY_SENTINEL = -1;
+
+    /**
+     * quantity: -1은 PM이 설명한 "무제한" 표기를 계약으로도 받아주기 위한 별칭이다 — 응답 계약은
+     * 그대로 isLimited:false + quantity:null(canonical)만 쓴다. isLimited:true와 함께 오면
+     * 모순이라 정규화하지 않고 그대로 흘려보내, 도메인의 {@code quantity>=0} 검증이 자연스럽게
+     * INVALID_REWARD_QUANTITY로 거부하게 둔다.
+     */
+    private NormalizedQuantity normalizeUnlimitedQuantity(Boolean isLimited, Integer quantity) {
+        if (quantity != null && quantity == UNLIMITED_QUANTITY_SENTINEL && !Boolean.TRUE.equals(isLimited)) {
+            return new NormalizedQuantity(false, null);
+        }
+        return new NormalizedQuantity(isLimited, quantity);
+    }
+
+    private record NormalizedQuantity(Boolean isLimited, Integer quantity) {
     }
 
     private List<RewardOptionGroup> toOptionGroups(List<RewardOptionRequest> options) {

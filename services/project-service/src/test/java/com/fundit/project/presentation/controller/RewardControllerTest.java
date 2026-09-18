@@ -7,6 +7,7 @@ import com.fundit.project.domain.reward.EarlyBirdDiscountType;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -63,6 +65,72 @@ class RewardControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.rewardId").value(1))
                 .andExpect(jsonPath("$.name").value("얼리버드"));
+    }
+
+    @Test
+    void quantity가_음수1이면_무제한으로_정규화해서_전달한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+
+        // when
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"무제한리워드","description":"설명","price":10000,"isLimited":false,"quantity":-1}
+                                """))
+                .andExpect(status().isCreated());
+
+        // then
+        ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        assertThat(captor.getValue().isLimited()).isFalse();
+        assertThat(captor.getValue().quantity()).isNull();
+    }
+
+    @Test
+    void isLimited가_true이면서_quantity가_음수1이면_정규화하지_않고_그대로_전달한다() throws Exception {
+        // given — 모순 조합, 도메인 검증(quantity>=0)이 거부하도록 정규화하지 않고 그대로 흘려보낸다
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+
+        // when
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"모순리워드","description":"설명","price":10000,"isLimited":true,"quantity":-1}
+                                """))
+                .andExpect(status().isCreated());
+
+        // then
+        ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        assertThat(captor.getValue().isLimited()).isTrue();
+        assertThat(captor.getValue().quantity()).isEqualTo(-1);
+    }
+
+    @Test
+    void 수정_요청에서_isLimited_없이_quantity만_음수1이면_무제한으로_정규화한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        when(rewardService.update(eq(sellerId), eq(1L), any())).thenReturn(reward(1L));
+
+        // when
+        mockMvc.perform(patch("/api/v1/rewards/1")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("{\"quantity\":-1}"))
+                .andExpect(status().isOk());
+
+        // then
+        ArgumentCaptor<RewardService.UpdateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.UpdateRewardCommand.class);
+        verify(rewardService).update(eq(sellerId), eq(1L), captor.capture());
+        assertThat(captor.getValue().isLimited()).isFalse();
+        assertThat(captor.getValue().quantity()).isNull();
     }
 
     @Test

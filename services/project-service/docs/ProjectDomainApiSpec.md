@@ -383,6 +383,7 @@ POST /api/v1/projects/{projectId}/rewards
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`) — 위반 시 `400 INVALID_REWARD_QUANTITY`.
+- **무제한 수량 표기**: `quantity: -1`은 "무제한"을 뜻하는 sentinel로도 허용한다 — 서버가 `isLimited:false` + `quantity:null`(canonical)로 정규화해서 저장·응답한다. 정식 계약은 여전히 `isLimited:false` + `quantity` 생략(또는 `null`)이며, `-1`은 별칭일 뿐이다. `isLimited:true`와 `quantity:-1`을 함께 보내면 모순이라 정규화하지 않고 위 규칙대로 `400 INVALID_REWARD_QUANTITY`로 거부한다.
 - 얼리버드 할인: `isEarlyBird=false`면 `earlyBirdDiscountType`/`earlyBirdDiscountValue`는 반드시 없어야 하고,
   `true`면 `earlyBirdDiscountType`(`AMOUNT` 정액(원) 또는 `RATE` 정률(%))과 `earlyBirdDiscountValue`가 필수다.
   `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~100 사이 정수만 허용(DB CHECK

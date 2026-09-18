@@ -23,10 +23,9 @@
 
 ## 3. 리워드 수량 "무제한" 표기 계약 정리 (FE 협의 필요)
 
-- **배경**: PM 답변에서 "수량을 -1로 하면 무제한"이라고 언급했으나, 현재 백엔드 계약은 `isLimited: false` + `quantity` 생략(null)으로 무제한을 표현한다 (`Reward.validateQuantity`: `isLimited ? quantity!=null && quantity>=0 : quantity==null`).
-- **확인 필요**: 프론트가 실제로 API 요청에 `quantity: -1`을 리터럴로 보내려는 것인지(계약 변경 필요), 아니면 기획 문서상의 개념 설명일 뿐이고 실제 연동은 `isLimited:false`로 충분한지.
-- **필요 작업(계약 변경이 필요할 경우)**: `RewardCreateRequest`/`RewardUpdateRequest`에서 `quantity: -1`을 무제한으로 해석하도록 검증 로직 변경, 또는 API 스펙 문서에 "무제한 시 quantity 생략" 규칙을 명시해 FE와 합의
-- **상태**: FE 협의 대기
+- **배경**: PM 답변에서 "수량을 -1로 하면 무제한"이라고 언급했으나, 기존 백엔드 계약은 `isLimited: false` + `quantity` 생략(null)으로 무제한을 표현했다 (`Reward.validateQuantity`: `isLimited ? quantity!=null && quantity>=0 : quantity==null`).
+- **완료된 작업**: FE 정식 협의 전까지 우선 두 계약을 병행 허용하기로 함 — 정식 계약(`isLimited:false` + `quantity` 생략/`null`)은 그대로 canonical로 유지하고, `quantity: -1`을 별칭으로 추가 허용한다. `RewardController`가 `isLimited`가 `true`가 아닐 때만 `quantity:-1`을 `isLimited:false`+`quantity:null`로 정규화하고, `isLimited:true`와 함께 오면 정규화하지 않아 기존 도메인 검증(`quantity>=0`)이 그대로 `INVALID_REWARD_QUANTITY`로 거부한다. 응답은 항상 canonical 형태로만 내려간다. `ProjectDomainApiSpec.md`에 반영.
+- **상태**: 완료(계약 자체가 FE와 정식 확정되면 이 문서 갱신)
 
 ## 4. cross-service ID(Long ↔ UUID) 불일치 (order/payment/fulfillment 스키마 변경 필요)
 
