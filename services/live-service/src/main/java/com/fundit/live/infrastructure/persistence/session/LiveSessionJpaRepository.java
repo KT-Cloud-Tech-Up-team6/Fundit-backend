@@ -3,6 +3,7 @@ package com.fundit.live.infrastructure.persistence.session;
 import com.fundit.live.domain.session.LiveStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -52,4 +53,13 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
 
     /** 채팅 적재에서 룸 ARN → 세션 변환. ARN이 세션 컬럼이라 조인 없이 단일 조회다. */
     Optional<LiveSessionJpaEntity> findByIvsChatRoomArn(String ivsChatRoomArn);
+
+    /**
+     * like_count 증감. 조회 후 세팅하면 동시 요청에서 갱신이 덮어써져 카운트가 어긋난다 —
+     * DB에서 한 문장으로 더한다. 0 미만으로 내려가지 않게 조건을 건다.
+     */
+    @Modifying
+    @Query(value = "UPDATE live_sessions SET like_count = like_count + :delta "
+            + "WHERE id = :sessionId AND like_count + :delta >= 0", nativeQuery = true)
+    int addLikeCount(@Param("sessionId") Long sessionId, @Param("delta") int delta);
 }

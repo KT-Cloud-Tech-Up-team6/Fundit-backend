@@ -88,6 +88,24 @@ public final class KafkaTopics {
     /** 결제 대사 필요. 구독: payment. <b>발행처 미정</b> — 확정 시 이 주석을 채울 것. 파티션 키: fundingId. */
     public static final String PAYMENT_RECONCILIATION_REQUIRED = "payment.reconciliation-required.v1";
 
+    /**
+     * 방송 시작. notification이 구독해 알림 신청자에게 시작 알림을 만든다.
+     *
+     * <p>live가 notification.raised.v1을 직접 발행하지 않는 이유: 그 토픽은 수신자(memberId)가
+     * 채워져 있어야 하는데 신청자 목록(live_notify_requests)은 notification이 소유한다.
+     * live는 누구에게 보낼지 알 방법이 없다.
+     */
+    public static final String LIVE_STARTED = "live.started.v1";
+
+    /**
+     * 방송 종료. AI 파트가 구독해 질문요약·하이라이트 생성을 트리거한다.
+     * 이 이벤트 하나가 방송 후 자산 두 종류의 유일한 트리거라 유실되면 아무것도 만들어지지 않는다.
+     */
+    public static final String LIVE_ENDED = "live.ended.v1";
+
+    /** AI 대표질문 요약 완료. project-service가 LIVE 검증 탭을 채운다. */
+    public static final String LIVE_QUESTIONS_SUMMARIZED = "live.questions-summarized.v1";
+
     private KafkaTopics() {
     }
 }

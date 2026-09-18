@@ -6,6 +6,8 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaEntity;
+import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.UUID;
 public class LiveStreamService {
 
     private final LiveSessionRepository sessionRepository;
+    private final LiveEventOutboxJpaRepository outboxRepository;
     private final IvsClient ivsClient;
 
     @Transactional
@@ -43,14 +46,33 @@ public class LiveStreamService {
             throw new DependencyFailureException(e);
         }
         session.start(now, chatRoomArn);
-        return sessionRepository.save(session);
+        LiveSession saved = sessionRepository.save(session);
+        // 도메인 변경과 같은 트랜잭션에 적재한다 — 방송은 시작됐는데 이벤트만 사라지는 경우가 없다.
+        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED, now);
+        return saved;
     }
 
     @Transactional
     public LiveSession end(UUID sellerId, UUID liveId) {
         LiveSession session = loadOwned(sellerId, liveId);
-        session.end(Instant.now());
-        return sessionRepository.save(session);
+        Instant now = Instant.now();
+        session.end(now);
+        LiveSession saved = sessionRepository.save(session);
+        // live.ended.v1은 방송 후 자산(질문요약·하이라이트) 두 종류의 유일한 트리거다.
+        // 유실되면 방송이 이미 끝나서 재생성할 방법이 없다.
+        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED, now);
+        return saved;
+    }
+
+    private void appendOutbox(LiveSession session, String eventType, Instant occurredAt) {
+        String payload = """
+                {"liveId":"%s","projectId":"%s","occurredAt":"%s"}"""
+                .formatted(session.getPublicId(), session.getProjectId(), occurredAt);
+        outboxRepository.save(LiveEventOutboxJpaEntity.builder()
+                .eventType(eventType)
+                .liveSessionId(session.getId())
+                .payload(payload)
+                .build());
     }
 
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {
