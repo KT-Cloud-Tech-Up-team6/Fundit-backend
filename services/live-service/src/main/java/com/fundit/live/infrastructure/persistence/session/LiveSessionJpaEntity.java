@@ -87,4 +87,26 @@ public class LiveSessionJpaEntity {
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
+
+    /**
+     * 도메인이 소유한 필드만 반영한다.
+     *
+     * <p><b>{@code likeCount}·{@code vodUrl}·{@code vodReadyAt}은 건드리지 않는다.</b>
+     * 이 값들은 다른 경로(좋아요 조건부 UPDATE, VOD 전환)가 쓰고 도메인은 읽기만 한다.
+     * detached 엔티티를 만들어 merge하면 전 컬럼 UPDATE라 <b>읽은 시점의 stale 값이
+     * 남의 갱신을 덮어쓴다</b> — 방송 종료 저장 한 번에 그 사이 들어온 좋아요가 증발한다.
+     */
+    void applyFrom(com.fundit.live.domain.session.LiveSession session) {
+        this.categoryMajor = session.getCategoryMajor();
+        this.categoryMinor = session.getCategoryMinor();
+        this.introText = session.getIntroText();
+        this.thumbnailUrl = session.getThumbnailUrl();
+        this.status = session.getStatus();
+        this.scheduledStartAt = session.getScheduledStartAt();
+        this.actualStartAt = session.getActualStartAt();
+        this.actualEndAt = session.getActualEndAt();
+        this.ivsChatRoomArn = session.getIvsChatRoomArn();
+        this.errorDetail = session.getErrorDetail();
+        this.errorOccurredAt = session.getErrorOccurredAt();
+    }
 }

@@ -12,7 +12,7 @@ import com.fundit.live.presentation.dto.AnsweredQuestionResponse;
 import com.fundit.live.presentation.dto.CueSheetGenerateRequest;
 import com.fundit.live.presentation.dto.CueSheetResponse;
 import com.fundit.live.presentation.dto.InsightsResponse;
-import com.fundit.live.presentation.dto.VodChatMessageResponse;
+import com.fundit.live.presentation.dto.OriginalMessageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -74,11 +74,11 @@ public class LiveAiController {
 
     /** 대표질문 원본 채팅(요구사항정의서 6.4.4.3). */
     @GetMapping("/chat/questions/{questionId}")
-    public List<VodChatMessageResponse> originalMessages(@LoginUser CurrentUser user,
-                                                         @PathVariable UUID liveId,
-                                                         @PathVariable UUID questionId) {
+    public List<OriginalMessageResponse> originalMessages(@LoginUser CurrentUser user,
+                                                          @PathVariable UUID liveId,
+                                                          @PathVariable UUID questionId) {
         return questionInsightService.originalMessages(user.id(), liveId, questionId).stream()
-                .map(m -> new VodChatMessageResponse(m.getSenderId(), m.getContent(), 0))
+                .map(OriginalMessageResponse::from)
                 .toList();
     }
 

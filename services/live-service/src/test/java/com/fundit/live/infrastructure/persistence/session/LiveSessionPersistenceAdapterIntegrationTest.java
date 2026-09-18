@@ -5,6 +5,7 @@ import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
+import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import jakarta.persistence.EntityManager;
@@ -39,6 +40,7 @@ class LiveSessionPersistenceAdapterIntegrationTest {
 
     @Autowired private LiveSessionRepository sessionRepository;
     @Autowired private LiveChannelJpaRepository channelRepository;
+    @Autowired private LiveSessionJpaRepository sessionJpaRepository;
     @Autowired private EntityManager entityManager;
 
     /**
@@ -126,5 +128,52 @@ class LiveSessionPersistenceAdapterIntegrationTest {
         assertThat(after.getStatus()).isEqualTo(LiveStatus.ERROR);
         assertThat(after.getErrorDetail()).isEqualTo("채팅방 생성 실패");
         assertThat(after.getErrorOccurredAt()).isEqualTo(Instant.parse("2026-09-10T10:00:00Z"));
+    }
+
+    @Test
+    void 저장이_좋아요_카운트를_되돌리지_않는다() {
+        // given — 도메인 객체를 읽은 시점의 카운트는 0이다
+        LiveSession saved = sessionRepository.save(LiveSession.create(channelId, UUID.randomUUID()));
+        flushAndClear();
+        LiveSession loaded = sessionRepository.findOwned(saved.getPublicId(), sellerId).orElseThrow();
+
+        // 그 사이 시청자가 좋아요를 누른다(다른 경로의 조건부 UPDATE)
+        sessionJpaRepository.addLikeCount(saved.getId(), 1);
+        flushAndClear();
+
+        // when — 방송을 종료하고 저장한다. 종료 순간이 좋아요가 가장 몰리는 때다.
+        loaded.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        loaded.end(Instant.parse("2026-09-10T11:10:00Z"));
+        sessionRepository.save(loaded);
+        flushAndClear();
+
+        // then — 전 컬럼 merge였다면 읽은 시점의 0으로 덮어써져 좋아요가 증발한다
+        assertThat(sessionJpaRepository.findById(saved.getId()).orElseThrow().getLikeCount())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void 저장이_VOD_정보를_지우지_않는다() {
+        // given — 도메인이 쓰지 않는 값이라 읽은 객체에는 담겨 있어도 갱신 대상이 아니다
+        LiveSession saved = sessionRepository.save(LiveSession.create(channelId, UUID.randomUUID()));
+        flushAndClear();
+        LiveSession loaded = sessionRepository.findOwned(saved.getPublicId(), sellerId).orElseThrow();
+
+        LiveSessionJpaEntity row = sessionJpaRepository.findById(saved.getId()).orElseThrow();
+        sessionJpaRepository.save(LiveSessionJpaEntity.builder()
+                .id(row.getId()).publicId(row.getPublicId()).projectId(row.getProjectId())
+                .channelId(row.getChannelId()).status(row.getStatus()).likeCount(row.getLikeCount())
+                .vodUrl("https://vod/1.m3u8").vodReadyAt(Instant.parse("2026-09-10T12:00:00Z"))
+                .build());
+        flushAndClear();
+
+        // when
+        loaded.updateSettings(null, null, "소개 수정", null, null);
+        sessionRepository.save(loaded);
+        flushAndClear();
+
+        // then
+        assertThat(sessionJpaRepository.findById(saved.getId()).orElseThrow().getVodUrl())
+                .isEqualTo("https://vod/1.m3u8");
     }
 }

@@ -188,4 +188,41 @@ class HighlightServiceUnitTest {
         // then
         verify(highlightRepository).increaseViewCount(1L);
     }
+
+    @Test
+    void 다시보기가_없으면_재생성도_거부한다() {
+        // given — 같은 가드가 두 경로에 필요하다. 생성에만 붙이면 재생성으로 AI에 null이 간다.
+        givenOwned(null);
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.regenerate(sellerId, liveId, highlightId))
+                .isInstanceOf(BusinessException.class);
+        verify(aiClient, never()).requestHighlights(anyString(), any());
+    }
+
+    @Test
+    void 구간이_뒤집힌_수정은_거부한다() {
+        // given — 클립 URL은 멀쩡한데 구간만 뒤집혀 재생이 깨진다
+        givenOwned("https://vod");
+        given(highlightRepository.findByPublicId(highlightId))
+                .willReturn(Optional.of(clip(LiveHighlightJpaEntity.STATUS_COMPLETED, false)));
+
+        // when & then — 기존 startSec=320
+        assertThatThrownBy(() -> highlightService.edit(sellerId, liveId, highlightId,
+                null, 100, null, null, null))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 음수_시작위치는_거부한다() {
+        // given
+        givenOwned("https://vod");
+        given(highlightRepository.findByPublicId(highlightId))
+                .willReturn(Optional.of(clip(LiveHighlightJpaEntity.STATUS_COMPLETED, false)));
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.edit(sellerId, liveId, highlightId,
+                -1, null, null, null, null))
+                .isInstanceOf(BusinessException.class);
+    }
 }

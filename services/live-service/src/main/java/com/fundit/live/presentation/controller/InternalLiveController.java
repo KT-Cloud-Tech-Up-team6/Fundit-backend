@@ -11,6 +11,7 @@ import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaReposito
 import com.fundit.live.presentation.dto.ChatIngestRequest;
 import com.fundit.live.presentation.dto.InternalLiveStatusResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,12 +69,12 @@ public class InternalLiveController {
      */
     @PostMapping("/internal/v1/lives/{liveId}/cue-sheet")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void applyCueSheet(@PathVariable UUID liveId, @RequestBody CueSheetCallback callback) {
+    public void applyCueSheet(@PathVariable UUID liveId, @Valid @RequestBody CueSheetCallback callback) {
         cueSheetService.applyResult(liveId, callback.status(), callback.segments(), callback.failureReason());
     }
 
     /** AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다. */
-    public record CueSheetCallback(String status, String segments, String failureReason) {
+    public record CueSheetCallback(@NotBlank String status, String segments, String failureReason) {
     }
 
     /**
@@ -82,15 +83,22 @@ public class InternalLiveController {
      */
     @PostMapping("/internal/v1/lives/{liveId}/highlights")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void applyHighlights(@PathVariable UUID liveId, @RequestBody List<HighlightCallback> callbacks) {
+    public void applyHighlights(@PathVariable UUID liveId,
+                                @RequestBody @Valid List<@Valid HighlightCallback> callbacks) {
         highlightService.applyGenerated(liveId, callbacks.stream()
                 .map(c -> new HighlightService.GeneratedHighlight(c.kind(), c.sceneLabel(), c.title(),
                         c.startSec(), c.endSec(), c.clipUrl(), c.caption(), c.status()))
                 .toList());
     }
 
-    /** AI가 돌려주는 하이라이트 1건. status는 COMPLETED 또는 FAILED다. */
-    public record HighlightCallback(String kind, String sceneLabel, String title, int startSec,
-                                    Integer endSec, String clipUrl, String caption, String status) {
+    /**
+     * AI가 돌려주는 하이라이트 1건. status는 COMPLETED 또는 FAILED다.
+     *
+     * <p>필수값을 검증하는 이유: 비면 NOT NULL 제약 위반으로 <b>400이 아니라 500</b>이 난다.
+     * AI가 잘못 보낸 건데 우리 서버 오류로 보인다.
+     */
+    public record HighlightCallback(@NotBlank String kind, @NotBlank String sceneLabel, String title,
+                                    int startSec, Integer endSec, String clipUrl, String caption,
+                                    @NotBlank String status) {
     }
 }
