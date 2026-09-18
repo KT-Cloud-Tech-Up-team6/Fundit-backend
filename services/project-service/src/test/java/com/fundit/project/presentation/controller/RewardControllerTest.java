@@ -111,8 +111,8 @@ class RewardControllerTest {
     void 소비자용_리워드_목록을_조회한다() throws Exception {
         // given
         UUID projectId = UUID.randomUUID();
-        var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", 39000L, true,
-                EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
+        var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", "설명", "https://example.com/image.png",
+                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
         when(rewardQueryService.listForConsumer(projectId)).thenReturn(List.of(view));
 
         // when & then
@@ -120,6 +120,20 @@ class RewardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].remainingStock").value(37))
                 .andExpect(jsonPath("$[0].soldOut").value(false));
+    }
+
+    @Test
+    void 소비자용_리워드_상세를_조회한다() throws Exception {
+        // given
+        var view = new RewardQueryService.RewardConsumerView(1L, "R0000001", "얼리버드", "설명", "https://example.com/image.png",
+                39000L, true, EarlyBirdDiscountType.RATE, 10L, 35100L, true, 37, List.of(), false);
+        when(rewardQueryService.getForConsumer(1L)).thenReturn(view);
+
+        // when & then
+        mockMvc.perform(get("/api/v1/rewards/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("설명"))
+                .andExpect(jsonPath("$.imageUrl").value("https://example.com/image.png"));
     }
 
     @Test

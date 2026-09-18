@@ -190,7 +190,7 @@ class ProjectControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
-        var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L,
+        var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L, null, List.of(),
                 new ProjectQueryService.FundingStatusView(0, 0, 0, null), false,
                 new ProjectQueryService.SellerView(sellerId, null));
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
@@ -206,6 +206,9 @@ class ProjectControllerTest {
         // given
         UUID publicId = UUID.randomUUID();
         var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "ONGOING", 1_000_000L,
+                "https://example.com/cover.png",
+                List.of(new com.fundit.project.domain.project.IntroContentBlock(
+                        com.fundit.project.domain.project.IntroContentType.TEXT, "소개 본문")),
                 new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L), true,
                 new ProjectQueryService.SellerView(UUID.randomUUID(), null));
         when(projectQueryService.getPublicDetail(publicId)).thenReturn(view);
@@ -214,7 +217,9 @@ class ProjectControllerTest {
         mockMvc.perform(get("/api/v1/projects/" + publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ONGOING"))
-                .andExpect(jsonPath("$.hasLiveVerification").value(true));
+                .andExpect(jsonPath("$.hasLiveVerification").value(true))
+                .andExpect(jsonPath("$.coverImageUrl").value("https://example.com/cover.png"))
+                .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"));
     }
 
     @Test

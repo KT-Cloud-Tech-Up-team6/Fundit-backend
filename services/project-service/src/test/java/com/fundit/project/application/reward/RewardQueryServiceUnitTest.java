@@ -109,4 +109,25 @@ class RewardQueryServiceUnitTest {
         assertThat(result.get(0).options()).hasSize(1);
         assertThat(result.get(0).options().get(0).values().get(0).value()).isEqualTo("화이트");
     }
+
+    @Test
+    void 리워드_상세를_조회하면_이미지와_설명을_포함한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        RewardJpaEntity reward = RewardJpaEntity.builder()
+                .id(1L).projectId(1L).name("얼리버드").description("설명").imageUrl("https://example.com/reward.png")
+                .price(39000L).isLimited(true).quantity(100).isEarlyBird(true).hasOption(false).sortOrder(0)
+                .simpleRefundDisabled(false).createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(rewardJpaRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(reward));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(publicProject(publicId)));
+        when(inventoryQueryClient.getRemainingStock(1L)).thenReturn(Optional.of(37));
+
+        // when
+        var result = rewardQueryService.getForConsumer(1L);
+
+        // then
+        assertThat(result.description()).isEqualTo("설명");
+        assertThat(result.imageUrl()).isEqualTo("https://example.com/reward.png");
+        assertThat(result.remainingStock()).isEqualTo(37);
+    }
 }

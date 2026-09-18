@@ -16,6 +16,7 @@ import com.fundit.project.presentation.dto.CommonRefundPolicyResponse;
 import com.fundit.project.presentation.dto.FundingStatusResponse;
 import com.fundit.project.presentation.dto.FundingStatusSummaryResponse;
 import com.fundit.project.presentation.dto.IntroContentBlockRequest;
+import com.fundit.project.presentation.dto.IntroContentBlockResponse;
 import com.fundit.project.presentation.dto.PageResponse;
 import com.fundit.project.presentation.dto.PrivacyConsentRequest;
 import com.fundit.project.presentation.dto.PrivacyConsentResponse;
@@ -215,10 +216,18 @@ public class ProjectController {
     private ProjectDetailResponse toDetailResponse(ProjectQueryService.ProjectDetailView view) {
         var fundingStatus = view.fundingStatus();
         return new ProjectDetailResponse(view.projectId(), view.title(), view.status(), view.goalAmount(),
+                view.coverImageUrl(), toIntroContentResponse(view.introContent()),
                 new FundingStatusSummaryResponse(fundingStatus.currentAmount(), fundingStatus.achievementRate(),
                         fundingStatus.participantCount(), fundingStatus.remainingDays()),
                 view.hasLiveVerification(),
                 new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()));
+    }
+
+    private List<IntroContentBlockResponse> toIntroContentResponse(List<IntroContentBlock> blocks) {
+        if (blocks == null) return List.of();
+        return blocks.stream()
+                .map(b -> new IntroContentBlockResponse(b.type().name(), b.value()))
+                .toList();
     }
 
     /** 콤마로 구분한 다중 상태값을 지원한다(예: SUCCEEDED,FAILED). 미지정 시 빈 리스트(=전체 상태). */

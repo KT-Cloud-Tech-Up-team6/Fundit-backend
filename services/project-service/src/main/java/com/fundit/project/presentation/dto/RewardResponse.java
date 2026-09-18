@@ -4,6 +4,8 @@ public record RewardResponse(
         Long rewardId,
         String rewardDisplayCode,
         String name,
+        String description,
+        String imageUrl,
         Long price,
         boolean isLimited,
         Integer quantity,

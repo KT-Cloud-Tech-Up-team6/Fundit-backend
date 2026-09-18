@@ -39,6 +39,17 @@ public class RewardQueryService {
                 .toList();
     }
 
+    /** 리워드 상세 조회(소비자) — 리워드가 속한 프로젝트가 공개 상태일 때만 조회 가능하다. */
+    @Transactional(readOnly = true)
+    public RewardConsumerView getForConsumer(Long rewardId) {
+        RewardJpaEntity reward = rewardJpaRepository.findByIdAndDeletedAtIsNull(rewardId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        projectRepository.findById(reward.getProjectId())
+                .filter(Project::isPublic)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return toConsumerView(reward);
+    }
+
     /** 판매자용 — 공개 여부와 무관하게 소유권 검증만으로 조회한다(DRAFT 포함). */
     @Transactional(readOnly = true)
     public List<Reward> listForSeller(UUID sellerId, UUID projectPublicId) {
@@ -60,7 +71,8 @@ public class RewardQueryService {
                         .toList()
                 : List.of();
 
-        return new RewardConsumerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(), reward.getPrice(),
+        return new RewardConsumerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
+                reward.getDescription(), reward.getImageUrl(), reward.getPrice(),
                 reward.getIsEarlyBird(), reward.getEarlyBirdDiscountType(), reward.getEarlyBirdDiscountValue(),
                 earlyBirdDiscountedPrice(reward), reward.getIsLimited(), remainingStock, options, soldOut);
     }
@@ -96,7 +108,8 @@ public class RewardQueryService {
     }
 
     public record RewardConsumerView(
-            Long rewardId, String rewardDisplayCode, String name, Long price, boolean isEarlyBird,
+            Long rewardId, String rewardDisplayCode, String name, String description, String imageUrl,
+            Long price, boolean isEarlyBird,
             EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue, Long earlyBirdDiscountedPrice,
             boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut) {
     }

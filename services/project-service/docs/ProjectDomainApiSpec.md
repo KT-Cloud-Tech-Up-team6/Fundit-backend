@@ -17,6 +17,7 @@
 | 13 | PATCH | `/api/v1/rewards/{rewardId}/refund-policy` | 환불정책 특이사항 등록 | O (판매자) | PROJECT-009 |
 | 14 | GET | `/api/v1/projects/{projectId}/rewards` | 리워드/옵션 조회 및 재고 확인(소비자) | X (공통) | PROJECT-028 |
 | 14-1 | GET | `/api/v1/projects/{projectId}/rewards/mine` | 리워드 목록 조회(판매자, 공개여부 무관) | O (판매자) | PROJECT-007 |
+| 14-2 | GET | `/api/v1/rewards/{rewardId}` | 리워드 상세 조회(소비자) | X (공통) | PROJECT-028 |
 | 15 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
 | 16 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
 | 17 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (로그인 회원, 구매이력 미검증) | PROJECT-023 |
@@ -486,6 +487,8 @@ GET /api/v1/projects/{projectId}/rewards
     "rewardId": 1,
     "rewardDisplayCode": "R0000001",
     "name": "얼리버드 패키지",
+    "description": "얼리버드 한정 패키지 구성입니다.",
+    "imageUrl": "https://.../reward.png",
     "price": 39000,
     "isEarlyBird": true,
     "earlyBirdDiscountType": "RATE",
@@ -533,6 +536,8 @@ GET /api/v1/projects/{projectId}/rewards/mine
     "rewardId": 1,
     "rewardDisplayCode": "R0000001",
     "name": "얼리버드 패키지",
+    "description": "얼리버드 한정 패키지 구성입니다.",
+    "imageUrl": "https://.../reward.png",
     "price": 39000,
     "isLimited": true,
     "quantity": 100,
@@ -553,6 +558,48 @@ GET /api/v1/projects/{projectId}/rewards/mine
 - 옵션 그룹/값은 담지 않는다(등록/수정 응답과 동일 — 필요하면 리워드 상세를 별도 조회).
 - 잔여재고/품절 여부는 포함하지 않는다(판매자 화면은 설정값만 보여주면 되고, order-service 조회가 필요 없다).
 - 소유권 불일치 → `403 FORBIDDEN`, 존재하지 않는 프로젝트 → `404 NOT_FOUND`.
+
+---
+
+### 14-2. 리워드 상세 조회(소비자)
+
+```
+GET /api/v1/rewards/{rewardId}
+```
+
+**Auth Required**: X (공통)
+
+**Request**: Path Parameter: `rewardId`
+
+**Response Body**
+
+```json
+{
+  "rewardId": 1,
+  "rewardDisplayCode": "R0000001",
+  "name": "얼리버드 패키지",
+  "description": "얼리버드 한정 패키지 구성입니다.",
+  "imageUrl": "https://.../reward.png",
+  "price": 39000,
+  "isEarlyBird": true,
+  "earlyBirdDiscountType": "RATE",
+  "earlyBirdDiscountValue": 10,
+  "earlyBirdDiscountedPrice": 35100,
+  "isLimited": true,
+  "remainingStock": 37,
+  "options": [
+    { "groupId": 10, "groupName": "색상", "values": [
+        { "valueId": 100, "value": "화이트" },
+        { "valueId": 101, "value": "블랙" } ] }
+  ],
+  "soldOut": false
+}
+```
+
+**Validation / Business Rules**
+
+- 응답 필드/계산 규칙은 #14(리워드 목록 조회)와 동일 — 리워드 상세페이지 단건 조회용.
+- 리워드가 속한 프로젝트가 공개 상태(ONGOING/SUCCEEDED/FAILED)가 아니면(DRAFT, 또는 리워드가 소프트 삭제됨) `404 NOT_FOUND`.
 
 ---
 
@@ -842,6 +889,8 @@ GET /api/v1/projects/{projectId}/preview
   "title": "세상에 없는 프라이팬",
   "status": "DRAFT",
   "goalAmount": 5000000,
+  "coverImageUrl": "https://.../cover.png",
+  "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null },
   "hasLiveVerification": false,
   "seller": { "sellerId": "018e9a10-....", "displayName": null }
@@ -853,8 +902,8 @@ GET /api/v1/projects/{projectId}/preview
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`fundingStatus`/`hasLiveVerification`/`seller`뿐이다. **story·rewards·images·전체 펀딩 대시보드는 포함하지 않는다.**
-- 클라이언트가 화면을 조립하려면 리워드(#14)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)을 돌려주는 GET은 없다(쓰기는 #8 PATCH).
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
 ---
@@ -877,6 +926,8 @@ GET /api/v1/projects/{projectId}
   "title": "세상에 없는 프라이팬",
   "status": "ONGOING",
   "goalAmount": 5000000,
+  "coverImageUrl": "https://.../cover.png",
+  "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
   "hasLiveVerification": true,
   "seller": { "sellerId": "...", "displayName": null }
@@ -886,7 +937,7 @@ GET /api/v1/projects/{projectId}
 **Validation / Business Rules**
 
 - `status`가 `DRAFT`인 미공개 프로젝트 조회 시 `404 NOT_FOUND`(본인이면 미리보기 API 사용).
-- 응답은 `ProjectDetailResponse`만 반환한다 — story/rewards/images를 한 번에 주지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 스토리 GET은 없다.
+- 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
 

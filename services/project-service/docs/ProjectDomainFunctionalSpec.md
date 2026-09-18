@@ -233,8 +233,8 @@
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 상세페이지
-- **처리 내용(기술)**: 미공개 상태에서도 판매자 본인은 `ProjectDetailResponse` 조회 가능. 필드는 projectId/title/status/goalAmount/fundingStatus/hasLiveVerification/seller뿐이며 story/rewards/images는 포함하지 않음. 리워드·환불·LIVE는 별도 GET으로 조합. 스토리 GET은 없음
-- **출력값**: 공개 상세와 동일 DTO(요약 필드만)
+- **처리 내용(기술)**: 미공개 상태에서도 판매자 본인은 `ProjectDetailResponse` 조회 가능. 필드는 projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller이며 rewards는 포함하지 않음. 리워드(#14-1)·환불·LIVE는 별도 GET으로 조합
+- **출력값**: 공개 상세와 동일 DTO(대표이미지·소개 본문 포함, 리워드 미포함)
 - **트리거 방식**: API 호출
 
 ---
@@ -366,8 +366,8 @@
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 프로젝트 상세
-- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/fundingStatus/hasLiveVerification/seller)만 반환. story/rewards/images는 이 API에 없고 리워드·환불·LIVE GET으로 조합. 스토리 GET 없음. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 Noop이라 null. 미공개는 404
-- **출력값**: 프로젝트 상세 요약(전체 스토리/리워드 아님)
+- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller)만 반환. rewards는 이 API에 없고 리워드(#14)·환불·LIVE GET으로 조합. 대표이미지/소개 본문(coverImageUrl/introContent)은 이 응답에 포함. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 Noop이라 null. 미공개는 404
+- **출력값**: 프로젝트 상세 요약(대표이미지·소개 본문 포함, 리워드 목록은 미포함)
 - **트리거 방식**: API 호출
 
 ---
@@ -505,12 +505,12 @@
 - **예외 처리**: 품절 리워드 → 품절 표시
 - **요구사항**: 원하는 리워드와 옵션을 선택하기 위해 정보를 조회한다
 - **우선순위**: MVP
-- **입력값**: projectId
+- **입력값**: projectId(목록) 또는 rewardId(상세, #14-2)
 - **중분류**: 펀딩 참여·결제
-- **처리 내용(기술)**: 리워드별 구성·가격·옵션 조회(project-service 소유). 잔여재고는 `InventoryQueryClient`인데 현재 `NoopInventoryQueryClient`라 **항상 null**, `soldOut`은 항상 false. Kafka가 아니라 동기 조회 포트(미연동)
-- **출력값**: 리워드 목록(옵션, remainingStock=null)
+- **처리 내용(기술)**: 리워드별 구성·가격·옵션·이미지(imageUrl)·설명(description) 조회(project-service 소유). 목록(`GET /projects/{projectId}/rewards`)과 상세(`GET /rewards/{rewardId}`) 둘 다 동일한 필드 구성으로 응답한다. 잔여재고는 `InventoryQueryClient`인데 현재 `NoopInventoryQueryClient`라 **항상 null**, `soldOut`은 항상 false. Kafka가 아니라 동기 조회 포트(미연동)
+- **출력값**: 리워드 목록/상세(옵션, 이미지, 설명, remainingStock=null)
 - **트리거 방식**: API 호출
-- **검토의견(변경사항)**: 잔여재고 원장은 order-service 소유이나, 현재 HTTP 클라이언트가 Noop이라 실시간 재고가 응답에 실리지 않는다
+- **검토의견(변경사항)**: 잔여재고 원장은 order-service 소유이나, 현재 HTTP 클라이언트가 Noop이라 실시간 재고가 응답에 실리지 않는다. 배송비/예상 발송일은 아직 저장 컬럼 자체가 없어 별도 마이그레이션 필요(`ProjectDomainPendingWork.md` 참고)
 
 ---
 

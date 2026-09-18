@@ -2,6 +2,7 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.infrastructure.persistence.fundingstatus.FundingStatusSnapshotJpaEntity;
@@ -81,7 +82,7 @@ public class ProjectQueryService {
         String displayName = sellerProfileClient.getDisplayName(project.getSellerId()).orElse(null);
 
         return new ProjectDetailView(project.getPublicId(), project.getTitle(), project.getStatus().name(),
-                project.getGoalAmount(),
+                project.getGoalAmount(), project.getCoverImageUrl(), project.getIntroContent(),
                 new FundingStatusView(currentAmount, achievementRate, participantCount, remainingDays),
                 hasLiveVerification, new SellerView(project.getSellerId(), displayName));
     }
@@ -100,6 +101,7 @@ public class ProjectQueryService {
 
     public record ProjectDetailView(
             UUID projectId, String title, String status, Long goalAmount,
+            String coverImageUrl, List<IntroContentBlock> introContent,
             FundingStatusView fundingStatus, boolean hasLiveVerification, SellerView seller) {
     }
 

@@ -1,5 +1,7 @@
 package com.fundit.project.application.project;
 
+import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -43,6 +45,8 @@ class ProjectQueryServiceUnitTest {
         return Project.builder()
                 .id(1L).publicId(publicId).sellerId(sellerId).status(status)
                 .title("제목").goalAmount(1_000_000L)
+                .coverImageUrl("https://example.com/cover.png")
+                .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "소개 본문")))
                 .fundingDeadline(Instant.now().plusSeconds(5 * 24 * 3600))
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
     }
@@ -84,6 +88,9 @@ class ProjectQueryServiceUnitTest {
         // then
         assertThat(result.fundingStatus().currentAmount()).isEqualTo(320000L);
         assertThat(result.hasLiveVerification()).isTrue();
+        assertThat(result.coverImageUrl()).isEqualTo("https://example.com/cover.png");
+        assertThat(result.introContent()).hasSize(1);
+        assertThat(result.introContent().get(0).value()).isEqualTo("소개 본문");
     }
 
     @Test
