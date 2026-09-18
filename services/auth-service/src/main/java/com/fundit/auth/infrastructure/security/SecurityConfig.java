@@ -55,6 +55,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 공개키만 담기므로 인증 없이 연다 — 게이트웨이가 서명 검증에 쓴다
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/jwks").permitAll()
+                        // 배포 헬스체크 — 닫혀 있으면 401이라 헬스체크가 영원히 실패한다
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/check-email").permitAll()
                         // OpenAPI 스펙(운영 프로필에서는 아예 비활성) — .yaml까지 걸리도록 * 사용
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/api-docs*").permitAll()

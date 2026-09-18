@@ -1,0 +1,126 @@
+name: CD - ECR push
+run-name: "CD - ${{ github.event.workflow_run.name }}"
+
+# CI가 성공하면 그 CI가 올린 JAR artifact를 받아 이미지로 만들어 ECR에 push한다.
+# CI에서 테스트를 통과한 결과물을 그대로 쓰므로 여기서 다시 빌드하지 않는다.
+#
+# 새 서비스 추가 시: 아래 workflows 목록에 "CI - <서비스명>" 한 줄만 추가한다.
+# 단, artifact를 올리지 않는 CI는 넣지 않는다 — CI - modules는 라이브러리라 bootJar이 없다.
+#
+# EC2 배포(SSM)는 이 워크플로에 없다. 인프라 세팅 확인 후 별도 PR에서 붙인다.
+
+on:
+  workflow_run:
+    workflows:
+      - "CI - auth-service"
+      - "CI - member-service"
+      - "CI - project-service"
+      - "CI - order-service"
+      - "CI - payment-service"
+      - "CI - fulfillment-service"
+      - "CI - notification-service"
+      - "CI - search-service"
+      - "CI - gateway-service"
+    types: [completed]
+    # 인프라팀 규격: Backend Role의 OIDC 인증 허용 브랜치가 develop뿐이다.
+    # main을 넣으면 AssumeRole이 거부돼 실패한다.
+    branches: [develop]
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  # 서비스명 추출 + artifact 존재 확인.
+  #
+  # 존재 확인이 반드시 필요하다: 우리 CI는 changes job + if로 build-and-test를 건너뛰므로,
+  # 변경되지 않은 서비스도 워크플로 결론은 success다. 그대로 두면 push 한 번에 CD 9개가 떠서
+  # artifact가 없는 8개가 다운로드 단계에서 실패한다.
+  resolve:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read   # 해당 CI run의 artifact 목록 조회
+    outputs:
+      service: ${{ steps.detect.outputs.service }}
+      has_artifact: ${{ steps.detect.outputs.has_artifact }}
+    steps:
+      - id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # "CI - member-service" → "member-service"
+          SERVICE="${{ github.event.workflow_run.name }}"
+          SERVICE="${SERVICE#CI - }"
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
+
+          # artifact 이름은 서비스명과 같다(각 ci-*.yml의 Upload Artifact 참고)
+          NAMES=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
+            --jq '.artifacts[].name')
+          if echo "$NAMES" | grep -qx "$SERVICE"; then
+            echo "has_artifact=true" >> $GITHUB_OUTPUT
+            echo "대상: $SERVICE (artifact 있음)"
+          else
+            echo "has_artifact=false" >> $GITHUB_OUTPUT
+            echo "$SERVICE — 변경 없어 CI가 빌드를 건너뛰었다. push하지 않는다."
+          fi
+
+  push:
+    needs: resolve
+    if: needs.resolve.outputs.has_artifact == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC로 AWS 인증. 레포에 장기 액세스 키를 두지 않는다
+      contents: read    # actions/checkout
+      actions: read     # 다른 run의 artifact 다운로드
+    env:
+      SERVICE: ${{ needs.resolve.outputs.service }}
+    steps:
+      # 공용 Dockerfile만 있으면 된다
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            infra/docker/Dockerfile
+            .dockerignore
+
+      - name: Download JAR from CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SERVICE }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build-jar
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # IAM Role ARN은 시크릿이 아니다 — 이 값만으로는 아무것도 못 하고,
+          # Role의 신뢰 정책이 우리 레포·브랜치를 지목해야 인증된다(인프라팀 배포 문서).
+          role-to-assume: arn:aws:iam::899957568205:role/fundit-backend-ci-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 인프라팀 ECR 규격(전달 문서):
+      #   리포지토리 = fundit-backend 하나를 전 MSA가 공유하고, 서비스 구분은 태그로 한다
+      #   태그 = sha-<서비스명>-<commit sha>
+      #
+      # 태그가 반드시 `sha-`로 시작해야 한다 — ECR 수명주기(Lifecycle) 정책이 이 접두사를 기준으로
+      # 잡혀 있다. 그래서 latest 태그는 붙이지 않는다(규칙 위반이고 정책 대상에서 어긋난다).
+      - name: Build and push image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/fundit-backend
+          IMAGE_TAG: sha-${{ needs.resolve.outputs.service }}-${{ github.event.workflow_run.head_sha }}
+        run: |
+          JAR=$(ls build-jar/*.jar | head -n 1)
+          echo "이미지: $IMAGE:$IMAGE_TAG (jar: $JAR)"
+          docker build \
+            --platform linux/amd64 \
+            -f infra/docker/Dockerfile \
+            --build-arg JAR_FILE="$JAR" \
+            --build-arg SERVER_PORT=8080 \
+            -t "$IMAGE:$IMAGE_TAG" \
+            .
+          docker push "$IMAGE:$IMAGE_TAG"

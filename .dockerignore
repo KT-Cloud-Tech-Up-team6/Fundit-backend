@@ -1,0 +1,7 @@
+# 컨텍스트에 들어갈 건 CI가 넘겨준 jar 하나뿐이다.
+# .env가 섞이면 DB 비밀번호가 이미지째 레지스트리로 올라간다.
+.env
+**/.env
+.git
+**/build
+!**/build/libs/*.jar

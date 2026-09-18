@@ -139,9 +139,28 @@ sparse-checkout: |
 
 `jacocoTestReport`/`jacocoTestCoverageVerification` 태스크를 CI에서 돌리려면, **루트 `build.gradle`에 JaCoCo 플러그인이 이미 적용되어 있어야** 합니다(`subprojects {}` 블록). 없으면 CI가 "그런 태스크 없음" 에러로 바로 실패합니다. CI 작성/복붙 전에 `./gradlew :services:{service}:jacocoTestReport`를 로컬에서 먼저 돌려보고 태스크가 존재하는지 확인하세요.
 
-## 이 CI가 하지 않는 것 — Docker 이미지 빌드/배포
+## 이 CI가 하지 않는 것 — 이미지 빌드는 별도 워크플로우
 
-이 CI 워크플로우의 범위는 **빌드 + 테스트 + jar 아티팩트 업로드까지**입니다. Docker 이미지 빌드, ECR push, 배포는 인프라팀 파이프라인 소관입니다(인프라팀 문서 "개발팀: Dockerfile 작성 / 인프라팀: Image Build·ECR·배포" 기준). 예시 문서에 이미지 빌드/푸시 단계가 있어도, 인프라팀과 별도로 확인하기 전까지는 이 워크플로우에 추가하지 않습니다.
+이 CI 워크플로우의 범위는 **빌드 + 테스트 + jar 아티팩트 업로드까지**입니다. 여기에 Docker 관련 단계를 추가하지 마세요.
+
+이미지 빌드와 ECR push는 **`cd-ecr-push.yml`이 따로 담당**합니다. CI가 성공하면 `workflow_run`으로 깨어나서, 그 CI run이 올린 jar 아티팩트를 받아 `infra/docker/Dockerfile`로 이미지를 만들어 push합니다. **CI에서 테스트를 통과한 결과물을 그대로 쓰기 때문에 이미지 빌드 시점에 다시 컴파일하지 않습니다.** EC2 배포는 인프라팀 소관으로 남아 있습니다.
+
+### 새 서비스를 추가할 때
+
+`cd-ecr-push.yml`의 `workflows:` 목록에 `"CI - {서비스명}"` **한 줄만** 추가하면 됩니다. 아래 두 전제가 지켜지면 그 외에 고칠 것이 없습니다.
+
+- CI 워크플로 이름이 `CI - {서비스명}` 형식일 것 — 이 이름에서 서비스명을 잘라내 ECR 리포지토리 이름으로 씁니다
+- `Upload Artifact`의 `name:`이 **서비스명과 정확히 같을 것** — 이 이름으로 아티팩트를 찾습니다
+
+**아티팩트를 올리지 않는 CI는 목록에 넣지 마세요.** `CI - modules`가 그렇습니다 — 라이브러리라 bootJar이 비활성이고(`build.gradle`의 `childProjects.size() == 0`), 실행 가능 jar 자체가 없습니다.
+
+### 변경되지 않은 서비스가 CD를 깨뜨리지 않는 이유
+
+이 문서의 템플릿은 `changes` job + `if: needs.changes.outputs.relevant == 'true'` 구조입니다. 서비스가 변경되지 않으면 `build-and-test`가 **skip**되지만 **워크플로 전체의 결론은 `success`** 입니다. 그래서 `workflow_run`은 변경 여부와 무관하게 매번 발동합니다.
+
+`cd-ecr-push.yml`의 `resolve` job이 GitHub API로 **해당 run의 아티팩트 목록을 먼저 조회**해서, 없으면 push job을 건너뜁니다. 이 확인이 없으면 push 한 번에 CD가 전부 떠서 빌드되지 않은 서비스들이 아티팩트 다운로드 단계에서 실패합니다.
+
+> `workflow_run`은 **워크플로 파일이 기본 브랜치에 있어야** 발동합니다. 기능 브랜치에 올려두고 "CD가 안 돈다"고 헤매기 쉬운 지점입니다.
 
 ## 이 CI를 required check로 걸지 않을 경우
 
