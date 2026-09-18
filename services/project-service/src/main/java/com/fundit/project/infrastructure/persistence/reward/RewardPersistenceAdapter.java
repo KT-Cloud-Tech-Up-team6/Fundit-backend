@@ -60,6 +60,13 @@ public class RewardPersistenceAdapter implements RewardRepository {
     }
 
     @Override
+    public Optional<Reward> findByIdForUpdate(Long id) {
+        return rewardJpaRepository.findByIdForUpdate(id)
+                .filter(entity -> entity.getDeletedAt() == null)
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public List<Reward> findByProjectId(Long projectId) {
         return rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(projectId).stream()
                 .map(mapper::toDomain)

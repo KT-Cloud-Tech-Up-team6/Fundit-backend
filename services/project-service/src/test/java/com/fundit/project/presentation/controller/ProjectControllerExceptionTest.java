@@ -61,10 +61,16 @@ class ProjectControllerExceptionTest {
 
     @Test
     void status에_빈_토큰이_있으면_400을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/v1/projects")
-                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
-                        .param("status", ",,"))
-                .andExpect(status().isBadRequest());
+        // given
+        UUID userId = UUID.randomUUID();
+
+        // when
+        var result = mockMvc.perform(get("/api/v1/projects")
+                .header("X-User-Id", userId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                .param("status", ",,"));
+
+        // then
+        result.andExpect(status().isBadRequest());
         verify(projectService, never()).list(any(), any(), any(), any());
     }
 

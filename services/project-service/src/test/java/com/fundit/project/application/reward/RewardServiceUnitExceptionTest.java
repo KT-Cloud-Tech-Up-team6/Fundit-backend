@@ -96,7 +96,7 @@ class RewardServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_리워드를_수정하면_404_예외가_발생한다() {
         // given
-        when(rewardRepository.findById(99L)).thenReturn(Optional.empty());
+        when(rewardRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> rewardService.update(UUID.randomUUID(), 99L,
@@ -114,7 +114,7 @@ class RewardServiceUnitExceptionTest {
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.DRAFT)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
 
         // when & then
@@ -134,7 +134,7 @@ class RewardServiceUnitExceptionTest {
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.DRAFT)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
 
         // when & then
@@ -155,7 +155,7 @@ class RewardServiceUnitExceptionTest {
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.DRAFT)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
 
         // when & then

@@ -128,7 +128,7 @@ class RewardServiceUnitTest {
             Reward existing = Reward.create(1L, "기존이름", "기존설명", null, 10000L, false, null, false, null, null, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, UUID.randomUUID());
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -149,7 +149,7 @@ class RewardServiceUnitTest {
                     EarlyBirdDiscountType.RATE, 10L, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, UUID.randomUUID());
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -171,7 +171,7 @@ class RewardServiceUnitTest {
                     EarlyBirdDiscountType.RATE, 10L, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, UUID.randomUUID());
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -193,7 +193,7 @@ class RewardServiceUnitTest {
                     EarlyBirdDiscountType.RATE, 10L, null)
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, UUID.randomUUID());
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -216,7 +216,7 @@ class RewardServiceUnitTest {
                     .toBuilder().id(5L).build();
             Project project = ownedProject(sellerId, projectPublicId);
             String imageUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/projects/" + projectPublicId + "/a.jpg";
-            when(rewardRepository.findById(5L)).thenReturn(Optional.of(existing));
+            when(rewardRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(existing));
             when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
             when(rewardRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 

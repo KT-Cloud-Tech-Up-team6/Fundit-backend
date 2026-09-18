@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** 리워드 등록/수정/삭제·환불정책 특이사항(PROJECT-007~009). */
@@ -53,7 +54,7 @@ public class RewardService {
 
     @Transactional
     public Reward update(UUID sellerId, Long rewardId, UpdateRewardCommand command) {
-        OwnedReward owned = loadOwned(sellerId, rewardId);
+        OwnedReward owned = loadOwnedForUpdate(sellerId, rewardId);
         Reward reward = owned.reward();
         if (command.imageUrl() != null) {
             mediaUrlValidator.validate(owned.project().getPublicId(), command.imageUrl(), MediaCategory.IMAGE);
@@ -121,8 +122,15 @@ public class RewardService {
     }
 
     private OwnedReward loadOwned(UUID sellerId, Long rewardId) {
-        Reward reward = rewardRepository.findById(rewardId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return requireOwned(sellerId, rewardRepository.findById(rewardId));
+    }
+
+    private OwnedReward loadOwnedForUpdate(UUID sellerId, Long rewardId) {
+        return requireOwned(sellerId, rewardRepository.findByIdForUpdate(rewardId));
+    }
+
+    private OwnedReward requireOwned(UUID sellerId, Optional<Reward> found) {
+        Reward reward = found.orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         Project project = projectRepository.findById(reward.getProjectId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!project.isOwnedBy(sellerId)) {
