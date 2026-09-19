@@ -9,6 +9,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -68,5 +69,21 @@ class HttpShippingStatusClientUnitTest {
 
         assertThatThrownBy(() -> client.fetch(1024L))
                 .isInstanceOf(DependencyFailureException.class);
+    }
+
+    @Test
+    void UUID_주문ID로_같은_fulfillment_경로를_조회한다() {
+        UUID orderId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8087/internal/fundings/" + orderId + "/fulfillment-status"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"isAlreadyShipped": false, "isDelayed": true, "deliveredAt": null, "receiptConfirmedAt": null}
+                        """, MediaType.APPLICATION_JSON));
+
+        ShippingStatusClient.ShippingStatus status = client.fetch(orderId);
+
+        assertThat(status.isAlreadyShipped()).isFalse();
+        assertThat(status.isDelayed()).isTrue();
+        server.verify();
     }
 }

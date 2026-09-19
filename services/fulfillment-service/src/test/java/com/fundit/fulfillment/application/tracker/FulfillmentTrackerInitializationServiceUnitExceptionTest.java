@@ -1,6 +1,9 @@
 package com.fundit.fulfillment.application.tracker;
 
+import java.util.UUID;
+
 import com.fundit.fulfillment.application.funding.FundingSuccessEventListener.FundingSucceededEvent;
+import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
 import com.fundit.fulfillment.domain.tracker.FulfillmentTrackerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,20 +21,22 @@ class FulfillmentTrackerInitializationServiceUnitExceptionTest {
 
     @Mock
     private FulfillmentTrackerRepository trackerRepository;
+    @Mock
+    private ProjectOwnershipClient projectOwnershipClient;
 
     private FulfillmentTrackerInitializationService service;
 
     @BeforeEach
     void setUp() {
-        service = new FulfillmentTrackerInitializationService(trackerRepository);
+        service = new FulfillmentTrackerInitializationService(trackerRepository, projectOwnershipClient);
     }
 
     @Test
     void 존재확인_이후_동시_중복_이벤트로_유니크_제약_위반이_나도_무시한다() {
         // given — existsByProjectId 시점엔 없었지만 save 시점엔 경쟁 이벤트가 먼저 삽입한 경우
-        when(trackerRepository.existsByProjectId(123L)).thenReturn(false);
+        when(trackerRepository.existsByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(false);
         when(trackerRepository.save(any())).thenThrow(new DataIntegrityViolationException("uq_fulfillment_trackers_project"));
-        var event = new FundingSucceededEvent(1024L, 123L);
+        var event = new FundingSucceededEvent(1024L, 123L, UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"));
 
         // when & then
         assertThatCode(() -> service.onFundingSucceeded(event)).doesNotThrowAnyException();

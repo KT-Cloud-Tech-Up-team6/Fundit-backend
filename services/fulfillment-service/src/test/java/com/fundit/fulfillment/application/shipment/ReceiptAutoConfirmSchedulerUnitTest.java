@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -35,7 +36,7 @@ class ReceiptAutoConfirmSchedulerUnitTest {
     @Test
     void 대상_건마다_프로세서를_호출한다() {
         // given
-        Shipment s1 = Shipment.create(1L, 1L);
+        Shipment s1 = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000000001"), UUID.fromString("00000000-0000-0000-0000-000000000001"));
         when(shipmentRepository.findByStatusAndDeliveredAtBefore(any(ShipmentStatus.class), any()))
                 .thenReturn(List.of(s1));
 
@@ -43,22 +44,22 @@ class ReceiptAutoConfirmSchedulerUnitTest {
         scheduler.run();
 
         // then
-        verify(processor).autoConfirmOne(1L);
+        verify(processor).autoConfirmOne(UUID.fromString("00000000-0000-0000-0000-000000000001"));
     }
 
     @Test
     void 한_건이_실패해도_예외를_전파하지_않는다() {
         // given
-        Shipment s1 = Shipment.create(1L, 1L);
-        Shipment s2 = Shipment.create(2L, 1L);
+        Shipment s1 = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000000001"), UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        Shipment s2 = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000000002"), UUID.fromString("00000000-0000-0000-0000-000000000001"));
         when(shipmentRepository.findByStatusAndDeliveredAtBefore(any(ShipmentStatus.class), any()))
                 .thenReturn(List.of(s1, s2));
-        doThrow(new RuntimeException("실패")).when(processor).autoConfirmOne(1L);
+        doThrow(new RuntimeException("실패")).when(processor).autoConfirmOne(UUID.fromString("00000000-0000-0000-0000-000000000001"));
 
         // when
         scheduler.run();
 
         // then
-        verify(processor, times(1)).autoConfirmOne(2L);
+        verify(processor, times(1)).autoConfirmOne(UUID.fromString("00000000-0000-0000-0000-000000000002"));
     }
 }

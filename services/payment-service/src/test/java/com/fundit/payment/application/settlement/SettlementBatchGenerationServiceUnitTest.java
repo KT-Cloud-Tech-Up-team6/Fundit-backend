@@ -56,7 +56,8 @@ class SettlementBatchGenerationServiceUnitTest {
     }
 
     private Payment completedPayment(Long fundingId, long amount) {
-        Payment payment = Payment.create(fundingId, UUID.randomUUID(), "fundit-" + fundingId, amount, "주문", null, "idem");
+        Payment payment = Payment.create(new UUID(0L, fundingId), UUID.randomUUID(), "fundit-" + fundingId, amount, "주문",
+                null, "idem");
         payment.markCompleted("pay_key_" + fundingId, "secret", PaymentMethod.CARD, null, Instant.now());
         return payment;
     }
@@ -80,8 +81,8 @@ class SettlementBatchGenerationServiceUnitTest {
         SettlementScheduleJpaEntity entry1 = scheduleEntry(1L);
         SettlementScheduleJpaEntity entry2 = scheduleEntry(2L);
 
-        when(paymentRepository.findCompletedOrCancelledByFundingId(1L)).thenReturn(Optional.of(payment1));
-        when(paymentRepository.findCompletedOrCancelledByFundingId(2L)).thenReturn(Optional.of(payment2));
+        when(paymentRepository.findCompletedOrCancelledByInternalFundingId(1L)).thenReturn(Optional.of(payment1));
+        when(paymentRepository.findCompletedOrCancelledByInternalFundingId(2L)).thenReturn(Optional.of(payment2));
         when(paymentCancellationJpaRepository.findByPaymentId(any())).thenReturn(List.of());
         when(orderSettlementAggregateClient.fetchMakerCouponDeductionAmount(any())).thenReturn(0L);
 
@@ -107,7 +108,7 @@ class SettlementBatchGenerationServiceUnitTest {
         // given
         Payment payment = completedPayment(1L, 100_000L);
         SettlementScheduleJpaEntity entry = scheduleEntry(1L);
-        when(paymentRepository.findCompletedOrCancelledByFundingId(1L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findCompletedOrCancelledByInternalFundingId(1L)).thenReturn(Optional.of(payment));
         when(paymentCancellationJpaRepository.findByPaymentId(payment.getId())).thenReturn(List.of(
                 PaymentCancellationJpaEntity.builder()
                         .paymentId(payment.getId())
@@ -132,7 +133,7 @@ class SettlementBatchGenerationServiceUnitTest {
     void 대상_결제가_없는_건은_건너뛰고_아무_결제도_없으면_배치를_만들지_않는다() {
         // given
         SettlementScheduleJpaEntity entry = scheduleEntry(1L);
-        when(paymentRepository.findCompletedOrCancelledByFundingId(1L)).thenReturn(Optional.empty());
+        when(paymentRepository.findCompletedOrCancelledByInternalFundingId(1L)).thenReturn(Optional.empty());
 
         // when
         settlementBatchGenerationService.generate(SELLER_ID, SettlementBatchType.INTERIM, List.of(entry));

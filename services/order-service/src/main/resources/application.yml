@@ -36,3 +36,9 @@ order:
       # security.md 규칙: 서비스 간 동기 호출에는 반드시 타임아웃을 둔다.
       connect-timeout-ms: 2000
       read-timeout-ms: 3000
+  # cross-service ID 통일(#69) 1회성 백필 스위치 — 기본 꺼짐. 운영에서 필요할 때만
+  # ORDER_BACKFILL_FUNDING_PROJECT_PUBLIC_ID=true로 켜서 재기동 1회 실행 후 다시 끈다
+  # (FundingProjectPublicIdBackfillRunner 참고, 영구 스케줄 잡 아님).
+  migration:
+    backfill-funding-project-public-id:
+      enabled: ${ORDER_BACKFILL_FUNDING_PROJECT_PUBLIC_ID:false}

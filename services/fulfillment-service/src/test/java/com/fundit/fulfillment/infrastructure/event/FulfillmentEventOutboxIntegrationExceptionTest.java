@@ -59,7 +59,7 @@ class FulfillmentEventOutboxIntegrationExceptionTest {
         // given
         outboxRepository.save(FulfillmentEventOutboxJpaEntity.builder()
                 .eventType(FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER)
-                .projectId(1L)
+                .projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000001"))
                 .memberId(UUID.randomUUID())
                 .relatedPublicId(UUID.randomUUID())
                 .build());

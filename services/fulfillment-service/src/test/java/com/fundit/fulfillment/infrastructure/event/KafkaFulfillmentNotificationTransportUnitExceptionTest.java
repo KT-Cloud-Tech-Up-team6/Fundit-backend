@@ -41,7 +41,7 @@ class KafkaFulfillmentNotificationTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendStaleUpdateReminder(
-                new StaleUpdateReminderEvent(1L), UUID.randomUUID(), UUID.randomUUID(), 1L))
+                new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000001")), UUID.randomUUID(), UUID.randomUUID(), 1L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
@@ -53,7 +53,7 @@ class KafkaFulfillmentNotificationTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendStaleUpdateReminder(
-                new StaleUpdateReminderEvent(2L), UUID.randomUUID(), UUID.randomUUID(), 2L))
+                new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000002")), UUID.randomUUID(), UUID.randomUUID(), 2L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

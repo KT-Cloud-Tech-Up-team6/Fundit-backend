@@ -32,7 +32,7 @@ public class RefundQueryService {
                 projection.getStatus(), projection.getAmount(), projection.getRequestedAt());
     }
 
-    public record RefundSummary(Long refundId, Long fundingId, String triggerType, String status, long amount,
+    public record RefundSummary(Long refundId, UUID fundingId, String triggerType, String status, long amount,
                                  Instant requestedAt) {
     }
 }

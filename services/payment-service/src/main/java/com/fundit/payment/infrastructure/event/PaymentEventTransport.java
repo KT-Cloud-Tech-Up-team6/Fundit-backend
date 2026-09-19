@@ -1,5 +1,7 @@
 package com.fundit.payment.infrastructure.event;
 
+import java.util.UUID;
+
 /**
  * 아웃박스에 적재된 결제/환불 이벤트를 실제 채널(브로커)로 보내는 전송 포트.
  * 필드 구성은 order-service가 이미 구현해둔 소비자 코드({@code PaymentEventListener})의
@@ -12,10 +14,10 @@ public interface PaymentEventTransport {
 
     void sendRefundCompleted(RefundCompletedTransportEvent event, Long outboxId);
 
-    record PaymentCompletedTransportEvent(Long fundingId, Long couponIssuanceId) {
+    record PaymentCompletedTransportEvent(UUID fundingId, Long couponIssuanceId) {
     }
 
-    record RefundCompletedTransportEvent(Long fundingId, Long couponIssuanceId, String refundReason,
+    record RefundCompletedTransportEvent(UUID fundingId, Long couponIssuanceId, String refundReason,
                                           boolean fullRefund) {
     }
 }

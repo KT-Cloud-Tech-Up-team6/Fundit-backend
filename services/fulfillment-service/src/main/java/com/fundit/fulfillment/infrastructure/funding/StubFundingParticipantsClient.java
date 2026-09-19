@@ -21,8 +21,8 @@ public class StubFundingParticipantsClient implements FundingParticipantsClient 
     private static final Logger log = LoggerFactory.getLogger(StubFundingParticipantsClient.class);
 
     @Override
-    public List<UUID> listParticipantMemberIds(Long projectId) {
+    public List<UUID> listParticipantMemberIds(UUID projectId) {
         log.warn("[STUB] order-service 내부 API 미구현 — 고정값으로 대체합니다. projectId={}", projectId);
-        return List.of(new UUID(0L, projectId));
+        return List.of(new UUID(0L, projectId.getLeastSignificantBits()));
     }
 }

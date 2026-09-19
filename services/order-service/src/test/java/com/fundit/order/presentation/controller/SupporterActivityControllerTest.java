@@ -1,5 +1,6 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.supporter.SupporterActivityService;
 import com.fundit.order.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,16 +34,20 @@ class SupporterActivityControllerTest {
 
     @MockitoBean
     private SupporterActivityService supporterActivityService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
 
     @Test
     void 서포터_활동_목록을_상대시간과_함께_조회한다() throws Exception {
         // given — toRelativeTime의 방금전/분전/시간전/일전 분기를 모두 지나가게 한다
+        UUID projectPublicId = UUID.randomUUID();
+        when(projectOwnershipClient.findPublicId(1L)).thenReturn(Optional.of(projectPublicId));
         List<SupporterActivityService.SupporterActivity> activities = List.of(
                 new SupporterActivityService.SupporterActivity("구매자", 10_000L, Instant.now().minusSeconds(10)),
                 new SupporterActivityService.SupporterActivity("구매자", 5_000L, Instant.now().minus(5, ChronoUnit.MINUTES)),
                 new SupporterActivityService.SupporterActivity("구매자", 3_000L, Instant.now().minus(3, ChronoUnit.HOURS)),
                 new SupporterActivityService.SupporterActivity("익명", null, Instant.now().minus(2, ChronoUnit.DAYS)));
-        when(supporterActivityService.list(eq(1L), any())).thenReturn(new PageImpl<>(activities));
+        when(supporterActivityService.list(eq(projectPublicId), any())).thenReturn(new PageImpl<>(activities));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/1/supporters"))

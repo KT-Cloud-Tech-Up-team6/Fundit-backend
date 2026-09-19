@@ -32,7 +32,7 @@ class PaymentPersistenceAdapterUnitTest {
 
     @Test
     void 저장하면_매퍼를_거쳐_도메인을_반환한다() {
-        Payment payment = Payment.create(1024L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        Payment payment = Payment.create(new UUID(0L, 1024L), UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
         when(jpaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         Payment saved = adapter.save(payment);
@@ -43,17 +43,18 @@ class PaymentPersistenceAdapterUnitTest {
 
     @Test
     void 조회_메서드는_Optional을_그대로_전달한다() {
-        Payment payment = Payment.create(1024L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        UUID fundingId = new UUID(0L, 1024L);
+        Payment payment = Payment.create(fundingId, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
         PaymentJpaEntity entity = new PaymentMapper().toEntity(payment);
         when(jpaRepository.findById(payment.getId())).thenReturn(Optional.of(entity));
         when(jpaRepository.findByPgOrderId("fundit-1")).thenReturn(Optional.of(entity));
         when(jpaRepository.findByPgPaymentKey("key")).thenReturn(Optional.empty());
         when(jpaRepository.findByIdempotencyKey("idem")).thenReturn(Optional.of(entity));
-        when(jpaRepository.findByCompletedFundingId(1024L)).thenReturn(Optional.empty());
-        when(jpaRepository.findFirstByFundingIdAndStatusInOrderByCreatedAtDesc(1024L,
+        when(jpaRepository.findByCompletedFundingOrderId(fundingId)).thenReturn(Optional.empty());
+        when(jpaRepository.findFirstByFundingOrderIdAndStatusInOrderByCreatedAtDesc(fundingId,
                 List.of(PaymentStatus.COMPLETED.name(), PaymentStatus.CANCELLED.name())))
                 .thenReturn(Optional.of(entity));
-        when(jpaRepository.findFirstByFundingIdAndStatusOrderByCreatedAtDesc(1024L, PaymentStatus.PENDING.name()))
+        when(jpaRepository.findFirstByFundingOrderIdAndStatusOrderByCreatedAtDesc(fundingId, PaymentStatus.PENDING.name()))
                 .thenReturn(Optional.of(entity));
         when(jpaRepository.existsByPgOrderId("fundit-1")).thenReturn(true);
 
@@ -61,9 +62,9 @@ class PaymentPersistenceAdapterUnitTest {
         assertThat(adapter.findByPgOrderId("fundit-1")).isPresent();
         assertThat(adapter.findByPgPaymentKey("key")).isEmpty();
         assertThat(adapter.findByIdempotencyKey("idem")).isPresent();
-        assertThat(adapter.findCompletedByFundingId(1024L)).isEmpty();
-        assertThat(adapter.findCompletedOrCancelledByFundingId(1024L)).isPresent();
-        assertThat(adapter.findPendingByFundingId(1024L)).isPresent();
+        assertThat(adapter.findCompletedByFundingId(fundingId)).isEmpty();
+        assertThat(adapter.findCompletedOrCancelledByFundingId(fundingId)).isPresent();
+        assertThat(adapter.findPendingByFundingId(fundingId)).isPresent();
         assertThat(adapter.existsByPgOrderId("fundit-1")).isTrue();
         verify(jpaRepository).existsByPgOrderId("fundit-1");
     }

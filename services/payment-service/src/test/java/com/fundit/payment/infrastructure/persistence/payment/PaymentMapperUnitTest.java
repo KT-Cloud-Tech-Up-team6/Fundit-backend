@@ -20,7 +20,7 @@ class PaymentMapperUnitTest {
         Instant now = Instant.parse("2026-09-08T01:00:00Z");
         Payment domain = Payment.builder()
                 .id(UUID.randomUUID())
-                .fundingId(1024L)
+                .fundingId(new UUID(0L, 1024L))
                 .memberId(UUID.randomUUID())
                 .pgOrderId("fundit-abc")
                 .pgPaymentKey("pay_key")
@@ -43,7 +43,7 @@ class PaymentMapperUnitTest {
 
         // then
         assertThat(restored.getId()).isEqualTo(domain.getId());
-        assertThat(restored.getFundingId()).isEqualTo(1024L);
+        assertThat(restored.getFundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(restored.getPgOrderId()).isEqualTo("fundit-abc");
         assertThat(restored.getPaymentMethod()).isEqualTo(PaymentMethod.EASY_PAY);
         assertThat(restored.getEasyPayProvider()).isEqualTo("KAKAOPAY");
@@ -54,7 +54,7 @@ class PaymentMapperUnitTest {
 
     @Test
     void 결제수단이_없으면_null로_매핑한다() {
-        Payment domain = Payment.create(1L, UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
+        Payment domain = Payment.create(new UUID(0L, 1L), UUID.randomUUID(), "fundit-1", 10_000L, "주문", null, "idem");
 
         PaymentJpaEntity entity = mapper.toEntity(domain);
         Payment restored = mapper.toDomain(entity);

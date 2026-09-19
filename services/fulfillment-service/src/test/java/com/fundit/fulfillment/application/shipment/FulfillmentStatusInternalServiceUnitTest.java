@@ -46,13 +46,13 @@ class FulfillmentStatusInternalServiceUnitTest {
     @Test
     void shipments_레코드가_있으면_그_값을_그대로_사용한다() {
         // given
-        Shipment shipment = Shipment.create(1024L, 123L);
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(Instant.now());
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.of(shipment));
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipment));
 
         // when
-        var view = service.getStatus(1024L);
+        var view = service.getStatus(UUID.fromString("00000000-0000-0000-0000-000000001024"));
 
         // then
         assertThat(view.isAlreadyShipped()).isTrue();
@@ -63,10 +63,10 @@ class FulfillmentStatusInternalServiceUnitTest {
     @Test
     void 미발송이고_발송예정일이_지났으면_지연으로_판정한다() {
         // given
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.randomUUID(), UUID.randomUUID()));
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
                 .thenReturn(Optional.of(FulfillmentStageDetailJpaEntity.builder()
                         .id(1L).trackerId(1L).stage("SHIPPING_OUT")
@@ -74,7 +74,7 @@ class FulfillmentStatusInternalServiceUnitTest {
                         .detailText("d").build()));
 
         // when
-        var view = service.getStatus(1024L);
+        var view = service.getStatus(UUID.fromString("00000000-0000-0000-0000-000000001024"));
 
         // then
         assertThat(view.isAlreadyShipped()).isFalse();
@@ -84,10 +84,10 @@ class FulfillmentStatusInternalServiceUnitTest {
     @Test
     void 미발송이고_발송예정일_전이면_지연이_아니다() {
         // given
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
-        FulfillmentTracker tracker = FulfillmentTracker.create(123L).toBuilder().id(1L).build();
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.of(tracker));
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.randomUUID(), UUID.randomUUID()));
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
                 .thenReturn(Optional.of(FulfillmentStageDetailJpaEntity.builder()
                         .id(1L).trackerId(1L).stage("SHIPPING_OUT")
@@ -95,7 +95,7 @@ class FulfillmentStatusInternalServiceUnitTest {
                         .detailText("d").build()));
 
         // when
-        var view = service.getStatus(1024L);
+        var view = service.getStatus(UUID.fromString("00000000-0000-0000-0000-000000001024"));
 
         // then
         assertThat(view.isDelayed()).isFalse();
@@ -104,14 +104,33 @@ class FulfillmentStatusInternalServiceUnitTest {
     @Test
     void 미발송이고_예상일정_정보가_없으면_지연이_아닌_것으로_보수적으로_판정한다() {
         // given
-        when(shipmentRepository.findByFundingId(1024L)).thenReturn(Optional.empty());
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(123L, UUID.randomUUID(), UUID.randomUUID()));
-        when(trackerRepository.findByProjectId(123L)).thenReturn(Optional.empty());
+        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.randomUUID(), UUID.randomUUID()));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.empty());
+
+        // when
+        var view = service.getStatus(UUID.fromString("00000000-0000-0000-0000-000000001024"));
+
+        // then
+        assertThat(view.isDelayed()).isFalse();
+    }
+
+    @Test
+    void 레거시_Long_PK는_orderId로_해석한_뒤_조회한다() {
+        // given
+        UUID orderId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        when(orderFundingClient.fetchByInternalId(1024L))
+                .thenReturn(new FundingSnapshot(projectId, UUID.randomUUID(), orderId));
+        when(shipmentRepository.findByFundingId(orderId)).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(orderId)).thenReturn(new FundingSnapshot(projectId, UUID.randomUUID(), orderId));
+        when(trackerRepository.findByProjectId(projectId)).thenReturn(Optional.empty());
 
         // when
         var view = service.getStatus(1024L);
 
         // then
+        assertThat(view.isAlreadyShipped()).isFalse();
         assertThat(view.isDelayed()).isFalse();
     }
 }

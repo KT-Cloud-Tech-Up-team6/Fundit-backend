@@ -2,6 +2,7 @@ package com.fundit.order.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -17,6 +18,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -44,11 +46,14 @@ class OrderControllerExceptionTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
+    @MockitoBean
+    private ProjectOwnershipClient projectOwnershipClient;
 
     @Test
     void 재고가_부족하면_409를_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
+        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(UUID.randomUUID()));
         when(orderCreateService.create(any(), any(), any(), any(), any()))
                 .thenThrow(new BusinessException(OrderErrorCode.INSUFFICIENT_STOCK));
 

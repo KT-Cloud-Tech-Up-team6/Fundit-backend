@@ -14,7 +14,7 @@ class FundingUnitTest {
     private Funding newFunding() {
         List<FundingLineItem> lineItems = List.of(
                 new FundingLineItem(null, 1L, "얼리버드 패키지", 2, 10_000L, List.of()));
-        return Funding.create(UUID.randomUUID(), 10L, "세상에 없는 프라이팬",
+        return Funding.create(UUID.randomUUID(), UUID.randomUUID(), "세상에 없는 프라이팬",
                 new ShippingAddress("홍길동", "010-1234-5678", "12345", "서울시", "101동"),
                 3_000L, lineItems, Instant.now().plusSeconds(3600));
     }

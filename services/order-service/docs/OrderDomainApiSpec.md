@@ -13,12 +13,20 @@
 | 9 | POST | `/api/v1/coupons/{couponCode}/claim` | 쿠폰 발급받기(소비자 능동 클레임) | O (구매자) | ORDER-012 |
 | 10 | GET | `/api/v1/coupons/me` | 쿠폰함 조회 | O (구매자) | ORDER-009 |
 | 11 | GET | `/api/v1/inventories/{rewardId}` | 잔여재고 조회(project-service 동기 호출) | X (서비스 간, 게이트웨이 미라우팅) | PROJECT-028 |
-| 12 | GET | `/internal/fundings/{fundingId}` | 내부 펀딩 스냅샷 조회 | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment 연동 |
-| 13 | GET | `/internal/projects/{projectId}/funding-participants` | 내부 펀딩 성립 참여자 조회 | 내부 키 (`InternalGatewaySecretFilter`) | fulfillment 연동 |
+| 12 | GET | `/internal/fundings/{fundingId}` | 내부 펀딩 스냅샷 조회(레거시 Long PK) | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment v1 연동 |
+| 13 | GET | `/internal/orders/{orderId}` | 내부 펀딩 스냅샷 조회(orderId UUID) | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment v2 연동 |
+| 14 | GET | `/internal/projects/{projectId}/funding-participants` | 내부 펀딩 성립 참여자 조회 | 내부 키 (`InternalGatewaySecretFilter`) | fulfillment 연동 |
+| 15 | POST | `/api/v2/orders/preview` | 결제금액 계산(projectId=UUID) | O (구매자) | ORDER-002, ORDER-010 |
+| 16 | POST | `/api/v2/orders` | 펀딩 주문 생성(projectId=UUID) | O (구매자) | ORDER-003 |
+| 17 | GET | `/api/v2/orders` | 내 펀딩 참여 목록(projectId=UUID) | O (구매자) | ORDER-004 |
 
 > ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 애플리케이션 로직이 있으나 `@KafkaListener` 배선이 없어 `payment.completed.v1`/`refund.completed.v1`을 소비하지 않습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
-> **식별자 계약**: 공개 REST의 `orderId`는 `fundings.public_id`(UUID). Kafka 이벤트·내부 API의 `fundingId`는 `fundings.id`(Long PK). 서로 바꿔 쓰지 않는다.
+> **식별자 계약 (cross-service ID 통일 #69)**:
+> - 공개 REST의 `orderId`는 `fundings.public_id`(UUID).
+> - **v2** 공개 REST의 `projectId`는 project-service `publicId`(UUID). 클라이언트가 프로젝트 조회 응답의 `projectId`를 그대로 넘긴다.
+> - **v1** `POST /orders`·`/preview`의 `projectId`는 레거시 Long(project-service 내부 PK). 서버가 내부 API로 UUID로 해석한다. v1 목록 응답의 `projectId`(Long)는 항상 null — 값이 필요하면 v2를 쓴다.
+> - Kafka `fundingId`는 여전히 `fundings.id`(Long PK). 같은 메시지에 `orderId`(UUID)·`projectPublicId`(UUID)를 필드 추가로 실어 둔다.
 
 ---
 
@@ -134,7 +142,7 @@ POST /api/v1/orders
 - 재고 부족 시 `409 CONFLICT`(`INSUFFICIENT_STOCK`), 트랜잭션 롤백(재고 변경 없음) — 부족한 `rewardId`는 메시지에 포함한다(`ErrorResponse.detail`은 null).
 - 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupons.used_budget_amount` 갱신. `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행할 예정 — 현재 리스너 미배선).
 - 금액은 서버에서 재검증(클라이언트 전달값 불신, S4), 재고 차감 쿼리는 바인딩 변수 사용(S1).
-- 응답의 `orderId`는 `fundings.public_id`(UUID). 이후 결제 요청은 payment-service의 `POST /api/v1/payments`(orderId 전달)로 이어진다(이 문서 범위 밖).
+- 응답의 `orderId`는 `fundings.public_id`(UUID), `projectId`는 project-service publicId(UUID). 이후 결제 요청은 payment-service의 `POST /api/v2/payments`(`fundingId`=이 `orderId`)로 이어진다.
 
 ---
 
@@ -407,7 +415,7 @@ GET /internal/fundings/{fundingId}
 
 **Auth Required**: 내부 전용. 게이트웨이가 `/internal/**`를 order-service로 라우팅하지 않아 외부 노출이 차단되고, 서비스 쪽 `InternalGatewaySecretFilter`가 `InternalEndpointConfig`에 등록된 이 경로에 `X-Internal-Api-Key`를 요구한다.
 
-**호출 주체**: payment-service / fulfillment-service. Path의 `fundingId`는 **Long PK**(`fundings.id`)이지 공개 REST의 `orderId`(UUID)가 아니다.
+**호출 주체**: payment-service / fulfillment-service v1 어댑터. Path의 `fundingId`는 **Long PK**(`fundings.id`). UUID 조회는 `GET /internal/orders/{orderId}`를 쓴다.
 
 **Request**: Path Parameter: `fundingId`(Long)
 
@@ -415,7 +423,8 @@ GET /internal/fundings/{fundingId}
 
 ```json
 {
-  "projectId": 123,
+  "fundingId": 1024,
+  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
   "memberId": "018f9a1b-....",
   "fundingPublicId": "018f9a1b-...."
 }
@@ -424,11 +433,32 @@ GET /internal/fundings/{fundingId}
 **Validation / Business Rules**
 
 - 없는 `fundingId` → `404 NOT_FOUND`.
-- 현재 구현은 fulfillment가 쓰는 최소 필드(`projectId`/`memberId`/`fundingPublicId`)만 반환한다. `status`/`finalAmount`/`orderName`은 포함하지 않는다.
+- `projectId`는 project-service `publicId`(UUID). `fundingPublicId`는 외부 노출 `orderId`.
+- 현재 구현은 최소 필드(`fundingId`/`projectId`/`memberId`/`fundingPublicId`)만 반환한다. `status`/`finalAmount`/`orderName`은 포함하지 않는다.
 
 ---
 
-### 13. 내부 펀딩 성립 참여자 조회
+### 13. 내부 펀딩 스냅샷 조회(orderId UUID)
+
+```
+GET /internal/orders/{orderId}
+```
+
+**Auth Required**: 12번과 동일(게이트웨이 미라우팅 + `InternalGatewaySecretFilter`).
+
+**호출 주체**: payment-service / fulfillment-service v2. Path의 `orderId`는 `fundings.public_id`(UUID).
+
+**Request**: Path Parameter: `orderId`(UUID)
+
+**Response Body**: 12번과 동일.
+
+**Validation / Business Rules**
+
+- 없는 `orderId` → `404 NOT_FOUND`.
+
+---
+
+### 14. 내부 펀딩 성립 참여자 조회
 
 ```
 GET /internal/projects/{projectId}/funding-participants
@@ -438,7 +468,7 @@ GET /internal/projects/{projectId}/funding-participants
 
 **호출 주체**: fulfillment-service(알림 팬아웃 대상).
 
-**Request**: Path Parameter: `projectId`(Long)
+**Request**: Path Parameter: `projectId`(UUID, project-service publicId)
 
 **Response Body**
 

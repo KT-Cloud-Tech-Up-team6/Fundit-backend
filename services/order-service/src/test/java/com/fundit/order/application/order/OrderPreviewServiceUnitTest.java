@@ -25,14 +25,15 @@ class OrderPreviewServiceUnitTest {
     void 가격_계산을_그대로_위임한다() {
         // given
         UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
         List<OrderLineItemRequest> lineItems = List.of(new OrderLineItemRequest(1L, 2, List.of()));
         List<String> couponCodes = List.of("WELCOME10");
         var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 1_000L, 12_000L,
                 List.of(), List.of(), List.of());
-        when(orderPricingService.calculate(memberId, 123L, lineItems, couponCodes)).thenReturn(pricing);
+        when(orderPricingService.calculate(memberId, projectId, lineItems, couponCodes)).thenReturn(pricing);
 
         // when
-        var result = orderPreviewService.preview(memberId, 123L, lineItems, couponCodes);
+        var result = orderPreviewService.preview(memberId, projectId, lineItems, couponCodes);
 
         // then
         assertThat(result).isEqualTo(pricing);

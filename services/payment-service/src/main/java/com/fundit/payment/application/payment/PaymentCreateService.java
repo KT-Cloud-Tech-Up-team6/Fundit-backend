@@ -21,9 +21,9 @@ public class PaymentCreateService {
     private final PaymentRepository paymentRepository;
 
     @Transactional
-    public PaymentCreateResult create(UUID accountId, Long fundingId) {
+    public PaymentCreateResult create(UUID accountId, UUID orderId) {
         // 예외 처리 — 이미 pg_order_id가 발급된 결제 시도가 있으면 재사용(중복 생성 방지, PAYMENT-001 예외 처리 항목)
-        var existing = paymentRepository.findPendingByFundingId(fundingId);
+        var existing = paymentRepository.findPendingByFundingId(orderId);
         if (existing.isPresent()) {
             Payment payment = existing.get();
             if (!payment.isOwnedBy(accountId)) {
@@ -33,7 +33,7 @@ public class PaymentCreateService {
         }
 
         // ① order-service 내부 API 동기 호출
-        OrderFundingClient.FundingSnapshot snapshot = orderFundingClient.fetch(fundingId);
+        OrderFundingClient.FundingSnapshot snapshot = orderFundingClient.fetch(orderId);
 
         // ② 소유권 검증
         if (!snapshot.memberId().equals(accountId)) {
@@ -45,7 +45,7 @@ public class PaymentCreateService {
         }
 
         // ④ Payment(PENDING) 생성 — finalAmount/orderName/couponIssuanceId를 스냅샷으로 고정
-        Payment payment = Payment.create(fundingId, accountId, generateUniquePgOrderId(),
+        Payment payment = Payment.create(orderId, accountId, generateUniquePgOrderId(),
                 snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceId(),
                 UUID.randomUUID().toString());
         return PaymentCreateResult.from(paymentRepository.save(payment));

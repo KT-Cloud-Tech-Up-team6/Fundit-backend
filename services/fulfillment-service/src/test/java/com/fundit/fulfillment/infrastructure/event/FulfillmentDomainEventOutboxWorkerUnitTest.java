@@ -40,7 +40,7 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
     private FulfillmentDomainEventOutboxJpaEntity event() {
         return FulfillmentDomainEventOutboxJpaEntity.builder()
                 .id(1L).eventType(FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPPING_COMPLETED)
-                .fundingId(1024L).projectId(123L).build();
+                .fundingOrderId(UUID.fromString("00000000-0000-0000-0000-000000001024")).projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123")).build();
     }
 
     @Test
@@ -50,7 +50,7 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         UUID sellerId = UUID.randomUUID();
         FulfillmentDomainEventOutboxJpaEntity event = event();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
 
         // when
         worker.publishPending();
@@ -58,8 +58,8 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         // then
         ArgumentCaptor<ShippingCompletedEvent> captor = ArgumentCaptor.forClass(ShippingCompletedEvent.class);
         verify(transport).sendShippingCompleted(captor.capture(), eq(sellerId), eq(event.getCreatedAt()), any());
-        assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
-        assertThat(captor.getValue().projectId()).isEqualTo(123L);
+        assertThat(captor.getValue().fundingId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001024"));
+        assertThat(captor.getValue().projectId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         assertThat(event.getPublishedAt()).isNotNull();
     }
 
@@ -69,7 +69,7 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         setUp();
         FulfillmentDomainEventOutboxJpaEntity event = event();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
-        when(projectOwnershipClient.getSellerId(123L))
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123")))
                 .thenThrow(new DependencyFailureException(new RuntimeException("타임아웃")));
 
         // when
@@ -87,7 +87,7 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         UUID sellerId = UUID.randomUUID();
         FulfillmentDomainEventOutboxJpaEntity event = event();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
         doThrow(new IllegalStateException("브로커 미구성"))
                 .when(transport).sendShippingCompleted(any(), any(), any(), any());
 
@@ -105,7 +105,7 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         // given
         setUp();
         FulfillmentDomainEventOutboxJpaEntity event = FulfillmentDomainEventOutboxJpaEntity.builder()
-                .id(2L).eventType("UnknownType").fundingId(1L).projectId(1L).build();
+                .id(2L).eventType("UnknownType").fundingOrderId(UUID.fromString("00000000-0000-0000-0000-000000000001")).projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000001")).build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
 
         // when

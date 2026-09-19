@@ -43,7 +43,7 @@ public class OrderPricingService {
         this.defaultShippingFee = defaultShippingFee;
     }
 
-    public PricingResult calculate(UUID memberId, Long projectId, List<OrderLineItemRequest> lineItemRequests,
+    public PricingResult calculate(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
                                     List<String> couponCodes) {
         validateCouponCodeCount(couponCodes);
 
@@ -90,7 +90,7 @@ public class OrderPricingService {
         }
     }
 
-    private CouponResolution resolveCoupons(UUID memberId, Long projectId, List<String> couponCodes,
+    private CouponResolution resolveCoupons(UUID memberId, UUID projectId, List<String> couponCodes,
                                              long rewardAmount, long shippingFee) {
         if (couponCodes == null || couponCodes.isEmpty()) {
             return new CouponResolution(List.of(), List.of(), 0);
@@ -125,7 +125,7 @@ public class OrderPricingService {
     }
 
     /** 할인액까지 여기서 계산해 반환한다 — 예산 체크(hasRemainingBudget)가 실제 할인액을 알아야 해서다. */
-    private Optional<ResolvedCoupon> resolveSingleCoupon(UUID memberId, Long projectId, String code, Coupon coupon,
+    private Optional<ResolvedCoupon> resolveSingleCoupon(UUID memberId, UUID projectId, String code, Coupon coupon,
                                                            long rewardAmount, long shippingFee) {
         if (coupon == null) {
             return Optional.empty();
@@ -150,7 +150,7 @@ public class OrderPricingService {
         return Optional.of(new ResolvedCoupon(issuanceOpt.get(), discount));
     }
 
-    private String unavailableReason(UUID memberId, Long projectId, String code, Coupon coupon, long rewardAmount,
+    private String unavailableReason(UUID memberId, UUID projectId, String code, Coupon coupon, long rewardAmount,
                                       long shippingFee) {
         if (coupon == null) {
             return "NOT_FOUND";

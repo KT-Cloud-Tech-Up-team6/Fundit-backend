@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class RefundExecutionServiceUnitTest {
 
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
     private static final UUID MEMBER_ID = UUID.randomUUID();
 
     @Mock

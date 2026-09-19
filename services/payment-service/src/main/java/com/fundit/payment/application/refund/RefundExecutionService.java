@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 토스 취소 API 호출 → {@code payment_cancellations} 기록 → {@code refund_requests} 완료 처리 →
@@ -50,7 +51,7 @@ public class RefundExecutionService {
      * 이미 CANCELLED면 토스 API를 재호출하지 않고 조용히 무시한다(멱등).
      */
     @Transactional
-    public RefundExecutionResult executeFullRefund(Long fundingId, RefundTriggerType triggerType,
+    public RefundExecutionResult executeFullRefund(UUID fundingId, RefundTriggerType triggerType,
                                                      String cancelReason) {
         Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));
@@ -70,7 +71,7 @@ public class RefundExecutionService {
      * 없다 — 별도 엔드포인트 신설이 필요해 보이며, PM/기획 확인이 필요하다.
      */
     @Transactional
-    public RefundExecutionResult executeFullRefundOrAwaitAlternateAccount(Long fundingId, RefundTriggerType triggerType,
+    public RefundExecutionResult executeFullRefundOrAwaitAlternateAccount(UUID fundingId, RefundTriggerType triggerType,
                                                                             String cancelReason) {
         Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 class PaymentCreateServiceUnitTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
-    private static final Long FUNDING_ID = 1024L;
+    private static final UUID FUNDING_ID = new UUID(0L, 1024L);
 
     @Mock
     private OrderFundingClient orderFundingClient;
@@ -41,7 +41,8 @@ class PaymentCreateServiceUnitTest {
         // given
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
-                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null));
+                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
+                        FUNDING_ID));
         when(paymentRepository.existsByPgOrderId(any())).thenReturn(false);
         when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 

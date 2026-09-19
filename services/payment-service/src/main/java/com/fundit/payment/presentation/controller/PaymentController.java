@@ -2,6 +2,7 @@ package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.payment.PaymentConfirmService;
 import com.fundit.payment.application.payment.PaymentCreateService;
 import com.fundit.payment.application.payment.TossWebhookService;
@@ -19,7 +20,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.UUID;
 
+/**
+ * PAYMENT-001/002 + 웹훅. cross-service ID 통일(#69) 이후에도 이 컨트롤러(v1)는
+ * {@code fundingId: Long} 요청 계약을 유지한다 — order-service 내부 API로 UUID를 먼저 해석한 뒤
+ * UUID 기반 서비스 레이어를 호출한다. UUID를 그대로 받는 신규 클라이언트는
+ * {@link PaymentControllerV2}(/api/v2/payments)를 쓴다.
+ *
+ * <p>{@code POST /confirm} 응답의 fundingId(Long)는 더 이상 채울 수 없어 항상 null이다
+ * (order-service가 내부 PK를 결제 도메인에 저장하지 않음) — 알려진 한계, 실제 값이 필요하면 v2를 쓸 것.
+ */
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
@@ -28,12 +39,14 @@ public class PaymentController {
     private final PaymentCreateService paymentCreateService;
     private final PaymentConfirmService paymentConfirmService;
     private final TossWebhookService tossWebhookService;
+    private final OrderFundingClient orderFundingClient;
 
     /** PAYMENT-001 — 결제 시도 생성(결제위젯 렌더링 준비). */
     @PostMapping
     public ResponseEntity<PaymentCreateResponse> create(@LoginUser CurrentUser user,
                                                           @Valid @RequestBody PaymentCreateRequest request) {
-        var result = paymentCreateService.create(user.id(), request.fundingId());
+        UUID orderId = orderFundingClient.fetchByInternalId(request.fundingId()).fundingPublicId();
+        var result = paymentCreateService.create(user.id(), orderId);
         return ResponseEntity.status(HttpStatus.CREATED).body(PaymentCreateResponse.from(result));
     }
 

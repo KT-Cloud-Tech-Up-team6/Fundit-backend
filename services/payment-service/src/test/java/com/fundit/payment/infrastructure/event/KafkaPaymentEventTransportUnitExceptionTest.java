@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,7 +45,7 @@ class KafkaPaymentEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendPaymentCompleted(
-                new PaymentCompletedTransportEvent(1024L, 7L), 1L))
+                new PaymentCompletedTransportEvent(new UUID(0L, 1024L), 7L), 1L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
@@ -56,7 +57,7 @@ class KafkaPaymentEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendRefundCompleted(
-                new RefundCompletedTransportEvent(2048L, 9L, "CANCELLED_BY_MEMBER", true), 2L))
+                new RefundCompletedTransportEvent(new UUID(0L, 2048L), 9L, "CANCELLED_BY_MEMBER", true), 2L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

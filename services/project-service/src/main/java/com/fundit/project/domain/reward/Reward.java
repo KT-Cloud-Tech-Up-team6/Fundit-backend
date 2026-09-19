@@ -32,6 +32,8 @@ public class Reward {
     private int sortOrder;
     private boolean simpleRefundDisabled;
     private List<RewardOptionGroup> optionGroups;
+    private Long shippingFee;
+    private Integer estimatedDeliveryDays;
     private final String rewardDisplayCode;
     private final Instant createdAt;
     private Instant updatedAt;
@@ -40,9 +42,10 @@ public class Reward {
     public static Reward create(Long projectId, String name, String description, String imageUrl, Long price,
                                  boolean isLimited, Integer quantity, boolean isEarlyBird,
                                  EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
-                                 List<RewardOptionGroup> optionGroups) {
+                                 List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays) {
         validateQuantity(isLimited, quantity);
         validateEarlyBirdDiscount(isEarlyBird, earlyBirdDiscountType, earlyBirdDiscountValue, price);
+        validateShippingInfo(shippingFee, estimatedDeliveryDays);
         return Reward.builder()
                 .projectId(projectId)
                 .name(name)
@@ -58,6 +61,8 @@ public class Reward {
                 .optionGroups(optionGroups == null ? List.of() : optionGroups)
                 .sortOrder(0)
                 .simpleRefundDisabled(false)
+                .shippingFee(shippingFee)
+                .estimatedDeliveryDays(estimatedDeliveryDays)
                 .build();
     }
 
@@ -83,9 +88,10 @@ public class Reward {
     public void changeBasicInfo(String name, String description, String imageUrl, Long price,
                                  boolean isLimited, Integer quantity, boolean isEarlyBird,
                                  EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
-                                 List<RewardOptionGroup> optionGroups) {
+                                 List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays) {
         validateQuantity(isLimited, quantity);
         validateEarlyBirdDiscount(isEarlyBird, earlyBirdDiscountType, earlyBirdDiscountValue, price);
+        validateShippingInfo(shippingFee, estimatedDeliveryDays);
         this.name = name;
         this.description = description;
         this.imageUrl = imageUrl;
@@ -99,6 +105,8 @@ public class Reward {
             this.optionGroups = optionGroups;
             this.hasOption = !optionGroups.isEmpty();
         }
+        this.shippingFee = shippingFee;
+        this.estimatedDeliveryDays = estimatedDeliveryDays;
     }
 
     public void changeRefundPolicy(boolean simpleRefundDisabled) {
@@ -113,6 +121,19 @@ public class Reward {
         boolean valid = isLimited ? (quantity != null && quantity >= 0) : quantity == null;
         if (!valid) {
             throw new BusinessException(ProjectErrorCode.INVALID_REWARD_QUANTITY);
+        }
+    }
+
+    /**
+     * 배송비/예상 발송일은 둘 다 선택값이라 null을 허용하고, 값이 있으면 0 이상이어야 한다
+     * (chk_rewards_shipping_fee/chk_rewards_estimated_delivery_days DB 제약과 동일 규칙).
+     * estimatedDeliveryDays는 "펀딩 종료 후 N일" 상대값이다.
+     */
+    private static void validateShippingInfo(Long shippingFee, Integer estimatedDeliveryDays) {
+        boolean valid = (shippingFee == null || shippingFee >= 0)
+                && (estimatedDeliveryDays == null || estimatedDeliveryDays >= 0);
+        if (!valid) {
+            throw new BusinessException(ProjectErrorCode.INVALID_REWARD_SHIPPING_INFO);
         }
     }
 

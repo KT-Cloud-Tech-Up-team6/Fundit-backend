@@ -1,5 +1,7 @@
 package com.fundit.fulfillment.infrastructure.persistence.tracker;
 
+import java.util.UUID;
+
 import com.fundit.fulfillment.domain.tracker.FulfillmentTracker;
 import com.fundit.fulfillment.domain.tracker.FulfillmentTrackerRepository;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * uq_fulfillment_trackers_project 유니크 제약이 실제 Postgres에서 의도대로 동작하는지 검증한다
+ * uq_fulfillment_trackers_project_public 유니크 제약이 실제 Postgres에서 의도대로 동작하는지 검증한다
  * (FULFILLMENT-001 idempotent 처리의 마지막 방어선 — test-convention.md "DB 제약조건 위반은
  * 통합 예외 테스트" 기준).
  */
@@ -35,23 +37,23 @@ class FulfillmentTrackerPersistenceAdapterIntegrationTest {
     @Test
     void 같은_project_id로_두번_저장하면_두번째는_제약_위반_예외가_발생한다() {
         // given
-        trackerRepository.save(FulfillmentTracker.create(999L));
+        trackerRepository.save(FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000999")));
 
         // when & then
-        assertThatThrownBy(() -> trackerRepository.save(FulfillmentTracker.create(999L)))
+        assertThatThrownBy(() -> trackerRepository.save(FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000999"))))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     void 저장한_트래커를_project_id로_조회할_수_있다() {
         // given
-        trackerRepository.save(FulfillmentTracker.create(1000L));
+        trackerRepository.save(FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000001000")));
 
         // when
-        var found = trackerRepository.findByProjectId(1000L);
+        var found = trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000001000"));
 
         // then
         assertThat(found).isPresent();
-        assertThat(found.get().getProjectId()).isEqualTo(1000L);
+        assertThat(found.get().getProjectId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001000"));
     }
 }

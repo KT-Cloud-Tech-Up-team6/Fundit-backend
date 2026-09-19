@@ -46,11 +46,12 @@ class HttpOrderFundingClientUnitTest {
                           "status": "PENDING",
                           "finalAmount": 89000,
                           "orderName": "테스트 주문",
-                          "couponIssuanceId": 7
+                          "couponIssuanceId": 7,
+                          "fundingPublicId": "%s"
                         }
-                        """.formatted(memberId, sellerId), MediaType.APPLICATION_JSON));
+                        """.formatted(memberId, sellerId, new UUID(2L, 1024L)), MediaType.APPLICATION_JSON));
 
-        var snapshot = client.fetch(1024L);
+        var snapshot = client.fetchByInternalId(1024L);
 
         assertThat(snapshot.memberId()).isEqualTo(memberId);
         assertThat(snapshot.sellerId()).isEqualTo(sellerId);
@@ -58,6 +59,7 @@ class HttpOrderFundingClientUnitTest {
         assertThat(snapshot.finalAmount()).isEqualTo(89_000L);
         assertThat(snapshot.orderName()).isEqualTo("테스트 주문");
         assertThat(snapshot.couponIssuanceId()).isEqualTo(7L);
+        assertThat(snapshot.fundingPublicId()).isEqualTo(new UUID(2L, 1024L));
         server.verify();
     }
 
@@ -66,7 +68,34 @@ class HttpOrderFundingClientUnitTest {
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024"))
                 .andRespond(withServerError());
 
-        assertThatThrownBy(() -> client.fetch(1024L))
+        assertThatThrownBy(() -> client.fetchByInternalId(1024L))
                 .isInstanceOf(DependencyFailureException.class);
+        server.verify();
+    }
+
+    @Test
+    void UUID_주문ID로_내부_orders_경로를_조회한다() {
+        UUID orderId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8084/internal/orders/" + orderId))
+                .andExpect(method(GET))
+                .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andRespond(withSuccess("""
+                        {
+                          "memberId": "%s",
+                          "sellerId": "%s",
+                          "status": "PENDING",
+                          "finalAmount": 89000,
+                          "orderName": "테스트 주문",
+                          "couponIssuanceId": null,
+                          "fundingPublicId": "%s"
+                        }
+                        """.formatted(memberId, UUID.randomUUID(), orderId), MediaType.APPLICATION_JSON));
+
+        var snapshot = client.fetch(orderId);
+
+        assertThat(snapshot.fundingPublicId()).isEqualTo(orderId);
+        assertThat(snapshot.memberId()).isEqualTo(memberId);
+        server.verify();
     }
 }

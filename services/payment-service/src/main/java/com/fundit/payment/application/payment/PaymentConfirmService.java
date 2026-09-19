@@ -54,7 +54,8 @@ public class PaymentConfirmService {
         Payment saved = paymentRepository.save(payment);
 
         // 정산 에스크로 보류 시작 — 결제 완료 즉시 정산 대상 금액을 잡아둔다(settlement.settlement_holds).
-        settlementHoldService.openHold(saved.getId(), saved.getFundingId(), saved.getAmount());
+        // settlement_holds.funding_id는 아직 BIGINT(정산 UUID 전환 범위 밖)라 신규 결제는 null로 둔다.
+        settlementHoldService.openHold(saved.getId(), null, saved.getAmount());
 
         // ⑤ 같은 트랜잭션에서 아웃박스 적재 — 별도 트랜잭션으로 분리하지 않는다(CLAUDE.md "절대 하지 말아야 할 것")
         paymentEventPublisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
@@ -78,7 +79,7 @@ public class PaymentConfirmService {
         }
     }
 
-    public record PaymentConfirmResult(UUID paymentId, Long fundingId, String status, PaymentMethod paymentMethod,
+    public record PaymentConfirmResult(UUID paymentId, UUID fundingId, String status, PaymentMethod paymentMethod,
                                         String easyPayProvider, Instant paidAt) {
         static PaymentConfirmResult from(Payment payment) {
             return new PaymentConfirmResult(payment.getId(), payment.getFundingId(), payment.getStatus().name(),

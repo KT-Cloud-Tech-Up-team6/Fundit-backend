@@ -29,7 +29,7 @@ public class StageProgressService {
     private final ProjectOwnershipClient projectOwnershipClient;
 
     @Transactional
-    public FulfillmentTracker transitionStage(Long projectId, UUID sellerId, FulfillmentStage target) {
+    public FulfillmentTracker transitionStage(UUID projectId, UUID sellerId, FulfillmentStage target) {
         verifyOwnership(projectId, sellerId);
         FulfillmentTracker tracker = getTrackerOrThrow(projectId);
         tracker.advanceTo(target);
@@ -37,7 +37,7 @@ public class StageProgressService {
     }
 
     @Transactional
-    public FulfillmentStageDetailJpaEntity registerStageDetail(Long projectId, UUID sellerId, FulfillmentStage stage,
+    public FulfillmentStageDetailJpaEntity registerStageDetail(UUID projectId, UUID sellerId, FulfillmentStage stage,
                                                                 Instant plannedStartAt, Instant plannedEndAt,
                                                                 String detailText) {
         verifyOwnership(projectId, sellerId);
@@ -59,13 +59,13 @@ public class StageProgressService {
         return saved;
     }
 
-    private FulfillmentTracker getTrackerOrThrow(Long projectId) {
+    private FulfillmentTracker getTrackerOrThrow(UUID projectId) {
         return trackerRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND,
                         "제작·배송 트래커가 없습니다. 아직 펀딩이 성립되지 않은 프로젝트일 수 있습니다."));
     }
 
-    private void verifyOwnership(Long projectId, UUID sellerId) {
+    private void verifyOwnership(UUID projectId, UUID sellerId) {
         UUID actualSellerId = projectOwnershipClient.getSellerId(projectId);
         if (!actualSellerId.equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);

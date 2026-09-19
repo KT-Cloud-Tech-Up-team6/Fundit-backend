@@ -14,10 +14,14 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentJpaEntity, UU
 
     Optional<PaymentJpaEntity> findByIdempotencyKey(String idempotencyKey);
 
-    Optional<PaymentJpaEntity> findByCompletedFundingId(Long completedFundingId);
+    Optional<PaymentJpaEntity> findByCompletedFundingOrderId(UUID completedFundingOrderId);
 
-    Optional<PaymentJpaEntity> findFirstByFundingIdAndStatusOrderByCreatedAtDesc(Long fundingId, String status);
+    Optional<PaymentJpaEntity> findFirstByFundingOrderIdAndStatusOrderByCreatedAtDesc(UUID fundingOrderId, String status);
 
+    Optional<PaymentJpaEntity> findFirstByFundingOrderIdAndStatusInOrderByCreatedAtDesc(UUID fundingOrderId,
+                                                                                       List<String> statuses);
+
+    /** 정산 스케줄(BIGINT funding_id) 전용 — 레거시 내부 PK 컬럼 조회. */
     Optional<PaymentJpaEntity> findFirstByFundingIdAndStatusInOrderByCreatedAtDesc(Long fundingId, List<String> statuses);
 
     boolean existsByPgOrderId(String pgOrderId);

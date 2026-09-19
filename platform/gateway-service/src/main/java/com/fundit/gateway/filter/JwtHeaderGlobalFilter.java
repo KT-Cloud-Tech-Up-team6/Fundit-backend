@@ -83,7 +83,8 @@ public class JwtHeaderGlobalFilter implements GlobalFilter, Ordered {
             // 소셜 계정 연동(AUTH-002)의 본인 확인 — auth-service만 호출
             InternalOnlyPath.of(HttpMethod.POST, "/api/v1/members/{accountId}/phone-verification"),
             // 배송 상태 내부 조회(FULFILLMENT-008) — payment-service PAYMENT-006/008 판정용
-            InternalOnlyPath.of(HttpMethod.GET, "/internal/fundings/{fundingId}/fulfillment-status"));
+            InternalOnlyPath.of(HttpMethod.GET, "/internal/fundings/{fundingId}/fulfillment-status"),
+            InternalOnlyPath.of(HttpMethod.GET, "/internal/fundings/id/{fundingId}/fulfillment-status"));
 
     private final ReactiveJwtDecoder jwtDecoder;
     private final ObjectMapper objectMapper;

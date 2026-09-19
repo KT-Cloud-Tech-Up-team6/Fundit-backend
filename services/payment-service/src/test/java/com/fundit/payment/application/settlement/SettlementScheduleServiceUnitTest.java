@@ -41,7 +41,7 @@ class SettlementScheduleServiceUnitTest {
         // given — 금요일 달성이면 주말을 건너 다음주 금요일이 5영업일
         Instant friday = ZonedDateTime.of(2026, 9, 4, 10, 0, 0, 0, ZONE).toInstant();
         UUID sellerId = UUID.randomUUID();
-        var event = new FundingSucceededListener.FundingSucceededEvent(1024L, 10L, sellerId, friday);
+        var event = new FundingSucceededListener.FundingSucceededEvent(1024L, 10L, sellerId, friday, null);
 
         // when
         settlementScheduleService.onFundingSucceeded(event);
@@ -82,7 +82,7 @@ class SettlementScheduleServiceUnitTest {
     void 동일_펀딩의_선정산_스케줄이_이미_있으면_재등록하지_않는다() {
         // given — Kafka 재전달로 같은 FundingSucceeded가 두 번 온 경우
         Instant friday = ZonedDateTime.of(2026, 9, 4, 10, 0, 0, 0, ZONE).toInstant();
-        var event = new FundingSucceededListener.FundingSucceededEvent(1024L, 10L, UUID.randomUUID(), friday);
+        var event = new FundingSucceededListener.FundingSucceededEvent(1024L, 10L, UUID.randomUUID(), friday, null);
         when(settlementScheduleJpaRepository.existsByFundingIdAndBatchType(
                 1024L, SettlementScheduleJpaEntity.TYPE_INTERIM)).thenReturn(true);
 

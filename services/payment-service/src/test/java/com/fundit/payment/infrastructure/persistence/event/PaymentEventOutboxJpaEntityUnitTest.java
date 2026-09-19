@@ -14,7 +14,7 @@ class PaymentEventOutboxJpaEntityUnitTest {
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
                 .paymentId(UUID.randomUUID())
-                .fundingId(1L)
+                .fundingId(new UUID(0L, 1L))
                 .payload(Map.of())
                 .build();
         event.onCreate();

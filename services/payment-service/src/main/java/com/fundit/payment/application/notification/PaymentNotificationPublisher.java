@@ -13,7 +13,7 @@ public interface PaymentNotificationPublisher {
     void publishRefundStatusChanged(RefundStatusChangedEvent event);
 
     /** status는 {@link RefundNotificationStatus} 값 중 하나. */
-    record RefundStatusChangedEvent(Long fundingId, UUID memberId, RefundNotificationStatus status) {
+    record RefundStatusChangedEvent(UUID fundingId, UUID memberId, RefundNotificationStatus status) {
     }
 
     enum RefundNotificationStatus {

@@ -34,6 +34,7 @@ class HttpProjectOwnershipClientUnitTest {
 
     @Test
     void 내부API키를_붙여_판매자_ID를_조회한다() {
+        // given
         UUID sellerId = UUID.randomUUID();
         server.expect(requestTo("http://localhost:8083/internal/projects/123"))
                 .andExpect(method(GET))
@@ -42,14 +43,17 @@ class HttpProjectOwnershipClientUnitTest {
                         {"sellerId": "%s"}
                         """.formatted(sellerId), MediaType.APPLICATION_JSON));
 
+        // when
         UUID result = client.getSellerId(123L);
 
+        // then
         assertThat(result).isEqualTo(sellerId);
         server.verify();
     }
 
     @Test
     void 내부API키를_붙여_공개_ID를_조회한다() {
+        // given
         UUID publicId = UUID.randomUUID();
         server.expect(requestTo("http://localhost:8083/internal/projects/123"))
                 .andExpect(method(GET))
@@ -58,17 +62,58 @@ class HttpProjectOwnershipClientUnitTest {
                         {"sellerId": "%s", "publicId": "%s"}
                         """.formatted(UUID.randomUUID(), publicId), MediaType.APPLICATION_JSON));
 
+        // when
         UUID result = client.getPublicId(123L);
 
+        // then
         assertThat(result).isEqualTo(publicId);
         server.verify();
     }
 
     @Test
+    void 공개API로_UUID_판매자_ID를_조회한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        UUID sellerId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + projectId))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"projectId": "%s", "seller": {"sellerId": "%s"}}
+                        """.formatted(projectId, sellerId), MediaType.APPLICATION_JSON));
+
+        // when
+        UUID result = client.getSellerId(projectId);
+
+        // then
+        assertThat(result).isEqualTo(sellerId);
+        server.verify();
+    }
+
+    @Test
+    void 공개API로_UUID_공개_ID를_조회한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + projectId))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"projectId": "%s", "seller": {"sellerId": "%s"}}
+                        """.formatted(projectId, UUID.randomUUID()), MediaType.APPLICATION_JSON));
+
+        // when
+        UUID result = client.getPublicId(projectId);
+
+        // then
+        assertThat(result).isEqualTo(projectId);
+        server.verify();
+    }
+
+    @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
+        // given
         server.expect(requestTo("http://localhost:8083/internal/projects/123"))
                 .andRespond(withServerError());
 
+        // when & then
         assertThatThrownBy(() -> client.getSellerId(123L))
                 .isInstanceOf(DependencyFailureException.class);
     }

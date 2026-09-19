@@ -38,7 +38,7 @@ class NotificationOutboxWorkerUnitTest {
         setUp();
         UUID memberId = UUID.randomUUID();
         NotificationOutboxJpaEntity event = NotificationOutboxJpaEntity.builder()
-                .memberId(memberId).fundingId(1024L).status("COMPLETED").build();
+                .memberId(memberId).fundingId(new UUID(0L, 1024L)).status("COMPLETED").build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
 
         // when
@@ -47,7 +47,7 @@ class NotificationOutboxWorkerUnitTest {
         // then
         ArgumentCaptor<RefundStatusChangedEvent> captor = ArgumentCaptor.forClass(RefundStatusChangedEvent.class);
         verify(transport).sendRefundStatusChanged(captor.capture(), any());
-        assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
+        assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(captor.getValue().memberId()).isEqualTo(memberId);
         assertThat(event.getPublishedAt()).isNotNull();
     }
@@ -57,7 +57,7 @@ class NotificationOutboxWorkerUnitTest {
         // given
         setUp();
         NotificationOutboxJpaEntity event = NotificationOutboxJpaEntity.builder()
-                .memberId(UUID.randomUUID()).fundingId(1024L).status("COMPLETED").build();
+                .memberId(UUID.randomUUID()).fundingId(new UUID(0L, 1024L)).status("COMPLETED").build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
         doThrow(new IllegalStateException("브로커 오류")).when(transport).sendRefundStatusChanged(any(), any());
 

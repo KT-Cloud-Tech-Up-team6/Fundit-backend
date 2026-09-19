@@ -36,14 +36,15 @@ class HttpFundingParticipantsClientUnitTest {
     void 내부API키를_붙여_참여자_목록을_조회한다() {
         UUID memberId1 = UUID.randomUUID();
         UUID memberId2 = UUID.randomUUID();
-        server.expect(requestTo("http://localhost:8084/internal/projects/123/funding-participants"))
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        server.expect(requestTo("http://localhost:8084/internal/projects/" + projectId + "/funding-participants"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andRespond(withSuccess("""
                         {"memberIds": ["%s", "%s"]}
                         """.formatted(memberId1, memberId2), MediaType.APPLICATION_JSON));
 
-        var memberIds = client.listParticipantMemberIds(123L);
+        var memberIds = client.listParticipantMemberIds(projectId);
 
         assertThat(memberIds).containsExactly(memberId1, memberId2);
         server.verify();
@@ -51,10 +52,11 @@ class HttpFundingParticipantsClientUnitTest {
 
     @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
-        server.expect(requestTo("http://localhost:8084/internal/projects/123/funding-participants"))
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        server.expect(requestTo("http://localhost:8084/internal/projects/" + projectId + "/funding-participants"))
                 .andRespond(withServerError());
 
-        assertThatThrownBy(() -> client.listParticipantMemberIds(123L))
+        assertThatThrownBy(() -> client.listParticipantMemberIds(projectId))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

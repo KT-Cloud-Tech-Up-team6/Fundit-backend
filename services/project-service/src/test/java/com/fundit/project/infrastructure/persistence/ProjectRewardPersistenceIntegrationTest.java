@@ -104,7 +104,7 @@ class ProjectRewardPersistenceIntegrationTest {
     void 리워드를_저장하면_reward_display_code가_채워진다() {
         // given
         Reward reward = Reward.create(persistProjectId(), "얼리버드", "설명", null, 39000L, true, 100, true,
-                EarlyBirdDiscountType.RATE, 10L, null);
+                EarlyBirdDiscountType.RATE, 10L, null, null, null);
 
         // when
         Reward saved = rewardRepository.save(reward);
@@ -118,7 +118,7 @@ class ProjectRewardPersistenceIntegrationTest {
     void 옵션을_치환하면_그룹과_값이_모두_반영된다() {
         // given
         Long projectId = persistProjectId();
-        Reward reward = rewardRepository.save(Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null));
+        Reward reward = rewardRepository.save(Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null));
         List<RewardOptionGroup> options = List.of(new RewardOptionGroup("색상", List.of("화이트", "블랙")));
 
         // when

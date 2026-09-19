@@ -127,8 +127,23 @@ class FundingEventOutboxIntegrationTest {
         };
     }
 
-    /** 이 테스트는 sellerId 조회 자체를 검증 대상으로 삼지 않으므로 항상 값을 반환하는 스텁으로 충분하다. */
+    /** 이 테스트는 sellerId/publicId 조회 자체를 검증 대상으로 삼지 않으므로 항상 값을 반환하는 스텁으로 충분하다. */
     private static ProjectOwnershipClient stubOwnershipClient() {
-        return projectId -> Optional.of(UUID.randomUUID());
+        return new ProjectOwnershipClient() {
+            @Override
+            public Optional<UUID> findSellerId(Long projectId) {
+                return Optional.of(UUID.randomUUID());
+            }
+
+            @Override
+            public Optional<UUID> findSellerId(UUID projectId) {
+                return Optional.of(UUID.randomUUID());
+            }
+
+            @Override
+            public Optional<UUID> findPublicId(Long projectId) {
+                return Optional.of(UUID.randomUUID());
+            }
+        };
     }
 }

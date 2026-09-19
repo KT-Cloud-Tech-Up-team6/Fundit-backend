@@ -9,13 +9,8 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 /**
- * order-service 내부 API({@code GET /internal/fundings/{fundingId}})가 아직 없어 고정값을
- * 반환하는 개발/테스트용 구현체(payment-service {@code StubOrderFundingClient}와 동일 성격).
- *
- * <p>fundingId를 시드로 결정적(deterministic) 값을 만든다 — projectId는 임의로 fundingId를
- * 그대로 사용한다(실제 매핑과 무관, 로컬 개발 편의용). 실제 연동 이슈에서 order-service
- * 엔드포인트가 준비되면 {@code order.integration.funding-client.mode=http}로 전환한다
- * ({@link HttpOrderFundingClient}).
+ * order-service 내부 API가 비활성 모드(stub)일 때 쓰는 개발/테스트용 구현체.
+ * 식별자를 시드로 결정적(deterministic) 값을 만든다(실제 매핑과 무관, 로컬 개발 편의용).
  */
 @Component
 @ConditionalOnProperty(prefix = "order.integration.funding-client", name = "mode",
@@ -25,8 +20,15 @@ public class StubOrderFundingClient implements OrderFundingClient {
     private static final Logger log = LoggerFactory.getLogger(StubOrderFundingClient.class);
 
     @Override
-    public FundingSnapshot fetch(Long fundingId) {
+    public FundingSnapshot fetch(UUID orderId) {
+        log.warn("[STUB] order-service 내부 API 미구현 — 고정값으로 대체합니다. orderId={}", orderId);
+        return new FundingSnapshot(new UUID(1L, orderId.getLeastSignificantBits()),
+                new UUID(0L, orderId.getLeastSignificantBits()), orderId);
+    }
+
+    @Override
+    public FundingSnapshot fetchByInternalId(Long fundingId) {
         log.warn("[STUB] order-service 내부 API 미구현 — 고정값으로 대체합니다. fundingId={}", fundingId);
-        return new FundingSnapshot(fundingId, new UUID(0L, fundingId), new UUID(2L, fundingId));
+        return new FundingSnapshot(new UUID(1L, fundingId), new UUID(0L, fundingId), new UUID(2L, fundingId));
     }
 }

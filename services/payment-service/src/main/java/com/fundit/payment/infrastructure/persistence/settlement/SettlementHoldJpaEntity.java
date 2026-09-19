@@ -37,7 +37,7 @@ public class SettlementHoldJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "funding_id", nullable = false)
+    @Column(name = "funding_id")
     private Long fundingId;
 
     @Column(name = "payment_id", nullable = false)

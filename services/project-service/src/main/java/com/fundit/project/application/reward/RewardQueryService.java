@@ -74,7 +74,8 @@ public class RewardQueryService {
         return new RewardConsumerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
                 reward.getDescription(), reward.getImageUrl(), reward.getPrice(),
                 reward.getIsEarlyBird(), reward.getEarlyBirdDiscountType(), reward.getEarlyBirdDiscountValue(),
-                earlyBirdDiscountedPrice(reward), reward.getIsLimited(), remainingStock, options, soldOut);
+                earlyBirdDiscountedPrice(reward), reward.getIsLimited(), remainingStock, options, soldOut,
+                reward.getShippingFee(), reward.getEstimatedDeliveryDays());
     }
 
     private Long earlyBirdDiscountedPrice(RewardJpaEntity reward) {
@@ -111,6 +112,7 @@ public class RewardQueryService {
             Long rewardId, String rewardDisplayCode, String name, String description, String imageUrl,
             Long price, boolean isEarlyBird,
             EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue, Long earlyBirdDiscountedPrice,
-            boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut) {
+            boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut,
+            Long shippingFee, Integer estimatedDeliveryDays) {
     }
 }

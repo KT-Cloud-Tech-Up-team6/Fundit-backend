@@ -46,7 +46,7 @@ public class PaymentEventOutboxJpaEntity {
     private UUID paymentId;
 
     @Column(name = "funding_id", nullable = false)
-    private Long fundingId;
+    private UUID fundingId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")

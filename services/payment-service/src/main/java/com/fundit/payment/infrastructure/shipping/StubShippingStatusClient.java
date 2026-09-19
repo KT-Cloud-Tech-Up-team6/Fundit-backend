@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * fulfillment-service 내부 API 연동이 꺼져있을 때(기본값) 쓰는 스텁 — 항상 "미발송"으로
  * 응답해 PAYMENT-008이 최소한 동작은 하게 해둔다(`HttpOrderFundingClient`류와 동일하게
@@ -21,6 +23,12 @@ public class StubShippingStatusClient implements ShippingStatusClient {
     @Override
     public ShippingStatus fetch(Long fundingId) {
         log.warn("[STUB] fulfillment-service 내부 API 미연동 — 항상 미발송으로 간주합니다. fundingId={}", fundingId);
+        return new ShippingStatus(false, false, null, null);
+    }
+
+    @Override
+    public ShippingStatus fetch(UUID orderId) {
+        log.warn("[STUB] fulfillment-service 내부 API 미연동 — 항상 미발송으로 간주합니다. orderId={}", orderId);
         return new ShippingStatus(false, false, null, null);
     }
 }

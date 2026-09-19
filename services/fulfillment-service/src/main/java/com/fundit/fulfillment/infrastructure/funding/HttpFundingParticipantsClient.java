@@ -30,7 +30,7 @@ public class HttpFundingParticipantsClient implements FundingParticipantsClient 
     }
 
     @Override
-    public List<UUID> listParticipantMemberIds(Long projectId) {
+    public List<UUID> listParticipantMemberIds(UUID projectId) {
         try {
             InternalFundingParticipantsResponse response = orderServiceRestClient.get()
                     .uri("/internal/projects/{projectId}/funding-participants", projectId)

@@ -4,23 +4,37 @@ import java.util.UUID;
 
 /**
  * 판매자 소유권 검증용 아웃바운드 포트(security.md S4 — 식별자만으로 접근을 허용하지 않고
- * 소유권을 서버에서 대조). project-service는 공개 상세 API(`GET /api/v1/projects/{projectId}`)를
- * {@code publicId}(UUID) 기준으로만 노출하는데, fulfillment-service를 포함한 order-service 계열
- * 서비스들은 내부 {@code Long} projectId를 쓴다(order-service {@code Project.id}(Long) vs
- * {@code publicId}(UUID) 확인함) — 타입이 달라 그 경로로는 조회할 수 없고, project-service에
- * {@code Long id} 기준 내부 조회 엔드포인트가 별도로 필요하다(현재 없음, 연동 이슈로 남김).
+ * 소유권을 서버에서 대조). UUID(publicId) 기준 조회는 project-service 공개 상세 API
+ * ({@code GET /api/v1/projects/{projectId}})를 쓰고, 레거시 Long PK 조회는 내부 전용 API
+ * ({@code GET /internal/projects/{projectId}})를 쓴다 — v1 어댑터와 Kafka Long projectId 해석용.
  */
 public interface ProjectOwnershipClient {
 
     /**
+     * 레거시 Long projectId 기준 조회 — {@code GET /internal/projects/{projectId}}.
+     *
      * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
      */
     UUID getSellerId(Long projectId);
 
     /**
-     * 알림 relatedUrl 조립용 — 외부 노출 식별자는 항상 publicId다(내부 PK를 URL에 쓰지 않는다).
+     * 알림 relatedUrl 조립·v1 어댑터용 — 레거시 Long → publicId(UUID).
      *
      * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
      */
     UUID getPublicId(Long projectId);
+
+    /**
+     * UUID(publicId) 기준 조회 — {@code GET /api/v1/projects/{projectId}}.
+     *
+     * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
+     */
+    UUID getSellerId(UUID projectId);
+
+    /**
+     * UUID(publicId) 기준 공개 식별자 조회 — {@code GET /api/v1/projects/{projectId}}.
+     *
+     * @throws com.fundit.common.error.DependencyFailureException 호출 실패(타임아웃·5xx 포함) 시
+     */
+    UUID getPublicId(UUID projectId);
 }

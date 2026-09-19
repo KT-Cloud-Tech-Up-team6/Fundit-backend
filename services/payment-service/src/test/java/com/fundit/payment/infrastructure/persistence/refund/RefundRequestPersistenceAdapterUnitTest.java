@@ -36,14 +36,14 @@ class RefundRequestPersistenceAdapterUnitTest {
 
     @Test
     void 저장과_조회가_매퍼를_거친다() {
-        RefundRequest request = RefundRequest.requestDefect(1024L, UUID.randomUUID(), "파손", List.of("url"))
+        RefundRequest request = RefundRequest.requestDefect(new UUID(0L, 1024L), UUID.randomUUID(), "파손", List.of("url"))
                 .toBuilder().id(11L).build();
         when(jpaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(jpaRepository.findById(11L)).thenReturn(Optional.of(mapper.toEntity(request)));
         when(jpaRepository.findById(99L)).thenReturn(Optional.empty());
 
         RefundRequest saved = adapter.save(request);
-        assertThat(saved.getFundingId()).isEqualTo(1024L);
+        assertThat(saved.getFundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(adapter.findById(11L)).isPresent();
         assertThat(adapter.findById(99L)).isEmpty();
     }

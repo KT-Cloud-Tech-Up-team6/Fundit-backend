@@ -52,17 +52,17 @@ class OutboxFulfillmentNotificationPublisherUnitTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectPublicId = UUID.randomUUID();
-        when(projectOwnershipClient.getSellerId(123L)).thenReturn(sellerId);
-        when(projectOwnershipClient.getPublicId(123L)).thenReturn(projectPublicId);
+        when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
+        when(projectOwnershipClient.getPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(projectPublicId);
 
         // when
-        publisher.publishStaleUpdateReminder(new StaleUpdateReminderEvent(123L));
+        publisher.publishStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000123")));
 
         // then
         ArgumentCaptor<FulfillmentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(FulfillmentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo(FulfillmentEventOutboxJpaEntity.TYPE_STALE_UPDATE_REMINDER);
-        assertThat(captor.getValue().getProjectId()).isEqualTo(123L);
+        assertThat(captor.getValue().getProjectPublicId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000123"));
         assertThat(captor.getValue().getMemberId()).isEqualTo(sellerId);
         assertThat(captor.getValue().getRelatedPublicId()).isEqualTo(projectPublicId);
     }
@@ -74,11 +74,11 @@ class OutboxFulfillmentNotificationPublisherUnitTest {
         UUID memberId1 = UUID.randomUUID();
         UUID memberId2 = UUID.randomUUID();
         UUID projectPublicId = UUID.randomUUID();
-        when(projectOwnershipClient.getPublicId(123L)).thenReturn(projectPublicId);
-        when(fundingParticipantsClient.listParticipantMemberIds(123L)).thenReturn(List.of(memberId1, memberId2));
+        when(projectOwnershipClient.getPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(projectPublicId);
+        when(fundingParticipantsClient.listParticipantMemberIds(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(List.of(memberId1, memberId2));
 
         // when
-        publisher.publishScheduleChanged(new ScheduleChangedEvent(123L, FulfillmentStage.SHIPPING_OUT,
+        publisher.publishScheduleChanged(new ScheduleChangedEvent(UUID.fromString("00000000-0000-0000-0000-000000000123"), FulfillmentStage.SHIPPING_OUT,
                 ScheduleChangeReasonType.STOCK_SHORTAGE, newPlannedDate));
 
         // then
@@ -101,16 +101,16 @@ class OutboxFulfillmentNotificationPublisherUnitTest {
         // given
         UUID buyerId = UUID.randomUUID();
         UUID fundingPublicId = UUID.randomUUID();
-        when(orderFundingClient.fetch(1024L)).thenReturn(new FundingSnapshot(7L, buyerId, fundingPublicId));
+        when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000007"), buyerId, fundingPublicId));
 
         // when
-        publisher.publishReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(1024L));
+        publisher.publishReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(UUID.fromString("00000000-0000-0000-0000-000000001024")));
 
         // then
         ArgumentCaptor<FulfillmentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(FulfillmentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo(FulfillmentEventOutboxJpaEntity.TYPE_RECEIPT_AUTO_CONFIRMED);
-        assertThat(captor.getValue().getFundingId()).isEqualTo(1024L);
+        assertThat(captor.getValue().getFundingOrderId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001024"));
         assertThat(captor.getValue().getMemberId()).isEqualTo(buyerId);
         assertThat(captor.getValue().getRelatedPublicId()).isEqualTo(fundingPublicId);
     }

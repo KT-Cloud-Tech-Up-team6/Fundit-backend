@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -17,8 +18,8 @@ public class FulfillmentTrackerPersistenceAdapter implements FulfillmentTrackerR
     private final FulfillmentTrackerMapper mapper;
 
     @Override
-    public boolean existsByProjectId(Long projectId) {
-        return jpaRepository.existsByProjectId(projectId);
+    public boolean existsByProjectId(UUID projectId) {
+        return jpaRepository.existsByProjectPublicId(projectId);
     }
 
     @Override
@@ -27,8 +28,8 @@ public class FulfillmentTrackerPersistenceAdapter implements FulfillmentTrackerR
     }
 
     @Override
-    public Optional<FulfillmentTracker> findByProjectId(Long projectId) {
-        return jpaRepository.findByProjectId(projectId).map(mapper::toDomain);
+    public Optional<FulfillmentTracker> findByProjectId(UUID projectId) {
+        return jpaRepository.findByProjectPublicId(projectId).map(mapper::toDomain);
     }
 
     @Override

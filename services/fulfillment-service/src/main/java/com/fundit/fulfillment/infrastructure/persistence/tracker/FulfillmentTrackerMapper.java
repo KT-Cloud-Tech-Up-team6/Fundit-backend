@@ -10,7 +10,7 @@ class FulfillmentTrackerMapper {
     FulfillmentTracker toDomain(FulfillmentTrackerJpaEntity entity) {
         return FulfillmentTracker.builder()
                 .id(entity.getId())
-                .projectId(entity.getProjectId())
+                .projectId(entity.getProjectPublicId())
                 .currentStage(FulfillmentStage.valueOf(entity.getCurrentStage()))
                 .lastUpdatedAt(entity.getLastUpdatedAt())
                 .createdAt(entity.getCreatedAt())
@@ -20,7 +20,7 @@ class FulfillmentTrackerMapper {
     FulfillmentTrackerJpaEntity toEntity(FulfillmentTracker domain) {
         return FulfillmentTrackerJpaEntity.builder()
                 .id(domain.getId())
-                .projectId(domain.getProjectId())
+                .projectPublicId(domain.getProjectId())
                 .currentStage(domain.getCurrentStage().name())
                 .lastUpdatedAt(domain.getLastUpdatedAt())
                 .createdAt(domain.getCreatedAt())

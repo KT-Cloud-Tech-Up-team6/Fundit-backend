@@ -24,6 +24,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MakerCouponIssueServiceUnitExceptionTest {
 
+    private static final UUID PROJECT_ID = UUID.randomUUID();
+
     @Mock
     private CouponRepository couponRepository;
     @Mock
@@ -34,14 +36,14 @@ class MakerCouponIssueServiceUnitExceptionTest {
 
     private MakerCouponIssueCommand command(DiscountType discountType, long discountValue, Long maxDiscountAmount,
                                              Long budgetLimit, int quantity) {
-        return new MakerCouponIssueCommand(123L, "쿠폰", discountType, discountValue, maxDiscountAmount,
+        return new MakerCouponIssueCommand(PROJECT_ID, "쿠폰", discountType, discountValue, maxDiscountAmount,
                 budgetLimit, quantity, 0L, 1, Instant.now().plus(30, ChronoUnit.DAYS));
     }
 
     @Test
     void 존재하지_않는_프로젝트면_NOT_FOUND_예외가_발생한다() {
         // given
-        when(projectOwnershipClient.findSellerId(123L)).thenReturn(Optional.empty());
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> makerCouponIssueService.issue(UUID.randomUUID(),
@@ -53,7 +55,7 @@ class MakerCouponIssueServiceUnitExceptionTest {
     @Test
     void 본인_소유가_아니면_FORBIDDEN_예외가_발생한다() {
         // given
-        when(projectOwnershipClient.findSellerId(123L)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.of(UUID.randomUUID()));
 
         // when & then
         assertThatThrownBy(() -> makerCouponIssueService.issue(UUID.randomUUID(),
@@ -66,7 +68,7 @@ class MakerCouponIssueServiceUnitExceptionTest {
     void 발급수량_전량_사용시_예산을_명백히_초과하면_COUPON_BUDGET_EXCEEDED_예외가_발생한다() {
         // given — 1,000원 x 200개 = 200,000 > 예산한도 100,000
         UUID sellerId = UUID.randomUUID();
-        when(projectOwnershipClient.findSellerId(123L)).thenReturn(Optional.of(sellerId));
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.of(sellerId));
 
         // when & then
         assertThatThrownBy(() -> makerCouponIssueService.issue(sellerId,

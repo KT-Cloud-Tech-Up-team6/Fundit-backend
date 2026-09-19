@@ -17,7 +17,7 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
      * JPQL 세타 조인으로 가능하다(PaymentERD.md 3장 — "스키마 간에는 FK를 허용"). amount는
      * payments 테이블에만 있어 조인이 필요하다.
      */
-    @Query(value = "select r.id as id, r.fundingId as fundingId, r.triggerType as triggerType, "
+    @Query(value = "select r.id as id, r.fundingOrderId as fundingId, r.triggerType as triggerType, "
             + "r.status as status, p.amount as amount, r.requestedAt as requestedAt "
             + "from RefundRequestJpaEntity r, PaymentJpaEntity p "
             + "where p.id = r.paymentId and p.memberId = :memberId order by r.requestedAt desc",

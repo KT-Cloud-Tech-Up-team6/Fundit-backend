@@ -1,6 +1,7 @@
 package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.payment.PaymentConfirmService;
 import com.fundit.payment.application.payment.PaymentCreateService;
 import com.fundit.payment.application.payment.TossWebhookService;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PaymentControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID ORDER_ID = new UUID(2L, 1024L);
 
     @Autowired
     private MockMvc mockMvc;
@@ -40,13 +42,18 @@ class PaymentControllerTest {
     private PaymentConfirmService paymentConfirmService;
     @MockitoBean
     private TossWebhookService tossWebhookService;
+    @MockitoBean
+    private OrderFundingClient orderFundingClient;
 
     @Test
     void 결제_시도를_생성하면_201을_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
-        when(paymentCreateService.create(memberId, 1024L)).thenReturn(
+        when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
+                        ORDER_ID));
+        when(paymentCreateService.create(memberId, ORDER_ID)).thenReturn(
                 new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문"));
 
         // when & then
@@ -62,13 +69,13 @@ class PaymentControllerTest {
     }
 
     @Test
-    void 결제_승인을_요청하면_200을_반환한다() throws Exception {
+    void 결제_승인을_요청하면_200을_반환하고_v1_fundingId는_null이다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
         Instant paidAt = Instant.parse("2026-09-08T05:23:11Z");
         when(paymentConfirmService.confirm(memberId, "pay_key", "fundit-abc", 89_000L)).thenReturn(
-                new PaymentConfirmService.PaymentConfirmResult(paymentId, 1024L, "COMPLETED", PaymentMethod.CARD,
+                new PaymentConfirmService.PaymentConfirmResult(paymentId, ORDER_ID, "COMPLETED", PaymentMethod.CARD,
                         null, paidAt));
 
         // when & then
@@ -82,14 +89,14 @@ class PaymentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.paymentMethod").value("CARD"))
-                .andExpect(jsonPath("$.fundingId").value(1024));
+                .andExpect(jsonPath("$.fundingId").doesNotExist());
     }
 
     @Test
     void 간편결제는_easyPayProvider를_응답에_포함한다() throws Exception {
         UUID memberId = UUID.randomUUID();
         when(paymentConfirmService.confirm(memberId, "pay_key", "fundit-abc", 89_000L)).thenReturn(
-                new PaymentConfirmService.PaymentConfirmResult(UUID.randomUUID(), 1024L, "COMPLETED",
+                new PaymentConfirmService.PaymentConfirmResult(UUID.randomUUID(), ORDER_ID, "COMPLETED",
                         PaymentMethod.EASY_PAY, "KAKAOPAY", Instant.now()));
 
         mockMvc.perform(post("/api/v1/payments/confirm")

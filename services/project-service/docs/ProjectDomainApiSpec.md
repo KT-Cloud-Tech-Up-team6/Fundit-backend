@@ -38,8 +38,10 @@
 | 32 | GET | `/api/v1/projects/{projectId}/live-verifications` | 방송종료 후 LIVE검증 질문/답변 조회(소비자) | X (공통) | PROJECT-019 |
 | 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
 | 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
-| 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(fulfillment/order) | 내부 키 (`X-Internal-Api-Key`) | — |
+| 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(Long PK, v1/Kafka 해석용) | 내부 키 (`X-Internal-Api-Key`) | — |
 
+> **식별자 계약 (cross-service ID 통일 #69)**: 공개 REST의 `projectId`는 항상 `publicId`(UUID)다. 다운스트림 공개 API도 같은 UUID를 받는다 — order `POST /api/v2/orders`, fulfillment `/api/v2/projects/{projectId}/**`. payment의 `fundingId`는 order-service `orderId`(UUID). 이 서비스의 Long 내부 PK는 `GET /internal/projects/{projectId}`와 Kafka 파티션 키에만 남는다.
+>
 > PROJECT-008(리워드 정보 제공 고시 등록)·PROJECT-027(리워드 법정고시정보 조회)은 품목마다 필요한 고시 항목이 달라 MVP에서 표준화하기 어려워 **범위 제외됐다**(PM 확정). 관련 엔드포인트(`PUT /api/v1/rewards/{rewardId}/disclosure`, `GET /api/v1/projects/{projectId}/rewards/disclosures`)는 존재하지 않으며, 도메인/DTO/테스트도 모두 제거됐다.
 >
 > PROJECT-030(프로젝트 심사 처리/승인·반려)은 관리자 승인 단계 자체가 **폐지됐다** — 필수 작성 항목이 채워지면 관리자 승인 없이 바로 공개(ONGOING)로 전환한다(PROJECT-029 참고). 관련 엔드포인트(`POST /api/v1/admin/projects/{projectId}/review-decision`)는 존재하지 않으며, 도메인/DTO/테스트, `project_review_requests` 테이블도 모두 제거됐다.
@@ -357,7 +359,9 @@ POST /api/v1/projects/{projectId}/rewards
 "earlyBirdDiscountValue": 10,
 "options": [
 { "groupName": "색상", "values": ["화이트", "블랙"] }
-]
+],
+"shippingFee": 3000,
+"estimatedDeliveryDays": 7
 }
 
 **Response Body**
@@ -375,7 +379,9 @@ POST /api/v1/projects/{projectId}/rewards
   "isEarlyBird": true,
   "earlyBirdDiscountType": "RATE",
   "earlyBirdDiscountValue": 10,
-  "earlyBirdDiscountedPrice": 35100
+  "earlyBirdDiscountedPrice": 35100,
+  "shippingFee": 3000,
+  "estimatedDeliveryDays": 7
 }
 ```
 
@@ -383,6 +389,8 @@ POST /api/v1/projects/{projectId}/rewards
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`) — 위반 시 `400 INVALID_REWARD_QUANTITY`.
+- **무제한 수량 표기**: `quantity: -1`은 "무제한"을 뜻하는 sentinel로도 허용한다 — 서버가 `isLimited:false` + `quantity:null`(canonical)로 정규화해서 저장·응답한다. 정식 계약은 여전히 `isLimited:false` + `quantity` 생략(또는 `null`)이며, `-1`은 별칭일 뿐이다. `isLimited:true`와 `quantity:-1`을 함께 보내면 모순이라 정규화하지 않고 위 규칙대로 `400 INVALID_REWARD_QUANTITY`로 거부한다.
+- **배송비/예상 발송일**(둘 다 선택값, 미전달 시 `null`): `shippingFee`는 리워드별 배송비(0 이상, 0=무료배송), `estimatedDeliveryDays`는 "펀딩 종료 후 N일" 상대값(0 이상)이다. 값이 있는데 음수면 `400 INVALID_REWARD_SHIPPING_INFO`. **주의**: 배송비가 리워드별인지 프로젝트 공통인지, 예상 발송일이 상대값인지 고정 일자인지는 아직 기획 미확정이라 스키마가 바뀔 수 있다(`ProjectDomainPendingWork.md` #1 참고).
 - 얼리버드 할인: `isEarlyBird=false`면 `earlyBirdDiscountType`/`earlyBirdDiscountValue`는 반드시 없어야 하고,
   `true`면 `earlyBirdDiscountType`(`AMOUNT` 정액(원) 또는 `RATE` 정률(%))과 `earlyBirdDiscountValue`가 필수다.
   `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~100 사이 정수만 허용(DB CHECK
@@ -417,6 +425,7 @@ PATCH /api/v1/rewards/{rewardId}
 - `imageUrl`을 전달하는 경우 #9로 발급받은 `fileUrl`인지 등록(#10)과 동일하게 검증한다.
 - 얼리버드 할인 방식/값 병합 규칙은 `quantity`와 동일하다: 명시적으로 전달되면 그 값을, `isEarlyBird=false`로
   바뀌면 `null`을, 둘 다 아니면 기존 값을 유지한다. 최종 값은 등록(#10)과 같은 정합성 규칙으로 재검증한다.
+- `shippingFee`/`estimatedDeliveryDays`는 각각 전달된 필드만 갱신하고, 전달하지 않은 필드는 기존 값을 유지한다(단순 필드별 병합, `quantity`처럼 다른 필드에 연동해 자동으로 `null`이 되는 규칙은 없음).
 - 수정 시 `reward.updated.v1`을 발행한다(ORDER-012). payload는 생성 이벤트와 동일 계약이며 `projectId`는 내부 Long PK. 삭제·환불정책 변경은 이 토픽을 발행하지 않는다.
 - 이미 판매(주문)가 발생한 리워드의 `price` 인하/인상 등 정책은 [정책 확인 필요].
 
@@ -501,17 +510,20 @@ GET /api/v1/projects/{projectId}/rewards
           { "valueId": 100, "value": "화이트" },
           { "valueId": 101, "value": "블랙" } ] }
     ],
-    "soldOut": false
+    "soldOut": false,
+    "shippingFee": 3000,
+    "estimatedDeliveryDays": 7
   }
 ]
 ```
 
 **Validation / Business Rules**
 
-- 리워드 구성·가격·옵션은 project-service가 직접 응답. `remainingStock`은 `InventoryQueryClient`로 조회하는데, 현재 구현은 `NoopInventoryQueryClient`라 **항상 `null`**이다(order-service HTTP 연동 전). `soldOut`은 `remainingStock != null && remainingStock <= 0`일 때만 `true`이므로 현재는 항상 `false`.
+- 리워드 구성·가격·옵션은 project-service가 직접 응답. `remainingStock`은 `InventoryQueryClient`(`HttpInventoryQueryClient`)로 order-service `GET /api/v1/inventories/{rewardId}`를 실시간 조회한다. `soldOut`은 `remainingStock != null && remainingStock <= 0`일 때만 `true`.
 - 삭제된 리워드(`deleted_at` not null)는 응답에서 제외.
 - `remainingStock=0` → `soldOut: true`로 표시, 프론트는 '알림 신청' 버튼으로 대체(PRD 13.1.4).
-- 재고 조회가 비어 있으면 `remainingStock: null`로 응답한다. 현재 Noop 경로에서는 `503 DEPENDENCY_FAILURE`를 던지지 않는다.
+- order-service 조회 실패 또는 무제한 리워드는 `remainingStock: null`로 응답한다(`503 DEPENDENCY_FAILURE`를 던지지 않고 빈 값으로 degrade — best-effort 표시 데이터).
+- `shippingFee`/`estimatedDeliveryDays`는 미설정이면 `null`(#10 참고, 기획 미확정으로 스키마가 바뀔 수 있음).
 - `earlyBirdDiscountedPrice`는 얼리버드 할인 적용가(정액은 `price - earlyBirdDiscountValue`, 정률은
   `price - price * earlyBirdDiscountValue / 100`), 얼리버드가 아니면 `null`이다.
 - **비공개(DRAFT) 프로젝트는 `404 NOT_FOUND`**(존재 여부 비노출) — 공개 여부와 무관하게 조회해야 하면 #14-1(판매자용) 사용.
@@ -546,7 +558,9 @@ GET /api/v1/projects/{projectId}/rewards/mine
     "isEarlyBird": true,
     "earlyBirdDiscountType": "RATE",
     "earlyBirdDiscountValue": 10,
-    "earlyBirdDiscountedPrice": 35100
+    "earlyBirdDiscountedPrice": 35100,
+    "shippingFee": 3000,
+    "estimatedDeliveryDays": 7
   }
 ]
 ```
@@ -592,7 +606,9 @@ GET /api/v1/rewards/{rewardId}
         { "valueId": 100, "value": "화이트" },
         { "valueId": 101, "value": "블랙" } ] }
   ],
-  "soldOut": false
+  "soldOut": false,
+  "shippingFee": 3000,
+  "estimatedDeliveryDays": 7
 }
 ```
 
@@ -1155,7 +1171,9 @@ GET /internal/projects/{projectId}
 
 **Auth Required**: 내부 전용 — JWT/`@LoginUser`가 아니라 `InternalGatewaySecretFilter`가 `X-Internal-Api-Key`를 요구한다. `InternalEndpointConfig`가 `GET /internal/projects/{projectId}`를 내부 엔드포인트로 등록한다. 키 없거나 불일치 → `401 UNAUTHORIZED`.
 
-**Request**: Path Parameter: `projectId` — **외부 UUID(`public_id`)가 아니라 내부 Long PK** (`projects.id`). fulfillment-service·order-service가 서비스 간 HTTP로 호출한다.
+**Request**: Path Parameter: `projectId` — **내부 Long PK** (`projects.id`). 공개 UUID가 아니다.
+
+**호출 주체**: order/fulfillment의 **v1 Long 어댑터**와 Kafka `projectId`(Long) 해석, order `FundingProjectPublicIdBackfillRunner`. UUID 기준 소유권/제목 조회는 공개 상세 `GET /api/v1/projects/{projectId}`를 쓴다.
 
 **Response Body**
 

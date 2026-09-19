@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * ORDER-001 — 서포터 활동 목록 조회. 순수 조회 전용(도메인 로직 없음)이라
@@ -23,7 +24,7 @@ public class SupporterActivityService {
     private final FundingJpaRepository fundingJpaRepository;
     private final MemberDisclosureClient memberDisclosureClient;
 
-    public Page<SupporterActivity> list(Long projectId, Pageable pageable) {
+    public Page<SupporterActivity> list(UUID projectId, Pageable pageable) {
         return fundingJpaRepository.findSupporterActivity(projectId, pageable).map(this::toView);
     }
 

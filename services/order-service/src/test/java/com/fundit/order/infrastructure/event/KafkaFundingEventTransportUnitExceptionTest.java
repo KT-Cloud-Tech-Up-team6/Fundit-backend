@@ -4,6 +4,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingCancelledByMemberEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingGoalFailedEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingSucceededEvent;
+import com.fundit.order.domain.funding.FundingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +32,8 @@ class KafkaFundingEventTransportUnitExceptionTest {
 
     @Mock
     private KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock
+    private FundingRepository fundingRepository;
 
     @InjectMocks
     private KafkaFundingEventTransport transport;

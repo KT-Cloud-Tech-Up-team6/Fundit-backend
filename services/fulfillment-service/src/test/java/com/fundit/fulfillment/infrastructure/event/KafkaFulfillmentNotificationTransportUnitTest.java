@@ -47,7 +47,7 @@ class KafkaFulfillmentNotificationTransportUnitTest {
         UUID projectPublicId = UUID.randomUUID();
 
         // when
-        transport.sendStaleUpdateReminder(new StaleUpdateReminderEvent(123L), sellerId, projectPublicId, 42L);
+        transport.sendStaleUpdateReminder(new StaleUpdateReminderEvent(UUID.fromString("00000000-0000-0000-0000-000000000123")), sellerId, projectPublicId, 42L);
 
         // then
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
@@ -70,7 +70,7 @@ class KafkaFulfillmentNotificationTransportUnitTest {
 
         // when
         transport.sendScheduleChanged(
-                new ScheduleChangedEvent(123L, FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE,
+                new ScheduleChangedEvent(UUID.fromString("00000000-0000-0000-0000-000000000123"), FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE,
                         newPlannedDate),
                 memberId, projectPublicId, 7L);
 
@@ -92,7 +92,7 @@ class KafkaFulfillmentNotificationTransportUnitTest {
         UUID fundingPublicId = UUID.randomUUID();
 
         // when
-        transport.sendReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(1024L), buyerId, fundingPublicId, 99L);
+        transport.sendReceiptAutoConfirmed(new ReceiptAutoConfirmedEvent(UUID.fromString("00000000-0000-0000-0000-000000001024")), buyerId, fundingPublicId, 99L);
 
         // then
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);

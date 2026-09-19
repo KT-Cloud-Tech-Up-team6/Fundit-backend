@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PaymentUnitExceptionTest {
 
     private Payment newPendingPayment() {
-        return Payment.create(1024L, UUID.randomUUID(), "fundit-abc123", 89_000L, "테스트 주문", null, "idem-key-1");
+        return Payment.create(new UUID(0L, 1024L), UUID.randomUUID(), "fundit-abc123", 89_000L, "테스트 주문", null, "idem-key-1");
     }
 
     @Test
