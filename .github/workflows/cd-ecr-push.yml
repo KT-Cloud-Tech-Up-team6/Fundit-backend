@@ -20,6 +20,7 @@ on:
       - "CI - fulfillment-service"
       - "CI - notification-service"
       - "CI - search-service"
+      - "CI - live-service"
       - "CI - gateway-service"
     types: [completed]
     # 인프라팀 규격: Backend Role의 OIDC 인증 허용 브랜치가 develop뿐이다.

@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fundit-live-service-postgres
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      # config-convention.md 118행에 배정된 포트다. 임의로 바꾸지 말 것.
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - live-service_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fundit-live-service-net
+
+volumes:
+  live-service_postgres_data:
+
+networks:
+  fundit-live-service-net:

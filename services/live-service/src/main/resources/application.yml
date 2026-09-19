@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: live-service
+  profiles:
+    active: local
+  jackson:
+    default-property-inclusion: non_null
+
+  kafka:
+    producer:
+      # 발행 전용이다. 구독하는 토픽이 없다 —
+      # 방송 종료 후 AI 트리거(live.ended.v1)와 질문요약을 밖으로 내보내기만 한다.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+live:
+  outbox:
+    # 아웃박스 워커 폴링 주기. 방송 종료 이벤트가 AI 생성의 유일한 트리거라
+    # 너무 길면 종료 후 자산 생성이 그만큼 늦어진다.
+    poll-interval-ms: 5000
+    batch-size: 50
+  ivs:
+    # stub | aws — 자격증명이 내려오기 전까지 stub이 기본값이다.
+    # aws로 바꾸면 AwsIvsClient가 뜨고 실제 채널을 프로비저닝한다.
+    mode: stub
+  ai:
+    # stub | http — AI 서버 주소·계약이 확정되기 전까지 stub이다.
+    # 값이 없으면 스텁도 안 뜬다(matchIfMissing=false) — 여기 기본값이 그 안전망이다.
+    mode: stub
+
+springdoc:
+  api-docs:
+    path: /api/v1/lives/api-docs

@@ -59,6 +59,9 @@ reward.create.v1           ❌  과거형 아님
 | `project.funding-deadline-reached.v1` | project | order | `projectId` |
 | `shipping.completed.v1` | fulfillment | payment (정산) | `fundingId` |
 | `payment.reconciliation-required.v1` | 미정 | payment | `fundingId` |
+| `live.started.v1` | live | notification (시작 알림) | `liveId` |
+| `live.ended.v1` | live | AI 파트(질문요약·하이라이트 생성 트리거) | `liveId` |
+| `live.questions-summarized.v1` | live | project (LIVE 검증 탭) | `liveId` |
 
 목록은 **소비자 포트(`*EventListener`) 기준**으로 뽑았습니다. 아웃박스(발행 측)만 보면
 아직 발행 코드가 없는 이벤트가 통째로 빠집니다.
@@ -71,6 +74,7 @@ reward.create.v1           ❌  과거형 아님
 | 서비스 | `event_type` | 토픽 |
 | --- | --- | --- |
 | **member** | `PROJECT_WISHED` / `PROJECT_UNWISHED` | `project.wished.v1` / `project.unwished.v1` |
+| **live** | `LIVE_STARTED` / `LIVE_ENDED` / `LIVE_QUESTIONS_SUMMARIZED` | `live.started.v1` / `live.ended.v1` / `live.questions-summarized.v1` |
 | project | `REWARD_CREATED` / `REWARD_UPDATED` | `reward.created.v1` / `reward.updated.v1` |
 | order | `FUNDING_SUCCEEDED` | `funding.succeeded.v1` |
 | order | `FUNDING_GOAL_FAILED` | `funding.goal-failed.v1` |
