@@ -10,7 +10,7 @@
 
 ### 미구현 기능
 - **AUTH-002/008(소셜 로그인/가입)** — 미구현, 범위 밖.
-- **AUTH-009(이메일찾기)/010(비밀번호 재설정)/014** — 미구현. AUTH-009는 프로덕트 우선순위 조정으로 후순위 확정(사용자 확정, 2026-08-31). `password_reset_tokens` 테이블은 마이그레이션돼 있지만 사용하는 코드 없음.
+- **AUTH-009(이메일찾기)/010(비밀번호 재설정)** — **2026-09-20 구현 완료**(`feat/auth-pii-encryption#79`). 후순위 확정이었으나 PII 암호화 작업과 같은 컬럼을 건드려 함께 처리했다 — 이름·전화번호를 암호화하면 찾기 조회 경로가 바뀌므로 나눠서 하면 두 번 짜게 된다. `password_reset_tokens` 테이블은 그대로 사용. **AUTH-014는 여전히 미구현.**
 - **AUTH-012/013(배치)** — 미구현, P2.
 
 ### 검증/실기동 필요
@@ -116,7 +116,8 @@ member-service가 레포에 붙은 뒤 처음으로 두 서비스 간 실제 연
 - **테스트 가능하게 리팩터링**: `PortOneRestClient`가 쓰던 "운영용 생성자(`@Autowired`) → 테스트 전용 package-private 생성자(`RestClient` 직접 주입)" 패턴을 그대로 적용. 위 "버그 2"(생성자 모호성)를 반복하지 않기 위해 운영용 생성자에 `@Autowired`를 명시적으로 붙임.
 - **계약 테스트**: 공유 DTO 모듈을 새로 만들지 않고, `MemberServiceRestClientUnitTest`(요청 헤더/바디 JSON 검증 + 응답 `memberId` 파싱)와 member-service `MemberControllerTest`가 **같은 필드 구성의 JSON**을 검증하도록 맞추고 서로를 가리키는 주석을 달아 계약이 깨지면 양쪽 테스트가 함께 실패하도록 함. `MemberServiceRestClientUnitExceptionTest`로 401/5xx → `DependencyFailureException` 변환도 확인. 응답 JSON의 `nickname`/`isSeller`/`isBuyer`/`createdAt` 필드는 `MemberProfile` 레코드가 `memberId`만 가지고 있어 정상 무시됨을 확인(테스트에서 그 필드들을 아예 안 보내는 방식으로 검증 — 클라이언트 쪽 미지정 Jackson `ObjectMapper`가 알 수 없는 필드에 예외를 던질 수 있어 리스크를 피함).
 - **보상 트랜잭션 경로는 이미 커버돼 있었음** — `SignupServiceUnitExceptionTest`의 `member_service_호출이_실패하면_계정을_삭제하고_예외를_그대로_전파한다`가 기존에 이미 이 케이스를 검증하고 있어 추가 작업 없음.
-- **범위 밖으로 명시적으로 남긴 것**: 게이트웨이/JWT 헤더 주입(별도 이슈), AUTH-009/소셜가입/탈퇴 흐름/PII 암호화(이미 PM이 후순위 확정했거나 스펙 자체가 없음, 이번 세션에 재검토해서 확인함), 로그인 응답 `member.nickname` 복원(건드리면 로그인 경로에 새 동기 결합이 생김 — 위 "범위 변경" 절 참고).
+- **범위 밖으로 명시적으로 남긴 것**: 게이트웨이/JWT 헤더 주입(별도 이슈), 소셜가입/탈퇴 흐름, 로그인 응답 `member.nickname` 복원(건드리면 로그인 경로에 새 동기 결합이 생김 — 위 "범위 변경" 절 참고).
+- ~~PII 암호화 후순위~~ → **2026-09-20 뒤집힘.** `accounts.email`은 AES-GCM 암호문, 조회는 `email_hash` 블라인드 인덱스로 바뀌었고 member의 이름·전화번호·배송지도 암호화됐다. 뒤집은 이유는 AUTH-009와 같은 컬럼을 건드리기 때문이다(위 참고). 상세는 `auth-service/CLAUDE.md`의 "도메인 테이블" 절.
 - 두 서비스를 실제로 함께 기동해 `curl`로 확인하는 절차는 이번엔 수행하지 않음(선택 사항으로 남겨둠) — 위 "남은 것 > 검증/실기동 필요" 참고.
 
 

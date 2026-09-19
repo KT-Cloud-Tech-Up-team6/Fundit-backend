@@ -6,6 +6,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  data:
+    redis:
+      # 본인확인 상태(RedisIdentityVerificationStore)와 소셜 pending token
+      # (RedisSocialTokenStore) 저장소. 이 블록이 없으면 Lettuce가 localhost:6379로 붙는데,
+      # 지연 연결이라 기동은 성공하고 회원가입·소셜 로그인 시점에 터진다.
+      # REDIS_HOST에 기본값을 두지 않아 미주입이면 기동 단계에서 잡힌다.
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
 
 jwt:
   private-key: ${JWT_PRIVATE_KEY}
