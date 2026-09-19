@@ -1,6 +1,7 @@
 package com.fundit.auth.presentation.controller;
 
 import com.fundit.auth.application.email.EmailAvailabilityService;
+import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
@@ -64,6 +65,8 @@ class AuthControllerExceptionTest {
 
     @MockitoBean
     private EmailAvailabilityService emailAvailabilityService;
+    @MockitoBean
+    private EmailFindService emailFindService;
     @MockitoBean
     private IdentityVerificationService identityVerificationService;
     @MockitoBean

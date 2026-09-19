@@ -1,6 +1,7 @@
 package com.fundit.auth.presentation.controller;
 
 import com.fundit.auth.application.email.EmailAvailabilityService;
+import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
@@ -71,6 +72,8 @@ class AuthControllerTest {
 
     @MockitoBean
     private EmailAvailabilityService emailAvailabilityService;
+    @MockitoBean
+    private EmailFindService emailFindService;
     @MockitoBean
     private IdentityVerificationService identityVerificationService;
     @MockitoBean
@@ -221,5 +224,44 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.needsLink").value(true))
                 .andExpect(header().doesNotExist("Set-Cookie"));
+    }
+
+    @Test
+    void 이메일_찾기는_마스킹된_주소만_내려준다() throws Exception {
+        // given — 본인인증 전 단계다. 전문은 reveal에서만 나간다
+        when(emailFindService.findMasked("김펀딧", "01012345678")).thenReturn("1234q***@gmail.com");
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/find-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"김펀딧\",\"phoneNumber\":\"01012345678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maskedEmail").value("1234q***@gmail.com"));
+    }
+
+    @Test
+    void 가입_계정이_없어도_200이고_형태가_같다() throws Exception {
+        // given — 계정 존재 여부를 응답 형태로 구분하지 않는다(AUTH-009)
+        when(emailFindService.findMasked("없는사람", "01000000000")).thenReturn(null);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/find-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"없는사람\",\"phoneNumber\":\"01000000000\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maskedEmail").doesNotExist());
+    }
+
+    @Test
+    void 전문_공개는_본인인증_토큰만_받는다() throws Exception {
+        // given — 이름·전화번호를 본문으로 받지 않는다. 받으면 남의 번호에 자기 토큰을 붙일 수 있다
+        when(emailFindService.reveal("verified-token")).thenReturn("1234qwer@gmail.com");
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/find-email/reveal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verificationToken\":\"verified-token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("1234qwer@gmail.com"));
     }
 }

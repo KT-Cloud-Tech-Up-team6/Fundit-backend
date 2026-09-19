@@ -1,6 +1,7 @@
 package com.fundit.auth.presentation.controller;
 
 import com.fundit.auth.application.email.EmailAvailabilityService;
+import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.password.PasswordChangeService;
 import com.fundit.auth.application.signup.SignupService;
@@ -11,9 +12,13 @@ import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.application.token.TokenRefreshService;
 import com.fundit.auth.presentation.RefreshTokenCookieFactory;
 import com.fundit.auth.presentation.dto.CheckEmailResponse;
+import com.fundit.auth.presentation.dto.FindEmailRequest;
+import com.fundit.auth.presentation.dto.FindEmailResponse;
 import com.fundit.auth.presentation.dto.IdentityVerificationRequest;
 import com.fundit.auth.presentation.dto.IdentityVerificationResponse;
 import com.fundit.auth.presentation.dto.MessageResponse;
+import com.fundit.auth.presentation.dto.RevealEmailRequest;
+import com.fundit.auth.presentation.dto.RevealEmailResponse;
 import com.fundit.auth.presentation.dto.PasswordChangeRequest;
 import com.fundit.auth.presentation.dto.SignupRequest;
 import com.fundit.auth.presentation.dto.SignupResponse;
@@ -54,6 +59,7 @@ import java.util.UUID;
 public class AuthController {
 
     private final EmailAvailabilityService emailAvailabilityService;
+    private final EmailFindService emailFindService;
     private final IdentityVerificationService identityVerificationService;
     private final SignupService signupService;
     private final TokenRefreshService tokenRefreshService;
@@ -66,6 +72,21 @@ public class AuthController {
     @GetMapping("/check-email")
     public CheckEmailResponse checkEmail(@RequestParam @NotBlank @Email String email) {
         return new CheckEmailResponse(emailAvailabilityService.isAvailable(email));
+    }
+
+    /**
+     * 이메일 찾기 1단계(AUTH-009). 본인인증 <b>전</b>이라 마스킹된 값만 돌려준다.
+     * 가입 계정이 없어도 200이고 {@code maskedEmail}만 null이다.
+     */
+    @PostMapping("/find-email")
+    public FindEmailResponse findEmail(@Valid @RequestBody FindEmailRequest request) {
+        return new FindEmailResponse(emailFindService.findMasked(request.name(), request.phoneNumber()));
+    }
+
+    /** 이메일 찾기 2단계(AUTH-009). 본인인증 토큰을 소비하고 전문을 돌려준다. */
+    @PostMapping("/find-email/reveal")
+    public RevealEmailResponse revealEmail(@Valid @RequestBody RevealEmailRequest request) {
+        return new RevealEmailResponse(emailFindService.reveal(request.verificationToken()));
     }
 
     @PostMapping("/identity-verifications")

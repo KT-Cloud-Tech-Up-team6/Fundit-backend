@@ -60,10 +60,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/check-email").permitAll()
                         // OpenAPI 스펙(운영 프로필에서는 아예 비활성) — .yaml까지 걸리도록 * 사용
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/api-docs*").permitAll()
+                        // 이메일 찾기는 로그인을 못 하는 사람이 쓰는 경로라 인증을 요구할 수 없다.
+                        // 1단계가 인증 전이라 열거 위험이 있어 EmailFindService가 시도 횟수를 제한한다.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup",
                                 "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications",
                                 "/api/v1/auth/login/social", "/api/v1/auth/signup/social",
-                                "/api/v1/auth/social/link").permitAll()
+                                "/api/v1/auth/social/link",
+                                "/api/v1/auth/find-email", "/api/v1/auth/find-email/reveal").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler -> handler.authenticationEntryPoint(this::onAuthenticationFailure))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
