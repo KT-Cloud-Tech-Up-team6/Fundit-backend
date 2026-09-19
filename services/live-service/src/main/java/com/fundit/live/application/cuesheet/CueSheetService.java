@@ -39,7 +39,11 @@ public class CueSheetService {
         if (targetDurationSec <= 0 || targetDurationSec > MAX_DURATION_SEC) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "방송 길이는 10분 이내여야 합니다.");
         }
-        LiveSession session = loadOwned(sellerId, liveId);
+        // 행을 잠근다 — 잠그지 않으면 더블클릭한 두 요청이 둘 다 "생성 중 아님"을 보고
+        // AI 작업이 두 번 돈다. 나중 결과가 먼저 것을 덮어써 어느 쪽이 남는지 알 수 없다.
+        // 조회(find)·수정(replaceSegments)은 잠그지 않는다 — 조회에 쓰기 잠금은 걸지 않는다.
+        LiveSession session = sessionRepository.findOwnedForUpdate(liveId, sellerId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
 
         cueSheetRepository.findBySessionId(session.getId()).ifPresent(existing -> {
             // 생성 중 중복 요청을 막는다. 두 번 돌면 결과가 서로 덮어써 어느 쪽이 남는지 알 수 없다.

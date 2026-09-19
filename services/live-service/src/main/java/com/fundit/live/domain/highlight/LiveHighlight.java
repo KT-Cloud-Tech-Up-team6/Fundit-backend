@@ -44,7 +44,7 @@ public class LiveHighlight {
     public static LiveHighlight generated(Long sessionId, HighlightKind kind, SceneLabel sceneLabel,
                                           String title, int startSec, Integer endSec, String clipUrl,
                                           String caption, GenerationStatus status) {
-        requireRange(startSec, endSec);
+        requireRange(kind, startSec, endSec);
         return LiveHighlight.builder()
                 .publicId(UUID.randomUUID())
                 .sessionId(sessionId)
@@ -64,7 +64,9 @@ public class LiveHighlight {
 
     /** 판매자 검토·수정. null은 건드리지 않는다(부분 수정). */
     public void edit(Integer startSec, Integer endSec, SceneLabel sceneLabel, String title, String caption) {
-        requireRange(startSec != null ? startSec : this.startSec,
+        // 부분 수정이라 병합된 최종값으로 본다 — 바뀐 필드만 보면 MARKER에 endSec만
+        // 따로 붙이는 요청을 못 잡는다.
+        requireRange(this.kind, startSec != null ? startSec : this.startSec,
                 endSec != null ? endSec : this.endSec);
         if (startSec != null) this.startSec = startSec;
         if (endSec != null) this.endSec = endSec;
@@ -76,7 +78,7 @@ public class LiveHighlight {
     /** 재생성 결과 반영. 검토 전 내용이 새지 않게 공개 여부를 다시 내린다. */
     public void applyRegenerated(SceneLabel sceneLabel, String title, int startSec, Integer endSec,
                                  String clipUrl, String caption, GenerationStatus status) {
-        requireRange(startSec, endSec);
+        requireRange(this.kind, startSec, endSec);
         this.sceneLabel = sceneLabel;
         this.title = title;
         this.startSec = startSec;
@@ -106,10 +108,22 @@ public class LiveHighlight {
         return kind == HighlightKind.CLIP;
     }
 
-    /** 뒤집힌 구간이 저장되면 클립 URL은 멀쩡한데 재생만 깨진다. */
-    private static void requireRange(int startSec, Integer endSec) {
+    /**
+     * 뒤집힌 구간이 저장되면 클립 URL은 멀쩡한데 재생만 깨진다.
+     *
+     * <p>{@code endSec}은 <b>kind가 정한다</b> — CLIP은 구간이라 필수고, MARKER는 시점이라
+     * 있으면 안 된다(DDL의 {@code end_sec}은 NULL 허용이라 DB가 막아주지 않는다).
+     * 끝 없는 클립은 플레이어가 구간을 잡지 못한다.
+     */
+    private static void requireRange(HighlightKind kind, int startSec, Integer endSec) {
         if (startSec < 0) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "시작 위치는 0 이상이어야 합니다.");
+        }
+        if (kind == HighlightKind.CLIP && endSec == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "클립은 종료 위치가 필요합니다.");
+        }
+        if (kind == HighlightKind.MARKER && endSec != null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "마커는 시점이라 종료 위치를 둘 수 없습니다.");
         }
         if (endSec != null && endSec <= startSec) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "종료 위치가 시작보다 뒤여야 합니다.");

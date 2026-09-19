@@ -35,8 +35,9 @@ class CueSheetServiceUnitTest {
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
 
-    private void givenOwnedSession() {
-        given(sessionRepository.findOwned(liveId, sellerId))
+    /** 생성 요청은 행을 잠그고 읽는다 — 더블클릭으로 AI 작업이 두 번 돌면 안 된다. */
+    private void givenOwnedSessionForUpdate() {
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
     }
 
@@ -47,7 +48,7 @@ class CueSheetServiceUnitTest {
     @Test
     void 생성을_요청하면_GENERATING으로_저장하고_AI를_부른다() {
         // given
-        givenOwnedSession();
+        givenOwnedSessionForUpdate();
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.empty());
 
         // when
@@ -80,8 +81,9 @@ class CueSheetServiceUnitTest {
 
     @Test
     void 생성이_끝난_큐시트는_수정된다() {
-        // given
-        givenOwnedSession();
+        // given — 수정은 JSONB 문서 통째 교체라 잠그지 않는다(last-write-wins가 정상)
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         LiveCueSheet cueSheet = generating();
         cueSheet.complete("[{\"order\":1}]");
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.of(cueSheet));

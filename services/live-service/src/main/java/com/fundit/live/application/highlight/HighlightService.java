@@ -115,7 +115,10 @@ public class HighlightService {
      */
     @Transactional
     public void applyGenerated(UUID liveId, List<GeneratedHighlight> generated) {
-        LiveSession session = loadAny(liveId);
+        // 행을 잠근다 — 콜백은 at-least-once라 같은 결과가 두 번 오면 둘 다 countClips를
+        // 0으로 읽고 각각 3개를 넣는다. 상한이 동시성으로 샌다.
+        LiveSession session = sessionRepository.findOwnedAnyForUpdate(liveId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         long existingClips = highlightRepository.countClips(session.getId());
 
         int skipped = 0;

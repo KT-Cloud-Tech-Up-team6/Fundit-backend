@@ -41,6 +41,11 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     Optional<LiveSessionJpaEntity> findOwnedForUpdate(@Param("publicId") UUID publicId,
                                                       @Param("sellerId") UUID sellerId);
 
+    /** 위와 같은 이유의 잠금인데 호출자가 AI 서버라 대조할 sellerId가 없다(내부 콜백 전용). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from LiveSessionJpaEntity s where s.publicId = :publicId")
+    Optional<LiveSessionJpaEntity> findByPublicIdForUpdate(@Param("publicId") UUID publicId);
+
     @Query("""
             select s from LiveSessionJpaEntity s
             where s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId = :sellerId)

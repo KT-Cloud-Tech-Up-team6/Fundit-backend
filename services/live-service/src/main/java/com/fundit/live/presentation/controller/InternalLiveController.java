@@ -14,6 +14,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,11 +67,28 @@ public class InternalLiveController {
     @PostMapping("/internal/v1/lives/{liveId}/cue-sheet")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void applyCueSheet(@PathVariable UUID liveId, @Valid @RequestBody CueSheetCallback callback) {
-        cueSheetService.applyResult(liveId, callback.status(), callback.segments(), callback.failureReason());
+        cueSheetService.applyResult(liveId, callback.status(), callback.segmentsJson(),
+                callback.failureReason());
     }
 
-    /** AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다. */
-    public record CueSheetCallback(@NotBlank String status, String segments, String failureReason) {
+    /**
+     * AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다.
+     *
+     * <p>{@code segments}가 {@code String}이던 때는 AI가 JSON이 아닌 값을 보내면
+     * JSONB 컬럼이 거부해 <b>400이 아니라 500</b>이 났다. {@code JsonNode}로 받으면
+     * Jackson이 파싱 단계에서 걸러낸다({@code CueSheetUpdateRequest}와 같은 방식).
+     * FAILED일 때는 구간이 없으므로 null을 허용한다.
+     */
+    public record CueSheetCallback(@NotBlank String status, JsonNode segments, String failureReason) {
+
+        @AssertTrue(message = "구간은 비어 있지 않은 배열이어야 합니다.")
+        public boolean isSegmentsArrayWhenPresent() {
+            return segments == null || (segments.isArray() && !segments.isEmpty());
+        }
+
+        public String segmentsJson() {
+            return segments == null ? null : segments.toString();
+        }
     }
 
     /**

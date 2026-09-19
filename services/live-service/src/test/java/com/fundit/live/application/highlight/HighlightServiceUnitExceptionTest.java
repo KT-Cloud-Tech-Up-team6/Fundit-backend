@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -133,6 +134,39 @@ class HighlightServiceUnitExceptionTest {
         // when & then — 기존 startSec=320
         assertThatThrownBy(() -> highlightService.edit(sellerId, liveId, highlightId,
                 null, 100, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void 끝이_없는_클립은_거부한다() {
+        // given — DDL의 end_sec은 NULL 허용이라 DB가 막지 않는다.
+        // 끝 없는 클립은 URL은 멀쩡한데 플레이어가 구간을 잡지 못한다
+        given(sessionRepository.findOwnedAnyForUpdate(liveId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(highlightRepository.countClips(1L)).willReturn(0L);
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.applyGenerated(liveId, List.of(
+                new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
+                        "시연", 10, null, "https://clip", "자막", GenerationStatus.COMPLETED))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void 종료_위치가_있는_마커는_거부한다() {
+        // given — 마커는 시점이다
+        given(sessionRepository.findOwnedAnyForUpdate(liveId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(highlightRepository.countClips(1L)).willReturn(0L);
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.applyGenerated(liveId, List.of(
+                new HighlightService.GeneratedHighlight(null, HighlightKind.MARKER, SceneLabel.SPEC,
+                        "스펙", 10, 40, null, null, GenerationStatus.COMPLETED))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);

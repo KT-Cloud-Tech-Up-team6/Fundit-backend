@@ -38,8 +38,9 @@ class CueSheetServiceUnitExceptionTest {
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
 
-    private void givenOwnedSession() {
-        given(sessionRepository.findOwned(liveId, sellerId))
+    /** 생성 요청은 행을 잠그고 읽는다 — 더블클릭으로 AI 작업이 두 번 돌면 안 된다. */
+    private void givenOwnedSessionForUpdate() {
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
     }
 
@@ -67,7 +68,7 @@ class CueSheetServiceUnitExceptionTest {
     @Test
     void 이미_생성_중이면_409다() {
         // given — 두 번 돌면 결과가 서로 덮어써 어느 쪽이 남는지 알 수 없다
-        givenOwnedSession();
+        givenOwnedSessionForUpdate();
         givenGeneratingCueSheet();
 
         // when & then
@@ -105,9 +106,25 @@ class CueSheetServiceUnitExceptionTest {
     }
 
     @Test
+    void 구간이_상한을_넘으면_저장하지_않는다() {
+        // given — 외부가 밀어넣는 값이라 상한이 없으면 JSONB에 그대로 들어간다(S7)
+        givenSessionByPublicId();
+        LiveCueSheet cueSheet = givenGeneratingCueSheet();
+
+        // when & then
+        assertThatThrownBy(() -> cueSheetService.applyResult(liveId, "COMPLETED",
+                "[\"" + "x".repeat(70_000) + "\"]", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+        assertThat(cueSheet.getStatus()).isEqualTo(GenerationStatus.GENERATING);
+    }
+
+    @Test
     void 생성_중인_큐시트는_수정할_수_없다() {
         // given
-        givenOwnedSession();
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         givenGeneratingCueSheet();
 
         // when & then

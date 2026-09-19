@@ -29,4 +29,11 @@ public interface LiveSessionRepository {
      * 사용자 요청 경로에서 이걸 쓰면 인가가 사라진다.
      */
     Optional<LiveSession> findOwnedAny(UUID publicId);
+
+    /**
+     * 내부 전용 경로 중 <b>상태를 바꾸는 것</b>(AI 결과 수신) 전용 잠금 조회.
+     * 콜백은 at-least-once라 같은 결과가 두 번 올 수 있고, 잠그지 않으면 둘 다
+     * 클립 수 검사를 통과해 방송 1회당 3개 상한이 조용히 깨진다.
+     */
+    Optional<LiveSession> findOwnedAnyForUpdate(UUID publicId);
 }

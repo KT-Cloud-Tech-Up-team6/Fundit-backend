@@ -97,7 +97,7 @@ class InternalLiveControllerTest {
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "status": "COMPLETED", "segments": "[{\\"order\\":1}]" }
+                                { "status": "COMPLETED", "segments": [{"order":1}] }
                                 """))
                 .andExpect(status().isNoContent());
     }
