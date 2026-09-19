@@ -11,4 +11,7 @@ import java.util.UUID;
 public interface ProjectSummaryClient {
 
     Optional<String> getProjectTitle(UUID projectId);
+
+    /** CATEGORY 스코프 쿠폰 매칭(ORDER-010)에 쓴다. 조회 실패 시 해당 쿠폰만 미적용 처리되도록 빈 값으로 degrade. */
+    Optional<String> getCategoryMajor(UUID projectId);
 }

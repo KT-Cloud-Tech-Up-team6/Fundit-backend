@@ -47,14 +47,16 @@ public class Coupon {
     }
 
     /**
-     * targetScope=PROJECT/CATEGORY/MAKER 매칭 검증. project-service 조회 없이 판단 가능한
-     * ALL/PROJECT만 정확히 검증하고, CATEGORY/MAKER는 이번 MVP 범위에서는 항상 적용 가능한
-     * 것으로 취급한다[가정 — project-service의 카테고리/판매자 조회가 필요해 후속 보강 필요].
+     * targetScope=PROJECT/CATEGORY/MAKER 매칭 검증. CATEGORY/MAKER는 project-service 조회가
+     * 필요해 호출부가 {@link ProjectMatchContext}로 채워서 넘긴다(불필요하면 {@link ProjectMatchContext#EMPTY}).
      */
-    public boolean matchesProject(UUID projectId) {
+    public boolean matchesProject(UUID projectId, ProjectMatchContext context) {
         return switch (targetScope) {
-            case ALL, CATEGORY, MAKER -> true;
+            case ALL -> true;
             case PROJECT -> targetRefId != null && targetRefId.equals(String.valueOf(projectId));
+            case CATEGORY -> targetRefId != null && targetRefId.equals(context.categoryMajor());
+            case MAKER -> targetRefId != null && context.sellerId() != null
+                    && targetRefId.equals(String.valueOf(context.sellerId()));
         };
     }
 

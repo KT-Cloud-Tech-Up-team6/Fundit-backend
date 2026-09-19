@@ -39,6 +39,20 @@ public class ProjectServiceProjectSummaryClient implements ProjectSummaryClient 
         }
     }
 
-    private record ProjectDetailResponse(UUID projectId, String title, String status) {
+    @Override
+    public Optional<String> getCategoryMajor(UUID projectId) {
+        try {
+            ProjectDetailResponse response = projectServiceRestClient.get()
+                    .uri("/api/v1/projects/{projectId}", projectId)
+                    .retrieve()
+                    .body(ProjectDetailResponse.class);
+            return response == null ? Optional.empty() : Optional.ofNullable(response.categoryMajor());
+        } catch (RestClientException e) {
+            log.warn("project-service 카테고리 조회 실패(CATEGORY 쿠폰 미적용 처리). projectId={}", projectId, e);
+            return Optional.empty();
+        }
+    }
+
+    private record ProjectDetailResponse(UUID projectId, String title, String status, String categoryMajor) {
     }
 }

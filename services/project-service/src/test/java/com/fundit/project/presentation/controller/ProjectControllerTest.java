@@ -192,7 +192,7 @@ class ProjectControllerTest {
         UUID publicId = UUID.randomUUID();
         var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L, null, List.of(),
                 new ProjectQueryService.FundingStatusView(0, 0, 0, null), false,
-                new ProjectQueryService.SellerView(sellerId, null));
+                new ProjectQueryService.SellerView(sellerId, null), "패션", "의류");
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
 
         // when & then
@@ -210,7 +210,7 @@ class ProjectControllerTest {
                 List.of(new com.fundit.project.domain.project.IntroContentBlock(
                         com.fundit.project.domain.project.IntroContentType.TEXT, "소개 본문")),
                 new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L), true,
-                new ProjectQueryService.SellerView(UUID.randomUUID(), null));
+                new ProjectQueryService.SellerView(UUID.randomUUID(), null), "패션", "의류");
         when(projectQueryService.getPublicDetail(publicId)).thenReturn(view);
 
         // when & then
@@ -219,7 +219,9 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.status").value("ONGOING"))
                 .andExpect(jsonPath("$.hasLiveVerification").value(true))
                 .andExpect(jsonPath("$.coverImageUrl").value("https://example.com/cover.png"))
-                .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"));
+                .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"))
+                .andExpect(jsonPath("$.categoryMajor").value("패션"))
+                .andExpect(jsonPath("$.categoryMinor").value("의류"));
     }
 
     @Test

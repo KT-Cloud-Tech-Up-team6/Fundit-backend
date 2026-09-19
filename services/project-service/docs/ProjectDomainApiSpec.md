@@ -909,7 +909,8 @@ GET /api/v1/projects/{projectId}/preview
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null },
   "hasLiveVerification": false,
-  "seller": { "sellerId": "018e9a10-....", "displayName": null }
+  "seller": { "sellerId": "018e9a10-....", "displayName": null },
+  "categoryMajor": "패션", "categoryMinor": "의류"
 }
 ```
 
@@ -918,7 +919,7 @@ GET /api/v1/projects/{projectId}/preview
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
 - 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
@@ -946,7 +947,8 @@ GET /api/v1/projects/{projectId}
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
   "hasLiveVerification": true,
-  "seller": { "sellerId": "...", "displayName": null }
+  "seller": { "sellerId": "...", "displayName": null },
+  "categoryMajor": "패션", "categoryMinor": "의류"
 }
 ```
 
@@ -956,6 +958,7 @@ GET /api/v1/projects/{projectId}
 - 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
+- **[2026-09-18 추가]** `categoryMajor`/`categoryMinor`는 order-service의 CATEGORY 스코프 쿠폰 매칭(ORDER-010)이 이 값을 조회해 쓴다 — 공개 계약이니 필드명을 바꾸면 그쪽 연동이 깨진다.
 
 ---
 

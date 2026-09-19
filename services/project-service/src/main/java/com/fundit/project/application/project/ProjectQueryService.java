@@ -84,7 +84,8 @@ public class ProjectQueryService {
         return new ProjectDetailView(project.getPublicId(), project.getTitle(), project.getStatus().name(),
                 project.getGoalAmount(), project.getCoverImageUrl(), project.getIntroContent(),
                 new FundingStatusView(currentAmount, achievementRate, participantCount, remainingDays),
-                hasLiveVerification, new SellerView(project.getSellerId(), displayName));
+                hasLiveVerification, new SellerView(project.getSellerId(), displayName),
+                project.getCategoryMajor(), project.getCategoryMinor());
     }
 
     private Long remainingDays(Project project) {
@@ -102,7 +103,8 @@ public class ProjectQueryService {
     public record ProjectDetailView(
             UUID projectId, String title, String status, Long goalAmount,
             String coverImageUrl, List<IntroContentBlock> introContent,
-            FundingStatusView fundingStatus, boolean hasLiveVerification, SellerView seller) {
+            FundingStatusView fundingStatus, boolean hasLiveVerification, SellerView seller,
+            String categoryMajor, String categoryMinor) {
     }
 
     public record CommonPolicyView(String simpleRefundDeadline, boolean goalFailedAutoRefund) {

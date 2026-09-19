@@ -20,7 +20,7 @@ public class OrderPreviewService {
 
     public OrderPricingService.PricingResult preview(UUID memberId, UUID projectId,
                                                        List<OrderLineItemRequest> lineItems,
-                                                       List<String> couponCodes) {
-        return orderPricingService.calculate(memberId, projectId, lineItems, couponCodes);
+                                                       List<String> couponCodes, boolean autoApplyBestCoupon) {
+        return orderPricingService.calculate(memberId, projectId, lineItems, couponCodes, autoApplyBestCoupon);
     }
 }
