@@ -43,7 +43,7 @@ class LiveStreamServiceUnitExceptionTest {
     void 남의_방송이면_404다() {
         // given — 타인 소유와 없는 LIVE를 구분해 응답하면 id를 넣어보며 존재 여부를
         // 캐낼 수 있다(security.md S10). 조회 자체가 소유권에 묶여 있어 결과가 같다.
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> liveStreamService.start(sellerId, liveId))
@@ -56,7 +56,7 @@ class LiveStreamServiceUnitExceptionTest {
     void IVS_실패는_ERROR_상태와_사유를_남기고_전파한다() {
         // given
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
         given(ivsClient.createChatRoom(anyString())).willThrow(new IllegalStateException("boom"));
 
         // when & then — 그냥 던지고 말면 판매자 화면이 무슨 일이 있었는지 못 보여준다
@@ -75,7 +75,7 @@ class LiveStreamServiceUnitExceptionTest {
         LiveSession ended = LiveSession.create(1L, UUID.randomUUID());
         ended.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         ended.end(Instant.parse("2026-09-10T11:10:00Z"));
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(ended));
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(ended));
 
         // when & then
         assertThatThrownBy(() -> liveStreamService.start(sellerId, liveId))
@@ -93,7 +93,7 @@ class LiveStreamServiceUnitExceptionTest {
         LiveSession ended = LiveSession.create(1L, UUID.randomUUID());
         ended.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         ended.end(Instant.parse("2026-09-10T11:10:00Z"));
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(ended));
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(ended));
 
         // when
         assertThatThrownBy(() -> liveStreamService.start(sellerId, liveId))

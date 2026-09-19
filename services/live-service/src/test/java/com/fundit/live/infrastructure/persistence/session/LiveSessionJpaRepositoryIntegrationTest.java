@@ -135,4 +135,29 @@ class LiveSessionJpaRepositoryIntegrationTest {
         assertThat(sessionRepository.findOwned(mine.getPublicId(), sellerId)).isPresent();
         assertThat(sessionRepository.findOwned(mine.getPublicId(), otherSellerId)).isEmpty();
     }
+
+    @Test
+    void 상태를_DRAFT로_명시해도_소비자_목록에_나오지_않는다() {
+        // given — 필터를 어떻게 주든 새면 안 된다. 쿼리가 status <> DRAFT를 함께 걸고 있어
+        // :status = DRAFT와 동시에 만족하는 행이 없다.
+        seedSession(channelId, LiveStatus.DRAFT);
+        seedSession(channelId, LiveStatus.LIVE);
+
+        // when
+        var page = sessionRepository.findPublic(LiveStatus.DRAFT, PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 공개_단건_조회는_DRAFT를_돌려주지_않는다() {
+        // given — 409로 답하면 liveId를 넣어보며 존재 여부를 캐낼 수 있다(security.md S10)
+        var draft = seedSession(channelId, LiveStatus.DRAFT);
+        var live = seedSession(channelId, LiveStatus.LIVE);
+
+        // when & then
+        assertThat(sessionRepository.findPublicByPublicId(draft.getPublicId())).isEmpty();
+        assertThat(sessionRepository.findPublicByPublicId(live.getPublicId())).isPresent();
+    }
 }

@@ -3,6 +3,8 @@ package com.fundit.live.infrastructure.persistence.session;
 import com.fundit.live.domain.session.LiveStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,6 +27,20 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
             """)
     Optional<LiveSessionJpaEntity> findOwned(@Param("publicId") UUID publicId, @Param("sellerId") UUID sellerId);
 
+    /**
+     * 시작·종료 전용 잠금 조회. 같은 방송에 시작 요청이 동시에 들어오면(버튼 더블클릭 등)
+     * 둘 다 상태 검사를 통과해 <b>IVS 채팅방이 두 개 생기고</b> 종료도 두 번 발행된다.
+     * 행 잠금으로 한 요청만 통과시킨다 — 조회 경로(목록·설정)는 잠그지 않는다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select s from LiveSessionJpaEntity s
+            where s.publicId = :publicId
+              and s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId = :sellerId)
+            """)
+    Optional<LiveSessionJpaEntity> findOwnedForUpdate(@Param("publicId") UUID publicId,
+                                                      @Param("sellerId") UUID sellerId);
+
     @Query("""
             select s from LiveSessionJpaEntity s
             where s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId = :sellerId)
@@ -43,8 +59,21 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
             select s from LiveSessionJpaEntity s
             where s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
               and (:status is null or s.status = :status)
+            order by s.createdAt desc, s.id desc
             """)
     Page<LiveSessionJpaEntity> findPublic(@Param("status") LiveStatus status, Pageable pageable);
+
+    /**
+     * 공개 단건 조회(시청 정보·VOD·채팅 토큰). <b>DRAFT는 여기서 걸러 404가 되게 한다</b> —
+     * 호출부마다 {@code if (DRAFT)}를 붙이면 네 번째 호출부에서 빠진다. 실제로 세 곳 중 한 곳에만
+     * 있어서, 설정 중인 방송에 요청을 넣으면 409가 돌아와 존재가 드러났다(security.md S10).
+     */
+    @Query("""
+            select s from LiveSessionJpaEntity s
+            where s.publicId = :publicId
+              and s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
+            """)
+    Optional<LiveSessionJpaEntity> findPublicByPublicId(@Param("publicId") UUID publicId);
 
     List<LiveSessionJpaEntity> findByStatusOrderByActualStartAtDesc(LiveStatus status);
 

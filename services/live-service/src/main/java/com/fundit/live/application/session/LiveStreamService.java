@@ -29,7 +29,13 @@ public class LiveStreamService {
     private final LiveEventOutboxJpaRepository outboxRepository;
     private final IvsClient ivsClient;
 
-    @Transactional
+    /**
+     * {@code noRollbackFor}가 필요한 이유: IVS 실패 시 ERROR 상태를 저장하고
+     * {@link DependencyFailureException}을 던지는데, 그건 RuntimeException이라 기본 롤백 대상이다.
+     * 그대로 두면 <b>저장한 ERROR가 커밋되지 않아</b> 판매자 화면이 실패 사유를 영영 못 본다
+     * (요구사항정의서 6.3.4).
+     */
+    @Transactional(noRollbackFor = DependencyFailureException.class)
     public LiveSession start(UUID sellerId, UUID liveId) {
         LiveSession session = loadOwned(sellerId, liveId);
         // IVS를 부르기 전에 상태를 본다. 뒤에서 검증하면 이미 끝난 방송에 시작 요청이 들어왔을 때
@@ -75,8 +81,9 @@ public class LiveStreamService {
                 .build());
     }
 
+    /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {
-        return sessionRepository.findOwned(liveId, sellerId)
+        return sessionRepository.findOwnedForUpdate(liveId, sellerId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 }

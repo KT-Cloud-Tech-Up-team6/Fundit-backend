@@ -35,7 +35,7 @@ class LiveStreamServiceUnitTest {
     void 시작하면_LIVE로_전이한다() {
         // given
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -51,7 +51,7 @@ class LiveStreamServiceUnitTest {
         // given
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
         session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when

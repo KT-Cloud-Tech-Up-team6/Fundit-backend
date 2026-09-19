@@ -38,6 +38,11 @@ public class LiveSessionPersistenceAdapter implements LiveSessionRepository {
     }
 
     @Override
+    public Optional<LiveSession> findOwnedForUpdate(UUID publicId, UUID sellerId) {
+        return jpaRepository.findOwnedForUpdate(publicId, sellerId).map(LiveSessionMapper::toDomain);
+    }
+
+    @Override
     public Optional<LiveSession> findOwnedAny(UUID publicId) {
         return jpaRepository.findByPublicId(publicId).map(LiveSessionMapper::toDomain);
     }

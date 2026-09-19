@@ -18,6 +18,12 @@ public interface LiveSessionRepository {
     Optional<LiveSession> findOwned(UUID publicId, UUID sellerId);
 
     /**
+     * 상태를 바꾸는 경로(시작·종료) 전용. 행을 잠가 동시 요청을 직렬화한다 —
+     * 잠그지 않으면 둘 다 상태 검사를 통과해 외부 자원이 중복 생성된다.
+     */
+    Optional<LiveSession> findOwnedForUpdate(UUID publicId, UUID sellerId);
+
+    /**
      * 소유권 없이 조회한다. <b>내부 전용 경로(AI 결과 수신)에서만 쓴다</b> —
      * 호출자가 사용자가 아니라 AI 서버라 대조할 sellerId가 없다.
      * 사용자 요청 경로에서 이걸 쓰면 인가가 사라진다.

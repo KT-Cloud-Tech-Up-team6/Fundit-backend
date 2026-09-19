@@ -30,4 +30,21 @@ class ProjectServiceProjectOwnershipClientUnitExceptionTest {
         assertThatThrownBy(() -> client.findSellerId(projectId))
                 .isInstanceOf(DependencyFailureException.class);
     }
+
+    @Test
+    void 인증_실패는_프로젝트_없음으로_뭉개지_않는다() {
+        // given — 403까지 empty로 흘리면 우리 인증 실패가 404로 보여 원인을 찾을 수 없다
+        UUID projectId = UUID.randomUUID();
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ProjectServiceProjectOwnershipClient client =
+                new ProjectServiceProjectOwnershipClient(builder.build());
+        server.expect(requestTo(BASE_URL + "/api/v1/projects/" + projectId))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.FORBIDDEN));
+
+        // when & then
+        assertThatThrownBy(() -> client.findSellerId(projectId))
+                .isInstanceOf(DependencyFailureException.class);
+    }
 }

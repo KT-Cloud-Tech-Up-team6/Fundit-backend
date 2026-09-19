@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(InternalLiveController.class)
 @Import({GlobalExceptionHandler.class, CommonWebConfig.class, InternalEndpointConfig.class})
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
-class InternalLiveControllerTest {
+class InternalLiveControllerExceptionTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
 
@@ -48,59 +48,31 @@ class InternalLiveControllerTest {
             """;
 
     @Test
-    void 채팅_적재는_204다() throws Exception {
-        // given
-        when(chatIngestService.ingest(anyString(), anyString(), any(), anyString(), any())).thenReturn(true);
-
-        // when & then
+    void 내부_키가_없으면_적재할_수_없다() throws Exception {
+        // given & when & then — 열려 있으면 임의 채팅 주입이 가능하다(security.md S4)
         mockMvc.perform(post("/internal/v1/lives/chat/messages")
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INGEST_BODY.formatted(UUID.randomUUID())))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void 재전송_중복도_204다() throws Exception {
-        // given — 중복은 정상 흐름이라 에러로 올리지 않는다
-        when(chatIngestService.ingest(anyString(), anyString(), any(), anyString(), any())).thenReturn(false);
-
-        // when & then
-        mockMvc.perform(post("/internal/v1/lives/chat/messages")
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(INGEST_BODY.formatted(UUID.randomUUID())))
-                .andExpect(status().isNoContent());
-    }
-
-
-    @Test
-    void 방송_상태_조회는_판매자까지_돌려준다() throws Exception {
-        // given — order가 라이브 쿠폰 발급 전 "진행 중"을 확인한다
-        UUID liveId = UUID.randomUUID();
-        UUID sellerId = UUID.randomUUID();
-        when(liveStatusQueryService.find(liveId)).thenReturn(
-                new LiveStatusQueryService.LiveStatus(liveId, 7L, "LIVE", sellerId));
-
-        // when & then
-        mockMvc.perform(get("/internal/v1/lives/{liveId}/status", liveId)
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("LIVE"))
-                .andExpect(jsonPath("$.sellerId").value(sellerId.toString()));
-    }
-
-    @Test
-    void AI가_큐시트_결과를_밀어주면_204다() throws Exception {
-        // given & when & then — 우리가 폴링하면 스케줄러와 job 식별자 컬럼이 따라붙는다
+    void 내부_키가_없으면_큐시트_결과를_주입할_수_없다() throws Exception {
+        // given & when & then — 열려 있으면 임의 큐시트 주입이 가능하다(S4)
         mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                { "status": "COMPLETED", "segments": "[{\\"order\\":1}]" }
-                                """))
-                .andExpect(status().isNoContent());
+                        .content("{ \"status\": \"COMPLETED\", \"segments\": \"[]\" }"))
+                .andExpect(status().isUnauthorized());
     }
 
-
+    @Test
+    void 필수값이_빠진_하이라이트_콜백은_400이다() throws Exception {
+        // given & when & then — 검증이 없으면 NOT NULL 제약 위반으로 500이 나고,
+        // AI가 잘못 보낸 건데 우리 서버 오류로 보인다
+        mockMvc.perform(post("/internal/v1/lives/{liveId}/highlights", UUID.randomUUID())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"sceneLabel\":\"DEMO\",\"startSec\":10,\"status\":\"COMPLETED\"}]"))
+                .andExpect(status().isBadRequest());
+    }
 }

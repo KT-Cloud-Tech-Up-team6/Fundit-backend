@@ -36,7 +36,7 @@ public class ChatTokenService {
 
     @Transactional(readOnly = true)
     public ChatToken issue(UUID userId, UUID liveId) {
-        LiveSessionJpaEntity session = sessionRepository.findByPublicId(liveId)
+        LiveSessionJpaEntity session = sessionRepository.findPublicByPublicId(liveId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (session.getIvsChatRoomArn() == null) {
             throw new BusinessException(CommonErrorCode.CONFLICT, "아직 시작되지 않은 방송입니다.");

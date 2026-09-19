@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
-class VodChatQueryServiceUnitTest {
+class VodChatQueryServiceUnitExceptionTest {
 
     private static final Instant STARTED = Instant.parse("2026-09-10T11:00:00Z");
 
@@ -41,21 +41,28 @@ class VodChatQueryServiceUnitTest {
     }
 
     @Test
-    void 초_구간을_방송_시작_기준_절대시각으로_바꿔_조회한다() {
-        // given
-        givenSession(STARTED);
-        given(chatMessageRepository.findBySessionIdAndSentAtBetweenOrderBySentAtAsc(
-                1L, STARTED.plusSeconds(60), STARTED.plusSeconds(120)))
-                .willReturn(List.of(ChatMessageJpaEntity.builder().content("안녕").build()));
-
-        // when
-        var result = vodChatQueryService.findByRange(liveId, 60, 120);
-
-        // then — 기준 시각을 함께 돌려줘야 호출부가 경과 초를 계산할 수 있다
-        assertThat(result.broadcastStartedAt()).isEqualTo(STARTED);
-        assertThat(result.messages()).hasSize(1);
+    void 구간이_뒤집히면_400이다() {
+        // when & then — 입력 검증은 서버에서 한다(security.md S2)
+        assertThatThrownBy(() -> vodChatQueryService.findByRange(liveId, 120, 60))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> vodChatQueryService.findByRange(liveId, -1, 60))
+                .isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    void 상한을_넘는_구간은_400이다() {
+        // given & when & then — 상한이 없으면 toSec=999999999 하나로 방송 전체 채팅을 긁어간다
+        assertThatThrownBy(() -> vodChatQueryService.findByRange(liveId, 0, 601))
+                .isInstanceOf(BusinessException.class);
+    }
 
+    @Test
+    void 송출_기록이_없으면_초를_시각으로_바꿀_수_없어_409다() {
+        // given
+        givenSession(null);
 
+        // when & then
+        assertThatThrownBy(() -> vodChatQueryService.findByRange(liveId, 0, 60))
+                .isInstanceOf(BusinessException.class);
+    }
 }

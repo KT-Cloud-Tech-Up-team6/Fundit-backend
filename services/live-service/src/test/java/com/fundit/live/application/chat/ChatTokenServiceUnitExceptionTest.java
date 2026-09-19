@@ -23,7 +23,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
-class ChatTokenServiceUnitTest {
+class ChatTokenServiceUnitExceptionTest {
 
     @Mock private LiveSessionJpaRepository sessionRepository;
     @Mock private LiveChannelJpaRepository channelRepository;
@@ -43,33 +43,27 @@ class ChatTokenServiceUnitTest {
     }
 
     @Test
-    void 방송_소유자는_삭제_강퇴_권한까지_받는다() {
+    void 시작_전_방송은_채팅방이_없어_409다() {
         // given
-        givenLiveSession();
-        given(channelRepository.findById(1L)).willReturn(Optional.of(
-                LiveChannelJpaEntity.builder().id(1L).sellerId(sellerId).build()));
+        given(sessionRepository.findPublicByPublicId(liveId)).willReturn(Optional.of(
+                LiveSessionJpaEntity.builder().publicId(liveId).channelId(1L)
+                        .projectId(UUID.randomUUID()).status(LiveStatus.SCHEDULED).likeCount(0).build()));
 
-        // when
-        ChatTokenService.ChatToken token = chatTokenService.issue(sellerId, liveId);
-
-        // then
-        assertThat(token.capabilities())
-                .containsExactly("SEND_MESSAGE", "DELETE_MESSAGE", "DISCONNECT_USER");
+        // when & then
+        assertThatThrownBy(() -> chatTokenService.issue(sellerId, liveId))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
-    void 일반_시청자는_전송_권한만_받는다() {
-        // given — 경로가 하나라 클라이언트가 자기 역할을 판단할 필요가 없다
-        givenLiveSession();
-        given(channelRepository.findById(1L)).willReturn(Optional.of(
-                LiveChannelJpaEntity.builder().id(1L).sellerId(sellerId).build()));
+    void 설정_중인_방송은_존재_자체를_알리지_않는다() {
+        // given — 공개 로더가 DRAFT를 걸러 빈 Optional이 온다.
+        // 409로 답하면 liveId를 넣어보며 존재 여부를 캐낼 수 있다(security.md S10)
+        given(sessionRepository.findPublicByPublicId(liveId)).willReturn(Optional.empty());
 
-        // when
-        ChatTokenService.ChatToken token = chatTokenService.issue(UUID.randomUUID(), liveId);
-
-        // then — 보기 권한은 IVS가 암묵적으로 포함하므로 따로 주지 않는다
-        assertThat(token.capabilities()).containsExactly("SEND_MESSAGE");
+        // when & then
+        assertThatThrownBy(() -> chatTokenService.issue(sellerId, liveId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((com.fundit.common.error.BusinessException) e).getErrorCode())
+                .isEqualTo(com.fundit.common.error.CommonErrorCode.NOT_FOUND);
     }
-
-
 }

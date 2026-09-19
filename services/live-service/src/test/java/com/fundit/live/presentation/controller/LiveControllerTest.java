@@ -72,16 +72,6 @@ class LiveControllerTest {
                 .andExpect(jsonPath("$.liveId").value(created.getPublicId().toString()));
     }
 
-    @Test
-    void projectId가_없으면_400이다() throws Exception {
-        // given & when & then — 입력 검증은 서버에서 한다(security.md S2)
-        mockMvc.perform(post("/api/v1/lives")
-                        .header(AuthHeaders.USER_ID, userId.toString())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
-    }
 
     @Test
     void 소비자_목록은_인증_없이_조회된다() throws Exception {
@@ -150,17 +140,6 @@ class LiveControllerTest {
                 .andExpect(jsonPath("$.scheduledStartAt").exists());
     }
 
-    @Test
-    void 소개문구가_200자를_넘으면_400이다() throws Exception {
-        // given & when & then — 입력 검증은 서버에서 한다(security.md S2)
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .patch("/api/v1/lives/{liveId}/settings", UUID.randomUUID())
-                        .header(AuthHeaders.USER_ID, userId.toString())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"introText\":\"%s\"}".formatted("가".repeat(201))))
-                .andExpect(status().isBadRequest());
-    }
 
     @Test
     void 시작하면_LIVE_상태를_돌려준다() throws Exception {

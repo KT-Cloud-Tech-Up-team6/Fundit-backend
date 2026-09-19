@@ -1,13 +1,9 @@
 package com.fundit.live.presentation.controller;
 
-import com.fundit.common.error.BusinessException;
-import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.chat.ChatIngestService;
 import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.highlight.HighlightService;
-import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
-import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
-import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
+import com.fundit.live.application.session.LiveStatusQueryService;
 import com.fundit.live.presentation.dto.ChatIngestRequest;
 import com.fundit.live.presentation.dto.InternalLiveStatusResponse;
 import jakarta.validation.Valid;
@@ -35,8 +31,7 @@ public class InternalLiveController {
     private final ChatIngestService chatIngestService;
     private final CueSheetService cueSheetService;
     private final HighlightService highlightService;
-    private final LiveSessionJpaRepository sessionRepository;
-    private final LiveChannelJpaRepository channelRepository;
+    private final LiveStatusQueryService liveStatusQueryService;
 
     /**
      * 채팅 적재(요구사항정의서 11.3.4). Firehose는 재전송이 가능해서 같은 메시지가 두 번 온다 —
@@ -52,13 +47,8 @@ public class InternalLiveController {
     /** 방송 진행 상태 조회 — order-service의 라이브 쿠폰 검증용. */
     @GetMapping("/internal/v1/lives/{liveId}/status")
     public InternalLiveStatusResponse status(@PathVariable UUID liveId) {
-        LiveSessionJpaEntity session = sessionRepository.findByPublicId(liveId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        UUID sellerId = channelRepository.findById(session.getChannelId())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND))
-                .getSellerId();
-        return new InternalLiveStatusResponse(session.getPublicId(), session.getId(),
-                session.getStatus().name(), sellerId);
+        LiveStatusQueryService.LiveStatus s = liveStatusQueryService.find(liveId);
+        return new InternalLiveStatusResponse(s.liveId(), s.sessionId(), s.status(), s.sellerId());
     }
 
     /**

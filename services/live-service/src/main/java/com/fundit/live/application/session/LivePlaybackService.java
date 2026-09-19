@@ -55,13 +55,9 @@ public class LivePlaybackService {
     }
 
     private LiveSessionJpaEntity load(UUID liveId) {
-        LiveSessionJpaEntity session = sessionRepository.findByPublicId(liveId)
+        // DRAFT 제외는 쿼리에 묶여 있다 — 여기서 if로 거르면 다른 호출부에서 빠뜨린다.
+        return sessionRepository.findPublicByPublicId(liveId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        if (session.getStatus() == LiveStatus.DRAFT) {
-            // 설정이 끝나지 않은 방송은 존재 자체를 알리지 않는다.
-            throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        }
-        return session;
     }
 
     /** {@code type}은 LIVE 또는 VOD. 클라이언트가 재생기를 고르는 기준이다. */

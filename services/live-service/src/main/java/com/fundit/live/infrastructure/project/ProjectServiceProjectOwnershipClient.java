@@ -3,7 +3,6 @@ package com.fundit.live.infrastructure.project;
 import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.project.ProjectOwnershipClient;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -33,8 +32,10 @@ public class ProjectServiceProjectOwnershipClient implements ProjectOwnershipCli
             ProjectDetail detail = projectServiceRestClient.get()
                     .uri("/api/v1/projects/{projectId}", projectId)
                     .retrieve()
-                    // 없는 프로젝트는 예외가 아니라 empty다 — 호출 측이 404로 바꾼다.
-                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> { })
+                    // 404만 "없는 프로젝트"로 흘린다 — 호출 측이 그걸 404로 바꾼다.
+                    // 401·403·429까지 삼키면 우리 인증 실패가 "프로젝트 없음"으로 뭉개져
+                    // 원인을 찾을 수 없다. 나머지 4xx는 아래 RestClientException으로 떨어진다.
+                    .onStatus(status -> status.value() == 404, (req, res) -> { })
                     .body(ProjectDetail.class);
             if (detail == null || detail.seller() == null) {
                 return Optional.empty();

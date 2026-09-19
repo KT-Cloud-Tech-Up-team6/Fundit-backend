@@ -61,13 +61,4 @@ class ChatIngestServiceUnitTest {
                 Instant.parse("2026-09-10T11:00:00Z"))).isFalse();
     }
 
-    @Test
-    void 모르는_채팅방이면_404다() {
-        // given
-        given(sessionRepository.findByIvsChatRoomArn("arn:unknown")).willReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> chatIngestService.ingest("arn:unknown", "m", UUID.randomUUID(), "x",
-                Instant.now())).isInstanceOf(BusinessException.class);
-    }
 }

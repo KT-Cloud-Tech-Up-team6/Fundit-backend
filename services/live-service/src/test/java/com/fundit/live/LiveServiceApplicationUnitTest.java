@@ -15,6 +15,13 @@ class LiveServiceApplicationUnitTest {
      */
     @Test
     void 아웃박스_워커를_위해_스케줄링을_켠다() {
-        assertThat(LiveServiceApplication.class.getAnnotation(EnableScheduling.class)).isNotNull();
+        // given
+        Class<?> application = LiveServiceApplication.class;
+
+        // when
+        EnableScheduling annotation = application.getAnnotation(EnableScheduling.class);
+
+        // then
+        assertThat(annotation).isNotNull();
     }
 }

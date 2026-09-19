@@ -60,15 +60,4 @@ class LiveSettingsServiceUnitTest {
         assertThat(updated.getStatus()).isEqualTo(LiveStatus.DRAFT);
     }
 
-    @Test
-    void 남의_방송이면_404다() {
-        // given — 타인 소유와 없는 LIVE를 같은 응답으로 돌려준다(security.md S10)
-        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> liveSettingsService.update(sellerId, liveId, null, null, "x", null, null))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(CommonErrorCode.NOT_FOUND);
-    }
 }

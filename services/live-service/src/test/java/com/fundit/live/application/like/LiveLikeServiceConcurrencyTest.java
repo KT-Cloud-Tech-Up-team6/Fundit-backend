@@ -91,20 +91,22 @@ class LiveLikeServiceConcurrencyTest {
         ExecutorService pool = Executors.newFixedThreadPool(threads);
 
         // when
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
         for (int i = 0; i < threads; i++) {
-            pool.submit(() -> {
+            futures.add(pool.submit(() -> {
                 go.await();
-                try {
-                    liveLikeService.like(member, liveId);
-                } catch (RuntimeException ignored) {
-                    // 동시 삽입 충돌은 정상 — idempotent 결과만 확인한다
-                }
+                liveLikeService.like(member, liveId);
                 return null;
-            });
+            }));
         }
         go.countDown();
         pool.shutdown();
         assertThat(pool.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+        // get()으로 예외를 꺼내 온다. 삼키면 DB·트랜잭션 오류가 나도 테스트가 통과한다 —
+        // 동시 삽입 충돌은 ON CONFLICT DO NOTHING이 흡수하므로 애초에 예외가 나면 그게 버그다.
+        for (var future : futures) {
+            future.get();
+        }
 
         // then
         assertThat(sessionRepository.findByPublicId(liveId).orElseThrow().getLikeCount())
