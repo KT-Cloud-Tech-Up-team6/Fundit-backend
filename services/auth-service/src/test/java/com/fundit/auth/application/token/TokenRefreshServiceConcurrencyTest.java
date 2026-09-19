@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 // application-local.yml이 없어(.gitignore 대상) 이 값들이 미해석 상태로 컨텍스트 로딩이
 // PlaceholderResolutionException으로 실패한다(CI에서 재현됨).
 @TestPropertySource(properties = {
+        "auth.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "member-service.base-url=http://localhost:8082",
         "internal-api.key=test-only-internal-api-key"
 })
