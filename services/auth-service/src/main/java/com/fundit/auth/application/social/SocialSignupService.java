@@ -76,6 +76,9 @@ public class SocialSignupService {
         Account account = Account.builder()
                 .id(UuidCreator.getTimeOrderedEpoch())
                 .email(email)
+                // 이메일 찾기(AUTH-009) 조회용. 평문이 아니라 블라인드 인덱스 해시로 저장된다.
+                .verifiedName(verifiedIdentity.name())
+                .verifiedPhoneNumber(verifiedIdentity.phoneNumber())
                 // passwordHash 없음 — 소셜 전용 계정은 NULL 허용(V1__init_schema.sql)
                 .socialProvider(pending.provider().name())
                 .socialId(pending.socialId())

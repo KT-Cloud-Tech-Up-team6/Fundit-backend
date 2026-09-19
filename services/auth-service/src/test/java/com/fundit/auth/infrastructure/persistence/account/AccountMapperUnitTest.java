@@ -2,16 +2,21 @@ package com.fundit.auth.infrastructure.persistence.account;
 
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.Role;
+import com.fundit.auth.infrastructure.security.AesGcmCipher;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AccountMapperUnitTest {
 
-    private final AccountMapper mapper = new AccountMapper();
+    private static final String KEY = Base64.getEncoder().encodeToString(new byte[32]);
+
+    private final AesGcmCipher cipher = new AesGcmCipher(KEY);
+    private final AccountMapper mapper = new AccountMapper(cipher);
 
     @Test
     void 도메인을_엔티티로_변환하면_role이_소문자로_저장된다() {
@@ -28,12 +33,15 @@ class AccountMapperUnitTest {
                 .build();
 
         // when
-        AccountJpaEntity entity = mapper.toEntity(account);
+        AccountJpaEntity entity = mapper.toEntity(account, "email-hash", null, null);
 
         // then
         assertThat(entity.getRole()).isEqualTo("admin");
         assertThat(entity.getId()).isEqualTo(account.getId());
-        assertThat(entity.getEmail()).isEqualTo(account.getEmail());
+        // 이메일은 암호문으로 저장된다 — 평문이 그대로 들어가면 안 된다
+        assertThat(entity.getEmail()).isNotEqualTo(account.getEmail());
+        assertThat(cipher.decrypt(entity.getEmail())).isEqualTo(account.getEmail());
+        assertThat(entity.getEmailHash()).isEqualTo("email-hash");
     }
 
     @Test
@@ -41,7 +49,8 @@ class AccountMapperUnitTest {
         // given
         AccountJpaEntity entity = AccountJpaEntity.builder()
                 .id(UUID.randomUUID())
-                .email("test@fundit.com")
+                .email(new AesGcmCipher(KEY).encrypt("test@fundit.com"))
+                .emailHash("email-hash")
                 .passwordHash("hash")
                 .role("member")
                 .failedLoginCount(0)
@@ -56,5 +65,6 @@ class AccountMapperUnitTest {
         // then
         assertThat(account.getRole()).isEqualTo(Role.MEMBER);
         assertThat(account.getId()).isEqualTo(entity.getId());
+        assertThat(account.getEmail()).isEqualTo("test@fundit.com");
     }
 }

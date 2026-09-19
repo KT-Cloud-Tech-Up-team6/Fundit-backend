@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
+        "member.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "internal-api.key=test-only-internal-api-key",
         "member-event-outbox.poll-interval-ms=3600000",
         // 닿지 않는 주소. KafkaProducerConfig의 max.block.ms(5초)가 상한이라 오래 매달리지 않는다.

@@ -1,6 +1,8 @@
 package com.fundit.member.infrastructure.persistence.member;
 
+import com.fundit.member.infrastructure.persistence.EncryptedStringConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
@@ -30,10 +32,19 @@ public class MemberJpaEntity {
     @Id
     private UUID id;
 
-    @Column(nullable = false, length = 50)
+    /**
+     * 암호문으로 저장된다(security.md S9). 애플리케이션 코드는 평문만 본다 —
+     * 변환은 {@link EncryptedStringConverter}가 한다.
+     *
+     * <p><b>이 컬럼으로는 검색할 수 없다.</b> 같은 평문도 매번 다른 암호문이 된다.
+     * {@code length}를 지정하지 않는 이유: 암호문 길이가 평문과 달라 의미가 없고, DDL도 TEXT다.
+     */
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false)
     private String name;
 
-    @Column(name = "phone_number", nullable = false, length = 20)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "phone_number", nullable = false)
     private String phoneNumber;
 
     @Column(length = 50)

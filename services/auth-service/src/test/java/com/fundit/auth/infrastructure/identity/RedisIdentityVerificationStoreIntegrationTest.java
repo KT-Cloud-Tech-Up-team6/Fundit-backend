@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
+        "auth.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "member-service.base-url=http://localhost:8082",
         "internal-api.key=test-only-internal-api-key"
 })

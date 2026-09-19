@@ -2,12 +2,15 @@ package com.fundit.auth.infrastructure.persistence.account;
 
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.Role;
+import com.fundit.auth.infrastructure.security.AesGcmCipher;
+import com.fundit.auth.infrastructure.security.BlindIndex;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,10 +23,17 @@ class AccountPersistenceAdapterUnitTest {
     @Mock
     private AccountJpaRepository jpaRepository;
 
-    private final AccountMapper mapper = new AccountMapper();
+    private static final String KEY = Base64.getEncoder().encodeToString(new byte[32]);
+
+    private final AccountMapper mapper = new AccountMapper(new AesGcmCipher(KEY));
+    private final BlindIndex blindIndex = new BlindIndex(KEY);
 
     private AccountPersistenceAdapter adapter() {
-        return new AccountPersistenceAdapter(jpaRepository, mapper);
+        return new AccountPersistenceAdapter(jpaRepository, mapper, blindIndex);
+    }
+
+    private String emailHash(String email) {
+        return blindIndex.of(BlindIndex.LABEL_EMAIL, email);
     }
 
     private Account domainAccount() {
@@ -43,7 +53,7 @@ class AccountPersistenceAdapterUnitTest {
     void save는_엔티티로_변환해_저장하고_다시_도메인으로_변환해_반환한다() {
         // given
         Account account = domainAccount();
-        AccountJpaEntity entity = mapper.toEntity(account);
+        AccountJpaEntity entity = mapper.toEntity(account, emailHash(account.getEmail()), null, null);
         when(jpaRepository.save(org.mockito.ArgumentMatchers.any())).thenReturn(entity);
 
         // when
@@ -57,7 +67,8 @@ class AccountPersistenceAdapterUnitTest {
     void findById는_존재하면_도메인으로_변환해_반환한다() {
         // given
         Account account = domainAccount();
-        when(jpaRepository.findById(account.getId())).thenReturn(Optional.of(mapper.toEntity(account)));
+        when(jpaRepository.findById(account.getId())).thenReturn(
+                Optional.of(mapper.toEntity(account, emailHash(account.getEmail()), null, null)));
 
         // when
         Optional<Account> found = adapter().findById(account.getId());
@@ -69,8 +80,8 @@ class AccountPersistenceAdapterUnitTest {
 
     @Test
     void findByEmail은_존재하지_않으면_빈값을_반환한다() {
-        // given
-        when(jpaRepository.findByEmail("none@fundit.com")).thenReturn(Optional.empty());
+        // given — 평문이 아니라 블라인드 인덱스로 조회한다
+        when(jpaRepository.findByEmailHash(emailHash("none@fundit.com"))).thenReturn(Optional.empty());
 
         // when
         Optional<Account> found = adapter().findByEmail("none@fundit.com");
@@ -83,7 +94,7 @@ class AccountPersistenceAdapterUnitTest {
     void existsByEmail과_deleteById는_리포지토리로_위임한다() {
         // given
         UUID id = UUID.randomUUID();
-        when(jpaRepository.existsByEmail("test@fundit.com")).thenReturn(true);
+        when(jpaRepository.existsByEmailHash(emailHash("test@fundit.com"))).thenReturn(true);
 
         // when
         boolean exists = adapter().existsByEmail("test@fundit.com");
