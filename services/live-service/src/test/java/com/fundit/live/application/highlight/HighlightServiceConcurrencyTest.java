@@ -21,9 +21,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,25 +87,30 @@ class HighlightServiceConcurrencyTest {
         CountDownLatch go = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(threads);
 
-        // when
+        // when — 예외를 삼키지 않는다. 워커가 잠금 대기 타임아웃·데드락으로 전부 실패해도
+        // "커밋된 행 3개"가 우연히 맞을 수 있어, 그러면 무엇을 지키는 테스트인지 알 수 없다.
+        List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < threads; i++) {
             int base = i * 1000;
-            pool.submit(() -> {
+            futures.add(pool.submit(() -> {
                 ready.countDown();
                 try {
                     go.await();
-                    highlightService.applyGenerated(liveId, twoClips(base));
-                } catch (Exception ignored) {
-                    // 상한 초과분은 건너뛰므로 예외는 나지 않지만, 잠금 대기 중 실패해도
-                    // 이 테스트가 보는 건 "커밋된 행 수"다
-                } finally {
-                    done.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
                 }
-            });
+                // 상한 초과분은 건너뛰므로 정상 흐름에서 예외가 나지 않는다.
+                highlightService.applyGenerated(liveId, twoClips(base));
+                done.countDown();
+            }));
         }
-        ready.await(10, TimeUnit.SECONDS);
+        assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
         go.countDown();
-        done.await(30, TimeUnit.SECONDS);
+        for (Future<?> f : futures) {
+            f.get(30, TimeUnit.SECONDS);   // 워커 예외를 테스트로 전파한다
+        }
+        assertThat(done.await(30, TimeUnit.SECONDS)).isTrue();
         pool.shutdown();
 
         // then — 잠그지 않았다면 8개까지 들어간다

@@ -109,6 +109,11 @@ public class LiveSession {
      * "무슨 일이 있었는지"를 보여줄 수 없다(요구사항정의서 6.3.4).
      */
     public void markError(String detail, Instant now) {
+        // 끝난 방송을 오류로 뒤집지 않는다. 지금은 start()가 requireStartable()로 앞에서 걸러
+        // 닿지 않지만, 가드를 호출부에만 두면 호출부가 늘 때 빠진다(end()와 같은 규칙이다).
+        if (this.status == LiveStatus.ENDED) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "이미 종료된 방송입니다.");
+        }
         this.status = LiveStatus.ERROR;
         this.errorDetail = detail;
         this.errorOccurredAt = now;
