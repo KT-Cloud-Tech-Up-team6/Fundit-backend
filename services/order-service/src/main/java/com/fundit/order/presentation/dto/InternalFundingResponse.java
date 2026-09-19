@@ -12,11 +12,12 @@ import java.util.UUID;
  */
 public record InternalFundingResponse(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId,
                                        UUID sellerId, String status, long finalAmount, String orderName,
-                                       Long couponIssuanceId) {
+                                       Long couponIssuanceId, long shippingFee, long discountAmount) {
 
     public static InternalFundingResponse from(FundingSnapshot snapshot) {
         return new InternalFundingResponse(snapshot.fundingId(), snapshot.projectId(),
                 snapshot.memberId(), snapshot.fundingPublicId(), snapshot.sellerId(), snapshot.status(),
-                snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceId());
+                snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceId(),
+                snapshot.shippingFee(), snapshot.discountAmount());
     }
 }

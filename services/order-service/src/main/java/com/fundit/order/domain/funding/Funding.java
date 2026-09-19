@@ -121,14 +121,23 @@ public class Funding {
     }
 
     /**
-     * ORDER-005 응답용 가능 액션. 배송 완료 여부는 shipping-service 소관이라 이 애그리거트만으로는
-     * 구분할 수 없어, GOAL_ACHIEVED 상태는 전부 SHIPPING_DELAY_REFUND_REQUEST로 단순화했다
-     * [가정 — 배송완료 후 DEFECT_REFUND_REQUEST 구분은 shipping-service 연동 후 보강 필요].
+     * ORDER-005 응답용 가능 액션. 배송 상태는 fulfillment-service 소관이라 이 애그리게이트만으로는
+     * 판단할 수 없어, 호출부({@link com.fundit.order.application.order.OrderQueryService})가
+     * fulfillment-service 조회 결과를 넘겨준다 — GOAL_ACHIEVED가 아니면 조회 자체를 생략하고
+     * 기본값(false, false)을 넘겨도 결과가 같다.
      */
-    public List<String> availableActions() {
+    public List<String> availableActions(boolean isAlreadyShipped, boolean isDelivered) {
         return switch (status) {
             case PENDING, FUNDING_IN_PROGRESS -> List.of("CANCEL");
-            case GOAL_ACHIEVED -> List.of("SHIPPING_DELAY_REFUND_REQUEST");
+            case GOAL_ACHIEVED -> {
+                if (isDelivered) {
+                    yield List.of("DEFECT_REFUND_REQUEST");
+                }
+                if (!isAlreadyShipped) {
+                    yield List.of("SHIPPING_DELAY_REFUND_REQUEST");
+                }
+                yield List.of();
+            }
             default -> List.of();
         };
     }

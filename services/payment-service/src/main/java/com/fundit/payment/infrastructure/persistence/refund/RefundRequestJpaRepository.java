@@ -18,7 +18,8 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
      * payments 테이블에만 있어 조인이 필요하다.
      */
     @Query(value = "select r.id as id, r.fundingOrderId as fundingId, r.triggerType as triggerType, "
-            + "r.status as status, p.amount as amount, r.requestedAt as requestedAt "
+            + "r.status as status, p.amount as amount, r.requestedAt as requestedAt, "
+            + "r.reasonDetail as reasonDetail, r.rejectedReason as rejectedReason, r.processedAt as processedAt "
             + "from RefundRequestJpaEntity r, PaymentJpaEntity p "
             + "where p.id = r.paymentId and p.memberId = :memberId order by r.requestedAt desc",
             countQuery = "select count(r) from RefundRequestJpaEntity r, PaymentJpaEntity p "

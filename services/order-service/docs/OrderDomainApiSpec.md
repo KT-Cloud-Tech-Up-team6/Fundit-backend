@@ -16,6 +16,7 @@
 | 12 | GET | `/internal/fundings/{fundingId}` | 내부 펀딩 스냅샷 조회(레거시 Long PK) | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment v1 연동 |
 | 13 | GET | `/internal/orders/{orderId}` | 내부 펀딩 스냅샷 조회(orderId UUID) | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment v2 연동 |
 | 14 | GET | `/internal/projects/{projectId}/funding-participants` | 내부 펀딩 성립 참여자 조회 | 내부 키 (`InternalGatewaySecretFilter`) | fulfillment 연동 |
+| 15 | GET | `/internal/orders/order-summaries` | 내부 주문 요약 배치 조회(프로젝트명·라인아이템) | 내부 키 (`InternalGatewaySecretFilter`) | payment 연동(V04) |
 
 > ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 애플리케이션 로직이 있으나 `@KafkaListener` 배선이 없어 `payment.completed.v1`/`refund.completed.v1`을 소비하지 않습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
@@ -162,9 +163,12 @@ GET /api/v1/orders
   "content": [
     {
       "orderId": "018f9a1b-....",
-      "projectId": 123, "projectTitle": "세상에 없는 프라이팬",
+      "projectId": "018f2c1a-....", "projectTitle": "세상에 없는 프라이팬",
       "status": "FUNDING_IN_PROGRESS", "finalAmount": 39000,
-      "createdAt": "2026-09-07T10:00:00Z"
+      "createdAt": "2026-09-07T10:00:00Z",
+      "sellerDisplayName": "메이커", "thumbnailUrl": "https://cdn.fundit.example/x.png",
+      "rewardSummary": "얼리버드 패키지 외 1건", "totalQuantity": 3,
+      "availableActions": ["CANCEL"]
     }
   ],
   "page": 0, "size": 20, "totalElements": 3, "totalPages": 1, "hasNext": false
@@ -177,6 +181,9 @@ GET /api/v1/orders
 - `status` 파라미터 미지정 시 전체 상태 반환.
 - **`finalAmount`는 쿠폰을 적용하지 않는다.** `totalRewardAmount + shippingFee`만 합산한다. 쿠폰 할인 반영 금액은 상세(`GET /api/v1/orders/{orderId}`)만 제공한다.
 - `projectTitle`은 주문 생성 시점 스냅샷(`fundings.project_title`). 조회 시 project-service를 다시 호출하지 않는다.
+- `sellerDisplayName`/`thumbnailUrl`은 project-service 내부 배치 API(`GET /internal/projects/summaries`)로 페이지 단위 1회 조회해 채운다(건별 재호출 없음, V03). 조회 실패 시 둘 다 null. `sellerDisplayName`은 project-service의 `SellerProfileClient`가 아직 member-service 연동 전 스텁이라 현재는 항상 null이다(project-service CLAUDE.md 참고).
+- `rewardSummary`는 주문에 담긴 첫 리워드명 기준 `"{첫 리워드명}"` 또는(2건 이상) `"{첫 리워드명} 외 N건"`. `totalQuantity`는 라인아이템 수량 합계.
+- `availableActions`는 아래 상세 API(`GET /api/v1/orders/{orderId}`) 설명의 `availableActions` 규칙과 동일하다. 다만 `GOAL_ACHIEVED` 건의 배송 상태는 fulfillment-service 내부 배치 API(`GET /internal/fundings/fulfillment-statuses`)로 페이지 단위 1회 조회한다(상세 API는 단건 API `.../fulfillment-status`를 쓴다).
 
 ---
 
@@ -214,7 +221,7 @@ GET /api/v1/orders/{orderId}
 - `orderId`(public_id) 소유권 서버 검증 — 타인 주문 접근 시 `403 FORBIDDEN`(S4). 없으면 `404 NOT_FOUND`.
 - **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산이 다르다.
 - `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
-- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`, `GOAL_ACHIEVED` → `["SHIPPING_DELAY_REFUND_REQUEST"]`(배송완료 후 `DEFECT_REFUND_REQUEST` 구분은 fulfillment 연동 전이라 단순화), 그 외(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
+- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전(`isAlreadyShipped=false`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, 배송완료(`deliveredAt != null`) → `["DEFECT_REFUND_REQUEST"]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
 - 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`).
 
 ---
@@ -432,7 +439,9 @@ GET /internal/fundings/{fundingId}
   "status": "PENDING",
   "finalAmount": 35100,
   "orderName": "얼리버드 패키지 외 1건",
-  "couponIssuanceId": 5
+  "couponIssuanceId": 5,
+  "shippingFee": 3000,
+  "discountAmount": 2000
 }
 ```
 
@@ -441,6 +450,7 @@ GET /internal/fundings/{fundingId}
 - 없는 `fundingId` → `404 NOT_FOUND`.
 - `projectId`는 project-service `publicId`(UUID). `fundingPublicId`는 외부 노출 `orderId`.
 - `finalAmount`는 `totalRewardAmount + shippingFee - discountAmount`(`funding_coupon_applications` 합산). `orderName`은 첫 번째 라인아이템 리워드명 기준("리워드명" 또는 2건 이상이면 "리워드명 외 N건")으로 만든 표시용 문자열이다.
+- `shippingFee`/`discountAmount`는 위 `finalAmount` 계산식의 구성요소를 그대로 노출한다(R05 — payment-service 환불 예상금액 사전계산용). 둘 다 신규 추가 필드라 기존 소비자(`HttpOrderFundingClient`)는 무시해도 무방(api-convention.md "필드 추가는 버전을 올리지 않음").
 - `couponIssuanceId`는 이 주문에 적용된 쿠폰 발급 건 중 하나(단수)다. 한 주문에 플랫폼+메이커 쿠폰이 동시에 적용될 수 있지만 이 필드는 그중 하나만 노출한다 — payment-service의 `PaymentCompletedEvent`도 이미 단수 계약이라 맞춰뒀다(복수 적용분 전체 반영은 별도 이슈).
 - payment-service `HttpOrderFundingClient`(PAYMENT-001)가 이 응답 그대로를 소비한다. 필드명을 바꾸면 그쪽 역직렬화가 깨진다.
 
@@ -488,6 +498,40 @@ GET /internal/projects/{projectId}/funding-participants
 
 - `status=GOAL_ACHIEVED`인 참여자의 `memberId` 목록. 성립 후 전액 환불(`REFUNDED_AFTER_SUCCESS`)된 건은 제외.
 - 참여자가 없으면 `{ "memberIds": [] }`.
+
+---
+
+### 15. 내부 주문 요약 배치 조회
+
+```
+GET /internal/orders/order-summaries?orderIds={orderId1},{orderId2},...
+```
+
+**Auth Required**: 내부 전용. 12번과 동일하게 게이트웨이 미라우팅 + `InternalGatewaySecretFilter`(`X-Internal-Api-Key`).
+
+**호출 주체**: payment-service 환불 목록(`GET /api/v1/refunds`, V04) — 페이지 단위로 한 번만 호출해 N+1을 피한다.
+
+**Request**: Query Parameter: `orderIds` — orderId(UUID) 목록(반복 파라미터).
+
+**Response Body**
+
+```json
+[
+  {
+    "orderId": "018f9a1b-....",
+    "projectTitle": "세상에 없는 프라이팬",
+    "lineItems": [
+      { "rewardId": 1, "rewardName": "얼리버드 패키지", "quantity": 2, "unitPrice": 10000, "options": [] }
+    ]
+  }
+]
+```
+
+**Validation / Business Rules**
+
+- 존재하지 않는 `orderId`는 결과에서 조용히 빠진다(요청한 개수보다 응답 배열이 짧을 수 있다) — 배치 API는 부분 실패를 에러로 취급하지 않는다.
+- `lineItems`는 `GET /api/v1/orders/{orderId}` 상세 응답의 `lineItems`와 동일한 구조(`OrderLineItemDetailResponse`)를 그대로 재사용한다.
+- 쿠폰 할인·최종 결제액은 포함하지 않는다 — payment-service 자체 `payments.amount`가 이미 최종 결제액을 갖고 있어 중복 계산하지 않는다.
 
 ---
 

@@ -185,8 +185,9 @@ class OrderControllerTest {
     void 내_참여_목록을_조회하면_projectId가_UUID로_채워진다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
         when(orderQueryService.listMyOrders(eq(memberId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(funding(memberId, UUID.randomUUID(), FundingStatus.PENDING))));
+                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, List.of("CANCEL")))));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
@@ -203,7 +204,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
@@ -222,7 +223,7 @@ class OrderControllerTest {
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING).toBuilder()
                 .lineItems(List.of(lineItem)).build();
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())

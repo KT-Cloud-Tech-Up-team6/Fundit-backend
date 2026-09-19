@@ -39,6 +39,7 @@
 | 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
 | 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
 | 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(Long PK, v1/Kafka 해석용) | 내부 키 (`X-Internal-Api-Key`) | — |
+| 36 | GET | `/internal/projects/summaries` | 내부 프로젝트 배치 요약 조회(order-service 주문 목록용) | 내부 키 (`X-Internal-Api-Key`) | — |
 
 > **식별자 계약 (cross-service ID 통일 #69)**: 공개 REST의 `projectId`는 항상 `publicId`(UUID)다. 다운스트림 공개 API도 같은 UUID를 받는다 — order `POST /api/v2/orders`, fulfillment `/api/v2/projects/{projectId}/**`. payment의 `fundingId`는 order-service `orderId`(UUID). 이 서비스의 Long 내부 PK는 `GET /internal/projects/{projectId}`와 Kafka 파티션 키에만 남는다.
 >
@@ -1191,6 +1192,39 @@ GET /internal/projects/{projectId}
 
 - 존재하는 프로젝트의 `sellerId`와 `publicId`만 반환한다(fulfillment 소유권 검증·알림 수신자 조회용).
 - 없으면 `404 NOT_FOUND`. 게이트웨이 공개 라우트가 아니라 서비스 간 내부 호출을 전제로 한다.
+
+---
+
+### 36. 내부 프로젝트 배치 요약 조회
+
+```
+GET /internal/projects/summaries?ids={publicId1},{publicId2},...
+```
+
+**Auth Required**: 내부 전용 — `X-Internal-Api-Key`(`InternalEndpointConfig`에 `GET /internal/projects/summaries`로 등록). 키 없거나 불일치 → `401 UNAUTHORIZED`.
+
+**Request**: Query Parameter: `ids` — publicId(UUID) 목록(반복 파라미터, 예: `?ids=uuid1&ids=uuid2`).
+
+**호출 주체**: order-service 주문 목록(`GET /api/v1/orders`, V03) — 건별 단건 조회 대신 페이지 단위로 한 번만 호출해 N+1을 피한다.
+
+**Response Body**
+
+```json
+[
+  {
+    "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+    "title": "세상에 없는 프라이팬",
+    "thumbnailUrl": "https://cdn.fundit.example/x.png",
+    "sellerDisplayName": null
+  }
+]
+```
+
+**Validation / Business Rules**
+
+- 소프트 삭제(`deleted_at`)된 프로젝트는 결과에서 빠진다(요청한 `ids`보다 응답 배열이 짧을 수 있다) — 404가 아니라 조용히 생략.
+- `sellerDisplayName`은 `SellerProfileClient`로 채우는데, member-service 연동 전(`NoopSellerProfileClient`)이라 **현재는 항상 null**이다(공개 상세 `GET /api/v1/projects/{projectId}`의 `seller.displayName`과 동일한 제약).
+- 목록 화면용 최소 필드만 제공한다 — 펀딩 현황·라이브 인증 여부 등은 포함하지 않는다(필요하면 공개 상세 API를 쓸 것).
 
 ---
 

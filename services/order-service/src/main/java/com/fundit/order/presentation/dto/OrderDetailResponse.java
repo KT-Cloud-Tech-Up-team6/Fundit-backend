@@ -22,6 +22,6 @@ public record OrderDetailResponse(
                 funding.getPublicId(), funding.getStatus().name(),
                 funding.getLineItems().stream().map(OrderLineItemDetailResponse::from).toList(),
                 funding.getShippingFee(), detail.discountAmount(), detail.finalAmount(),
-                ShippingAddressResponse.from(funding.getShippingAddress()), null, funding.availableActions());
+                ShippingAddressResponse.from(funding.getShippingAddress()), null, detail.availableActions());
     }
 }

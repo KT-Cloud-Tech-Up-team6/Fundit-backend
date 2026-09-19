@@ -26,4 +26,10 @@ public class InternalEndpointConfig {
     public InternalEndpoint fulfillmentStatusByInternalIdEndpoint() {
         return new InternalEndpoint("GET", "/internal/fundings/id/{fundingId}/fulfillment-status");
     }
+
+    /** order-service 주문 목록(V03/V06)이 배치로 호출하는 배송 상태 조회. */
+    @Bean
+    public InternalEndpoint fulfillmentStatusBatchEndpoint() {
+        return new InternalEndpoint("GET", "/internal/fundings/fulfillment-statuses");
+    }
 }

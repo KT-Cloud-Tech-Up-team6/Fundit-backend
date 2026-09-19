@@ -3,15 +3,21 @@ package com.fundit.payment.presentation.controller;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.payment.application.funding.OrderFundingClient;
+import com.fundit.payment.application.media.MediaStorageClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
 import com.fundit.payment.application.refund.DefectRefundRequestService;
+import com.fundit.payment.application.refund.RefundEstimateService;
+import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
 import com.fundit.payment.presentation.dto.DefectRefundRequest;
 import com.fundit.payment.presentation.dto.DefectRefundRequestResponse;
+import com.fundit.payment.presentation.dto.MediaUploadUrlResponse;
 import com.fundit.payment.presentation.dto.PageResponse;
 import com.fundit.payment.presentation.dto.RefundDecisionRequest;
 import com.fundit.payment.presentation.dto.RefundDecisionResponse;
+import com.fundit.payment.presentation.dto.RefundEstimateResponse;
+import com.fundit.payment.presentation.dto.RefundEvidenceUploadUrlRequest;
 import com.fundit.payment.presentation.dto.RefundSummaryResponse;
 import com.fundit.payment.presentation.dto.ShippingDelayRefundRequest;
 import com.fundit.payment.presentation.dto.ShippingDelayRefundResponse;
@@ -27,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -47,6 +54,8 @@ public class RefundController {
     private final DefectRefundDecisionService defectRefundDecisionService;
     private final ShippingDelayRefundService shippingDelayRefundService;
     private final OrderFundingClient orderFundingClient;
+    private final RefundEvidenceUploadService refundEvidenceUploadService;
+    private final RefundEstimateService refundEstimateService;
 
     /** PAYMENT-003 — 환불 신청/처리 통합 내역 조회. */
     @GetMapping
@@ -80,5 +89,23 @@ public class RefundController {
         UUID orderId = orderFundingClient.fetchByInternalId(request.fundingId()).fundingPublicId();
         var result = shippingDelayRefundService.requestCancel(user.id(), orderId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ShippingDelayRefundResponse.from(result));
+    }
+
+    /**
+     * F09 — 구매자 반품·교환 증빙 업로드 주소 발급. v1/v2 구분 없이 orderId(UUID)만 받는다
+     * (신규 기능이라 레거시 Long 계약이 없다).
+     */
+    @PostMapping("/evidence/upload-url")
+    public MediaUploadUrlResponse issueEvidenceUploadUrl(@LoginUser CurrentUser user,
+                                                           @Valid @RequestBody RefundEvidenceUploadUrlRequest request) {
+        MediaStorageClient.PresignedUpload presigned = refundEvidenceUploadService.issueUploadUrl(
+                user.id(), request.orderId(), request.fileName(), request.contentType(), request.fileSize());
+        return new MediaUploadUrlResponse(presigned.uploadUrl(), presigned.fileUrl());
+    }
+
+    /** R05 — 환불 신청 전 예상 환불액 사전 계산. */
+    @GetMapping("/estimate")
+    public RefundEstimateResponse estimate(@LoginUser CurrentUser user, @RequestParam UUID orderId) {
+        return RefundEstimateResponse.from(refundEstimateService.estimate(user.id(), orderId));
     }
 }

@@ -77,7 +77,7 @@ class DefectRefundDecisionServiceUnitExceptionTest {
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L,
-                        "주문", null, FUNDING_ID));
+                        "주문", null, FUNDING_ID, 0L, 0L));
 
         // when & then
         assertThatThrownBy(() -> defectRefundDecisionService.decide(UUID.randomUUID(), 1L, true, null))

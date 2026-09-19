@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "internal-api.key=test-only-internal-api-key",
         "payment.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "toss.payments.secret-key=test_sk_dummy",
+        "media.s3.bucket=unused", "media.s3.region=ap-northeast-2",
         "payment-event-outbox.poll-interval-ms=3600000",
         // 닿지 않는 주소. KafkaConfig의 max.block.ms(5초)가 상한이라 오래 매달리지 않는다.
         "spring.kafka.bootstrap-servers=localhost:1"})

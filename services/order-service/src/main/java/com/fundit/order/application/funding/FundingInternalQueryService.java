@@ -49,6 +49,18 @@ public class FundingInternalQueryService {
                 .toList();
     }
 
+    /** payment-service 환불 목록(V04) 배치 조회 — 건별 호출(N+1) 방지용. */
+    @Transactional(readOnly = true)
+    public List<OrderSummarySnapshot> getOrderSummaries(List<UUID> orderIds) {
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        return fundingRepository.findByPublicIdIn(orderIds).stream()
+                .map(funding -> new OrderSummarySnapshot(funding.getPublicId(), funding.getProjectTitle(),
+                        funding.getLineItems()))
+                .toList();
+    }
+
     private FundingSnapshot toSnapshot(Funding funding) {
         List<FundingCouponApplicationJpaEntity> couponApplications =
                 couponApplicationJpaRepository.findByFundingId(funding.getId());
@@ -64,7 +76,7 @@ public class FundingInternalQueryService {
 
         return new FundingSnapshot(funding.getId(), funding.getProjectId(), funding.getMemberId(),
                 funding.getPublicId(), sellerId, funding.getStatus().name(), finalAmount,
-                orderName(funding.getLineItems()), couponIssuanceId);
+                orderName(funding.getLineItems()), couponIssuanceId, funding.getShippingFee(), discountAmount);
     }
 
     private static String orderName(List<FundingLineItem> lineItems) {
@@ -82,6 +94,9 @@ public class FundingInternalQueryService {
      */
     public record FundingSnapshot(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId,
                                    UUID sellerId, String status, long finalAmount, String orderName,
-                                   Long couponIssuanceId) {
+                                   Long couponIssuanceId, long shippingFee, long discountAmount) {
+    }
+
+    public record OrderSummarySnapshot(UUID orderId, String projectTitle, List<FundingLineItem> lineItems) {
     }
 }

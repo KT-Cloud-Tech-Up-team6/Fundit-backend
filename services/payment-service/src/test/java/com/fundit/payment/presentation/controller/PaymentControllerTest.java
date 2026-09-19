@@ -52,7 +52,7 @@ class PaymentControllerTest {
         UUID paymentId = UUID.randomUUID();
         when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
-                        ORDER_ID));
+                        ORDER_ID, 0L, 0L));
         when(paymentCreateService.create(memberId, ORDER_ID)).thenReturn(
                 new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문"));
 

@@ -31,6 +31,11 @@ public class FundingPersistenceAdapter implements FundingRepository {
     }
 
     @Override
+    public List<Funding> findByPublicIdIn(List<UUID> publicIds) {
+        return fundingJpaRepository.findByPublicIdIn(publicIds).stream().map(this::hydrate).toList();
+    }
+
+    @Override
     public Optional<Funding> findById(Long id) {
         return fundingJpaRepository.findById(id).map(this::hydrate);
     }

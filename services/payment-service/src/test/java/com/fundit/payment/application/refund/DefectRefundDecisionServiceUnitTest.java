@@ -62,7 +62,7 @@ class DefectRefundDecisionServiceUnitTest {
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), SELLER_ID, "GOAL_ACHIEVED", 89_000L, "주문", null,
-                        FUNDING_ID));
+                        FUNDING_ID, 0L, 0L));
         when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
         when(refundExecutionService.executeApprovedRefund(refundRequest, 89_000L, "하자환불 승인"))
                 .thenReturn(new RefundExecutionService.RefundExecutionResult(1L, "COMPLETED", true));
@@ -84,7 +84,7 @@ class DefectRefundDecisionServiceUnitTest {
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), SELLER_ID, "GOAL_ACHIEVED", 89_000L, "주문", null,
-                        FUNDING_ID));
+                        FUNDING_ID, 0L, 0L));
         when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
         when(refundRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

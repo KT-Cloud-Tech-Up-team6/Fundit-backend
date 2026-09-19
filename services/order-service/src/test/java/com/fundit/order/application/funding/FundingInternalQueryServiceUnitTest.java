@@ -71,6 +71,8 @@ class FundingInternalQueryServiceUnitTest {
         assertThat(snapshot.finalAmount()).isEqualTo(1000L);
         assertThat(snapshot.orderName()).isEqualTo("리워드");
         assertThat(snapshot.couponIssuanceId()).isNull();
+        assertThat(snapshot.shippingFee()).isEqualTo(0L);
+        assertThat(snapshot.discountAmount()).isEqualTo(0L);
     }
 
     @Test
@@ -160,5 +162,32 @@ class FundingInternalQueryServiceUnitTest {
 
         // then
         assertThat(memberIds).containsExactlyInAnyOrder(memberId1, memberId2);
+    }
+
+    @Test
+    void 주문_요약을_배치로_조회한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(fundingRepository.findByPublicIdIn(List.of(publicId)))
+                .thenReturn(List.of(funding(1024L, publicId, memberId, projectId)));
+
+        // when
+        var summaries = service.getOrderSummaries(List.of(publicId));
+
+        // then
+        assertThat(summaries).hasSize(1);
+        assertThat(summaries.get(0).orderId()).isEqualTo(publicId);
+        assertThat(summaries.get(0).lineItems()).hasSize(1);
+    }
+
+    @Test
+    void 빈_목록으로_주문_요약을_조회하면_리포지토리를_호출하지_않는다() {
+        // when
+        var summaries = service.getOrderSummaries(List.of());
+
+        // then
+        assertThat(summaries).isEmpty();
     }
 }

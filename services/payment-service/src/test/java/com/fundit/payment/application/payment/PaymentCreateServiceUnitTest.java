@@ -42,7 +42,7 @@ class PaymentCreateServiceUnitTest {
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
-                        FUNDING_ID));
+                        FUNDING_ID, 0L, 0L));
         when(paymentRepository.existsByPgOrderId(any())).thenReturn(false);
         when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 

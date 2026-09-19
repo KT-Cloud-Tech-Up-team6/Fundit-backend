@@ -17,4 +17,10 @@ public class InternalEndpointConfig {
     public InternalEndpoint projectInternalEndpoint() {
         return new InternalEndpoint("GET", "/internal/projects/{projectId}");
     }
+
+    /** order-service 주문 목록(V03)이 창작자명·썸네일 배치 조회에 쓰는 내부 API. */
+    @Bean
+    public InternalEndpoint projectSummariesInternalEndpoint() {
+        return new InternalEndpoint("GET", "/internal/projects/summaries");
+    }
 }

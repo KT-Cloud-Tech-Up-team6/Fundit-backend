@@ -17,6 +17,9 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
 
     Optional<FundingJpaEntity> findByPublicId(UUID publicId);
 
+    /** payment-service 환불 목록(V04) 배치 조회용. */
+    List<FundingJpaEntity> findByPublicIdIn(List<UUID> publicIds);
+
     Page<FundingJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
 
     Page<FundingJpaEntity> findByMemberIdAndStatus(UUID memberId, String status, Pageable pageable);

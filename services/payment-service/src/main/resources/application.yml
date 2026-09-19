@@ -14,3 +14,9 @@ spring:
   # "schema already exists"로 실패한다 — 다른 서비스와 동일하게 기본값(public)만 쓴다.
   flyway:
     schemas: public
+
+# 하자환불 증빙 업로드 주소 발급(S3 Presigned URL, F09) — bucket/region은 시크릿이 아니지만
+# 환경마다 달라 application-dev.yml/application-prod.yml에서 env로만 채운다(project-service와 동일 패턴).
+media:
+  upload:
+    presign-ttl-minutes: 5

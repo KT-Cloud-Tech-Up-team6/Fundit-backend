@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -132,5 +133,39 @@ class FulfillmentStatusInternalServiceUnitTest {
         // then
         assertThat(view.isAlreadyShipped()).isFalse();
         assertThat(view.isDelayed()).isFalse();
+    }
+
+    @Test
+    void 배치_조회시_발송된_건과_미발송_건을_구분한다() {
+        // given
+        UUID shippedFundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        UUID unshippedFundingId = UUID.fromString("00000000-0000-0000-0000-000000002048");
+        Shipment shipment = Shipment.create(shippedFundingId, UUID.randomUUID());
+        shipment.registerShipment("CJ대한통운", "123456789012");
+        Instant deliveredAt = Instant.now();
+        shipment.markDelivered(deliveredAt);
+        when(shipmentRepository.findByFundingIdIn(List.of(shippedFundingId, unshippedFundingId)))
+                .thenReturn(List.of(shipment));
+
+        // when
+        var result = service.getStatuses(List.of(shippedFundingId, unshippedFundingId));
+
+        // then
+        assertThat(result).hasSize(2);
+        var shipped = result.stream().filter(r -> r.fundingId().equals(shippedFundingId)).findFirst().orElseThrow();
+        assertThat(shipped.isAlreadyShipped()).isTrue();
+        assertThat(shipped.deliveredAt()).isEqualTo(deliveredAt);
+        var unshipped = result.stream().filter(r -> r.fundingId().equals(unshippedFundingId)).findFirst().orElseThrow();
+        assertThat(unshipped.isAlreadyShipped()).isFalse();
+        assertThat(unshipped.deliveredAt()).isNull();
+    }
+
+    @Test
+    void 빈_목록으로_배치_조회하면_리포지토리를_호출하지_않는다() {
+        // when
+        var result = service.getStatuses(List.of());
+
+        // then
+        assertThat(result).isEmpty();
     }
 }
