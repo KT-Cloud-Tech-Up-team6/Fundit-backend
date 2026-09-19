@@ -1,6 +1,8 @@
 package com.fundit.member.infrastructure.persistence.address;
 
+import com.fundit.member.infrastructure.persistence.EncryptedStringConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,19 +34,24 @@ public class AddressJpaEntity {
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "recipient_name", nullable = false, length = 50)
+    /** 배송지 개인정보는 암호문으로 저장된다(security.md S9). {@link EncryptedStringConverter} 참고. */
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "recipient_name", nullable = false)
     private String recipientName;
 
-    @Column(name = "phone_number", nullable = false, length = 20)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "phone_number", nullable = false)
     private String phoneNumber;
 
     @Column(nullable = false, length = 10)
     private String zipcode;
 
-    @Column(name = "address_line1", nullable = false, length = 200)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "address_line1", nullable = false)
     private String addressLine1;
 
-    @Column(name = "address_line2", length = 200)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "address_line2")
     private String addressLine2;
 
     @Column(name = "is_default", nullable = false)
