@@ -13,6 +13,12 @@ public interface AccountRepository {
 
     Optional<Account> findBySocial(SocialProvider provider, String socialId);
 
+    /**
+     * 이메일 찾기(AUTH-009) — 이름과 전화번호가 모두 일치하는 계정.
+     * 평문을 받아 구현체가 블라인드 인덱스로 바꿔 조회한다.
+     */
+    Optional<Account> findByNameAndPhone(String name, String phoneNumber);
+
     boolean existsByEmail(String email);
 
     void deleteById(UUID id);

@@ -11,9 +11,16 @@ import java.util.UUID;
 
 public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, UUID> {
 
-    Optional<AccountJpaEntity> findByEmail(String email);
+    /**
+     * 이메일은 암호문으로 저장돼 평문 비교가 안 된다 — 블라인드 인덱스로 찾는다.
+     * 평문 → 해시 변환은 {@code AccountPersistenceAdapter}가 한다.
+     */
+    Optional<AccountJpaEntity> findByEmailHash(String emailHash);
 
-    boolean existsByEmail(String email);
+    boolean existsByEmailHash(String emailHash);
+
+    /** 이메일 찾기(AUTH-009). 동명이인이 있을 수 있어 이름까지 같이 본다. */
+    Optional<AccountJpaEntity> findByPhoneHashAndNameHash(String phoneHash, String nameHash);
 
     Optional<AccountJpaEntity> findBySocialProviderAndSocialId(String socialProvider, String socialId);
 

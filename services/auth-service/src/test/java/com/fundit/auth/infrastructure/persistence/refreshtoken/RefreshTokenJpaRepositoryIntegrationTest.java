@@ -55,9 +55,12 @@ class RefreshTokenJpaRepositoryIntegrationTest {
     private AccountJpaRepository accountJpaRepository;
 
     private UUID createAccount() {
+        UUID id = UUID.randomUUID();
         AccountJpaEntity account = AccountJpaEntity.builder()
-                .id(UUID.randomUUID())
+                .id(id)
                 .email(UUID.randomUUID() + "@fundit.com")
+                // email은 암호문, 조회는 email_hash로 한다. 이 테스트는 토큰만 보므로 값은 아무거나.
+                .emailHash(id.toString().replace("-", ""))
                 .passwordHash("hash")
                 .role("member")
                 .build();

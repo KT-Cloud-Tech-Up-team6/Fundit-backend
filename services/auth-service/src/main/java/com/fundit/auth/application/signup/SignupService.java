@@ -49,6 +49,9 @@ public class SignupService {
         Account account = Account.builder()
                 .id(UuidCreator.getTimeOrderedEpoch())
                 .email(command.email())
+                // 이메일 찾기(AUTH-009) 조회용. 평문이 아니라 블라인드 인덱스 해시로 저장된다.
+                .verifiedName(verifiedIdentity.name())
+                .verifiedPhoneNumber(verifiedIdentity.phoneNumber())
                 .passwordHash(passwordEncoder.encode(command.password()))
                 .role(Role.MEMBER)
                 .failedLoginCount(0)
