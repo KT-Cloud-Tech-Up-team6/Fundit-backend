@@ -2,6 +2,8 @@ package com.fundit.order.application.order;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
+import com.fundit.order.application.catalog.ProjectSummaryClient;
 import com.fundit.order.application.catalog.RewardCatalogClient;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponIssuanceRepository;
@@ -39,12 +41,17 @@ class OrderPricingServiceUnitExceptionTest {
     private CouponRepository couponRepository;
     @Mock
     private CouponIssuanceRepository couponIssuanceRepository;
+    @Mock
+    private ProjectSummaryClient projectSummaryClient;
+    @Mock
+    private ProjectOwnershipClient projectOwnershipClient;
 
     private OrderPricingService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderPricingService(rewardCatalogClient, couponRepository, couponIssuanceRepository, 3_000L);
+        service = new OrderPricingService(rewardCatalogClient, couponRepository, couponIssuanceRepository,
+                projectSummaryClient, projectOwnershipClient, 3_000L);
         var optionGroup = new RewardCatalogClient.OptionGroupSnapshot(10L, "색상",
                 List.of(new RewardCatalogClient.OptionValueSnapshot(100L, "화이트")));
         lenient().when(rewardCatalogClient.getRewards(PROJECT_ID)).thenReturn(
@@ -54,7 +61,7 @@ class OrderPricingServiceUnitExceptionTest {
     @Test
     void 쿠폰이_3개_이상이면_예외가_발생한다() {
         assertThatThrownBy(() -> service.calculate(MEMBER_ID, PROJECT_ID,
-                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("A", "B", "C")))
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("A", "B", "C"), false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT));
     }
@@ -69,7 +76,7 @@ class OrderPricingServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> service.calculate(MEMBER_ID, PROJECT_ID,
-                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("P1", "P2")))
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("P1", "P2"), false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT));
     }
@@ -77,7 +84,7 @@ class OrderPricingServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_리워드면_예외가_발생한다() {
         assertThatThrownBy(() -> service.calculate(MEMBER_ID, PROJECT_ID,
-                List.of(new OrderLineItemRequest(999L, 1, null)), null))
+                List.of(new OrderLineItemRequest(999L, 1, null)), null, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
@@ -85,7 +92,7 @@ class OrderPricingServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_옵션이면_예외가_발생한다() {
         assertThatThrownBy(() -> service.calculate(MEMBER_ID, PROJECT_ID,
-                List.of(new OrderLineItemRequest(REWARD_ID, 1, List.of(999L))), null))
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, List.of(999L))), null, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT));
     }

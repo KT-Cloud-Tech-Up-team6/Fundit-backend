@@ -162,11 +162,11 @@ class FundingUnitTest {
 
         @Test
         void PENDING이면_CANCEL만_가능하다() {
-            assertThat(newFunding().availableActions()).containsExactly("CANCEL");
+            assertThat(newFunding().availableActions(false, false)).containsExactly("CANCEL");
         }
 
         @Test
-        void GOAL_ACHIEVED면_배송지연환불요청이_가능하다() {
+        void GOAL_ACHIEVED이고_발송전이면_배송지연환불요청이_가능하다() {
             // given
             Funding funding = newFunding();
 
@@ -174,7 +174,31 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions()).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+            assertThat(funding.availableActions(false, false)).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+        }
+
+        @Test
+        void GOAL_ACHIEVED이고_배송완료면_하자환불요청이_가능하다() {
+            // given
+            Funding funding = newFunding();
+
+            // when
+            funding.markGoalAchieved();
+
+            // then
+            assertThat(funding.availableActions(true, true)).containsExactly("DEFECT_REFUND_REQUEST");
+        }
+
+        @Test
+        void GOAL_ACHIEVED이고_발송중이면_가능한_액션이_없다() {
+            // given
+            Funding funding = newFunding();
+
+            // when
+            funding.markGoalAchieved();
+
+            // then
+            assertThat(funding.availableActions(true, false)).isEmpty();
         }
 
         @Test
@@ -186,7 +210,7 @@ class FundingUnitTest {
             funding.cancelByMember();
 
             // then
-            assertThat(funding.availableActions()).isEmpty();
+            assertThat(funding.availableActions(false, false)).isEmpty();
         }
     }
 }

@@ -24,11 +24,16 @@ payment:
 order:
   integration:
     funding-client:
-      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+      mode: ${ORDER_FUNDING_CLIENT_MODE:http}
     base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
 
 fulfillment:
   integration:
     shipping-status-client:
-      mode: ${SHIPPING_STATUS_CLIENT_MODE:stub}
+      mode: ${SHIPPING_STATUS_CLIENT_MODE:http}
     base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}
+
+media:
+  s3:
+    bucket: ${MEDIA_S3_BUCKET}
+    region: ${AWS_REGION}

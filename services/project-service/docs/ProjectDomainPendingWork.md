@@ -37,7 +37,7 @@
   | payment-service | v2 `fundingId` / 도메인 `Payment.fundingId` | UUID (order-service `orderId`) |
   | fulfillment-service | v2 `projectId` / `fundingId` | UUID / UUID |
   | member-service | Follow `sellerId` | UUID (문제 없음) |
-- **영향(해소)**: 프론트가 프로젝트 조회 응답의 `projectId`(UUID)를 `POST /api/v2/orders`에 그대로 넘기고, 주문 응답의 `orderId`를 `POST /api/v2/payments`의 `fundingId`로 그대로 넘긴다. v1 Long 경로는 어댑터로 유지한다.
+- **영향(해소)**: 프론트가 프로젝트 조회 응답의 `projectId`(UUID)를 `POST /api/v1/orders`에 그대로 넘기고, 주문 응답의 `orderId`를 `POST /api/v2/payments`의 `fundingId`로 그대로 넘긴다. order-service의 레거시 Long `projectId` 경로(`/api/v2/orders`로 먼저 도입됐던 것)는 폐기하고 `/api/v1/orders`에 UUID 계약으로 통합했다.
 - **완료된 작업**: order/payment/fulfillment 공개 API `/api/v2/` UUID 계약, v1 Long 어댑터, DB UUID 컬럼 추가(Expand) + order `FundingProjectPublicIdBackfillRunner`. project-service 코드 변경 없음 — 공개 API는 원래 UUID만 노출. 소유권/제목 조회는 v2가 `GET /api/v1/projects/{publicId}`를, v1/Kafka Long 해석만 `GET /internal/projects/{longPk}`를 쓴다.
 - **후속(이 이슈 범위 밖)**: 레거시 Long 컬럼 DROP(Contract), Kafka `fundingId` Long 제거(지금은 v1 페이로드에 `orderId`/`projectPublicId` UUID 필드 추가).
 - **상태**: 완료

@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,13 +65,13 @@ class OrderCreateServiceUnitExceptionTest {
         var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 5, 10_000L, List.of());
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 50_000L, 3_000L, 0L, 53_000L, List.of(lineItem), List.of(), List.of());
-        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
         when(inventoryRepository.decreaseStock(REWARD_ID, 5)).thenReturn(false);
 
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 5, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.INSUFFICIENT_STOCK));
 
@@ -85,7 +86,7 @@ class OrderCreateServiceUnitExceptionTest {
         var applied = new OrderPricingService.AppliedCoupon(5L, "RACE", IssuerType.MAKER, DiscountType.AMOUNT, 2_000L);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 2_000L, 11_000L, List.of(lineItem), List.of(applied), List.of());
-        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
         when(inventoryRepository.decreaseStock(REWARD_ID, 1)).thenReturn(true);
         when(projectSummaryClient.getProjectTitle(PROJECT_ID)).thenReturn(Optional.of("프로젝트"));
         when(fundingRepository.save(any())).thenReturn(Funding.builder().id(100L).publicId(UUID.randomUUID())
@@ -99,7 +100,7 @@ class OrderCreateServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE")))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE"), false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(OrderErrorCode.COUPON_BUDGET_EXCEEDED));

@@ -2,7 +2,6 @@ package com.fundit.order.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
-import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -18,10 +17,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,15 +45,12 @@ class OrderControllerExceptionTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
-    @MockitoBean
-    private ProjectOwnershipClient projectOwnershipClient;
 
     @Test
     void 재고가_부족하면_409를_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(UUID.randomUUID()));
-        when(orderCreateService.create(any(), any(), any(), any(), any()))
+        when(orderCreateService.create(any(), any(), any(), any(), any(), anyBoolean()))
                 .thenThrow(new BusinessException(OrderErrorCode.INSUFFICIENT_STOCK));
 
         // when & then
@@ -63,9 +59,9 @@ class OrderControllerExceptionTest {
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("""
-                                {"projectId": 123, "lineItems": [{"rewardId":1,"quantity":100}],
+                                {"projectId": "%s", "lineItems": [{"rewardId":1,"quantity":100}],
                                  "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010","zipcode":"12345","addressLine1":"주소"}}
-                                """))
+                                """.formatted(UUID.randomUUID())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
     }

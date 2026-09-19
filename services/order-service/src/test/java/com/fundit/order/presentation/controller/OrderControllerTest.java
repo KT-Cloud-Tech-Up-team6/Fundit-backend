@@ -1,6 +1,5 @@
 package com.fundit.order.presentation.controller;
 
-import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -26,7 +25,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -43,15 +41,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderControllerTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
+    private static final UUID PROJECT_ID = UUID.randomUUID();
 
-    private static final String REQUEST_BODY = """
+    private final String requestBody = """
             {
-              "projectId": 123,
+              "projectId": "%s",
               "lineItems": [ { "rewardId": 1, "quantity": 1, "optionValueIds": [] } ],
               "shippingAddress": { "recipientName": "홍길동", "phoneNumber": "010-1234-5678",
                 "zipcode": "12345", "addressLine1": "서울시", "addressLine2": "101동" }
             }
-            """;
+            """.formatted(PROJECT_ID);
 
     @Autowired
     private MockMvc mockMvc;
@@ -64,14 +63,9 @@ class OrderControllerTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
-    @MockitoBean
-    private ProjectOwnershipClient projectOwnershipClient;
-
-    /** REQUEST_BODY의 레거시 projectId(123)가 컨트롤러에서 해석해내는 UUID — 모든 preview/create 테스트가 공유한다. */
-    private static final UUID RESOLVED_PROJECT_ID = UUID.randomUUID();
 
     private Funding funding(UUID memberId, UUID publicId, FundingStatus status) {
-        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(UUID.randomUUID()).projectTitle("프로젝트")
+        return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(PROJECT_ID).projectTitle("프로젝트")
                 .status(status).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
                 .lineItems(List.of()).createdAt(Instant.now()).build();
@@ -81,16 +75,15 @@ class OrderControllerTest {
     void 미리보기_요청하면_금액이_계산되어_200을_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
         var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 0L, 13_000L, List.of(), List.of(), List.of());
-        when(orderPreviewService.preview(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPreviewService.preview(eq(memberId), eq(PROJECT_ID), any(), any(), eq(false))).thenReturn(pricing);
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
-                        .content(REQUEST_BODY))
+                        .content(requestBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.finalAmount").value(13_000));
     }
@@ -99,19 +92,18 @@ class OrderControllerTest {
     void 미리보기_응답에_적용쿠폰과_미적용쿠폰이_포함된다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
         var applied = new OrderPricingService.AppliedCoupon(1L, "WELCOME10", IssuerType.PLATFORM, DiscountType.RATE, 1_000L);
         var unavailable = new OrderPricingService.UnavailableCoupon("EXPIRED10", "EXPIRED");
         var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 1_000L, 12_000L,
                 List.of(), List.of(applied), List.of(unavailable));
-        when(orderPreviewService.preview(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPreviewService.preview(eq(memberId), eq(PROJECT_ID), any(), any(), eq(false))).thenReturn(pricing);
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/preview")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
-                        .content(REQUEST_BODY))
+                        .content(requestBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.appliedCoupons[0].couponCode").value("WELCOME10"))
                 .andExpect(jsonPath("$.appliedCoupons[0].issuerType").value("PLATFORM"))
@@ -120,10 +112,35 @@ class OrderControllerTest {
     }
 
     @Test
+    void autoApplyBestCoupon이_true면_couponCodes_대신_자동추천_플래그를_전달한다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        var applied = new OrderPricingService.AppliedCoupon(2L, "BEST10", IssuerType.PLATFORM, DiscountType.RATE, 1_500L);
+        var pricing = new OrderPricingService.PricingResult(10_000L, 3_000L, 1_500L, 11_500L,
+                List.of(), List.of(applied), List.of());
+        when(orderPreviewService.preview(eq(memberId), eq(PROJECT_ID), any(), any(), eq(true))).thenReturn(pricing);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders/preview")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content("""
+                                {"projectId": "%s", "autoApplyBestCoupon": true,
+                                 "lineItems": [ { "rewardId": 1, "quantity": 1, "optionValueIds": [] } ],
+                                 "shippingAddress": { "recipientName": "홍길동", "phoneNumber": "010-1234-5678",
+                                   "zipcode": "12345", "addressLine1": "서울시", "addressLine2": "101동" }
+                                }
+                                """.formatted(PROJECT_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appliedCoupons[0].couponCode").value("BEST10"));
+    }
+
+    @Test
     void 인증헤더가_없으면_401을_반환한다() throws Exception {
         mockMvc.perform(post("/api/v1/orders/preview")
                         .contentType("application/json")
-                        .content(REQUEST_BODY))
+                        .content(requestBody))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -138,9 +155,9 @@ class OrderControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("""
-                                {"projectId": 123, "lineItems": [],
+                                {"projectId": "%s", "lineItems": [],
                                  "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010","zipcode":"12345","addressLine1":"주소"}}
-                                """))
+                                """.formatted(PROJECT_ID)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -150,8 +167,7 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
-        when(projectOwnershipClient.findPublicId(123L)).thenReturn(Optional.of(RESOLVED_PROJECT_ID));
-        when(orderCreateService.create(eq(memberId), eq(RESOLVED_PROJECT_ID), any(), any(), any()))
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false)))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L));
 
         // when & then
@@ -159,24 +175,26 @@ class OrderControllerTest {
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
-                        .content(REQUEST_BODY))
+                        .content(requestBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"));
     }
 
     @Test
-    void 내_참여_목록을_조회한다() throws Exception {
+    void 내_참여_목록을_조회하면_projectId가_UUID로_채워진다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
         when(orderQueryService.listMyOrders(eq(memberId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(funding(memberId, UUID.randomUUID(), FundingStatus.PENDING))));
+                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, List.of("CANCEL")))));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].status").value("PENDING"));
+                .andExpect(jsonPath("$.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.content[0].projectId").value(PROJECT_ID.toString()));
     }
 
     @Test
@@ -186,7 +204,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
@@ -205,7 +223,7 @@ class OrderControllerTest {
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING).toBuilder()
                 .lineItems(List.of(lineItem)).build();
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())

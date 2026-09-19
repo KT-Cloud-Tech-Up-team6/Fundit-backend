@@ -16,3 +16,5 @@ order:
   integration:
     project-service:
       base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}
+    fulfillment-service:
+      base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}

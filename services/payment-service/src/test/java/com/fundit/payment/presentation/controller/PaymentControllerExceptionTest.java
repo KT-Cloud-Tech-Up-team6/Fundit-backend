@@ -61,7 +61,7 @@ class PaymentControllerExceptionTest {
         UUID orderId = new UUID(2L, 1024L);
         when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "FUNDING_IN_PROGRESS", 89_000L, "주문",
-                        null, orderId));
+                        null, orderId, 0L, 0L));
         when(paymentCreateService.create(memberId, orderId))
                 .thenThrow(new BusinessException(PaymentErrorCode.FUNDING_NOT_PENDING));
 

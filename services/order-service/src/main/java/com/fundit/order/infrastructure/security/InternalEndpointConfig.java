@@ -30,6 +30,12 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/projects/{projectId}/funding-participants");
     }
 
+    /** payment-service 환불 목록(V04)이 배치로 호출하는 주문 요약 조회 내부 API. */
+    @Bean
+    public InternalEndpoint orderSummariesInternalEndpoint() {
+        return new InternalEndpoint("GET", "/internal/orders/order-summaries");
+    }
+
     /**
      * project-service가 리워드 잔여재고를 동기 조회하는 내부 API. 게이트웨이 라우트에는 원래부터
      * 없었고(1차 방어선, {@code application.yml} 참고), 여기 등록해 X-Internal-Api-Key 검증도

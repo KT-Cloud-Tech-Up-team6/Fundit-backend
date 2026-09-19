@@ -39,6 +39,7 @@
 | 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
 | 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
 | 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(Long PK, v1/Kafka 해석용) | 내부 키 (`X-Internal-Api-Key`) | — |
+| 36 | GET | `/internal/projects/summaries` | 내부 프로젝트 배치 요약 조회(order-service 주문 목록용) | 내부 키 (`X-Internal-Api-Key`) | — |
 
 > **식별자 계약 (cross-service ID 통일 #69)**: 공개 REST의 `projectId`는 항상 `publicId`(UUID)다. 다운스트림 공개 API도 같은 UUID를 받는다 — order `POST /api/v2/orders`, fulfillment `/api/v2/projects/{projectId}/**`. payment의 `fundingId`는 order-service `orderId`(UUID). 이 서비스의 Long 내부 PK는 `GET /internal/projects/{projectId}`와 Kafka 파티션 키에만 남는다.
 >
@@ -909,7 +910,8 @@ GET /api/v1/projects/{projectId}/preview
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null },
   "hasLiveVerification": false,
-  "seller": { "sellerId": "018e9a10-....", "displayName": null }
+  "seller": { "sellerId": "018e9a10-....", "displayName": null },
+  "categoryMajor": "패션", "categoryMinor": "의류"
 }
 ```
 
@@ -918,7 +920,7 @@ GET /api/v1/projects/{projectId}/preview
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
 - 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
@@ -946,7 +948,8 @@ GET /api/v1/projects/{projectId}
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
   "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
   "hasLiveVerification": true,
-  "seller": { "sellerId": "...", "displayName": null }
+  "seller": { "sellerId": "...", "displayName": null },
+  "categoryMajor": "패션", "categoryMinor": "의류"
 }
 ```
 
@@ -956,6 +959,7 @@ GET /api/v1/projects/{projectId}
 - 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
+- **[2026-09-18 추가]** `categoryMajor`/`categoryMinor`는 order-service의 CATEGORY 스코프 쿠폰 매칭(ORDER-010)이 이 값을 조회해 쓴다 — 공개 계약이니 필드명을 바꾸면 그쪽 연동이 깨진다.
 
 ---
 
@@ -1188,6 +1192,39 @@ GET /internal/projects/{projectId}
 
 - 존재하는 프로젝트의 `sellerId`와 `publicId`만 반환한다(fulfillment 소유권 검증·알림 수신자 조회용).
 - 없으면 `404 NOT_FOUND`. 게이트웨이 공개 라우트가 아니라 서비스 간 내부 호출을 전제로 한다.
+
+---
+
+### 36. 내부 프로젝트 배치 요약 조회
+
+```
+GET /internal/projects/summaries?ids={publicId1},{publicId2},...
+```
+
+**Auth Required**: 내부 전용 — `X-Internal-Api-Key`(`InternalEndpointConfig`에 `GET /internal/projects/summaries`로 등록). 키 없거나 불일치 → `401 UNAUTHORIZED`.
+
+**Request**: Query Parameter: `ids` — publicId(UUID) 목록(반복 파라미터, 예: `?ids=uuid1&ids=uuid2`).
+
+**호출 주체**: order-service 주문 목록(`GET /api/v1/orders`, V03) — 건별 단건 조회 대신 페이지 단위로 한 번만 호출해 N+1을 피한다.
+
+**Response Body**
+
+```json
+[
+  {
+    "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+    "title": "세상에 없는 프라이팬",
+    "thumbnailUrl": "https://cdn.fundit.example/x.png",
+    "sellerDisplayName": null
+  }
+]
+```
+
+**Validation / Business Rules**
+
+- 소프트 삭제(`deleted_at`)된 프로젝트는 결과에서 빠진다(요청한 `ids`보다 응답 배열이 짧을 수 있다) — 404가 아니라 조용히 생략.
+- `sellerDisplayName`은 `SellerProfileClient`로 채우는데, member-service 연동 전(`NoopSellerProfileClient`)이라 **현재는 항상 null**이다(공개 상세 `GET /api/v1/projects/{projectId}`의 `seller.displayName`과 동일한 제약).
+- 목록 화면용 최소 필드만 제공한다 — 펀딩 현황·라이브 인증 여부 등은 포함하지 않는다(필요하면 공개 상세 API를 쓸 것).
 
 ---
 

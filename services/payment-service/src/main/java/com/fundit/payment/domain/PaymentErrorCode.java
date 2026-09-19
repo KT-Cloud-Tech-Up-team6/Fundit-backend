@@ -22,7 +22,9 @@ public enum PaymentErrorCode implements ErrorCode {
     EVIDENCE_REQUIRED(400, "증빙 자료가 필요합니다."),
     REASON_REQUIRED(400, "반려 사유가 필요합니다."),
     ALREADY_SHIPPED(409, "이미 발송이 시작되어 취소할 수 없습니다."),
-    DISPUTE_PERIOD_EXPIRED(409, "정산 이의신청 가능 기간이 지났습니다.");
+    DISPUTE_PERIOD_EXPIRED(409, "정산 이의신청 가능 기간이 지났습니다."),
+    UNSUPPORTED_MEDIA_TYPE(400, "지원하지 않는 파일 형식입니다."),
+    MEDIA_TOO_LARGE(400, "파일 용량이 허용 범위를 초과했습니다.");
 
     private final int httpStatus;
     private final String message;

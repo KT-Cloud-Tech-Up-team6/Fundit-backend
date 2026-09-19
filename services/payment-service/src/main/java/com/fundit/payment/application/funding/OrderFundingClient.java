@@ -29,7 +29,9 @@ public interface OrderFundingClient {
             long finalAmount,
             String orderName,
             Long couponIssuanceId,
-            UUID fundingPublicId) {
+            UUID fundingPublicId,
+            long shippingFee,
+            long discountAmount) {
 
         public boolean isPending() {
             return "PENDING".equals(status);

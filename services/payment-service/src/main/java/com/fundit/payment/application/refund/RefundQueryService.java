@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -22,17 +23,26 @@ import java.util.UUID;
 public class RefundQueryService {
 
     private final RefundRequestJpaRepository refundRequestJpaRepository;
+    private final OrderSummaryClient orderSummaryClient;
 
+    /** V04 — 프로젝트명·상품/옵션은 order-service를 페이지 단위로 한 번만 배치 조회해 채운다. */
     public Page<RefundSummary> listMyRefunds(UUID accountId, Pageable pageable) {
-        return refundRequestJpaRepository.findSummariesByMemberId(accountId, pageable).map(this::toView);
+        Page<RefundSummaryProjection> page = refundRequestJpaRepository.findSummariesByMemberId(accountId, pageable);
+        Map<UUID, OrderSummaryClient.OrderSummary> orderSummaries = orderSummaryClient.fetchBatch(
+                page.getContent().stream().map(RefundSummaryProjection::getFundingId).distinct().toList());
+        return page.map(projection -> toView(projection, orderSummaries.get(projection.getFundingId())));
     }
 
-    private RefundSummary toView(RefundSummaryProjection projection) {
+    private RefundSummary toView(RefundSummaryProjection projection, OrderSummaryClient.OrderSummary orderSummary) {
         return new RefundSummary(projection.getId(), projection.getFundingId(), projection.getTriggerType(),
-                projection.getStatus(), projection.getAmount(), projection.getRequestedAt());
+                projection.getStatus(), projection.getAmount(), projection.getRequestedAt(),
+                projection.getReasonDetail(), projection.getRejectedReason(), projection.getProcessedAt(),
+                orderSummary);
     }
 
+    /** {@code orderSummary}는 order-service 조회 실패 시 null일 수 있다(부가 정보, degrade). */
     public record RefundSummary(Long refundId, UUID fundingId, String triggerType, String status, long amount,
-                                 Instant requestedAt) {
+                                 Instant requestedAt, String reasonDetail, String rejectedReason,
+                                 Instant completedAt, OrderSummaryClient.OrderSummary orderSummary) {
     }
 }

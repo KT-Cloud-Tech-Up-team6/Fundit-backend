@@ -91,7 +91,7 @@ class CouponUnitTest {
         void ALL이면_어떤_프로젝트든_매칭된다() {
             Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
                     .targetScope(CouponTargetScope.ALL).build();
-            assertThat(coupon.matchesProject(UUID.randomUUID())).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), ProjectMatchContext.EMPTY)).isTrue();
         }
 
         @Test
@@ -99,8 +99,27 @@ class CouponUnitTest {
             UUID projectId = UUID.randomUUID();
             Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
                     .targetScope(CouponTargetScope.PROJECT).targetRefId(projectId.toString()).build();
-            assertThat(coupon.matchesProject(projectId)).isTrue();
-            assertThat(coupon.matchesProject(UUID.randomUUID())).isFalse();
+            assertThat(coupon.matchesProject(projectId, ProjectMatchContext.EMPTY)).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), ProjectMatchContext.EMPTY)).isFalse();
+        }
+
+        @Test
+        void CATEGORY면_context의_categoryMajor가_같을때만_매칭된다() {
+            Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
+                    .targetScope(CouponTargetScope.CATEGORY).targetRefId("패션").build();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), new ProjectMatchContext("패션", null))).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), new ProjectMatchContext("가전", null))).isFalse();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), ProjectMatchContext.EMPTY)).isFalse();
+        }
+
+        @Test
+        void MAKER면_context의_sellerId가_같을때만_매칭된다() {
+            UUID sellerId = UUID.randomUUID();
+            Coupon coupon = base().discountType(DiscountType.AMOUNT).discountValue(1000)
+                    .targetScope(CouponTargetScope.MAKER).targetRefId(sellerId.toString()).build();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), new ProjectMatchContext(null, sellerId))).isTrue();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), new ProjectMatchContext(null, UUID.randomUUID()))).isFalse();
+            assertThat(coupon.matchesProject(UUID.randomUUID(), ProjectMatchContext.EMPTY)).isFalse();
         }
     }
 

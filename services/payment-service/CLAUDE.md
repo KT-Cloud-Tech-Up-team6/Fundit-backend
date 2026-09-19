@@ -85,23 +85,11 @@ public interface PaymentEventListener {
 
 ---
 
-## 가장 시급한 미해결 의존성 — order-service 쪽에 아직 없는 내부 API
+## 연동 현황 — order-service/fulfillment-service 내부 API
 
-PAYMENT-001이 정상 동작하려면 order-service로부터 `memberId`/`status`/`finalAmount`/`couponIssuanceId`/`orderName` 조립 재료를 동기로 받아야 하는데, order-service에 이 엔드포인트가 아직 없고 `fundings` 테이블에 `finalAmount` 컬럼도 없습니다. **이건 별도 이슈(order 연동)에서 다룹니다** — 이 서비스에서는 아래처럼 포트만 만들고 개발을 진행하세요:
+`OrderFundingClient`(PAYMENT-001)와 `ShippingStatusClient`(PAYMENT-008)는 **연동 완료**됐습니다. `application-dev.yml`/`application-prod.yml`의 `ORDER_FUNDING_CLIENT_MODE`/`SHIPPING_STATUS_CLIENT_MODE` 기본값이 `http`로 전환돼 있고, `HttpOrderFundingClient`/`HttpShippingStatusClient`가 실제 order-service/fulfillment-service 응답 필드와 1:1로 매핑됩니다. 로컬에서 해당 서비스가 안 떠 있으면 `ORDER_FUNDING_CLIENT_MODE=stub`/`SHIPPING_STATUS_CLIENT_MODE=stub` 환경변수로 되돌려 스텁으로 개발할 수 있습니다.
 
-```java
-public interface OrderFundingClient {
-    FundingSnapshot fetch(Long fundingId);
-    record FundingSnapshot(java.util.UUID memberId, String status, long finalAmount,
-                            String orderName, Long couponIssuanceId) {}
-}
-```
-
-- 실제 HTTP 호출 구현체(`HttpOrderFundingClient`)는 연동 이슈에서 배선.
-- 지금은 고정값을 반환하는 `StubOrderFundingClient`(또는 테스트용 `@TestConfiguration` 빈)로 개발·테스트를 진행.
-- 없다고 PAYMENT-001 구현 자체를 미루지 말 것 — 인터페이스 뒤에서 비즈니스 로직/검증/에러 처리까지 다 짜두면, 연동 이슈에서는 구현체 하나만 갈아끼우면 됩니다.
-
-정산(PAYMENT-009/012)도 order-service의 `funding_line_items`/`funding_coupon_applications` 집계 조회가 필요한데 마찬가지로 노출 API가 없습니다 — `OrderSettlementAggregateClient` 같은 포트를 하나 더 두고 동일하게 스텁 처리하세요.
+정산(PAYMENT-009/012)은 여전히 order-service의 `funding_line_items`/`funding_coupon_applications` 집계 조회 API가 없습니다 — `OrderSettlementAggregateClient` 포트를 두고 스텁으로 개발하세요(이건 아직 미해결).
 
 ---
 
@@ -220,7 +208,7 @@ order-service가 아직 이 이벤트를 발행하지 않으므로(아래 "정�
 - `payment.payments` — `funding_id`(Long, FK 아님), `pg_order_id`, `pg_payment_key`, `amount`/`order_name`(PAYMENT-001 스냅샷), `coupon_issuance_id`(신규 — `PaymentERD.md`에 없으니 구현 시 컬럼 추가), `status`(`PENDING`/`COMPLETED`/`FAILED`/`CANCELLED`), `completed_funding_id`(생성 컬럼, 유니크 제약으로 "펀딩당 완료 결제 1건" 강제).
 - `payment.payment_event_outbox` — `PaymentCompleted`/`RefundCompleted` 발행용 아웃박스(PAYMENT-016).
 - `refund.refund_requests` — `trigger_type`(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`, 위 매핑표로 `RefundReason` 변환), `is_full_refund`.
-- `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(스텁 처리, 위 "가장 시급한 미해결 의존성" 참고).
+- `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(스텁 처리, 위 "연동 현황" 참고).
 
 ---
 
@@ -268,6 +256,8 @@ public PaymentCreateResponse create(@LoginUser CurrentUser user, @Valid @Request
 | `EVIDENCE_REQUIRED` / `REASON_REQUIRED` | 400 | 하자환불 신청/반려 시 필수값 누락 |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송됨 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 기간(7일) 경과 |
+| `UNSUPPORTED_MEDIA_TYPE` | 400 | 증빙 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반(F09) |
+| `MEDIA_TOO_LARGE` | 400 | 증빙 업로드 주소 발급 시 용량 제한(10MB) 초과(F09) |
 
 order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.DEPENDENCY_FAILURE`(503)를 그대로 쓴다.
 
@@ -281,10 +271,12 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - PAYMENT-005를 "프로젝트 단위 일괄 처리"로 짜지 말 것(펀딩 1건당 1이벤트)
 - 토스 웹훅 엔드포인트에 로그인 인증을 걸지 말 것
 - 시크릿 키를 코드/설정 파일에 하드코딩하지 말 것
+- 증빙 업로드 주소 발급(F09) 시 요청 바디의 `orderId`만 믿고 발급하지 말 것 — `OrderFundingClient.fetch(orderId).memberId()`로 로그인 회원과 반드시 대조(S4)
 
 ## 정책값 / 확인 필요 사항
 
-- **[최우선]** order-service 내부 API(`OrderFundingClient`, `OrderSettlementAggregateClient`) 및 `fundings.final_amount` 컬럼 부재 — 별도 연동 이슈에서 처리.
+- ~~order-service 내부 API(`OrderFundingClient`) 및 `fundings.final_amount` 컬럼 부재~~ — 해결(order-service #74), `ORDER_FUNDING_CLIENT_MODE=http` 전환 완료.
+- **정산 집계 API 부재**: order-service `OrderSettlementAggregateClient`(PAYMENT-009/012용)는 아직 노출 API가 없어 스텁 유지 — 별도 이슈에서 처리.
 - **레이스 컨디션 보상 미구현**: order-service가 아직 `PaymentReconciliationRequired`를 발행하지 않음(PAYMENT-017 대상 이벤트 없음) — 연동 이슈에서 함께 처리.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
 - PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.

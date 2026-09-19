@@ -113,7 +113,14 @@
       "triggerType": "DEFECT",
       "status": "UNDER_REVIEW",
       "amount": 89000,
-      "requestedAt": "2026-09-01T10:00:00"
+      "requestedAt": "2026-09-01T10:00:00",
+      "reasonDetail": "[DAMAGED] 배송 중 파손되어 도착했습니다.",
+      "rejectedReason": null,
+      "completedAt": null,
+      "projectTitle": "세상에 없는 프라이팬",
+      "lineItems": [
+        { "rewardName": "얼리버드 패키지", "quantity": 1, "unitPrice": 89000 }
+      ]
     }
   ],
   "page": 0,
@@ -123,6 +130,8 @@
   "hasNext": false
 }
 ```
+
+- **V04**: `reasonDetail`/`rejectedReason`/`completedAt`은 `refund_requests` 테이블 값을 그대로 노출한다(반려 전이면 `rejectedReason`은 null, 미처리 건이면 `completedAt`은 null). `projectTitle`/`lineItems`는 order-service 내부 배치 API(`GET /internal/orders/order-summaries`)로 페이지 단위 1회 조회해 채우며, 조회 실패 시 둘 다 null(부가 정보, 목록 자체는 정상 응답).
 
 ---
 
@@ -202,6 +211,49 @@
 
 - **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`만 확인한다. `FulfillmentDelayed` 이벤트는 구독하지 않는다. 이미 발송이면 `409 ALREADY_SHIPPED`. 발송 전이면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재.
 - **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_FOUND`(404), `FORBIDDEN`(403)
+
+---
+
+### 2-5. POST `/api/v1/refunds/evidence/upload-url` — 반품·교환 증빙 업로드 주소 발급 (F09)
+
+- **권한**: 구매자(해당 orderId의 소유자만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Request Body**
+
+```json
+{ "orderId": "018f9a1b-....", "fileName": "evidence.jpg", "contentType": "image/jpeg", "fileSize": 204800 }
+```
+
+- **Response 200 OK**
+
+```json
+{ "uploadUrl": "https://fundit-media.s3.ap-northeast-2.amazonaws.com/refunds/....?X-Amz-...", "fileUrl": "https://fundit-media.s3.ap-northeast-2.amazonaws.com/refunds/018f9a1b-..../<uuid>.jpg" }
+```
+
+- **비고**: project-service `POST /api/v1/projects/{projectId}/media/upload-url`은 프로젝트 소유자(판매자)만 쓸 수 있어 구매자는 접근할 수 없다 — 이 엔드포인트가 구매자용 별도 경로다. `orderId`가 실제 이 회원의 것인지는 order-service `OrderFundingClient.fetch(orderId).memberId()`로 서버에서 검증한다(경로/바디의 식별자만으로 신뢰하지 않음, S4). S3 키는 `refunds/{orderId}/{uuid}.{ext}` 네임스페이스를 쓴다(project-service의 `projects/{projectId}/...`와 같은 버킷, 다른 프리픽스). 파일 바이트는 이 서버를 거치지 않고 클라이언트가 `uploadUrl`로 S3에 직접 PUT한다. 이미지만 허용(jpg/jpeg/png/webp, 10MB) — 업로드 완료 여부 확인(HeadObject)은 이번 범위에서 하지 않는다(신청 시 `evidenceUrls` 비어있으면 `EVIDENCE_REQUIRED`로만 막는다).
+- **주요 에러 코드**: `FORBIDDEN`(403, 본인 주문 아님), `UNSUPPORTED_MEDIA_TYPE`(400), `MEDIA_TOO_LARGE`(400), `NOT_FOUND`(404, 존재하지 않는 orderId)
+
+---
+
+### 2-6. GET `/api/v1/refunds/estimate` — 환불 예상액 사전 계산 (R05)
+
+- **권한**: 구매자(해당 orderId의 완료 결제 소유자만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Query**: `orderId`(UUID, order-service `fundings.public_id`)
+- **Response 200 OK**
+
+```json
+{
+  "orderId": "018f9a1b-....",
+  "rewardAmount": 89000,
+  "shippingFee": 3000,
+  "discountAmount": 2000,
+  "refundAmount": 90000
+}
+```
+
+- **비고**: 신청 단위는 펀딩(주문) 전체만 지원한다(개별 리워드 부분 환불은 미지원). `refundAmount`는 오늘 기준 항상 `payments.amount`(전액)다 — 반품비 차감(R04)이 없어 모든 트리거가 전액 환불만 실행한다. `rewardAmount`는 `amount - shippingFee + discountAmount`로 역산한다. 적립금/현금 분리는 MVP에 적립금이 없어 두지 않았고, 플랫폼 수수료는 정산 쪽 차감이라 구매자 환불액에 넣지 않는다.
+- **주요 에러 코드**: `NOT_FOUND`(404, 완료 결제 없음), `FORBIDDEN`(403, 본인 결제 아님)
 
 ---
 
