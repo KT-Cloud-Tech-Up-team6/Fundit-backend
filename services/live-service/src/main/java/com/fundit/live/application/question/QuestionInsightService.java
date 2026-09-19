@@ -54,8 +54,10 @@ public class QuestionInsightService {
 
     /** 대표질문 원본 채팅(요구사항정의서 6.4.4.3). */
     public List<ChatMessageJpaEntity> originalMessages(UUID sellerId, UUID liveId, UUID questionId) {
-        loadOwned(sellerId, liveId);
-        LiveQuestionSummaryJpaEntity summary = summaryRepository.findByPublicId(questionId)
+        LiveSession session = loadOwned(sellerId, liveId);
+        // 소속을 조회에 묶는다 — 남의 questionId로 원본 채팅을 읽을 수 없어야 한다(S4)
+        LiveQuestionSummaryJpaEntity summary = summaryRepository
+                .findByPublicIdAndSessionId(questionId, session.getId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         return chatMessageRepository.findByQuestionSummaryIdOrderBySentAtAsc(summary.getId());
     }

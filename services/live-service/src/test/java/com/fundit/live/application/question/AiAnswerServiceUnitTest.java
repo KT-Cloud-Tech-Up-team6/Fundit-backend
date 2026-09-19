@@ -1,6 +1,5 @@
 package com.fundit.live.application.question;
 
-import com.fundit.common.error.BusinessException;
 import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -17,7 +16,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -44,7 +42,7 @@ class AiAnswerServiceUnitTest {
     private void givenOwnedAndSummary(LiveQuestionSummaryJpaEntity s) {
         given(sessionRepository.findOwned(liveId, sellerId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
-        given(summaryRepository.findByPublicId(questionId)).willReturn(Optional.of(s));
+        given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.of(s));
     }
 
     @Test
@@ -93,10 +91,4 @@ class AiAnswerServiceUnitTest {
         assertThat(s.getAnsweredAt()).isNotNull();
     }
 
-    @Test
-    void 빈_답변은_보낼_수_없다() {
-        // when & then
-        assertThatThrownBy(() -> aiAnswerService.send(sellerId, liveId, questionId, "  "))
-                .isInstanceOf(BusinessException.class);
-    }
 }

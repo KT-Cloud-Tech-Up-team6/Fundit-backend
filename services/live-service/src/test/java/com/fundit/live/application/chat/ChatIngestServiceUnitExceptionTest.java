@@ -1,6 +1,7 @@
 package com.fundit.live.application.chat;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
@@ -37,6 +38,8 @@ class ChatIngestServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> chatIngestService.ingest("arn:unknown", "m", UUID.randomUUID(), "x",
-                Instant.now())).isInstanceOf(BusinessException.class);
+                Instant.now())).isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
     }
 }

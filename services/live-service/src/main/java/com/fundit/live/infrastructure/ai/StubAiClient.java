@@ -7,13 +7,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * AI 서버 주소도 계약도 확정 전이라 쓰는 스텁. {@code live.ai.mode=stub}(기본값)일 때 뜬다.
+ * AI 서버 주소도 계약도 확정 전이라 쓰는 스텁. {@code live.ai.mode=stub}일 때만 뜬다 — 기본값으로 두면 운영에서 스텁이 조용히 선택돼 큐시트·추천답변이 {@code "[stub] ..."} 문자열로 "성공"한다.
  *
  * <p>비동기 요청은 아무것도 하지 않는다 — 결과는 AI가 내부 엔드포인트로 밀어주는 구조라
  * 스텁이 흉내 낼 대상이 없다. 그 경로는 내부 컨트롤러 테스트가 직접 호출해 검증한다.
  */
 @Component
-@ConditionalOnProperty(name = "live.ai.mode", havingValue = "stub", matchIfMissing = true)
+@ConditionalOnProperty(name = "live.ai.mode", havingValue = "stub", matchIfMissing = false)
 public class StubAiClient implements AiClient {
 
     @Override
@@ -22,7 +22,7 @@ public class StubAiClient implements AiClient {
     }
 
     @Override
-    public void requestHighlights(String liveId, String vodUrl) {
+    public void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId) {
         // 위와 같다.
     }
 

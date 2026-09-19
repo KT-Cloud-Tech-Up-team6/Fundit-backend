@@ -3,11 +3,17 @@ package com.fundit.live.presentation.controller;
 import com.fundit.live.application.chat.ChatIngestService;
 import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.highlight.HighlightService;
+import com.fundit.live.domain.ai.GenerationStatus;
+import com.fundit.live.domain.highlight.HighlightKind;
+import com.fundit.live.domain.highlight.SceneLabel;
 import com.fundit.live.application.session.LiveStatusQueryService;
 import com.fundit.live.presentation.dto.ChatIngestRequest;
 import com.fundit.live.presentation.dto.InternalLiveStatusResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -76,8 +82,9 @@ public class InternalLiveController {
     public void applyHighlights(@PathVariable UUID liveId,
                                 @RequestBody @Valid List<@Valid HighlightCallback> callbacks) {
         highlightService.applyGenerated(liveId, callbacks.stream()
-                .map(c -> new HighlightService.GeneratedHighlight(c.kind(), c.sceneLabel(), c.title(),
-                        c.startSec(), c.endSec(), c.clipUrl(), c.caption(), c.status()))
+                .map(c -> new HighlightService.GeneratedHighlight(c.highlightId(), c.kind(),
+                        c.sceneLabel(), c.title(), c.startSec(), c.endSec(), c.clipUrl(),
+                        c.caption(), c.status()))
                 .toList());
     }
 
@@ -87,8 +94,22 @@ public class InternalLiveController {
      * <p>필수값을 검증하는 이유: 비면 NOT NULL 제약 위반으로 <b>400이 아니라 500</b>이 난다.
      * AI가 잘못 보낸 건데 우리 서버 오류로 보인다.
      */
-    public record HighlightCallback(@NotBlank String kind, @NotBlank String sceneLabel, String title,
-                                    int startSec, Integer endSec, String clipUrl, String caption,
-                                    @NotBlank String status) {
+    public record HighlightCallback(UUID highlightId,
+                                    // enum인 이유: 문자열이면 오타가 DB CHECK까지 가서 400이 아니라
+                                    // 500이 난다. Jackson이 파싱 단계에서 400으로 돌려보낸다.
+                                    @NotNull HighlightKind kind, @NotNull SceneLabel sceneLabel,
+                                    String title,
+                                    // 박싱인 이유: primitive면 값 누락이 조용히 0이 된다 — 0초짜리
+                                    // 마커가 생겨도 아무도 모른다.
+                                    @NotNull @PositiveOrZero Integer startSec,
+                                    @PositiveOrZero Integer endSec,
+                                    String clipUrl, String caption,
+                                    @NotNull GenerationStatus status) {
+
+        /** MARKER는 시점이라 endSec이 null이다. 있으면 뒤집힌 구간을 막는다. */
+            @AssertTrue(message = "종료 위치가 시작보다 뒤여야 합니다.")
+        public boolean isRangeOrdered() {
+            return endSec == null || startSec == null || endSec > startSec;
+        }
     }
 }

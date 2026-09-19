@@ -1,7 +1,11 @@
 package com.fundit.live.infrastructure.persistence.cuesheet;
 
+import com.fundit.live.domain.ai.GenerationStatus;
+import com.fundit.live.domain.cuesheet.LiveCueSheet;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -17,8 +21,8 @@ import java.time.Instant;
 /**
  * AI 큐시트. <b>세션당 1행</b>이라 session_id가 곧 PK다.
  *
- * <p>단순 애그리거트로 둔다 — {@code GENERATING} 중복 차단은 상태 전이가 아니라
- * 단일 조건 검사다. 복잡으로 잡으면 쓰이지 않는 파일 3개가 생긴다.
+ * <p>저장 매핑만 한다. {@code GENERATING → COMPLETED/FAILED} 전이와 "생성 중에는 수정 불가"는
+ * {@link LiveCueSheet}에 있다(persistence-convention.md 1번).
  *
  * <p>구간 배열이 JSONB인 이유: 구간은 항상 큐시트 전체와 함께 읽고 쓰며 구간 단위로
  * 조회·조인할 일이 없다. 테이블로 쪼개면 order 재정렬마다 행 재배치가 생기고 얻는 게 없다.
@@ -31,10 +35,6 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LiveCueSheetJpaEntity {
 
-    public static final String STATUS_GENERATING = "GENERATING";
-    public static final String STATUS_COMPLETED = "COMPLETED";
-    public static final String STATUS_FAILED = "FAILED";
-
     @Id
     @Column(name = "session_id")
     private Long sessionId;
@@ -43,7 +43,8 @@ public class LiveCueSheetJpaEntity {
     private String mode;
 
     @Column(name = "status", nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private GenerationStatus status;
 
     @Column(name = "target_duration_sec", nullable = false)
     private int targetDurationSec;
@@ -61,23 +62,12 @@ public class LiveCueSheetJpaEntity {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private Instant updatedAt;
 
-    public void complete(String segments) {
-        this.status = STATUS_COMPLETED;
-        this.segments = segments;
-        this.failureReason = null;
-    }
-
-    public void fail(String reason) {
-        this.status = STATUS_FAILED;
-        this.failureReason = reason;
-    }
-
-    /** 판매자 직접 수정(요구사항정의서 6.2.4.2) — 구간 추가·순서 변경도 이 경로다. */
-    public void replaceSegments(String segments) {
-        this.segments = segments;
-    }
-
-    public boolean isGenerating() {
-        return STATUS_GENERATING.equals(this.status);
+    /** 관리 엔티티에 도메인 변경분을 옮긴다. 재생성은 mode·길이도 바뀔 수 있어 같이 덮는다. */
+    void applyFrom(LiveCueSheet cueSheet) {
+        this.mode = cueSheet.getMode();
+        this.targetDurationSec = cueSheet.getTargetDurationSec();
+        this.status = cueSheet.getStatus();
+        this.segments = cueSheet.getSegments();
+        this.failureReason = cueSheet.getFailureReason();
     }
 }

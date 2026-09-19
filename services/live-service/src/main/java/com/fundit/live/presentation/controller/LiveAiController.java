@@ -11,6 +11,7 @@ import com.fundit.live.presentation.dto.AiAnswerResponse;
 import com.fundit.live.presentation.dto.AnsweredQuestionResponse;
 import com.fundit.live.presentation.dto.CueSheetGenerateRequest;
 import com.fundit.live.presentation.dto.CueSheetResponse;
+import com.fundit.live.presentation.dto.CueSheetUpdateRequest;
 import com.fundit.live.presentation.dto.InsightsResponse;
 import com.fundit.live.presentation.dto.OriginalMessageResponse;
 import jakarta.validation.Valid;
@@ -48,9 +49,9 @@ public class LiveAiController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public CueSheetResponse requestCueSheet(@LoginUser CurrentUser user, @PathVariable UUID liveId,
                                             @Valid @RequestBody CueSheetGenerateRequest request) {
-        cueSheetService.requestGeneration(user.id(), liveId, request.mode(), request.targetDurationSec(),
+        cueSheetService.requestGeneration(user.id(), liveId, request.mode().name(), request.targetDurationSec(),
                 request.demoAvailableOrFalse(), request.emphasisOrEmpty(), request.tone(), request.mandatoryOrEmpty());
-        return new CueSheetResponse("GENERATING", request.mode(), request.targetDurationSec(), null, null);
+        return new CueSheetResponse("GENERATING", request.mode().name(), request.targetDurationSec(), null, null);
     }
 
     /** 큐시트 결과 조회. jobId를 따로 두지 않는다 — 세션당 1개라 이 status로 폴링하면 충분하다. */
@@ -62,8 +63,9 @@ public class LiveAiController {
     /** 판매자 직접 수정. 구간 추가·순서 변경도 이 경로다. */
     @PatchMapping("/cue-sheet")
     public CueSheetResponse updateCueSheet(@LoginUser CurrentUser user, @PathVariable UUID liveId,
-                                           @RequestBody String segmentsJson) {
-        return CueSheetResponse.from(cueSheetService.replaceSegments(user.id(), liveId, segmentsJson));
+                                           @Valid @RequestBody CueSheetUpdateRequest request) {
+        return CueSheetResponse.from(
+                cueSheetService.replaceSegments(user.id(), liveId, request.segmentsJson()));
     }
 
     /** AI 관심사/대표질문 집계(요구사항정의서 6.4.4.2). 3분 주기로 갱신된다. */

@@ -1,6 +1,7 @@
 package com.fundit.live.application.chat;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
@@ -51,7 +52,9 @@ class ChatTokenServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> chatTokenService.issue(sellerId, liveId))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
     }
 
     @Test

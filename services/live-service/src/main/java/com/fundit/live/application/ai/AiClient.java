@@ -18,8 +18,14 @@ public interface AiClient {
     /** 큐시트 생성 요청(요구사항정의서 6.2.4.2). 반환 없이 요청만 건다. */
     void requestCueSheet(String liveId, CueSheetRequest request);
 
-    /** 하이라이트 자동 생성 요청(요구사항정의서 6.6.4). 방송 종료 후 호출된다. */
-    void requestHighlights(String liveId, String vodUrl);
+    /**
+     * 하이라이트 자동 생성 요청(요구사항정의서 6.6.4). 방송 종료 후 호출된다.
+     *
+     * <p>{@code highlightId}는 <b>재생성 대상</b>이며 최초 생성은 {@code null}이다. AI가 결과를
+     * 밀어줄 때 이 값을 되돌려줘야 기존 행을 갱신한다 — 안 그러면 재생성이 새 행을 만들어
+     * 원래 행이 {@code GENERATING}으로 영영 남고 클립 수가 상한에 걸려 재생성 자체가 막힌다.
+     */
+    void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId);
 
     /**
      * 대표질문 추천답변 초안(요구사항정의서 6.4.4.5·6.4.4.6). 이건 동기다 —

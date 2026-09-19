@@ -1,9 +1,13 @@
 package com.fundit.live.infrastructure.persistence.highlight;
 
-import com.fundit.common.error.BusinessException;
-import com.fundit.common.error.CommonErrorCode;
+import com.fundit.live.domain.ai.GenerationStatus;
+import com.fundit.live.domain.highlight.HighlightKind;
+import com.fundit.live.domain.highlight.LiveHighlight;
+import com.fundit.live.domain.highlight.SceneLabel;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -20,6 +24,9 @@ import java.util.UUID;
 /**
  * 타임라인 마커와 쇼츠 클립을 {@code kind}로 구분해 <b>한 테이블</b>에 담는다 —
  * 컬럼이 거의 같아 쪼개면 수정·재생성·공개설정 API가 전부 두 벌이 된다. 응답만 두 배열로 나눈다.
+ *
+ * <p>저장 매핑만 한다. 구간 불변식·상태 전이·공개 가능 여부는
+ * {@link LiveHighlight}에 있다(persistence-convention.md 1번).
  */
 @Getter
 @Entity
@@ -28,12 +35,6 @@ import java.util.UUID;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LiveHighlightJpaEntity {
-
-    public static final String KIND_MARKER = "MARKER";
-    public static final String KIND_CLIP = "CLIP";
-    public static final String STATUS_GENERATING = "GENERATING";
-    public static final String STATUS_COMPLETED = "COMPLETED";
-    public static final String STATUS_FAILED = "FAILED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,10 +47,12 @@ public class LiveHighlightJpaEntity {
     private Long sessionId;
 
     @Column(name = "kind", nullable = false, updatable = false)
-    private String kind;
+    @Enumerated(EnumType.STRING)
+    private HighlightKind kind;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "scene_label", nullable = false)
-    private String sceneLabel;
+    private SceneLabel sceneLabel;
 
     @Column(name = "title")
     private String title;
@@ -71,7 +74,8 @@ public class LiveHighlightJpaEntity {
     private boolean isPublic;
 
     @Column(name = "generation_status", nullable = false)
-    private String generationStatus;
+    @Enumerated(EnumType.STRING)
+    private GenerationStatus generationStatus;
 
     @Column(name = "view_count", nullable = false)
     private int viewCount;
@@ -83,39 +87,17 @@ public class LiveHighlightJpaEntity {
     private Instant createdAt;
 
     /**
-     * 판매자 검토·수정(요구사항정의서 6.6.4). null은 건드리지 않는다.
-     *
-     * <p>구간을 검증하는 이유: 뒤집힌 구간이 저장되면 클립 URL은 멀쩡한데 재생만 깨진다.
-     * 엔티티가 자기 불변식을 지켜야 호출부가 늘어도 안 샌다.
+     * 관리 엔티티에 도메인 변경분을 옮긴다. 조회·클릭 수는 <b>건드리지 않는다</b> —
+     * 조건부 UPDATE로 올리는 값이라 읽은 시점의 값으로 되돌리면 집계가 사라진다.
      */
-    public void edit(Integer startSec, Integer endSec, String sceneLabel, String title, String caption) {
-        int newStart = startSec != null ? startSec : this.startSec;
-        Integer newEnd = endSec != null ? endSec : this.endSec;
-        if (newStart < 0) {
-            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "시작 위치는 0 이상이어야 합니다.");
-        }
-        if (newEnd != null && newEnd <= newStart) {
-            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "종료 위치가 시작보다 뒤여야 합니다.");
-        }
-        if (startSec != null) this.startSec = startSec;
-        if (endSec != null) this.endSec = endSec;
-        if (sceneLabel != null) this.sceneLabel = sceneLabel;
-        if (title != null) this.title = title;
-        if (caption != null) this.caption = caption;
-    }
-
-    /** 생성 실패한 항목은 공개할 수 없다 — 재생 불가한 클립이 소비자 화면에 올라간다. */
-    public boolean isPublishable() {
-        return STATUS_COMPLETED.equals(this.generationStatus);
-    }
-
-    public void changeVisibility(boolean isPublic) {
-        this.isPublic = isPublic;
-    }
-
-    public void markRegenerating() {
-        this.generationStatus = STATUS_GENERATING;
-        // 재생성 중인 항목이 공개된 채로 남으면 소비자가 옛 클립을 본다.
-        this.isPublic = false;
+    void applyFrom(LiveHighlight highlight) {
+        this.sceneLabel = highlight.getSceneLabel();
+        this.title = highlight.getTitle();
+        this.startSec = highlight.getStartSec();
+        this.endSec = highlight.getEndSec();
+        this.clipUrl = highlight.getClipUrl();
+        this.caption = highlight.getCaption();
+        this.isPublic = highlight.isPublic();
+        this.generationStatus = highlight.getGenerationStatus();
     }
 }

@@ -26,6 +26,10 @@ live:
     # stub | aws — 자격증명이 내려오기 전까지 stub이 기본값이다.
     # aws로 바꾸면 AwsIvsClient가 뜨고 실제 채널을 프로비저닝한다.
     mode: stub
+  ai:
+    # stub | http — AI 서버 주소·계약이 확정되기 전까지 stub이다.
+    # 값이 없으면 스텁도 안 뜬다(matchIfMissing=false) — 여기 기본값이 그 안전망이다.
+    mode: stub
 
 springdoc:
   api-docs:

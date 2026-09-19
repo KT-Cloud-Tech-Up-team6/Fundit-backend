@@ -86,7 +86,7 @@ public class LiveHighlightController {
     @PostMapping("/{highlightId}/click")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void recordClick(@PathVariable UUID liveId, @PathVariable UUID highlightId) {
-        highlightService.recordClick(highlightId);
+        highlightService.recordClick(liveId, highlightId);
     }
 
     /** 성과 통계. 펀딩 전환 기여는 집계 주체 미정이라 아직 포함하지 않는다. */

@@ -1,5 +1,6 @@
 package com.fundit.live.infrastructure.persistence.highlight;
 
+import com.fundit.live.domain.highlight.HighlightKind;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,7 +20,7 @@ public interface LiveHighlightJpaRepository extends JpaRepository<LiveHighlightJ
     Optional<LiveHighlightJpaEntity> findByPublicId(UUID publicId);
 
     /** 방송 1회당 클립 최대 3개(요구사항정의서 6.6.3) 검증용. 마커는 제한이 없다. */
-    long countBySessionIdAndKind(Long sessionId, String kind);
+    long countBySessionIdAndKind(Long sessionId, HighlightKind kind);
 
     /**
      * <b>노출 수</b>를 올린다 — 공개 목록이 한 번 열릴 때 그 세션의 공개 항목이 전부 +1 된다.

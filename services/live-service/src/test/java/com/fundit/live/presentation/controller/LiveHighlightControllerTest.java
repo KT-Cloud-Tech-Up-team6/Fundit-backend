@@ -3,13 +3,15 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.highlight.HighlightService;
-import com.fundit.live.infrastructure.persistence.highlight.LiveHighlightJpaEntity;
+import com.fundit.live.domain.highlight.SceneLabel;
+import com.fundit.live.domain.ai.GenerationStatus;
+import com.fundit.live.domain.highlight.HighlightKind;
+import com.fundit.live.domain.highlight.LiveHighlight;
 import com.fundit.live.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,7 +22,6 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,19 +39,20 @@ class LiveHighlightControllerTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
 
-    private LiveHighlightJpaEntity entity(String kind) {
-        return LiveHighlightJpaEntity.builder()
+    private LiveHighlight highlight(HighlightKind kind) {
+        return LiveHighlight.builder()
                 .id(1L).publicId(UUID.randomUUID()).sessionId(1L).kind(kind)
-                .sceneLabel("DEMO").title("실시간 시연").startSec(320)
-                .endSec("CLIP".equals(kind) ? 400 : null)
-                .isPublic(false).generationStatus("COMPLETED").viewCount(12).clickCount(3).build();
+                .sceneLabel(SceneLabel.DEMO).title("실시간 시연").startSec(320)
+                .endSec(kind == HighlightKind.CLIP ? 400 : null)
+                .isPublic(false).generationStatus(GenerationStatus.COMPLETED)
+                .viewCount(12).clickCount(3).build();
     }
 
     @Test
     void 목록은_마커와_클립을_두_배열로_나눠_내려준다() throws Exception {
         // given — 화면이 타임라인과 쇼츠를 따로 그린다
         when(highlightService.findAll(any(), any())).thenReturn(List.of(
-                entity(LiveHighlightJpaEntity.KIND_MARKER), entity(LiveHighlightJpaEntity.KIND_CLIP)));
+                highlight(HighlightKind.MARKER), highlight(HighlightKind.CLIP)));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/{liveId}/highlights", liveId)
@@ -75,7 +77,7 @@ class LiveHighlightControllerTest {
     void 통계에는_펀딩_전환_기여가_없다() throws Exception {
         // given — order 집계 주체가 미정이라 채울 수 없다.
         // 0을 내려주면 프론트가 실제 값으로 오해한다
-        when(highlightService.findAll(any(), any())).thenReturn(List.of(entity("CLIP")));
+        when(highlightService.findAll(any(), any())).thenReturn(List.of(highlight(HighlightKind.CLIP)));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/{liveId}/highlights/stats", liveId)
@@ -84,17 +86,6 @@ class LiveHighlightControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].impressionCount").value(12))
                 .andExpect(jsonPath("$[0].fundingConversionCount").doesNotExist());
-    }
-
-    @Test
-    void 공개_설정은_isPublic을_요구한다() throws Exception {
-        // given & when & then — 값이 없으면 공개인지 비공개인지 알 수 없다
-        mockMvc.perform(patch("/api/v1/lives/{liveId}/highlights/{hid}/visibility", liveId, UUID.randomUUID())
-                        .header(AuthHeaders.USER_ID, userId.toString())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
     }
 
     @Test

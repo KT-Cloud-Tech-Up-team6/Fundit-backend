@@ -1,6 +1,6 @@
 package com.fundit.live.presentation.dto;
 
-import com.fundit.live.infrastructure.persistence.highlight.LiveHighlightJpaEntity;
+import com.fundit.live.domain.highlight.LiveHighlight;
 
 import java.util.UUID;
 
@@ -17,7 +17,7 @@ import java.util.UUID;
  */
 public record HighlightStatsResponse(UUID highlightId, int impressionCount, int clickCount) {
 
-    public static HighlightStatsResponse from(LiveHighlightJpaEntity e) {
-        return new HighlightStatsResponse(e.getPublicId(), e.getViewCount(), e.getClickCount());
+    public static HighlightStatsResponse from(LiveHighlight h) {
+        return new HighlightStatsResponse(h.getPublicId(), h.getViewCount(), h.getClickCount());
     }
 }

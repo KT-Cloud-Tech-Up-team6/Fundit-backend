@@ -13,7 +13,7 @@ import java.util.List;
  * 묶이지 않는다. 자격증명이 준비되면 {@code AwsIvsClient}를 추가하고 프로퍼티만 바꾼다.
  */
 @Component
-@ConditionalOnProperty(name = "live.ivs.mode", havingValue = "stub", matchIfMissing = true)
+@ConditionalOnProperty(name = "live.ivs.mode", havingValue = "stub", matchIfMissing = false)
 public class StubIvsClient implements IvsClient {
 
     private static final String ARN_PREFIX = "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-";

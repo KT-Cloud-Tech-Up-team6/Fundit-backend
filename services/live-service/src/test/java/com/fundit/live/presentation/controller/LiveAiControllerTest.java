@@ -6,7 +6,8 @@ import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.question.AiAnswerService;
 import com.fundit.live.application.question.QuestionInsightService;
-import com.fundit.live.infrastructure.persistence.cuesheet.LiveCueSheetJpaEntity;
+import com.fundit.live.domain.ai.GenerationStatus;
+import com.fundit.live.domain.cuesheet.LiveCueSheet;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
 import com.fundit.live.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -67,8 +68,8 @@ class LiveAiControllerTest {
     @Test
     void 큐시트_조회는_구간_JSON을_그대로_내려준다() throws Exception {
         // given — 서버가 해석할 이유가 없다
-        when(cueSheetService.find(any(), any())).thenReturn(LiveCueSheetJpaEntity.builder()
-                .sessionId(1L).mode("SCENARIO").status("COMPLETED").targetDurationSec(580)
+        when(cueSheetService.find(any(), any())).thenReturn(LiveCueSheet.builder()
+                .sessionId(1L).mode("SCENARIO").status(GenerationStatus.COMPLETED).targetDurationSec(580)
                 .segments("[{\"order\":1,\"title\":\"오프닝\"}]").build());
 
         // when & then
