@@ -5,6 +5,7 @@ import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.login.LoginService;
 import com.fundit.auth.application.password.PasswordChangeService;
+import com.fundit.auth.application.password.PasswordResetService;
 import com.fundit.auth.application.signup.SignupService;
 import com.fundit.auth.application.social.SocialLinkService;
 import com.fundit.auth.application.social.SocialLoginService;
@@ -92,6 +93,8 @@ class AuthControllerTest {
     private TokenRefreshService tokenRefreshService;
     @MockitoBean
     private PasswordChangeService passwordChangeService;
+    @MockitoBean
+    private PasswordResetService passwordResetService;
 
     @Test
     void 이메일_형식이_올바르면_사용가능여부를_반환한다() throws Exception {

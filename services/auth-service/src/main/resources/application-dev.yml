@@ -42,3 +42,7 @@ auth:
     # 기본값을 두지 않는다 — 미설정이면 기동이 실패해야 한다. 임시 키로 흘러가면 기존 데이터를
     # 복호화하지 못하고, 그 사실을 저장 시점이 아니라 조회 시점에 알게 된다.
     key: ${AUTH_ENCRYPTION_KEY}
+
+password-reset:
+  # 메일에 실을 프론트 링크. `%s` 자리에 토큰이 들어간다.
+  url-template: https://dev.fundit.com/reset-password?token=%s

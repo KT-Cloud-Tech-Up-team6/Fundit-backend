@@ -66,7 +66,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications",
                                 "/api/v1/auth/login/social", "/api/v1/auth/signup/social",
                                 "/api/v1/auth/social/link",
-                                "/api/v1/auth/find-email", "/api/v1/auth/find-email/reveal").permitAll()
+                                "/api/v1/auth/find-email", "/api/v1/auth/find-email/reveal",
+                                // 비밀번호를 잊은 사람이 쓰는 경로라 인증을 요구할 수 없다
+                                "/api/v1/auth/reset-password", "/api/v1/auth/reset-password/confirm").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler -> handler.authenticationEntryPoint(this::onAuthenticationFailure))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

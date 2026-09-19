@@ -4,6 +4,7 @@ import com.fundit.auth.application.email.EmailAvailabilityService;
 import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
 import com.fundit.auth.application.password.PasswordChangeService;
+import com.fundit.auth.application.password.PasswordResetService;
 import com.fundit.auth.application.signup.SignupService;
 import com.fundit.auth.application.social.SocialLinkService;
 import com.fundit.auth.application.social.SocialLoginService;
@@ -17,6 +18,8 @@ import com.fundit.auth.presentation.dto.FindEmailResponse;
 import com.fundit.auth.presentation.dto.IdentityVerificationRequest;
 import com.fundit.auth.presentation.dto.IdentityVerificationResponse;
 import com.fundit.auth.presentation.dto.MessageResponse;
+import com.fundit.auth.presentation.dto.PasswordResetConfirmRequest;
+import com.fundit.auth.presentation.dto.PasswordResetRequest;
 import com.fundit.auth.presentation.dto.RevealEmailRequest;
 import com.fundit.auth.presentation.dto.RevealEmailResponse;
 import com.fundit.auth.presentation.dto.PasswordChangeRequest;
@@ -64,6 +67,7 @@ public class AuthController {
     private final SignupService signupService;
     private final TokenRefreshService tokenRefreshService;
     private final PasswordChangeService passwordChangeService;
+    private final PasswordResetService passwordResetService;
     private final SocialLoginService socialLoginService;
     private final SocialSignupService socialSignupService;
     private final SocialLinkService socialLinkService;
@@ -87,6 +91,23 @@ public class AuthController {
     @PostMapping("/find-email/reveal")
     public RevealEmailResponse revealEmail(@Valid @RequestBody RevealEmailRequest request) {
         return new RevealEmailResponse(emailFindService.reveal(request.verificationToken()));
+    }
+
+    /**
+     * 비밀번호 재설정 링크 발송(AUTH-010). 계정이 없거나 값이 안 맞아도 <b>같은 응답</b>이다 —
+     * 여기서 404를 주면 이메일을 넣어보며 가입 여부를 캐낼 수 있다.
+     */
+    @PostMapping("/reset-password")
+    public MessageResponse requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        passwordResetService.requestReset(request.name(), request.phoneNumber(), request.email());
+        return new MessageResponse("입력하신 정보와 일치하는 계정이 있다면 재설정 링크를 보내드립니다.");
+    }
+
+    /** 메일 링크로 새 비밀번호를 설정한다(AUTH-010). 토큰은 1회용이다. */
+    @PostMapping("/reset-password/confirm")
+    public MessageResponse confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
+        passwordResetService.confirmReset(request.token(), request.newPassword());
+        return new MessageResponse("비밀번호가 변경되었습니다.");
     }
 
     @PostMapping("/identity-verifications")
