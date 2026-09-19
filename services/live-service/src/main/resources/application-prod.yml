@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+# 채팅 적재(/internal/v1/lives/chat/messages)와 방송 상태 조회가 내부 전용이라
+# CommonWebConfig가 이 값을 주입받는다. 없으면 빈 생성 단계에서 기동이 실패한다.
+internal-api:
+  key: ${INTERNAL_API_KEY}
+
+live:
+  ivs:
+    # 기본값을 두지 않는다. 미설정이면 기동이 실패해야 한다 —
+    # stub으로 흘러가면 가짜 ARN으로 방송이 "성공"하고 아무도 눈치채지 못한다.
+    # AWS 구현이 붙으면 LIVE_IVS_MODE=aws를 주입한다.
+    mode: ${LIVE_IVS_MODE}
+  ai:
+    # IVS와 같은 이유로 기본값을 두지 않는다. 미설정이면 기동이 실패한다 —
+    # 스텁으로 흘러가면 큐시트·추천답변이 "[stub] ..." 문자열로 "성공"한다.
+    mode: ${LIVE_AI_MODE}
+
+# 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
+springdoc:
+  api-docs:
+    enabled: false

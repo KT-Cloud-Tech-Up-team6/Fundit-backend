@@ -1,0 +1,23 @@
+dependencies {
+    // common-webmvc가 api로 modules:common + spring-boot-starter-web을 같이 노출하므로 중복 선언 안 함
+    implementation project(':modules:common-webmvc')
+
+    // public_id(UUID v7) 생성용 — auth-service accounts.id, project-service와 동일 라이브러리
+    implementation 'com.github.f4b6a3:uuid-creator:6.1.0'
+
+    // 생 spring-kafka가 아니라 스타터를 쓴다 — Boot 4는 자동구성을 기술별 모듈로 쪼갰고,
+    // spring-kafka만 넣으면 KafkaAutoConfiguration이 클래스패스에 없어 spring.kafka.* 프로퍼티가
+    // 조용히 무시된다. 루트 :services: 공통 블록에 넣지 않는 이유: Kafka를 안 쓰는 서비스까지 끌려간다.
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
+    // Amazon IVS(채널·송출)와 IVS Chat(접속 토큰). 자격증명은 SDK 기본 Provider Chain을 쓴다 —
+    // 코드/설정에 액세스 키를 두지 않는다(security.md S7·S9).
+    implementation platform('software.amazon.awssdk:bom:2.29.52')
+    implementation 'software.amazon.awssdk:ivs'
+    implementation 'software.amazon.awssdk:ivschat'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // testcontainers-bom(2.0.4)과 spring-boot-testcontainers는 루트 공통 블록에 이미 있다.
+    testImplementation 'org.testcontainers:testcontainers-kafka'
+    testImplementation 'org.awaitility:awaitility'
+}
