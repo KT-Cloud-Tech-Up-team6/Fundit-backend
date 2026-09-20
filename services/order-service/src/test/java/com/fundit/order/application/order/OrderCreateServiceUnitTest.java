@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,7 +68,7 @@ class OrderCreateServiceUnitTest {
     void 재고를_차감하고_주문을_생성한다() {
         // given
         OrderPricingService.PricingResult pricing = pricingResultWithCoupon();
-        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
         when(inventoryRepository.decreaseStock(REWARD_ID, 2)).thenReturn(true);
         when(couponRepository.increaseUsedBudget("WELCOME", 2_000L)).thenReturn(true);
         when(projectSummaryClient.getProjectTitle(PROJECT_ID)).thenReturn(Optional.of("프로젝트"));
@@ -82,7 +83,7 @@ class OrderCreateServiceUnitTest {
         // when
         OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 2, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"));
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false);
 
         // then
         assertThat(result.funding()).isEqualTo(savedFunding);
@@ -104,14 +105,14 @@ class OrderCreateServiceUnitTest {
         var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(), List.of());
-        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any())).thenReturn(pricing);
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
         when(inventoryRepository.decreaseStock(REWARD_ID, 1)).thenReturn(true);
         when(projectSummaryClient.getProjectTitle(PROJECT_ID)).thenReturn(Optional.empty());
         when(fundingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
         orderCreateService.create(MEMBER_ID, PROJECT_ID, List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null);
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false);
 
         // then
         ArgumentCaptor<Funding> captor = ArgumentCaptor.forClass(Funding.class);

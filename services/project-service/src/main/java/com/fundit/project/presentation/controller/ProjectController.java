@@ -220,7 +220,8 @@ public class ProjectController {
                 new FundingStatusSummaryResponse(fundingStatus.currentAmount(), fundingStatus.achievementRate(),
                         fundingStatus.participantCount(), fundingStatus.remainingDays()),
                 view.hasLiveVerification(),
-                new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()));
+                new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()),
+                view.categoryMajor(), view.categoryMinor());
     }
 
     private List<IntroContentBlockResponse> toIntroContentResponse(List<IntroContentBlock> blocks) {

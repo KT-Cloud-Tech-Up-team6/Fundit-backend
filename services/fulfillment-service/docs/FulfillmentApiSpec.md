@@ -24,6 +24,7 @@
 | 7 | POST | `/api/v1/projects/{projectId}/fundings/{fundingId}/shipment/confirm-receipt` | 수령 확인 처리 | O (구매자) | FULFILLMENT-009 |
 | 8 | GET | `/internal/fundings/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(UUID orderId) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 8-1 | GET | `/internal/fundings/id/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(레거시 Long PK) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 8-2 | GET | `/internal/fundings/fulfillment-statuses` | 배송 상태 배치 내부 조회(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 9 | GET | `/api/v2/projects/{projectId}/fulfillment` | 제작·배송 진행 현황 조회(UUID) | X (공통) | FULFILLMENT-003 |
 | 10 | PATCH | `/api/v2/projects/{projectId}/fulfillment/stage` | 단계 전환(UUID) | O (판매자) | FULFILLMENT-002 |
 | 11 | POST | `/api/v2/projects/{projectId}/fulfillment/stage-details` | 단계별 예상일정·상세 진행 내용 등록(UUID) | O (판매자) | FULFILLMENT-002 |
@@ -315,6 +316,34 @@ GET /internal/fundings/{fundingId}/fulfillment-status
 - payment-service `ShippingStatusClient`(PAYMENT-008)가 `isAlreadyShipped`/`isDelayed`를, PAYMENT-006(하자환불 신청기간 판정)이 `receiptConfirmedAt`을 사용.
 - **존재하지 않는 funding / order-service 호출 실패·타임아웃 모두 `503 DEPENDENCY_FAILURE`** — 404가 아니다. payment-service 쪽에서 재시도 또는 판정 보류로 처리.
 - **(2차 검토)** 초안은 "`shipments` 없으면 그냥 미발송으로 응답"하고 끝내려 했으나, 발송 전에는 `projectId`를 들고 있는 유일한 테이블(`shipments`)에 행이 없어 `isDelayed`를 계산할 방법 자체가 없었다 — PAYMENT-008이 실제로 궁금해하는 케이스(미발송+지연 여부)를 판정 못 하는 설계였다. order-service 내부 API로 `projectId`를 조회하도록 수정.
+
+---
+
+### 8-2. 배송 상태 배치 내부 조회(order-service 주문 목록 연동)
+
+```
+GET /internal/fundings/fulfillment-statuses?fundingIds={orderId1},{orderId2},...
+```
+
+**Auth Required**: 내부 전용(`InternalEndpoint` 빈 + `InternalGatewaySecretFilter` — `X-Internal-Api-Key` 검증)
+
+**Request**: Query Parameter: `fundingIds` — orderId(UUID) 목록(반복 파라미터).
+
+**호출 주체**: order-service 주문 목록(`GET /api/v1/orders`, V03/V06) — 페이지 단위로 한 번만 호출한다.
+
+**Response Body**
+
+```json
+[
+  { "fundingId": "018f9a1b-....", "isAlreadyShipped": true, "deliveredAt": "2026-09-11T09:00:00" }
+]
+```
+
+**Validation / Business Rules**
+
+- 단건 API(#8)와 달리 **`isDelayed`/`receiptConfirmedAt`은 제공하지 않는다** — 목록 배지·가능액션 판단에는 필요 없는 값이라, 발송 전 건마다 order-service를 다시 조회해야 하는 부담을 지지 않기 위한 의도적 단순화다. 발송지연 신청 CTA처럼 정확한 `isDelayed`가 필요하면 단건 API(#8)를 쓸 것.
+- `shipments` 레코드가 없는(아직 발송 전) `fundingId`는 `isAlreadyShipped: false`, `deliveredAt` 생략으로 응답한다(order-service 재조회 없음 — 위 단순화의 연장).
+- 존재하지 않는 `fundingId`도 에러 없이 같은 기본값으로 응답한다(배치 API는 부분 실패를 허용하지 않고 항상 요청한 개수만큼 응답).
 
 ---
 

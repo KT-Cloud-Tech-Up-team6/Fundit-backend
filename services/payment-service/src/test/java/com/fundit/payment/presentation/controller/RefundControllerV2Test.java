@@ -55,7 +55,7 @@ class RefundControllerV2Test {
         Instant requestedAt = Instant.parse("2026-09-08T01:00:00Z");
         when(refundQueryService.listMyRefunds(eq(memberId), any())).thenReturn(
                 new PageImpl<>(List.of(new RefundQueryService.RefundSummary(3L, FUNDING_ID, "DEFECT", "REQUESTED",
-                        89_000L, requestedAt)), PageRequest.of(0, 20), 1));
+                        89_000L, requestedAt, null, null, null, null)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/v2/refunds")
                         .header("X-User-Id", memberId.toString())

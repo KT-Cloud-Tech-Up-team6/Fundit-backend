@@ -85,6 +85,9 @@ class CouponControllerTest {
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].couponCode").value("LIVE-XY12"));
+                .andExpect(jsonPath("$.content[0].couponCode").value("LIVE-XY12"))
+                .andExpect(jsonPath("$.content[0].minFundingAmount").value(0))
+                .andExpect(jsonPath("$.content[0].perMemberLimit").value(1))
+                .andExpect(jsonPath("$.content[0].targetScope").value("ALL"));
     }
 }

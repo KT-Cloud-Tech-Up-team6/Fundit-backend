@@ -3,11 +3,14 @@ package com.fundit.order.presentation.controller;
 import com.fundit.order.application.funding.FundingInternalQueryService;
 import com.fundit.order.presentation.dto.InternalFundingParticipantsResponse;
 import com.fundit.order.presentation.dto.InternalFundingResponse;
+import com.fundit.order.presentation.dto.InternalOrderSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -37,5 +40,13 @@ public class InternalFundingController {
     public InternalFundingParticipantsResponse getFundingParticipants(@PathVariable UUID projectId) {
         return new InternalFundingParticipantsResponse(
                 fundingInternalQueryService.listGoalAchievedParticipantMemberIds(projectId));
+    }
+
+    /** payment-service 환불 목록(V04) 배치 조회 — 건별 호출(N+1) 방지용. */
+    @GetMapping("/internal/orders/order-summaries")
+    public List<InternalOrderSummaryResponse> getOrderSummaries(@RequestParam List<UUID> orderIds) {
+        return fundingInternalQueryService.getOrderSummaries(orderIds).stream()
+                .map(InternalOrderSummaryResponse::from)
+                .toList();
     }
 }

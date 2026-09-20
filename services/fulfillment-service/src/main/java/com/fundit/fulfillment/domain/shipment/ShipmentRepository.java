@@ -9,6 +9,9 @@ public interface ShipmentRepository {
 
     Optional<Shipment> findByFundingId(UUID fundingId);
 
+    /** payment-service/order-service 배치 조회용(FULFILLMENT-008 배치 변형). */
+    List<Shipment> findByFundingIdIn(List<UUID> fundingIds);
+
     Shipment save(Shipment shipment);
 
     /** FULFILLMENT-007 배치 대상 조회 — 발송 후 threshold 이전에 발송된 SHIPPED 건. */

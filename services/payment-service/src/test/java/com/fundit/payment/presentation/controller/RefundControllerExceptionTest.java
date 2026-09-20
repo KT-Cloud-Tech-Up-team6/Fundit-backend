@@ -1,10 +1,13 @@
 package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
 import com.fundit.payment.application.refund.DefectRefundRequestService;
+import com.fundit.payment.application.refund.RefundEstimateService;
+import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
 import com.fundit.payment.domain.PaymentErrorCode;
@@ -24,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,6 +51,10 @@ class RefundControllerExceptionTest {
     private ShippingDelayRefundService shippingDelayRefundService;
     @MockitoBean
     private OrderFundingClient orderFundingClient;
+    @MockitoBean
+    private RefundEvidenceUploadService refundEvidenceUploadService;
+    @MockitoBean
+    private RefundEstimateService refundEstimateService;
 
     @Test
     void 증빙이_없으면_400을_반환한다() throws Exception {
@@ -64,7 +72,7 @@ class RefundControllerExceptionTest {
         UUID orderId = new UUID(2L, 1024L);
         when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L, "주문", null,
-                        orderId));
+                        orderId, 0L, 0L));
         when(shippingDelayRefundService.requestCancel(memberId, orderId))
                 .thenThrow(new BusinessException(PaymentErrorCode.ALREADY_SHIPPED));
 
@@ -90,5 +98,20 @@ class RefundControllerExceptionTest {
                         .content("{\"decision\":\"REJECTED\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("REASON_REQUIRED"));
+    }
+
+    @Test
+    void 완료된_결제가_없으면_예상액_조회는_404를_반환한다() throws Exception {
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = new UUID(2L, 1024L);
+        when(refundEstimateService.estimate(memberId, orderId))
+                .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/refunds/estimate")
+                        .param("orderId", orderId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 }

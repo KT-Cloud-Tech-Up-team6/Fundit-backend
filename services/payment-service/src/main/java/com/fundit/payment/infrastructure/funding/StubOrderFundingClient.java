@@ -28,7 +28,9 @@ public class StubOrderFundingClient implements OrderFundingClient {
                 10_000L,
                 "[스텁] 테스트 주문 #" + orderId,
                 null,
-                orderId);
+                orderId,
+                0L,
+                0L);
     }
 
     @Override
@@ -43,6 +45,8 @@ public class StubOrderFundingClient implements OrderFundingClient {
                 10_000L,
                 "[스텁] 테스트 주문 #" + fundingId,
                 null,
-                new UUID(2L, fundingId));
+                new UUID(2L, fundingId),
+                0L,
+                0L);
     }
 }

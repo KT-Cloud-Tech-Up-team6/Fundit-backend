@@ -50,13 +50,14 @@ public class HttpOrderFundingClient implements OrderFundingClient {
             }
             return new FundingSnapshot(response.memberId(), response.sellerId(), response.status(),
                     response.finalAmount(), response.orderName(), response.couponIssuanceId(),
-                    response.fundingPublicId());
+                    response.fundingPublicId(), response.shippingFee(), response.discountAmount());
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
     }
 
     private record InternalFundingResponse(UUID memberId, UUID sellerId, String status, long finalAmount,
-                                             String orderName, Long couponIssuanceId, UUID fundingPublicId) {
+                                             String orderName, Long couponIssuanceId, UUID fundingPublicId,
+                                             long shippingFee, long discountAmount) {
     }
 }

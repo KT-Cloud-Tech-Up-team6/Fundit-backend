@@ -14,8 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * FULFILLMENT-008 — payment-service 연동 내부 API(API #8). shipments 레코드가 있으면 그 값을
@@ -58,7 +62,34 @@ public class FulfillmentStatusInternalService {
         return getStatus(orderFundingClient.fetchByInternalId(fundingId).fundingPublicId());
     }
 
+    /**
+     * order-service 주문 목록(V03/V06)용 배치 조회. 단건 API와 달리 아직 발송 전(shipments 행 없음)
+     * 건의 발송지연 여부는 계산하지 않는다 — 목록 배지/가능액션 판단에는 필요 없는 값이라
+     * order-service별 project-service 조회까지 얹지 않기 위한 의도적 단순화다.
+     * ponytail: 발송 전 건의 지연 여부가 배치 응답에도 필요해지면, order-service에도
+     * projectId 배치 조회를 추가해 이 메서드에서 트래커 단계를 함께 판정할 것.
+     */
+    @Transactional(readOnly = true)
+    public List<FulfillmentBatchStatusView> getStatuses(List<UUID> fundingIds) {
+        if (fundingIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Shipment> shipmentsByFundingId = shipmentRepository.findByFundingIdIn(fundingIds).stream()
+                .collect(Collectors.toMap(Shipment::getFundingId, Function.identity()));
+        return fundingIds.stream()
+                .map(fundingId -> {
+                    Shipment shipment = shipmentsByFundingId.get(fundingId);
+                    boolean alreadyShipped = shipment != null && shipment.getStatus() != ShipmentStatus.PREPARING;
+                    Instant deliveredAt = shipment != null ? shipment.getDeliveredAt() : null;
+                    return new FulfillmentBatchStatusView(fundingId, alreadyShipped, deliveredAt);
+                })
+                .toList();
+    }
+
     public record FulfillmentStatusView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,
                                          Instant receiptConfirmedAt) {
+    }
+
+    public record FulfillmentBatchStatusView(UUID fundingId, boolean isAlreadyShipped, Instant deliveredAt) {
     }
 }

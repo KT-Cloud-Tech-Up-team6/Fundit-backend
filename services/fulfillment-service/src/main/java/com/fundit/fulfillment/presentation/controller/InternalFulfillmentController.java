@@ -1,12 +1,15 @@
 package com.fundit.fulfillment.presentation.controller;
 
 import com.fundit.fulfillment.application.shipment.FulfillmentStatusInternalService;
+import com.fundit.fulfillment.presentation.dto.FulfillmentBatchStatusResponse;
 import com.fundit.fulfillment.presentation.dto.FulfillmentStatusInternalResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -30,5 +33,13 @@ public class InternalFulfillmentController {
     @GetMapping("/internal/fundings/id/{fundingId}/fulfillment-status")
     public FulfillmentStatusInternalResponse getStatusByInternalId(@PathVariable Long fundingId) {
         return FulfillmentStatusInternalResponse.from(fulfillmentStatusInternalService.getStatus(fundingId));
+    }
+
+    /** order-service 주문 목록(V03/V06) 배치 조회 — 건별 호출(N+1) 방지용. */
+    @GetMapping("/internal/fundings/fulfillment-statuses")
+    public List<FulfillmentBatchStatusResponse> getStatuses(@RequestParam List<UUID> fundingIds) {
+        return fulfillmentStatusInternalService.getStatuses(fundingIds).stream()
+                .map(FulfillmentBatchStatusResponse::from)
+                .toList();
     }
 }

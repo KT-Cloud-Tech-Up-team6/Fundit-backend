@@ -1,6 +1,7 @@
 package com.fundit.project.infrastructure.persistence.project;
 
 import com.fundit.project.infrastructure.persistence.project.query.ProjectListProjection;
+import com.fundit.project.infrastructure.persistence.project.query.ProjectSummaryProjection;
 import com.fundit.project.infrastructure.persistence.project.query.StatusCountProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,4 +46,13 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
             group by p.status
             """)
     List<StatusCountProjection> countBySellerIdGroupByStatus(@Param("sellerId") UUID sellerId);
+
+    /** order-service 내부 API({@code GET /internal/projects/summaries})용 배치 조회. */
+    @Query("""
+            select p.publicId as publicId, p.sellerId as sellerId, p.title as title,
+                   p.coverImageUrl as thumbnailUrl
+            from ProjectJpaEntity p
+            where p.publicId in :publicIds and p.deletedAt is null
+            """)
+    List<ProjectSummaryProjection> findSummariesByPublicIdIn(@Param("publicIds") List<UUID> publicIds);
 }

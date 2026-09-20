@@ -55,9 +55,9 @@ public class OrderCreateService {
 
     @Transactional
     public OrderCreateResult create(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
-                                     ShippingAddress shippingAddress, List<String> couponCodes) {
+                                     ShippingAddress shippingAddress, List<String> couponCodes, boolean autoApplyBestCoupon) {
         OrderPricingService.PricingResult pricing =
-                orderPricingService.calculate(memberId, projectId, lineItemRequests, couponCodes);
+                orderPricingService.calculate(memberId, projectId, lineItemRequests, couponCodes, autoApplyBestCoupon);
 
         decreaseStockOrThrow(pricing.lineItems());
 

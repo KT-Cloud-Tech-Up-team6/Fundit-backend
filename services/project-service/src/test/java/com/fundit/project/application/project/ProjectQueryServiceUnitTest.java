@@ -45,6 +45,7 @@ class ProjectQueryServiceUnitTest {
         return Project.builder()
                 .id(1L).publicId(publicId).sellerId(sellerId).status(status)
                 .title("제목").goalAmount(1_000_000L)
+                .categoryMajor("패션").categoryMinor("의류")
                 .coverImageUrl("https://example.com/cover.png")
                 .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "소개 본문")))
                 .fundingDeadline(Instant.now().plusSeconds(5 * 24 * 3600))
@@ -91,6 +92,8 @@ class ProjectQueryServiceUnitTest {
         assertThat(result.coverImageUrl()).isEqualTo("https://example.com/cover.png");
         assertThat(result.introContent()).hasSize(1);
         assertThat(result.introContent().get(0).value()).isEqualTo("소개 본문");
+        assertThat(result.categoryMajor()).isEqualTo("패션");
+        assertThat(result.categoryMinor()).isEqualTo("의류");
     }
 
     @Test

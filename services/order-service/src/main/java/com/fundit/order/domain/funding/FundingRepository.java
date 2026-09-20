@@ -12,6 +12,9 @@ public interface FundingRepository {
 
     Optional<Funding> findByPublicId(UUID publicId);
 
+    /** payment-service 환불 목록(V04) 배치 조회용. */
+    List<Funding> findByPublicIdIn(List<UUID> publicIds);
+
     Optional<Funding> findById(Long id);
 
     Funding save(Funding funding);

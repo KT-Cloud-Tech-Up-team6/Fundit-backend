@@ -11,6 +11,8 @@ public interface ShipmentJpaRepository extends JpaRepository<ShipmentJpaEntity, 
 
     Optional<ShipmentJpaEntity> findByFundingOrderId(UUID fundingOrderId);
 
+    List<ShipmentJpaEntity> findByFundingOrderIdIn(List<UUID> fundingOrderIds);
+
     List<ShipmentJpaEntity> findByStatusAndShippedAtBefore(String status, Instant threshold);
 
     List<ShipmentJpaEntity> findByStatusAndDeliveredAtBefore(String status, Instant threshold);

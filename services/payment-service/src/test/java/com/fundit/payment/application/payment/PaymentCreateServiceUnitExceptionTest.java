@@ -43,7 +43,7 @@ class PaymentCreateServiceUnitExceptionTest {
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "PENDING", 89_000L, "주문", null,
-                        FUNDING_ID));
+                        FUNDING_ID, 0L, 0L));
 
         // when & then
         assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))
@@ -57,7 +57,7 @@ class PaymentCreateServiceUnitExceptionTest {
         when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "FUNDING_IN_PROGRESS", 89_000L, "주문",
-                        null, FUNDING_ID));
+                        null, FUNDING_ID, 0L, 0L));
 
         // when & then
         assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))

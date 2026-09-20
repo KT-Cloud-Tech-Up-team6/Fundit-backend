@@ -21,18 +21,23 @@ payment:
   encryption:
     key: ${PAYMENT_ENCRYPTION_KEY}
 
-# order-service 내부 API(GET /internal/fundings/{fundingId})가 아직 없어 기본은 stub —
-# 연동 완료 후 ORDER_FUNDING_CLIENT_MODE=http로 전환(dev와 동일 패턴).
+# order-service 내부 API(GET /internal/fundings/{fundingId}) 연동 완료(order-service #74) —
+# 기본값 http로 전환. 롤백 필요 시 ORDER_FUNDING_CLIENT_MODE=stub 환경변수로 되돌릴 것.
 order:
   integration:
     funding-client:
-      mode: ${ORDER_FUNDING_CLIENT_MODE:stub}
+      mode: ${ORDER_FUNDING_CLIENT_MODE:http}
     base-url: ${ORDER_SERVICE_BASE_URL:http://order-service:8080}
 
-# fulfillment-service 내부 API(FULFILLMENT-008)는 이미 구현돼 있으나 기본은 stub로 시작 —
-# 연동 확인 후 SHIPPING_STATUS_CLIENT_MODE=http로 전환(order 쪽과 동일 패턴).
+# fulfillment-service 내부 API(FULFILLMENT-008) 연동 완료 — 기본값 http로 전환.
+# 롤백 필요 시 SHIPPING_STATUS_CLIENT_MODE=stub 환경변수로 되돌릴 것.
 fulfillment:
   integration:
     shipping-status-client:
-      mode: ${SHIPPING_STATUS_CLIENT_MODE:stub}
+      mode: ${SHIPPING_STATUS_CLIENT_MODE:http}
     base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}
+
+media:
+  s3:
+    bucket: ${MEDIA_S3_BUCKET}
+    region: ${AWS_REGION}

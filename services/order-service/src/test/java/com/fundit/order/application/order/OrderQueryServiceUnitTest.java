@@ -1,5 +1,7 @@
 package com.fundit.order.application.order;
 
+import com.fundit.order.application.catalog.ProjectSummaryClient;
+import com.fundit.order.application.fulfillment.FulfillmentStatusClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
@@ -29,6 +31,10 @@ class OrderQueryServiceUnitTest {
     private FundingRepository fundingRepository;
     @Mock
     private FundingCouponApplicationJpaRepository couponApplicationJpaRepository;
+    @Mock
+    private FulfillmentStatusClient fulfillmentStatusClient;
+    @Mock
+    private ProjectSummaryClient projectSummaryClient;
 
     @InjectMocks
     private OrderQueryService orderQueryService;
@@ -39,6 +45,8 @@ class OrderQueryServiceUnitTest {
         UUID memberId = UUID.randomUUID();
         when(fundingRepository.findByMemberId(any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of()));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
         var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
@@ -46,6 +54,32 @@ class OrderQueryServiceUnitTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void 목록조회_결과에_창작자명_썸네일_가능액션이_채워진다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(UUID.randomUUID()).memberId(memberId).projectId(projectId)
+                .status(FundingStatus.PENDING).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800))
+                .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 2, 10_000L, List.of())))
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByMemberId(any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
+        when(projectSummaryClient.getSummaries(List.of(projectId))).thenReturn(java.util.Map.of(projectId,
+                new ProjectSummaryClient.ProjectSummary("프로젝트", "https://cdn/x.png", "메이커")));
+        when(fulfillmentStatusClient.fetchBatch(List.of())).thenReturn(java.util.Map.of());
+
+        // when
+        var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
+                org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then
+        OrderQueryService.OrderListItem item = result.getContent().get(0);
+        assertThat(item.projectSummary().sellerDisplayName()).isEqualTo("메이커");
+        assertThat(item.availableActions()).containsExactly("CANCEL");
     }
 
     @Test
@@ -67,5 +101,26 @@ class OrderQueryServiceUnitTest {
 
         // then — 20,000(리워드) + 3,000(배송비) - 2,000(할인) = 21,000
         assertThat(detail.finalAmount()).isEqualTo(21_000L);
+    }
+
+    @Test
+    void GOAL_ACHIEVED_상태만_fulfillment_service를_조회해_가능한_액션을_채운다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(UUID.randomUUID())
+                .status(FundingStatus.GOAL_ACHIEVED).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800)).lineItems(List.of())
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
+        when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
+        when(fulfillmentStatusClient.fetch(orderId))
+                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, true));
+
+        // when
+        OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
+
+        // then
+        assertThat(detail.availableActions()).containsExactly("DEFECT_REFUND_REQUEST");
     }
 }

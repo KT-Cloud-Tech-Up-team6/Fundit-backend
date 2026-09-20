@@ -47,7 +47,9 @@ class HttpOrderFundingClientUnitTest {
                           "finalAmount": 89000,
                           "orderName": "테스트 주문",
                           "couponIssuanceId": 7,
-                          "fundingPublicId": "%s"
+                          "fundingPublicId": "%s",
+                          "shippingFee": 3000,
+                          "discountAmount": 2000
                         }
                         """.formatted(memberId, sellerId, new UUID(2L, 1024L)), MediaType.APPLICATION_JSON));
 
@@ -60,6 +62,8 @@ class HttpOrderFundingClientUnitTest {
         assertThat(snapshot.orderName()).isEqualTo("테스트 주문");
         assertThat(snapshot.couponIssuanceId()).isEqualTo(7L);
         assertThat(snapshot.fundingPublicId()).isEqualTo(new UUID(2L, 1024L));
+        assertThat(snapshot.shippingFee()).isEqualTo(3_000L);
+        assertThat(snapshot.discountAmount()).isEqualTo(2_000L);
         server.verify();
     }
 
@@ -88,7 +92,9 @@ class HttpOrderFundingClientUnitTest {
                           "finalAmount": 89000,
                           "orderName": "테스트 주문",
                           "couponIssuanceId": null,
-                          "fundingPublicId": "%s"
+                          "fundingPublicId": "%s",
+                          "shippingFee": 0,
+                          "discountAmount": 0
                         }
                         """.formatted(memberId, UUID.randomUUID(), orderId), MediaType.APPLICATION_JSON));
 
