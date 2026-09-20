@@ -33,6 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
 class FundingStoryControllerAdditionalTest {
 
+    private static final String INTERNAL_KEY = "test-only-internal-api-key";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -61,37 +63,43 @@ class FundingStoryControllerAdditionalTest {
                 .thenReturn(new PublicRunResponse(runId, "succeeded",
                         new PublicStoryResult(null, List.of()), List.of(), null));
 
-        mockMvc.perform(get("/api/v1/ai/sessions/latest")
+                mockMvc.perform(get("/api/v1/ai/sessions/latest")
                         .header("X-User-Id", sellerId)
-                        .header("X-Project-Id", projectId))
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.session_id").value(sessionId.toString()));
-        mockMvc.perform(get("/api/v1/ai/sessions/{sessionId}", sessionId)
+                mockMvc.perform(get("/api/v1/ai/sessions/{sessionId}", sessionId)
                         .header("X-User-Id", sellerId)
-                        .header("X-Project-Id", projectId))
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.revision").value(2));
-        mockMvc.perform(post("/api/v1/ai/sessions/{sessionId}/start", sessionId)
+                mockMvc.perform(post("/api/v1/ai/sessions/{sessionId}/start", sessionId)
                         .header("X-User-Id", sellerId)
-                        .header("X-Project-Id", projectId))
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.chat_id").value(chatId.toString()));
         mockMvc.perform(post("/api/v1/ai/sessions/{sessionId}/messages", sessionId)
                         .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("{\"message_id\":\"m-1\",\"revision\":2,\"text\":\"답변\"}"))
                 .andExpect(status().isAccepted());
         mockMvc.perform(post("/api/v1/ai/sessions/{sessionId}/confirm", sessionId)
                         .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType("application/json")
                         .content("{\"revision\":2}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.confirmed_revision").value(2));
-        mockMvc.perform(get("/api/v1/ai/runs/{runId}", runId)
+                mockMvc.perform(get("/api/v1/ai/runs/{runId}", runId)
                         .header("X-User-Id", sellerId)
-                        .header("X-Project-Id", projectId))
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("succeeded"));
     }
@@ -106,9 +114,10 @@ class FundingStoryControllerAdditionalTest {
                         new java.io.ByteArrayInputStream("data: ready\n\n".getBytes()),
                         () -> { }));
 
-        mockMvc.perform(get("/api/v1/ai/chats/{chatId}/events", chatId)
+                mockMvc.perform(get("/api/v1/ai/chats/{chatId}/events", chatId)
                 .header("X-User-Id", sellerId)
-                        .header("X-Project-Id", projectId))
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk());
     }
 }
