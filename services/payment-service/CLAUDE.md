@@ -156,7 +156,7 @@ dependencies {
 판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출, 반품비 차감 시 부분취소(취소금액 < `payments.amount`면 `is_full_refund=false`) → 완료 시 `RefundCompleted(fundingId, couponIssuanceId, POST_SUCCESS_DEFECT, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
 
 ### PAYMENT-008 `POST /api/v1/refunds/shipping-delay`
-FS-096 판정 결과(`FulfillmentDelayed`) 확인 후 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409).
+`ShippingStatusClient.fetch()`로 `isAlreadyShipped`/`isDelayed`를 함께 확인한 뒤 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409). 미발송이어도 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422).
 
 ### PAYMENT-009 `GET /api/v1/settlements/{settlementBatchId}`
 본인(해당 메이커) 배치만 조회 가능(403). `gross_amount`/`platform_fee_amount`(3%)/`coupon_deduction_amount`/`refund_deduction_amount`/`total_amount`와, `OrderSettlementAggregateClient`로 조회한 리워드·옵션별 판매 수량·금액(`lineItems`)을 합성해 응답.
@@ -255,6 +255,7 @@ public PaymentCreateResponse create(@LoginUser CurrentUser user, @Valid @Request
 | `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 서명 검증 실패 |
 | `EVIDENCE_REQUIRED` / `REASON_REQUIRED` | 400 | 하자환불 신청/반려 시 필수값 누락 |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송됨 |
+| `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 기간(7일) 경과 |
 | `UNSUPPORTED_MEDIA_TYPE` | 400 | 증빙 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반(F09) |
 | `MEDIA_TOO_LARGE` | 400 | 증빙 업로드 주소 발급 시 용량 제한(10MB) 초과(F09) |

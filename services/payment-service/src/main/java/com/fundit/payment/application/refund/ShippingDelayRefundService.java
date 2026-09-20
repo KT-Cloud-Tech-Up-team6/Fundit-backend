@@ -31,8 +31,12 @@ public class ShippingDelayRefundService {
         if (!payment.isOwnedBy(accountId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
-        if (shippingStatusClient.fetch(fundingId).isAlreadyShipped()) {
+        ShippingStatusClient.ShippingStatus status = shippingStatusClient.fetch(fundingId);
+        if (status.isAlreadyShipped()) {
             throw new BusinessException(PaymentErrorCode.ALREADY_SHIPPED);
+        }
+        if (!status.isDelayed()) {
+            throw new BusinessException(PaymentErrorCode.NOT_YET_DELAYED);
         }
 
         RefundExecutionService.RefundExecutionResult result = refundExecutionService

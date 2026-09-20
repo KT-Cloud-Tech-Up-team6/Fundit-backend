@@ -144,7 +144,7 @@
 - **대분류**: 소비자
 - **보안/권한 고려사항**: [S4] 본인 주문만 신청 가능, orderId 조작 차단 — `@LoginUser CurrentUser`
 - **소분류**: 발송지연 결제취소 신청
-- **예외 처리**: 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) → `ALREADY_SHIPPED`(409), 취소 불가 안내+배송현황 확인 유도
+- **예외 처리**: 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) → `ALREADY_SHIPPED`(409), 취소 불가 안내+배송현황 확인 유도 / 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422)
 - **요구사항**: 발송 지연을 사유로 결제 취소를 신청한다
 - **우선순위**: MVP
 - **입력값**: fundingId. 호출자 식별은 `@LoginUser CurrentUser`
