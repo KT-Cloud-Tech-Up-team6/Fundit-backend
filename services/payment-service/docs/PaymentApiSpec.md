@@ -305,8 +305,8 @@
 ```
 
 - **Response 201 Created**: `{ "disputeId": 12, "status": "RECEIVED" }`
-- **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류)
-- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404)
+- **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류). 이의신청 기산일은 배치 유형별로 다르다 — 선정산(INTERIM)은 배치 생성일(`createdAt`), 최종정산(FINAL)은 배치에 속한 펀딩들의 실제 배송완료일(fulfillment-service `ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 가장 늦은 값 + 14일
+- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404), `DEPENDENCY_FAILURE`(503, 최종정산인데 배송완료일 확인 불가)
 
 ---
 

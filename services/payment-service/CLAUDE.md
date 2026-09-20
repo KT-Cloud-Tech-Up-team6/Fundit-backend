@@ -163,7 +163,7 @@ dependencies {
 PDF/엑셀 등 파일 생성 후 다운로드 URL 또는 파일 스트림 반환. 파일 생성 라이브러리는 팀 컨벤션 없으니 신규 결정 필요[정책 확인 필요].
 
 ### PAYMENT-011 `POST /api/v1/settlements/{settlementBatchId}/disputes`
-발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
+발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 발송일은 배치 유형별로 다르다 — INTERIM은 `createdAt`, FINAL은 배치에 속한 펀딩들의 실제 배송완료일(`ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 최신값+14일(`SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY`). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
 
 ---
 
