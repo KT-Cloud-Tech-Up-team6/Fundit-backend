@@ -1,23 +1,35 @@
 package com.fundit.project.application.ai;
 
-import com.fundit.project.application.media.MediaCategory;
-import com.fundit.project.application.media.MediaUrlValidator;
-import com.fundit.project.domain.aifundingstory.FundingStoryImageSource;
-import com.fundit.project.domain.aifundingstory.FundingStoryResult;
-import com.fundit.project.domain.aifundingstory.FundingStorySection;
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.ai.FundingStoryAiContracts.CategoryFact;
+import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryContext;
+import com.fundit.project.application.ai.FundingStoryAiContracts.GeneratedBody;
+import com.fundit.project.application.ai.FundingStoryAiContracts.GeneratedContentBlock;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectFact;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.SuccessfulImage;
+import com.fundit.project.application.media.MediaStorageClient;
+import com.fundit.project.application.project.ProjectIndexEventPublisher;
+import com.fundit.project.application.project.SellerProfileClient;
 import com.fundit.project.domain.aifundingstory.FundingStorySession;
 import com.fundit.project.domain.aifundingstory.FundingStorySessionRepository;
-import com.fundit.project.domain.aifundingstory.FundingStorySessionStatus;
 import com.fundit.project.domain.project.IntroContentBlock;
-import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.domain.reward.RewardRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,8 +38,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,151 +48,150 @@ class FundingStoryServiceUnitTest {
     @Mock
     private ProjectRepository projectRepository;
     @Mock
+    private RewardRepository rewardRepository;
+    @Mock
     private FundingStorySessionRepository sessionRepository;
     @Mock
     private FundingStoryAiClient fundingStoryAiClient;
     @Mock
-    private MediaUrlValidator mediaUrlValidator;
+    private FundingStoryContextFactory contextFactory;
+    @Mock
+    private MediaStorageClient storageClient;
+    @Mock
+    private ProjectIndexEventPublisher projectIndexEventPublisher;
+    @Mock
+    private SellerProfileClient sellerProfileClient;
 
     @InjectMocks
     private FundingStoryService fundingStoryService;
 
+    @Test
+    void 세션을_생성하면_AI_ID와_Core_fingerprint를_기존_테이블에_추적한다() {
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStoryContext context = new FundingStoryContext(
+                new ProjectFact("SOLE", new CategoryFact("테크", "가전"), "프로젝트", 1_000_000L),
+                List.of(), List.of());
+        SessionResponse aiResponse = new SessionResponse(
+                sessionId, 1, null, List.of(), List.of("story"), null, null);
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of());
+        when(contextFactory.create(project, List.of())).thenReturn(context);
+        when(contextFactory.fingerprint(project, List.of())).thenReturn("fingerprint");
+        when(fundingStoryAiClient.createSession(projectId, context)).thenReturn(aiResponse);
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.empty());
+        when(sessionRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SessionResponse response = fundingStoryService.createSession(sellerId, projectId);
+
+        assertThat(response).isEqualTo(aiResponse);
+        ArgumentCaptor<FundingStorySession> saved = ArgumentCaptor.forClass(FundingStorySession.class);
+        verify(sessionRepository).save(saved.capture());
+        assertThat(saved.getValue().isSessionTracker()).isTrue();
+        assertThat(saved.getValue().getCoreFingerprint()).isEqualTo("fingerprint");
+    }
+
+    @Test
+    void 객체검증에_실패한_슬롯은_부분성공으로_낮추고_유효한_결과만_반영한다() {
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession run = FundingStorySession.trackRun(runId, project.getId(), sellerId, UUID.randomUUID());
+        String validUrl = "https://bucket/projects/" + projectId + "/ai/valid.png";
+        String invalidUrl = "https://bucket/projects/" + projectId + "/ai/missing.png";
+        RunCompletionRequest request = new RunCompletionRequest(
+                "succeeded",
+                new GeneratedBody("hero", List.of(
+                        new GeneratedContentBlock("IMAGE", null, "hero"),
+                        new GeneratedContentBlock("IMAGE", null, "missing"),
+                        new GeneratedContentBlock("TEXT", "생성 본문", null))),
+                List.of(
+                        new SuccessfulImage("hero", validUrl, "image/png", 100L, 100, 100),
+                        new SuccessfulImage("missing", invalidUrl, "image/png", 100L, 100, 100)),
+                List.of(), null);
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(storageClient.extractKey(validUrl))
+                .thenReturn(Optional.of("projects/" + projectId + "/ai/valid.png"));
+        when(storageClient.extractKey(invalidUrl))
+                .thenReturn(Optional.of("projects/" + projectId + "/ai/missing.png"));
+        when(storageClient.headObject("projects/" + projectId + "/ai/valid.png"))
+                .thenReturn(Optional.of(new MediaStorageClient.StoredObject(100L, "image/png")));
+        when(storageClient.headObject("projects/" + projectId + "/ai/missing.png"))
+                .thenReturn(Optional.empty());
+        when(projectRepository.save(project)).thenReturn(project);
+        when(sessionRepository.save(run)).thenReturn(run);
+
+        RunCompletionResponse response = fundingStoryService.completeRun(projectId, runId, request);
+
+        assertThat(response.status()).isEqualTo("partially_succeeded");
+        assertThat(project.getCoverImageUrl()).isEqualTo(validUrl);
+        assertThat(project.getIntroContent()).extracting(IntroContentBlock::value)
+                .containsExactly(validUrl, "생성 본문");
+        assertThat(run.getResult().failedSlots()).extracting("slotId").contains("missing");
+        verify(projectRepository).save(project);
+        verify(sessionRepository).save(run);
+    }
+
+    @Test
+    void 확인_후_Core가_변경되면_전체생성에_재확인을_요구한다() {
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession session = FundingStorySession.trackSession(
+                sessionId, project.getId(), sellerId, "confirmed-fingerprint");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of());
+        when(contextFactory.fingerprint(project, List.of())).thenReturn("changed-fingerprint");
+
+        assertThatThrownBy(() -> fundingStoryService.createRun(
+                sellerId, projectId, new PublicRunCreateRequest(sessionId, 2, "run-key")))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.CONFLICT);
+                    assertThat(error.getDetail()).isEqualTo(Map.of("action", "reconfirm_summary"));
+                });
+    }
+
+    @Test
+    void 완료_callback이_제한시간을_넘기면_BE가_run을_실패로_종료한다() {
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession run = FundingStorySession
+                .trackRun(runId, project.getId(), sellerId, UUID.randomUUID())
+                .toBuilder()
+                .createdAt(Instant.now().minusSeconds(31 * 60L))
+                .build();
+        ReflectionTestUtils.setField(fundingStoryService, "runCallbackTimeoutMinutes", 30L);
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(sessionRepository.save(run)).thenReturn(run);
+
+        PublicRunResponse response = fundingStoryService.getRun(sellerId, projectId, runId);
+
+        assertThat(response.status()).isEqualTo("failed");
+        assertThat(response.error().code()).isEqualTo("RUN_CALLBACK_TIMEOUT");
+        verify(sessionRepository).save(run);
+    }
+
     private Project ownedProject(UUID sellerId, UUID publicId) {
         return Project.builder()
-                .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
-                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-    }
-
-    @Test
-    void 세션_생성시_목_생성기가_즉시_완료처리한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID publicId = UUID.randomUUID();
-        Project project = ownedProject(sellerId, publicId);
-        FundingStoryResult result = new FundingStoryResult(
-                List.of(new FundingStorySection("INTRO", "제목", "본문", List.of())), List.of(), List.of());
-        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
-        when(sessionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(fundingStoryAiClient.generate(any(), any(), any())).thenReturn(result);
-
-        // when
-        FundingStorySession session = fundingStoryService.createSession(sellerId, publicId, "제품설명", null, null);
-
-        // then
-        assertThat(session.getStatus()).isEqualTo(FundingStorySessionStatus.COMPLETED);
-        assertThat(session.getResult().sections()).hasSize(1);
-    }
-
-    @Test
-    void 세션_생성시_전달된_이미지_URL을_전부_검증한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID publicId = UUID.randomUUID();
-        Project project = ownedProject(sellerId, publicId);
-        List<String> imageUrls = List.of("https://cdn/projects/" + publicId + "/a.jpg",
-                "https://cdn/projects/" + publicId + "/b.jpg");
-        FundingStoryResult result = new FundingStoryResult(List.of(), List.of(), List.of());
-        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
-        when(sessionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(fundingStoryAiClient.generate(any(), any(), any())).thenReturn(result);
-
-        // when
-        fundingStoryService.createSession(sellerId, publicId, "제품설명", imageUrls, null);
-
-        // then
-        for (String imageUrl : imageUrls) {
-            verify(mediaUrlValidator).validate(publicId, imageUrl, MediaCategory.IMAGE);
-        }
-    }
-
-    @Test
-    void 본인_세션을_조회한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID sessionId = UUID.randomUUID();
-        FundingStorySession session = FundingStorySession.builder()
-                .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(FundingStorySessionStatus.COMPLETED).build();
-        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
-
-        // when
-        FundingStorySession result = fundingStoryService.getSession(sellerId, sessionId);
-
-        // then
-        assertThat(result.getId()).isEqualTo(sessionId);
-    }
-
-    @Test
-    void OVERWRITE_모드는_기존_소개콘텐츠를_대체한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID sessionId = UUID.randomUUID();
-        FundingStoryResult result = new FundingStoryResult(
-                List.of(new FundingStorySection("INTRO", "제목", "새 본문", List.of())),
-                List.of(new FundingStoryImageSource("http://img", "UPLOADED")), List.of());
-        FundingStorySession session = FundingStorySession.builder()
-                .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(FundingStorySessionStatus.COMPLETED).result(result).build();
-        Project project = ownedProject(sellerId, UUID.randomUUID()).toBuilder()
-                .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "기존 본문")))
+                .id(1L)
+                .publicId(publicId)
+                .sellerId(sellerId)
+                .status(ProjectStatus.DRAFT)
+                .title("프로젝트")
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
                 .build();
-        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(projectRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        // when
-        Project applied = fundingStoryService.applyToProject(sellerId, sessionId, "OVERWRITE", Map.of());
-
-        // then
-        assertThat(applied.getIntroContent()).extracting(IntroContentBlock::value).containsExactly("새 본문");
-    }
-
-    @Test
-    void COPY_모드는_기존_소개콘텐츠_뒤에_추가한다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID sessionId = UUID.randomUUID();
-        FundingStoryResult result = new FundingStoryResult(
-                List.of(new FundingStorySection("INTRO", "제목", "새 본문", List.of())), List.of(), List.of());
-        FundingStorySession session = FundingStorySession.builder()
-                .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(FundingStorySessionStatus.COMPLETED).result(result).build();
-        Project project = ownedProject(sellerId, UUID.randomUUID()).toBuilder()
-                .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "기존 본문")))
-                .build();
-        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(projectRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        // when
-        Project applied = fundingStoryService.applyToProject(sellerId, sessionId, "COPY", Map.of());
-
-        // then
-        assertThat(applied.getIntroContent()).extracting(IntroContentBlock::value).containsExactly("기존 본문", "새 본문");
-    }
-
-    @Test
-    void 반영시_IMAGE_블록만_미디어_URL_검증을_거친다() {
-        // given
-        UUID sellerId = UUID.randomUUID();
-        UUID sessionId = UUID.randomUUID();
-        UUID publicId = UUID.randomUUID();
-        String imageUrl = "https://cdn/projects/" + publicId + "/generated.jpg";
-        FundingStoryResult result = new FundingStoryResult(
-                List.of(new FundingStorySection("INTRO", "제목", "새 본문", List.of(imageUrl))), List.of(), List.of());
-        FundingStorySession session = FundingStorySession.builder()
-                .id(sessionId).projectId(1L).sellerId(sellerId).productDescription("설명")
-                .status(FundingStorySessionStatus.COMPLETED).result(result).build();
-        Project project = ownedProject(sellerId, publicId);
-        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
-        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(projectRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        // when
-        fundingStoryService.applyToProject(sellerId, sessionId, "OVERWRITE", Map.of());
-
-        // then — TEXT 블록("새 본문")은 검증 대상이 아니고, IMAGE 블록만 검증한다
-        verify(mediaUrlValidator).validate(publicId, imageUrl, MediaCategory.IMAGE);
-        verify(mediaUrlValidator, never()).validate(publicId, "새 본문", MediaCategory.IMAGE);
     }
 }
