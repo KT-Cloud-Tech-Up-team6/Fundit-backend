@@ -68,7 +68,7 @@ class FundingStoryControllerAdditionalTest {
                         .header("X-Project-Id", projectId)
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.session_id").value(sessionId.toString()));
+                .andExpect(jsonPath("$.session.session_id").value(sessionId.toString()));
                 mockMvc.perform(get("/api/v1/ai/sessions/{sessionId}", sessionId)
                         .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId)
