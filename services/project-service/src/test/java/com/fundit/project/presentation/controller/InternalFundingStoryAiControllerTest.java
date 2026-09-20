@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,10 +39,10 @@ class InternalFundingStoryAiControllerTest {
     void AI_업로드_대상_발급과_완료_callback을_내부계약으로_노출한다() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID runId = UUID.randomUUID();
-        when(fundingStoryService.createUploadTargets(eqProject(projectId), any(UploadTargetsRequest.class)))
+        when(fundingStoryService.createUploadTargets(eq(projectId), any(UploadTargetsRequest.class)))
                 .thenReturn(new UploadTargetsResponse(List.of(new UploadTarget(
                         "hero", "https://upload", "https://file", Instant.EPOCH))));
-        when(fundingStoryService.completeRun(eqProject(projectId), eqRun(runId), any()))
+        when(fundingStoryService.completeRun(eq(projectId), eq(runId), any()))
                 .thenReturn(new RunCompletionResponse(runId, "succeeded"));
 
         mockMvc.perform(post("/internal/ai/media/upload-targets")
@@ -59,11 +60,4 @@ class InternalFundingStoryAiControllerTest {
                 .andExpect(jsonPath("$.status").value("succeeded"));
     }
 
-    private UUID eqProject(UUID value) {
-        return value;
-    }
-
-    private UUID eqRun(UUID value) {
-        return value;
-    }
 }

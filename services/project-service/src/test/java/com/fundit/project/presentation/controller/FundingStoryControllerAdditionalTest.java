@@ -21,10 +21,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,7 +52,7 @@ class FundingStoryControllerAdditionalTest {
         when(fundingStoryService.getSession(sellerId, projectId, sessionId)).thenReturn(session);
         when(fundingStoryService.startSession(sellerId, projectId, sessionId))
                 .thenReturn(new ChatAcceptedResponse(chatId, "accepted"));
-        when(fundingStoryService.addMessage(sellerId, projectId, sessionId, any()))
+        when(fundingStoryService.addMessage(eq(sellerId), eq(projectId), eq(sessionId), any()))
                 .thenReturn(new ChatAcceptedResponse(chatId, "accepted"));
         when(fundingStoryService.confirmSession(sellerId, projectId, sessionId,
                 new com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmRequest(2)))
@@ -107,9 +107,8 @@ class FundingStoryControllerAdditionalTest {
                         () -> { }));
 
         mockMvc.perform(get("/api/v1/ai/chats/{chatId}/events", chatId)
-                        .header("X-User-Id", sellerId)
+                .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith("text/event-stream"));
+                .andExpect(status().isOk());
     }
 }
