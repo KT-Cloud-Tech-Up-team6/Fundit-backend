@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,4 +56,8 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
             where p.publicId in :publicIds and p.deletedAt is null
             """)
     List<ProjectSummaryProjection> findSummariesByPublicIdIn(@Param("publicIds") List<UUID> publicIds);
+
+    /** FundingDeadlineWatcher 배치 대상 — 마감이 지났는데 아직 통지하지 않은 진행중 프로젝트. */
+    List<ProjectJpaEntity> findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNull(
+            String status, Instant now);
 }

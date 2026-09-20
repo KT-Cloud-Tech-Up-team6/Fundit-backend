@@ -37,6 +37,8 @@ public class Project {
     private final Instant createdAt;
     private Instant updatedAt;
     private Instant deletedAt;
+    /** 펀딩 마감 감시(FundingDeadlineWatcher)가 project.funding-deadline-reached.v1을 중복 발행하지 않도록 남기는 표시. */
+    private Instant deadlineNotifiedAt;
 
     public boolean isDeleted() {
         return deletedAt != null;
@@ -103,5 +105,10 @@ public class Project {
         this.status = ProjectStatus.ONGOING;
         this.fundingStartAt = fundingStartAt;
         this.fundingDeadline = fundingDeadline;
+    }
+
+    /** FundingDeadlineWatcher 전용 — 마감 도래를 이미 통지했음을 표시해 중복 발행을 막는다. */
+    public void markDeadlineNotified() {
+        this.deadlineNotifiedAt = Instant.now();
     }
 }

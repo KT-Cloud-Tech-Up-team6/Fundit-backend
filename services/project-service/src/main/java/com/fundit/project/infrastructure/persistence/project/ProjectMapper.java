@@ -31,6 +31,7 @@ class ProjectMapper {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .deletedAt(entity.getDeletedAt())
+                .deadlineNotifiedAt(entity.getDeadlineNotifiedAt())
                 .build();
     }
 
@@ -52,6 +53,7 @@ class ProjectMapper {
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
                 .deletedAt(domain.getDeletedAt())
+                .deadlineNotifiedAt(domain.getDeadlineNotifiedAt())
                 .build();
     }
 
