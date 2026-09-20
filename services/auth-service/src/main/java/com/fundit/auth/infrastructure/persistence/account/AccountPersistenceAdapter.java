@@ -68,7 +68,7 @@ public class AccountPersistenceAdapter implements AccountRepository {
     /** 해시가 같은 계정이 여러 개면 가장 최근 가입한 계정을 쓴다({@code AccountJpaRepository} 참고). */
     @Override
     public Optional<Account> findByNameAndPhone(String name, String phoneNumber) {
-        return jpaRepository.findByPhoneHashAndNameHashOrderByCreatedAtDesc(
+        return jpaRepository.findByPhoneHashAndNameHashOrderByCreatedAtDescIdDesc(
                         blindIndex.of(BlindIndex.LABEL_PHONE, phoneNumber),
                         blindIndex.of(BlindIndex.LABEL_NAME, name))
                 .stream().findFirst()

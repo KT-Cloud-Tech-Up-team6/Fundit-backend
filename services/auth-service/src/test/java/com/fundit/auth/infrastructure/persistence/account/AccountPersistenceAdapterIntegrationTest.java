@@ -4,6 +4,7 @@ import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.auth.infrastructure.security.JwtTestKeys;
+import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,22 @@ class AccountPersistenceAdapterIntegrationTest {
 
     @Autowired private AccountRepository accountRepository;
     @Autowired private EntityManager entityManager;
+
+    /** 시간순 UUID(id)만 다르고 나머지는 전부 같은 계정. tie-break 테스트 전용. */
+    private Account accountAt(String email, Instant createdAt) {
+        return Account.builder()
+                .id(UuidCreator.getTimeOrderedEpoch())
+                .email(email)
+                .verifiedName("김펀딧")
+                .verifiedPhoneNumber("010-1234-5678")
+                .passwordHash("bcrypt-hash")
+                .role(Role.MEMBER)
+                .failedLoginCount(0)
+                .mustChangePassword(false)
+                .createdAt(createdAt)
+                .updatedAt(createdAt)
+                .build();
+    }
 
     private Account newAccount(String email) {
         Instant now = Instant.now();
@@ -150,15 +167,22 @@ class AccountPersistenceAdapterIntegrationTest {
         // 같은 사람이 이메일만 바꿔 두 번 가입하면 phone_hash·name_hash가 같은 계정이 2개
         // 생기는데, Optional 반환 파생 쿼리였다면 여기서 IncorrectResultSizeDataAccessException이
         // 났다(실제로 재현되던 버그).
-        accountRepository.save(newAccount("first@fundit.com"));
-        Account second = accountRepository.save(newAccount("second@fundit.com"));
+        //
+        // createdAt을 일부러 동일하게 맞춘다 — 실제 타이밍에 기대면 우연히 갈린 것을
+        // "결정적으로 동작한다"고 착각하기 쉽다. id는 실제 코드와 같은
+        // UuidCreator.getTimeOrderedEpoch()로 만들어 2차 정렬(id DESC)이 진짜 가입 순서와
+        // 일치하는 상황을 재현한다.
+        Instant sameInstant = Instant.now();
+        Account first = accountRepository.save(accountAt("first@fundit.com", sameInstant));
+        Account second = accountRepository.save(accountAt("second@fundit.com", sameInstant));
         entityManager.flush();
         entityManager.clear();
 
         // when — 예외 없이 하나를 돌려줘야 한다
         var found = accountRepository.findByNameAndPhone("김펀딧", "01012345678");
 
-        // then — 가장 최근(나중에 저장한) 계정을 고른다
+        // then — createdAt이 같으므로 id(시간순 UUID)로 갈리고, 나중에 생성된 쪽이 이긴다
+        assertThat(second.getId()).isGreaterThan(first.getId());
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isEqualTo(second.getId());
     }

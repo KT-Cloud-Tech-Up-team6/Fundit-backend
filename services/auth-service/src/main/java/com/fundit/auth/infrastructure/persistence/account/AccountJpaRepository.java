@@ -29,8 +29,13 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, UU
      * {@code IncorrectResultSizeDataAccessException}을 던져 두 API가 500이 된다.
      * 가장 최근 계정을 고르는 선택은 {@code AccountPersistenceAdapter}가 한다 — 중복 가입 자체를
      * 막을지는 별도 정책 결정이라 이 조회는 "있는 것 중 하나를 안전하게 고른다"까지만 한다.
+     *
+     * <p>2차 정렬로 {@code id DESC}를 더한다. 같은 밀리초에 두 계정이 생기면 {@code createdAt}만으론
+     * 동률이 나올 수 있는데, id는 전부 {@code UuidCreator.getTimeOrderedEpoch()}로 만들어져
+     * ({@code SignupService}, {@code SocialSignupService}) 값 자체가 생성 시각 순서를 보장한다 —
+     * 임의 타이브레이커가 아니라 실제 가입 순서다.
      */
-    List<AccountJpaEntity> findByPhoneHashAndNameHashOrderByCreatedAtDesc(String phoneHash, String nameHash);
+    List<AccountJpaEntity> findByPhoneHashAndNameHashOrderByCreatedAtDescIdDesc(String phoneHash, String nameHash);
 
     Optional<AccountJpaEntity> findBySocialProviderAndSocialId(String socialProvider, String socialId);
 
