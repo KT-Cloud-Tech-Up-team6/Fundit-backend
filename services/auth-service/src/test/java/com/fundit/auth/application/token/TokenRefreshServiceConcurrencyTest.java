@@ -2,6 +2,7 @@ package com.fundit.auth.application.token;
 
 import com.fundit.auth.domain.account.Role;
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaEntity;
+import com.fundit.auth.infrastructure.security.AesGcmCipher;
 import com.fundit.auth.infrastructure.persistence.account.AccountJpaRepository;
 import com.fundit.auth.infrastructure.persistence.refreshtoken.RefreshTokenJpaRepository;
 import com.fundit.auth.infrastructure.security.JwtTestKeys;
@@ -40,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 // application-local.yml이 없어(.gitignore 대상) 이 값들이 미해석 상태로 컨텍스트 로딩이
 // PlaceholderResolutionException으로 실패한다(CI에서 재현됨).
 @TestPropertySource(properties = {
+        "auth.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "member-service.base-url=http://localhost:8082",
         "internal-api.key=test-only-internal-api-key"
 })
@@ -62,6 +64,8 @@ class TokenRefreshServiceConcurrencyTest {
     private AccountJpaRepository accountJpaRepository;
     @Autowired
     private RefreshTokenJpaRepository refreshTokenJpaRepository;
+    @Autowired
+    private AesGcmCipher cipher;
 
     @Test
     void 같은_refresh_token이_동시에_재사용되면_해당_계정의_모든_토큰이_무효화된다() throws Exception {
@@ -69,7 +73,10 @@ class TokenRefreshServiceConcurrencyTest {
         UUID accountId = UUID.randomUUID();
         accountJpaRepository.save(AccountJpaEntity.builder()
                 .id(accountId)
-                .email(accountId + "@fundit.com")
+                // 평문을 넣으면 읽을 때 복호화가 실패한다 — 이 컬럼은 암호문만 받는다.
+                .email(cipher.encrypt(accountId + "@fundit.com"))
+                // 조회는 email_hash로 한다. 이 테스트는 토큰 회전만 보므로 해시 값은 아무거나.
+                .emailHash(accountId.toString().replace("-", ""))
                 .passwordHash("hash")
                 .role("member")
                 .build());

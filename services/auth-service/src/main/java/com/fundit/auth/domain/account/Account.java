@@ -20,6 +20,15 @@ public class Account {
 
     private final UUID id;
     private final String email;
+    /**
+     * 본인인증으로 확인된 이름·전화번호. 이메일 찾기(AUTH-009) 조회에만 쓴다.
+     *
+     * <p><b>저장되는 건 평문이 아니라 블라인드 인덱스 해시다</b> — 원문은 member-service 소관이고
+     * auth는 "찾을 수 있는가"만 필요하다. 해시는 되돌릴 수 없으므로 <b>DB에서 읽어온 Account의
+     * 이 두 필드는 항상 null이다.</b> 가입 시점에만 채워진다.
+     */
+    private final String verifiedName;
+    private final String verifiedPhoneNumber;
     private String passwordHash;
     // final이 아닌 이유: 자체가입 계정에 나중에 소셜 로그인을 붙일 수 있다(linkSocial).
     // passwordHash가 changePassword 때문에 final이 아닌 것과 같은 이유다.

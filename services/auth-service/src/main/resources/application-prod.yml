@@ -6,6 +6,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  data:
+    redis:
+      # 본인확인 상태(RedisIdentityVerificationStore)와 소셜 pending token
+      # (RedisSocialTokenStore) 저장소. 이 블록이 없으면 Lettuce가 localhost:6379로 붙는데,
+      # 지연 연결이라 기동은 성공하고 회원가입·소셜 로그인 시점에 터진다.
+      # REDIS_HOST에 기본값을 두지 않아 미주입이면 기동 단계에서 잡힌다.
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
 
 jwt:
   private-key: ${JWT_PRIVATE_KEY}
@@ -36,3 +44,19 @@ oauth:
     client-id: ${GOOGLE_CLIENT_ID}
     client-secret: ${GOOGLE_CLIENT_SECRET}
     redirect-uri: ${GOOGLE_REDIRECT_URI}
+
+auth:
+  encryption:
+    # 개인정보 컬럼 암호화 키(Base64 AES-256, 32바이트). 조회용 블라인드 인덱스도 같은 키를 쓴다.
+    # 기본값을 두지 않는다 — 미설정이면 기동이 실패해야 한다. 임시 키로 흘러가면 기존 데이터를
+    # 복호화하지 못하고, 그 사실을 저장 시점이 아니라 조회 시점에 알게 된다.
+    key: ${AUTH_ENCRYPTION_KEY}
+
+password-reset:
+  # 메일에 실을 프론트 링크. `%s` 자리에 토큰이 들어간다.
+  url-template: ${PASSWORD_RESET_URL_TEMPLATE}
+
+mail:
+  # 기본값을 두지 않는다 — 미설정이면 기동이 실패해야 한다. 스텁으로 흘러가면
+  # 재설정 메일이 로그에만 찍히고 사용자는 영영 못 받는다.
+  mode: ${MAIL_MODE}

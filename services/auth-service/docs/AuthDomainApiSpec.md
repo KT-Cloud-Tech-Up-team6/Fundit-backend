@@ -15,8 +15,10 @@
 | POST | `/api/v1/auth/login` | X | 일반 로그인 |
 | POST | `/api/v1/auth/login/social` | X | 소셜 로그인 |
 | POST | `/api/v1/auth/token/refresh` | X (Refresh Token 쿠키가 인증 수단) | Access Token 재발급 |
-| POST | `/api/v1/auth/find-email` | X | 이메일 찾기 |
+| POST | `/api/v1/auth/find-email` | X | 이메일 찾기 1단계 — 마스킹 |
+| POST | `/api/v1/auth/find-email/reveal` | X | 이메일 찾기 2단계 — 전문 공개 |
 | POST | `/api/v1/auth/reset-password` | X | 비밀번호 재설정 링크 발송 |
+| POST | `/api/v1/auth/reset-password/confirm` | X | 재설정 링크로 비밀번호 변경 |
 | POST | `/api/v1/auth/reset-password/confirm` | X (재설정 토큰이 인증 수단) | 재설정 토큰으로 비밀번호 설정 |
 | PATCH | `/api/v1/auth/password` | O | 비밀번호 변경(마이페이지, 로그인 상태) |
 | GET | `/api/v1/auth/jwks` | X | 토큰 서명 검증용 공개키(JWKS) — 게이트웨이 전용 |
@@ -365,7 +367,12 @@ Validation / Business Rules
 
 ---
 
-### 이메일 찾기 (AUTH-009)
+### 이메일 찾기 (AUTH-009) — 2단계
+
+> ⚠️ **초안에서 흐름이 바뀌었다.** 초안은 "본인인증 먼저 → 마스킹 이메일을 SMS로만 전달"이었으나,
+> 화면(피그마)이 **인증 전에 마스킹 이메일을 보여주고 인증 후 전문을 공개**하는 흐름이라 그에 맞췄다.
+
+#### 1단계 — 마스킹 조회 (본인인증 전)
 
 ```
 POST /api/v1/auth/find-email
@@ -377,22 +384,40 @@ Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
+| `name` | String | Y | 이름 |
 | `phoneNumber` | String | Y | 휴대전화번호 |
-| `verificationToken` | String | Y | 휴대폰 인증 완료 토큰 |
 
 Response Body
 
 ```json
-{
-  "message": "가입된 계정이 있다면 SMS로 안내해드립니다."
-}
+{ "maskedEmail": "1234q***@gmail.com" }
+```
+
+#### 2단계 — 전문 공개 (본인인증 후)
+
+```
+POST /api/v1/auth/find-email/reveal
+```
+
+Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `verificationToken` | String | Y | `POST /identity-verifications`가 발급한 본인인증 완료 토큰 |
+
+```json
+{ "email": "1234qwer@gmail.com" }
 ```
 
 Validation / Business Rules
 
-- 계정 존재 여부와 무관하게 항상 동일한 응답을 반환(계정 존재 여부 노출 방지).
-- 실제 마스킹된 이메일은 SMS로만 전달, API 응답 바디에는 포함하지 않음.
-- `verificationToken` 검증 실패 시 401.
+- **마스킹 규칙**: 로컬파트 **뒤 3자를 `***`**, 도메인은 그대로. `1234qwer@gmail.com` → `1234q***@gmail.com`. 로컬파트가 4자 미만이면 통째로 가린다(`ab@x.com` → `***@x.com`). *짧은 주소 규칙은 미확정 — 현재 동작이 잠정 기본값이다.*
+- 1단계는 가입 계정이 없어도 `200`이고 `maskedEmail`만 `null`이다 — 응답 **형태**는 계정 유무와 무관하게 같다.
+- ⚠️ **1단계는 계정 존재 여부를 드러낸다.** 마스킹 이메일을 화면에 보여주는 게 요구사항이라 피할 수 없고, `CLAUDE.md`의 anti-enumeration 원칙과 충돌하는 유일한 지점이다. 대신 전화번호 기준 **10분 5회** 시도 제한을 둔다(초과 시 `429`). 제한 카운터 키에는 번호 원문이 아니라 블라인드 인덱스 해시를 쓴다.
+- **2단계는 이름·전화번호를 본문으로 받지 않는다.** 본인인증 토큰에 실린 값으로만 조회한다 — 본문으로 받으면 1단계에서 알아낸 남의 번호에 자기 인증 토큰을 붙여 전문을 꺼낼 수 있다.
+- `verificationToken`은 1회용이다. 검증 실패·재사용 모두 `401`.
+- 본인인증을 통과했는데 가입 계정이 없으면 `404`다 — 그 번호의 소유자임이 확인된 사람에게 답하는 것이라 열거가 아니다.
+- 조회는 `accounts.phone_hash`·`name_hash`(HMAC-SHA256)로 한다. auth가 전화번호 원문을 보관하지 않고도 찾을 수 있게 한 것이며, member-service에 "번호 → 계정"을 묻지 않는다(그 방향은 member가 명시적으로 거부한다).
 
 ---
 
@@ -408,22 +433,39 @@ Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
+| `name` | String | Y | 이름 |
+| `phoneNumber` | String | Y | 휴대전화번호 |
 | `email` | String | Y | 이메일 |
 
 Response Body
 
 ```json
 {
-  "message": "가입된 이메일이 있다면 재설정 링크를 보내드립니다."
+  "message": "입력하신 정보와 일치하는 계정이 있다면 재설정 링크를 보내드립니다."
 }
 ```
 
+그리고 링크로 새 비밀번호를 설정한다.
+
+```
+POST /api/v1/auth/reset-password/confirm
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `token` | String | Y | 메일 링크의 토큰(UUID) |
+| `newPassword` | String | Y | 새 비밀번호(가입·변경과 같은 복잡도 규칙) |
+
 Validation / Business Rules
 
-- 계정 존재 여부와 무관하게 항상 동일한 응답을 반환(계정 존재 여부 노출 방지).
-- 이메일로 계정 조회 후 재설정 토큰 생성(단기 만료·1회용, `password_reset_tokens` 테이블 — `refresh_tokens`와 동일 패턴).
-- 재설정 링크(프론트 URL + 토큰)를 이메일로 발송.
-- [가정] SMS 본인인증 단계 없이 이메일 소유 확인만으로 진행 — "이메일 링크 클릭 = 본인"으로 간주. 이메일 찾기·회원가입과 달리 휴대폰 인증을 거치지 않는 이 지점만 보안 수준이 다르다는 점을 팀에서 인지하고 있을 것.
+- **세 값이 모두 일치할 때만 발송한다.** 초안은 이메일만 받았는데(아래 [가정] 참고), 세 값을 받는 쪽이 그 가정을 부분적으로 메운다.
+- 계정 존재 여부와 무관하게 항상 동일한 응답을 반환. 이메일 찾기 1단계와 달리 **돌려주는 내용이 없어** 완전히 같은 응답을 유지할 수 있다.
+- 재설정 토큰은 단기 만료(30분)·1회용. `password_reset_tokens` 테이블을 쓰며 `refresh_tokens`와 동일 패턴이다.
+- **확인과 폐기가 `DELETE ... RETURNING` 한 문장**이다 — 나누면 같은 링크를 동시에 두 번 눌렀을 때 둘 다 통과한다. 두 번째 사용은 `401`, 형식이 깨진 토큰도 같은 `401`이다(형식 오류를 400으로 구분하면 토큰 생김새를 알려주는 셈이다).
+- **재발급 시 이전 토큰을 전부 지운다** — 메일함에 쌓인 옛 링크가 계속 살아있으면 안 된다.
+- **비밀번호를 바꾸면 그 계정의 refresh token을 전부 지운다** — 바꾸는 이유가 탈취 의심인데 기존 세션이 살아 있으면 바꾼 의미가 없다.
+- [가정] 여전히 SMS 본인인증 단계는 거치지 않는다 — "이메일 링크 클릭 = 본인"으로 간주하되, 이름·전화번호 일치를 추가 조건으로 둔다.
+- 🔴 **메일 발송 인프라가 아직 없다.** `MailSender` 포트와 `LoggingMailSender` 스텁만 있고 실제 발송은 안 된다. SES/SMTP가 정해지면 구현체만 추가한다. 운영 프로필은 `mail.mode`에 기본값이 없어 **미설정이면 기동이 실패**한다.
 - 이메일 발송 실패 시 503.
 
 ---

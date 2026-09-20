@@ -31,7 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
+@TestPropertySource(properties = {
+        "member.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
+        "internal-api.key=test-only-internal-api-key"})
 @Transactional
 class WishJpaRepositoryIntegrationTest {
 
