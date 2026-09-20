@@ -30,8 +30,14 @@ public class AesGcmCipher {
     private final SecretKeySpec secretKey;
     private final SecureRandom random = new SecureRandom();
 
+    /** 32바이트가 아닌 키는 여기서 기동을 실패시킨다 — 그냥 두면 첫 암호화 호출 때야 터진다. */
     public AesGcmCipher(@Value("${member.encryption.key}") String base64Key) {
-        this.secretKey = new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
+        byte[] keyBytes = Base64.getDecoder().decode(base64Key);
+        if (keyBytes.length != 32) {
+            throw new IllegalStateException(
+                    "member.encryption.key는 AES-256용 32바이트 키여야 합니다(현재 %d바이트).".formatted(keyBytes.length));
+        }
+        this.secretKey = new SecretKeySpec(keyBytes, "AES");
     }
 
     public String encrypt(String plainText) {

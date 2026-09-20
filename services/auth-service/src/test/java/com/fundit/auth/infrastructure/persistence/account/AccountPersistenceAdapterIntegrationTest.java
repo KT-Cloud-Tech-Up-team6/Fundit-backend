@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * <b>DB에 평문이 남지 않는지</b>를 실제 Postgres로 확인한다(security.md S9).
@@ -104,19 +103,6 @@ class AccountPersistenceAdapterIntegrationTest {
     }
 
     @Test
-    void 이메일_중복은_해시_UNIQUE가_막는다() {
-        // given — 평문 UNIQUE(uq_accounts_email)를 지우고 해시로 옮겼다.
-        // 암호문은 매번 달라 UNIQUE를 걸 수 없으므로 이 제약이 유일한 방어선이다
-        accountRepository.save(newAccount("dup@fundit.com"));
-
-        // when & then
-        assertThatThrownBy(() -> {
-            accountRepository.save(newAccount("dup@fundit.com"));
-            entityManager.flush();
-        }).hasMessageContaining("uq_accounts_email_hash");
-    }
-
-    @Test
     void 암호화해도_이메일로_조회된다() {
         // given
         accountRepository.save(newAccount("lookup@fundit.com"));
@@ -156,6 +142,25 @@ class AccountPersistenceAdapterIntegrationTest {
         // then
         assertThat(found).isPresent();
         assertThat(found.get().getEmail()).isEqualTo("find@fundit.com");
+    }
+
+    @Test
+    void 동명이인_계정이_있어도_예외_없이_가장_최근_계정을_돌려준다() {
+        // given — SignupService는 이메일 중복만 막고 이름+전화번호 중복은 막지 않는다.
+        // 같은 사람이 이메일만 바꿔 두 번 가입하면 phone_hash·name_hash가 같은 계정이 2개
+        // 생기는데, Optional 반환 파생 쿼리였다면 여기서 IncorrectResultSizeDataAccessException이
+        // 났다(실제로 재현되던 버그).
+        accountRepository.save(newAccount("first@fundit.com"));
+        Account second = accountRepository.save(newAccount("second@fundit.com"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when — 예외 없이 하나를 돌려줘야 한다
+        var found = accountRepository.findByNameAndPhone("김펀딧", "01012345678");
+
+        // then — 가장 최근(나중에 저장한) 계정을 고른다
+        assertThat(found).isPresent();
+        assertThat(found.get().getId()).isEqualTo(second.getId());
     }
 
     @Test

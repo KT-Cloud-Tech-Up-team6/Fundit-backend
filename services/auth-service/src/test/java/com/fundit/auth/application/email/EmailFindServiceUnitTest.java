@@ -51,8 +51,11 @@ class EmailFindServiceUnitTest {
         given(accountRepository.findByNameAndPhone("없는사람", "01000000000"))
                 .willReturn(Optional.empty());
 
-        // when & then
-        assertThat(emailFindService.findMasked("없는사람", "01000000000")).isNull();
+        // when
+        String masked = emailFindService.findMasked("없는사람", "01000000000");
+
+        // then
+        assertThat(masked).isNull();
     }
 
     @Test

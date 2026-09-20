@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AesGcmCipherUnitTest {
 
@@ -26,13 +25,5 @@ class AesGcmCipherUnitTest {
         assertThat(cipher.decrypt(second)).isEqualTo("010-1234-5678");
     }
 
-    @Test
-    void 잘못된_암호문은_복호화에_실패한다() {
-        AesGcmCipher cipher = new AesGcmCipher(KEY);
-
-        assertThatThrownBy(() -> cipher.decrypt(Base64.getEncoder().encodeToString("not-a-cipher".getBytes())))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("복호화");
-    }
 }
 

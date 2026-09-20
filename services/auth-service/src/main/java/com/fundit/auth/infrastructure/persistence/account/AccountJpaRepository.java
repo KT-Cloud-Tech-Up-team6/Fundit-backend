@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,8 +20,17 @@ public interface AccountJpaRepository extends JpaRepository<AccountJpaEntity, UU
 
     boolean existsByEmailHash(String emailHash);
 
-    /** 이메일 찾기(AUTH-009). 동명이인이 있을 수 있어 이름까지 같이 본다. */
-    Optional<AccountJpaEntity> findByPhoneHashAndNameHash(String phoneHash, String nameHash);
+    /**
+     * 이메일 찾기(AUTH-009)·비밀번호 재설정(AUTH-010) 조회용. 이름까지 같이 본다.
+     *
+     * <p><b>{@code List}인 이유</b>: 회원가입은 이메일 중복만 막고 이름+전화번호 중복은 막지
+     * 않는다({@code SignupService}). 같은 사람이 이메일만 바꿔 두 번 가입하면 해시가 같은 계정이
+     * 2개 생기는데, 여기가 {@code Optional}을 반환하면 결과가 2건일 때 Spring Data가
+     * {@code IncorrectResultSizeDataAccessException}을 던져 두 API가 500이 된다.
+     * 가장 최근 계정을 고르는 선택은 {@code AccountPersistenceAdapter}가 한다 — 중복 가입 자체를
+     * 막을지는 별도 정책 결정이라 이 조회는 "있는 것 중 하나를 안전하게 고른다"까지만 한다.
+     */
+    List<AccountJpaEntity> findByPhoneHashAndNameHashOrderByCreatedAtDesc(String phoneHash, String nameHash);
 
     Optional<AccountJpaEntity> findBySocialProviderAndSocialId(String socialProvider, String socialId);
 

@@ -24,8 +24,10 @@ import java.util.Locale;
  * <p>{@code label}로 용도를 분리한다 — 같은 전화번호라도 다른 용도면 다른 해시가 되어,
  * 한 컬럼의 해시를 다른 컬럼 조회에 갖다 쓸 수 없다.
  *
- * <p>키는 {@code auth.encryption.key}를 그대로 쓴다. 암호화용과 따로 두는 게 정석이지만
- * 운영에 주입할 비밀이 두 배가 되는 값을 못 하고, label이 용도 분리를 대신한다.
+ * <p><b>키는 {@code auth.encryption.key}에서 파생한다.</b> {@link AesGcmCipher}(AES-GCM)와
+ * 원본 키를 그대로 공유하면 알고리즘이 다르다는 것만 믿는 셈이라, 생성자에서 한 번
+ * {@code HMAC(masterKey, "blind-index-v1")}을 계산해 그 결과를 실제 HMAC 키로 쓴다.
+ * 새 환경변수 없이 용도별 키 분리를 얻는다.
  */
 @Component
 public class BlindIndex {
@@ -40,8 +42,25 @@ public class BlindIndex {
 
     private final SecretKeySpec secretKey;
 
+    private static final byte[] DERIVATION_INFO = "blind-index-v1".getBytes(StandardCharsets.UTF_8);
+
     public BlindIndex(@Value("${auth.encryption.key}") String base64Key) {
-        this.secretKey = new SecretKeySpec(Base64.getDecoder().decode(base64Key), ALGORITHM);
+        byte[] masterKey = Base64.getDecoder().decode(base64Key);
+        if (masterKey.length != 32) {
+            throw new IllegalStateException(
+                    "auth.encryption.key는 AES-256용 32바이트 키여야 합니다(현재 %d바이트).".formatted(masterKey.length));
+        }
+        this.secretKey = new SecretKeySpec(derive(masterKey), ALGORITHM);
+    }
+
+    private static byte[] derive(byte[] masterKey) {
+        try {
+            Mac mac = Mac.getInstance(ALGORITHM);
+            mac.init(new SecretKeySpec(masterKey, ALGORITHM));
+            return mac.doFinal(DERIVATION_INFO);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("블라인드 인덱스 키 파생에 실패했습니다.", e);
+        }
     }
 
     /** 정규화 후 HMAC-SHA256을 계산해 hex로 돌려준다. 값이 null이면 null이다. */

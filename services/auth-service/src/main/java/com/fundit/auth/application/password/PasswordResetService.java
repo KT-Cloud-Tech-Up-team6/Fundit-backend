@@ -57,7 +57,15 @@ public class PasswordResetService {
         this.resetUrlTemplate = resetUrlTemplate;
     }
 
-    /** 세 값이 모두 맞으면 재설정 링크를 보낸다. 아니면 조용히 아무것도 하지 않는다. */
+    /**
+     * 세 값이 모두 맞으면 재설정 링크를 보낸다. 아니면 조용히 아무것도 하지 않는다.
+     *
+     * <p>ponytail: 계정을 찾은 경로가 못 찾은 경로보다 DB 쓰기가 몇 번 더 있어 처리 시간에
+     * 미세한 차이가 생긴다 — 이론상 타이밍 사이드채널이다. 지금은 {@code MailSender}가 로그
+     * 한 줄 찍는 스텁이라 이 차이가 사실상 0이고, 진짜 위험은 SES/SMTP가 붙어 네트워크 왕복이
+     * 생기는 시점이다(그때 응답을 막지 않도록 비동기 발송으로 같이 바꾼다). 지금 큐를 만들면
+     * 테스트가 타이밍에 의존하게 되고 실제 발송기를 넣을 때 또 고쳐야 한다.
+     */
     @Transactional
     public void requestReset(String name, String phoneNumber, String email) {
         Account account = accountRepository.findByNameAndPhone(name, phoneNumber).orElse(null);
