@@ -41,7 +41,7 @@ class SettlementQueryServiceUnitTest {
         UUID paymentId = UUID.randomUUID();
         SettlementBatch batch = SettlementBatch.create(SELLER_ID, SettlementBatchType.INTERIM,
                         Instant.now(), Instant.now(), 100_000L, 3_000L, 0L, 0L,
-                        List.of(new SettlementBatchItem(1L, 1024L, paymentId, 100_000L)))
+                        List.of(new SettlementBatchItem(1L, 1024L, paymentId, 100_000L, 97_000L)))
                 .toBuilder().id(77L).build();
         when(settlementBatchRepository.findById(77L)).thenReturn(Optional.of(batch));
         when(orderSettlementAggregateClient.fetchLineItems(1024L)).thenReturn(List.of(

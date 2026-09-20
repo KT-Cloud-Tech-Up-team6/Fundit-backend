@@ -61,10 +61,19 @@ public class SettlementBatchGenerationService {
                     .mapToLong(PaymentCancellationJpaEntity::getCancelAmount)
                     .sum();
 
+            long entryCouponDeduction = orderSettlementAggregateClient
+                    .fetchMakerCouponDeductionAmount(entry.getFundingId());
+            long itemNet = Math.max(0, payment.getAmount()
+                    - SettlementFeePolicy.calculatePlatformFee(payment.getAmount())
+                    - cancelledAmount - entryCouponDeduction);
+            long payoutAmount = batchType == SettlementBatchType.INTERIM
+                    ? SettlementFeePolicy.calculateInterimPayout(itemNet)
+                    : Math.max(0, itemNet - settlementBatchRepository.sumInterimPayoutByFundingId(entry.getFundingId()));
+
             gross += payment.getAmount();
             refundDeduction += cancelledAmount;
-            couponDeduction += orderSettlementAggregateClient.fetchMakerCouponDeductionAmount(entry.getFundingId());
-            items.add(SettlementBatchItem.of(entry.getFundingId(), payment.getId(), payment.getAmount()));
+            couponDeduction += entryCouponDeduction;
+            items.add(SettlementBatchItem.of(entry.getFundingId(), payment.getId(), payment.getAmount(), payoutAmount));
 
             settlementHoldService.releaseToSettlement(payment.getId());
             entry.markProcessed();

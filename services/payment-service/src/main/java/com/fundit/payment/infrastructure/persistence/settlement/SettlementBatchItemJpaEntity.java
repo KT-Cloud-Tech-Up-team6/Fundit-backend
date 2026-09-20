@@ -37,4 +37,7 @@ public class SettlementBatchItemJpaEntity {
 
     @Column(nullable = false)
     private long amount;
+
+    @Column(name = "payout_amount", nullable = false)
+    private long payoutAmount;
 }

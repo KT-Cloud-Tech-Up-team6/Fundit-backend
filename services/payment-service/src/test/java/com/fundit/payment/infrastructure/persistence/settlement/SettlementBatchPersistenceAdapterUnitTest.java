@@ -43,7 +43,7 @@ class SettlementBatchPersistenceAdapterUnitTest {
         UUID paymentId = UUID.randomUUID();
         Instant now = Instant.now();
         SettlementBatch domain = SettlementBatch.create(sellerId, SettlementBatchType.INTERIM, now, now,
-                100_000L, 3_000L, 0L, 0L, List.of(SettlementBatchItem.of(1024L, paymentId, 97_000L)));
+                100_000L, 3_000L, 0L, 0L, List.of(SettlementBatchItem.of(1024L, paymentId, 100_000L, 97_000L)));
         SettlementBatchJpaEntity savedEntity = mapper.toEntity(domain.toBuilder().id(77L).createdAt(now).build());
         when(batchJpaRepository.save(any())).thenReturn(savedEntity);
         when(itemJpaRepository.findByBatchId(77L)).thenReturn(List.of(
