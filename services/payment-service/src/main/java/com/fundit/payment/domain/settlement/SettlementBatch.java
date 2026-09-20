@@ -37,7 +37,7 @@ public class SettlementBatch {
                                           Instant periodEnd, long grossAmount, long platformFeeAmount,
                                           long refundDeductionAmount, long couponDeductionAmount,
                                           List<SettlementBatchItem> items) {
-        long total = Math.max(0, grossAmount - platformFeeAmount - refundDeductionAmount - couponDeductionAmount);
+        long total = items.stream().mapToLong(SettlementBatchItem::payoutAmount).sum();
         return SettlementBatch.builder()
                 .sellerId(sellerId)
                 .batchType(batchType)

@@ -13,7 +13,8 @@ class SettlementBatchMapper {
 
     SettlementBatch toDomain(SettlementBatchJpaEntity entity, List<SettlementBatchItemJpaEntity> itemEntities) {
         List<SettlementBatchItem> items = itemEntities.stream()
-                .map(i -> new SettlementBatchItem(i.getId(), i.getFundingId(), i.getPaymentId(), i.getAmount()))
+                .map(i -> new SettlementBatchItem(i.getId(), i.getFundingId(), i.getPaymentId(), i.getAmount(),
+                        i.getPayoutAmount()))
                 .toList();
         return SettlementBatch.builder()
                 .id(entity.getId())
@@ -57,6 +58,7 @@ class SettlementBatchMapper {
                 .fundingId(item.fundingId())
                 .paymentId(item.paymentId())
                 .amount(item.amount())
+                .payoutAmount(item.payoutAmount())
                 .build();
     }
 }
