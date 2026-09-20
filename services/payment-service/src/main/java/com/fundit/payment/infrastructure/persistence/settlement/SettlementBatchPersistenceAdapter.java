@@ -39,6 +39,11 @@ public class SettlementBatchPersistenceAdapter implements SettlementBatchReposit
                 .stream().map(this::hydrate).toList();
     }
 
+    @Override
+    public long sumInterimPayoutByFundingId(Long fundingId) {
+        return itemJpaRepository.sumInterimPayoutAmountByFundingId(fundingId);
+    }
+
     private SettlementBatch hydrate(SettlementBatchJpaEntity entity) {
         return mapper.toDomain(entity, itemJpaRepository.findByBatchId(entity.getId()));
     }

@@ -95,7 +95,8 @@ class SettlementBatchGenerationServiceUnitTest {
         SettlementBatch saved = captor.getValue();
         assertThat(saved.getGrossAmount()).isEqualTo(300_000L);
         assertThat(saved.getPlatformFeeAmount()).isEqualTo(9_000L); // 300,000 * 3%
-        assertThat(saved.getTotalAmount()).isEqualTo(291_000L);
+        // 선정산 70% 지급: (100,000-3,000)*0.7=67,900 + (200,000-6,000)*0.7=135,800
+        assertThat(saved.getTotalAmount()).isEqualTo(203_700L);
         assertThat(saved.getItems()).hasSize(2);
 
         verify(settlementHoldService).releaseToSettlement(payment1.getId());
@@ -127,6 +128,27 @@ class SettlementBatchGenerationServiceUnitTest {
         SettlementBatch saved = captor.getValue();
         assertThat(saved.getRefundDeductionAmount()).isEqualTo(20_000L);
         assertThat(saved.getCouponDeductionAmount()).isEqualTo(5_000L);
+    }
+
+    @Test
+    void FINAL_배치는_이전_INTERIM_지급액을_차감한다() {
+        // given
+        Payment payment = completedPayment(1L, 100_000L);
+        SettlementScheduleJpaEntity entry = scheduleEntry(1L);
+        when(paymentRepository.findCompletedOrCancelledByInternalFundingId(1L)).thenReturn(Optional.of(payment));
+        when(paymentCancellationJpaRepository.findByPaymentId(payment.getId())).thenReturn(List.of());
+        when(orderSettlementAggregateClient.fetchMakerCouponDeductionAmount(1L)).thenReturn(0L);
+        when(settlementBatchRepository.sumInterimPayoutByFundingId(1L)).thenReturn(67_900L);
+
+        // when
+        settlementBatchGenerationService.generate(SELLER_ID, SettlementBatchType.FINAL, List.of(entry));
+
+        // then
+        ArgumentCaptor<SettlementBatch> captor = ArgumentCaptor.forClass(SettlementBatch.class);
+        verify(settlementBatchRepository).save(captor.capture());
+        SettlementBatch saved = captor.getValue();
+        // 순액 97,000(=100,000-3,000) - 기지급 INTERIM 67,900 = 29,100
+        assertThat(saved.getTotalAmount()).isEqualTo(29_100L);
     }
 
     @Test

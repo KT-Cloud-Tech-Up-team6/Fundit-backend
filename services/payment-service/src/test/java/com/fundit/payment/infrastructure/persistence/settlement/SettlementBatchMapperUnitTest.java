@@ -43,6 +43,7 @@ class SettlementBatchMapperUnitTest {
                 .fundingId(1024L)
                 .paymentId(paymentId)
                 .amount(94_000L)
+                .payoutAmount(94_000L)
                 .build());
 
         // when
@@ -55,6 +56,7 @@ class SettlementBatchMapperUnitTest {
             assertThat(item.fundingId()).isEqualTo(1024L);
             assertThat(item.paymentId()).isEqualTo(paymentId);
             assertThat(item.amount()).isEqualTo(94_000L);
+            assertThat(item.payoutAmount()).isEqualTo(94_000L);
         });
     }
 
@@ -64,7 +66,7 @@ class SettlementBatchMapperUnitTest {
         UUID paymentId = UUID.randomUUID();
         Instant now = Instant.now();
         SettlementBatch domain = SettlementBatch.create(sellerId, SettlementBatchType.INTERIM, now, now,
-                        100_000L, 3_000L, 0L, 0L, List.of(SettlementBatchItem.of(1024L, paymentId, 97_000L)))
+                        100_000L, 3_000L, 0L, 0L, List.of(SettlementBatchItem.of(1024L, paymentId, 100_000L, 97_000L)))
                 .toBuilder().id(77L).processedAt(now).createdAt(now).build();
 
         SettlementBatchJpaEntity entity = mapper.toEntity(domain);
@@ -76,5 +78,6 @@ class SettlementBatchMapperUnitTest {
         assertThat(itemEntity.getBatchId()).isEqualTo(77L);
         assertThat(itemEntity.getFundingId()).isEqualTo(1024L);
         assertThat(itemEntity.getPaymentId()).isEqualTo(paymentId);
+        assertThat(itemEntity.getPayoutAmount()).isEqualTo(97_000L);
     }
 }
