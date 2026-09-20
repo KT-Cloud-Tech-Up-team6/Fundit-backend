@@ -36,6 +36,12 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/orders/order-summaries");
     }
 
+    /** payment-service가 정산(PAYMENT-009/012)에 쓰는 리워드/쿠폰 집계 조회 내부 API. */
+    @Bean
+    public InternalEndpoint fundingSettlementAggregateInternalEndpoint() {
+        return new InternalEndpoint("GET", "/internal/fundings/{fundingId}/settlement-aggregate");
+    }
+
     /**
      * project-service가 리워드 잔여재고를 동기 조회하는 내부 API. 게이트웨이 라우트에는 원래부터
      * 없었고(1차 방어선, {@code application.yml} 참고), 여기 등록해 X-Internal-Api-Key 검증도

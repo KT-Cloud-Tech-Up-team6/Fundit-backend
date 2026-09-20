@@ -5,6 +5,7 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
+import com.fundit.order.domain.funding.FundingLineItemOption;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaEntity;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaRepository;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 내부 전용 조회 — payment/fulfillment-service가 동기 호출하는 필드를 제공한다.
@@ -79,6 +81,29 @@ public class FundingInternalQueryService {
                 orderName(funding.getLineItems()), couponIssuanceId, funding.getShippingFee(), discountAmount);
     }
 
+    /** PAYMENT-009/012 정산 집계 — 리워드·옵션별 판매 수량/금액과 메이커 쿠폰 차감액을 함께 반환한다. */
+    @Transactional(readOnly = true)
+    public SettlementAggregateSnapshot getSettlementAggregate(Long fundingId) {
+        Funding funding = fundingRepository.findById(fundingId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        List<LineItemSnapshot> lineItems = funding.getLineItems().stream()
+                .map(li -> new LineItemSnapshot(li.rewardId(), li.rewardName(), optionName(li.options()),
+                        li.quantity(), li.amount()))
+                .toList();
+        long makerCouponDeductionAmount = couponApplicationJpaRepository.sumMakerCouponDiscountAmount(fundingId);
+        return new SettlementAggregateSnapshot(lineItems, makerCouponDeductionAmount);
+    }
+
+    /** 한 리워드에 여러 옵션(색상+사이즈 등)이 붙을 수 있어 표시용 문자열로 합친다. */
+    private static String optionName(List<FundingLineItemOption> options) {
+        if (options == null || options.isEmpty()) {
+            return null;
+        }
+        return options.stream()
+                .map(o -> o.optionGroupName() + ": " + o.optionValue())
+                .collect(Collectors.joining(", "));
+    }
+
     private static String orderName(List<FundingLineItem> lineItems) {
         if (lineItems.isEmpty()) {
             return "";
@@ -98,5 +123,11 @@ public class FundingInternalQueryService {
     }
 
     public record OrderSummarySnapshot(UUID orderId, String projectTitle, List<FundingLineItem> lineItems) {
+    }
+
+    public record LineItemSnapshot(Long rewardId, String rewardName, String optionName, int quantity, long amount) {
+    }
+
+    public record SettlementAggregateSnapshot(List<LineItemSnapshot> lineItems, long makerCouponDeductionAmount) {
     }
 }
