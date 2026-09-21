@@ -89,6 +89,34 @@ class LiveEventOutboxWorkerUnitTest {
     }
 
     @Test
+    void 질문요약_payload의_summaries_배열을_그대로_실어_보낸다() {
+        // given — LiveDomainApiSpec.md "질문요약 발행" 절과 필드명을 맞춘다
+        UUID liveId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID questionSummaryId = UUID.randomUUID();
+        LiveEventOutboxJpaEntity e = LiveEventOutboxJpaEntity.builder()
+                .id(7L).eventType(LiveEventOutboxJpaEntity.TYPE_QUESTIONS_SUMMARIZED).liveSessionId(1L)
+                .payload("""
+                        {"liveId":"%s","projectId":"%s","summaries":[
+                          {"questionSummaryId":"%s","summaryText":"배송은 얼마나 걸리나요?","questionCount":12}
+                        ]}"""
+                        .formatted(liveId, projectId, questionSummaryId))
+                .build();
+        given(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).willReturn(List.of(e));
+
+        // when
+        worker().publishPending();
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(LiveEventTransport.QuestionsSummarizedEvent.class);
+        verify(transport).sendQuestionsSummarized(captor.capture());
+        var summaries = captor.getValue().summaries();
+        assertThat(summaries).hasSize(1);
+        assertThat(summaries.getFirst().questionSummaryId()).isEqualTo(questionSummaryId.toString());
+        assertThat(summaries.getFirst().questionCount()).isEqualTo(12);
+    }
+
+    @Test
     void eventId는_service_outboxId_형식이다() {
         // given — 소비 측 멱등의 유일한 근거다(event-convention.md 5번)
         LiveEventOutboxJpaEntity e = event(LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED);
