@@ -5,6 +5,7 @@ import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocum
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * 홈피드/카테고리탐색/검색 응답 카드 형태로 바로 조회한다 — 도메인 재구성 없이 프로젝션을 그대로
@@ -13,6 +14,9 @@ import java.time.Instant;
 public interface ProjectCardProjection {
 
     Long getProjectId();
+
+    /** 검색·카테고리·홈피드 결과에서 상세 API(`GET /api/v1/projects/{projectId}`)를 바로 호출하기 위한 UUID. */
+    UUID getProjectPublicId();
 
     String getTitle();
 

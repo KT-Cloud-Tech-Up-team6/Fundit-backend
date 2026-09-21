@@ -33,6 +33,14 @@ public class RefundQueryService {
         return page.map(projection -> toView(projection, orderSummaries.get(projection.getFundingId())));
     }
 
+    /** 판매자 환불 목록 — 소유 프로젝트가 아니라 본인이 sellerId로 등록된 신청만(DEFECT만 해당). */
+    public Page<RefundSummary> listForSeller(UUID sellerId, Pageable pageable) {
+        Page<RefundSummaryProjection> page = refundRequestJpaRepository.findSummariesBySellerId(sellerId, pageable);
+        Map<UUID, OrderSummaryClient.OrderSummary> orderSummaries = orderSummaryClient.fetchBatch(
+                page.getContent().stream().map(RefundSummaryProjection::getFundingId).distinct().toList());
+        return page.map(projection -> toView(projection, orderSummaries.get(projection.getFundingId())));
+    }
+
     private RefundSummary toView(RefundSummaryProjection projection, OrderSummaryClient.OrderSummary orderSummary) {
         return new RefundSummary(projection.getId(), projection.getFundingId(), projection.getTriggerType(),
                 projection.getStatus(), projection.getAmount(), projection.getRequestedAt(),

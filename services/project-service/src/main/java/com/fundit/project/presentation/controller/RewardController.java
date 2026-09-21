@@ -113,7 +113,7 @@ public class RewardController {
     @GetMapping("/projects/{projectId}/rewards/mine")
     public List<RewardResponse> listForSeller(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
         return rewardQueryService.listForSeller(user.id(), projectId).stream()
-                .map(this::toResponse)
+                .map(this::toSellerResponse)
                 .toList();
     }
 
@@ -146,14 +146,35 @@ public class RewardController {
         return earlyBirdDiscountType == null ? null : EarlyBirdDiscountType.valueOf(earlyBirdDiscountType);
     }
 
+    /**
+     * 생성/수정 응답 전용 — 도메인 {@code Reward}는 옵션 그룹/값에 DB ID를 담지 않는다
+     * (RewardMapper 참고). 재편집 화면이 필요로 하는 ID 포함 옵션은 {@link #toSellerResponse}
+     * (판매자 목록 조회)로만 제공한다.
+     */
     private RewardResponse toResponse(Reward reward) {
+        List<RewardOptionGroupResponse> options = reward.getOptionGroups() == null ? List.of()
+                : reward.getOptionGroups().stream()
+                        .map(g -> new RewardOptionGroupResponse(null, g.groupName(),
+                                g.values().stream().map(val -> new RewardOptionValueResponse(null, val)).toList()))
+                        .toList();
         return new RewardResponse(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
                 reward.getDescription(), reward.getImageUrl(),
                 reward.getPrice(), reward.isLimited(), reward.getQuantity(), reward.isHasOption(),
                 reward.getSortOrder(), reward.isEarlyBird(),
                 reward.getEarlyBirdDiscountType() == null ? null : reward.getEarlyBirdDiscountType().name(),
                 reward.getEarlyBirdDiscountValue(), reward.getEarlyBirdDiscountedPrice(),
-                reward.getShippingFee(), reward.getEstimatedDeliveryDays());
+                reward.getShippingFee(), reward.getEstimatedDeliveryDays(),
+                reward.isSimpleRefundDisabled(), options);
+    }
+
+    /** 판매자 재편집 조회(GET .../rewards/mine) 전용 — 옵션 분류·값·ID와 환불정책을 그대로 담는다. */
+    private RewardResponse toSellerResponse(RewardQueryService.RewardSellerView v) {
+        return new RewardResponse(v.rewardId(), v.rewardDisplayCode(), v.name(), v.description(), v.imageUrl(),
+                v.price(), v.isLimited(), v.quantity(), v.hasOption(), v.sortOrder(), v.isEarlyBird(),
+                v.earlyBirdDiscountType() == null ? null : v.earlyBirdDiscountType().name(),
+                v.earlyBirdDiscountValue(), v.earlyBirdDiscountedPrice(),
+                v.shippingFee(), v.estimatedDeliveryDays(),
+                v.simpleRefundDisabled(), toOptionGroupResponses(v.options()));
     }
 
     private RewardConsumerResponse toConsumerResponse(RewardQueryService.RewardConsumerView v) {
@@ -161,11 +182,14 @@ public class RewardController {
                 v.price(), v.isEarlyBird(),
                 v.earlyBirdDiscountType() == null ? null : v.earlyBirdDiscountType().name(),
                 v.earlyBirdDiscountValue(), v.earlyBirdDiscountedPrice(),
-                v.isLimited(), v.remainingStock(),
-                v.options().stream()
-                        .map(g -> new RewardOptionGroupResponse(g.groupId(), g.groupName(),
-                                g.values().stream().map(val -> new RewardOptionValueResponse(val.valueId(), val.value())).toList()))
-                        .toList(),
+                v.isLimited(), v.remainingStock(), toOptionGroupResponses(v.options()),
                 v.soldOut(), v.shippingFee(), v.estimatedDeliveryDays());
+    }
+
+    private List<RewardOptionGroupResponse> toOptionGroupResponses(List<RewardQueryService.RewardOptionGroupView> groups) {
+        return groups.stream()
+                .map(g -> new RewardOptionGroupResponse(g.groupId(), g.groupName(),
+                        g.values().stream().map(val -> new RewardOptionValueResponse(val.valueId(), val.value())).toList()))
+                .toList();
     }
 }

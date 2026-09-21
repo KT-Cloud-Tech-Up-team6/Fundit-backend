@@ -3,6 +3,7 @@ package com.fundit.order.presentation.controller;
 import com.fundit.order.application.funding.FundingInternalQueryService;
 import com.fundit.order.presentation.dto.InternalFundingParticipantsResponse;
 import com.fundit.order.presentation.dto.InternalFundingResponse;
+import com.fundit.order.presentation.dto.InternalFundingSettlementAggregateResponse;
 import com.fundit.order.presentation.dto.InternalOrderSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,5 +49,12 @@ public class InternalFundingController {
         return fundingInternalQueryService.getOrderSummaries(orderIds).stream()
                 .map(InternalOrderSummaryResponse::from)
                 .toList();
+    }
+
+    /** payment-service 정산(PAYMENT-009/012) 연동 — 리워드·옵션별 판매 수량/금액과 메이커 쿠폰 차감액. */
+    @GetMapping("/internal/fundings/{fundingId}/settlement-aggregate")
+    public InternalFundingSettlementAggregateResponse getSettlementAggregate(@PathVariable Long fundingId) {
+        return InternalFundingSettlementAggregateResponse.from(
+                fundingInternalQueryService.getSettlementAggregate(fundingId));
     }
 }

@@ -11,8 +11,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /** payment.payments 매핑 전용(persistence-convention.md "복잡한 애그리거트" 4파일 구조). */
@@ -53,8 +56,9 @@ public class PaymentJpaEntity {
     @Column(name = "order_name", nullable = false, length = 100)
     private String orderName;
 
-    @Column(name = "coupon_issuance_id")
-    private Long couponIssuanceId;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "coupon_issuance_ids", nullable = false, columnDefinition = "jsonb")
+    private List<Long> couponIssuanceIds;
 
     @Column(name = "payment_method", length = 20)
     private String paymentMethod;

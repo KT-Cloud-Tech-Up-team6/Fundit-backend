@@ -3,6 +3,7 @@ package com.fundit.live.application.cuesheet;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ai.AiProductContextAssembler;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.cuesheet.LiveCueSheet;
 import com.fundit.live.domain.cuesheet.LiveCueSheetRepository;
@@ -31,6 +32,7 @@ public class CueSheetService {
     private final LiveCueSheetRepository cueSheetRepository;
     private final LiveSessionRepository sessionRepository;
     private final AiClient aiClient;
+    private final AiProductContextAssembler productContextAssembler;
 
     @Transactional
     public void requestGeneration(UUID sellerId, UUID liveId, String mode, int targetDurationSec,
@@ -52,11 +54,15 @@ public class CueSheetService {
             }
         });
 
+        // 상품정보를 GENERATING 저장보다 먼저 모은다 — project-service 장애면 503으로 끝나고
+        // 트랜잭션이 롤백돼 GENERATING에 갇히지 않는다. 상품 내용 없이는 AI가 대사를 못 쓴다.
+        AiClient.PrepareRequest product = productContextAssembler.assemble(session);
+
         // 재생성은 기존 행을 덮어쓴다 — 이력 보관 요구가 없다.
         cueSheetRepository.save(LiveCueSheet.requestGeneration(session.getId(), mode, targetDurationSec));
 
         aiClient.requestCueSheet(liveId.toString(), new AiClient.CueSheetRequest(
-                mode, targetDurationSec, demoAvailable, emphasisPoints, tone, mandatoryPhrases));
+                mode, targetDurationSec, demoAvailable, emphasisPoints, tone, mandatoryPhrases, product));
     }
 
     @Transactional(readOnly = true)

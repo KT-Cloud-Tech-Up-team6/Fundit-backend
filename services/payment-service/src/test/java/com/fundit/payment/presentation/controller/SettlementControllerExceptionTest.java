@@ -21,7 +21,6 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,15 +43,15 @@ class SettlementControllerExceptionTest {
     private SettlementDisputeService settlementDisputeService;
 
     @Test
-    void 다운로드가_미구현이면_503을_반환한다() throws Exception {
+    void 타인_배치_다운로드는_403을_반환한다() throws Exception {
         UUID sellerId = UUID.randomUUID();
-        doThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "정산 내역서 다운로드 기능은 준비 중입니다."))
-                .when(settlementDownloadService).assertDownloadable(sellerId, 77L);
+        when(settlementDownloadService.download(sellerId, 77L))
+                .thenThrow(new BusinessException(CommonErrorCode.FORBIDDEN));
 
         mockMvc.perform(get("/api/v1/settlements/77/download")
                         .header("X-User-Id", sellerId.toString())
                         .header("X-Internal-Api-Key", "test-only-internal-api-key"))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isForbidden());
     }
 
     @Test

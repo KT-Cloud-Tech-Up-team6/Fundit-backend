@@ -22,7 +22,7 @@ spring:
             - id: member-service
               uri: ${downstream.member-service-base-url}
               predicates:
-                - Path=/api/v1/members/**,/api/v1/wishes/**,/api/v1/addresses/**,/api/v1/terms/**
+                - Path=/api/v1/members/**,/api/v1/wishes/**,/api/v1/addresses/**,/api/v1/terms/**,/api/v1/follows/**
             # 웹훅(/api/v1/payments/webhook/toss)은 토스 서버가 Authorization 헤더 없이 직접
             # 호출한다 — 위 필터가 토큰이 없으면 X-User-Id 없이 그대로 통과시키므로 별도 예외
             # 처리가 필요 없다(payment-service InternalGatewaySecretFilter가 서명 검증 없이
@@ -45,8 +45,8 @@ spring:
             - id: order-service
               uri: ${downstream.order-service-base-url}
               predicates:
-                - Path=/api/v1/orders/**,/api/v1/coupons/**,/api/v1/reward-restock-notifications/**,/api/v1/projects/*/supporters/**,/api/v1/sellers/coupons/**
-            # project-service보다 반드시 먼저 온다 — /api/v1/projects/*/supporters, /api/v1/sellers/coupons가
+                - Path=/api/v1/orders/**,/api/v1/coupons/**,/api/v1/reward-restock-notifications/**,/api/v1/projects/*/supporters/**,/api/v1/projects/*/orders/**,/api/v1/sellers/coupons/**
+            # project-service보다 반드시 먼저 온다 — /api/v1/projects/*/supporters, /api/v1/projects/*/orders, /api/v1/sellers/coupons가
             # project-service의 /api/v1/projects/**, /api/v1/sellers/** 캐치올과 겹치기 때문
             # (정의 순서 = 첫 매치 우선, 위 fulfillment-service와 같은 이유).
             # GET /api/v1/inventories/{rewardId}는 의도적으로 라우트에 넣지 않는다 — project-service가
@@ -62,6 +62,18 @@ spring:
               uri: ${downstream.search-service-base-url}
               predicates:
                 - Path=/api/v1/home/**,/api/v1/categories/**,/api/v1/search/**
+            # 방송 알림 신청(/api/v1/lives/{liveId}/notify)은 notification-service 소관이라
+            # live-service 캐치올(/api/v1/lives/**)보다 반드시 먼저 온다 — 정의 순서 = 첫 매치 우선.
+            - id: notification-service
+              uri: ${downstream.notification-service-base-url}
+              predicates:
+                - Path=/api/v1/notifications/**,/api/v1/notification-settings/**,/api/v1/lives/*/notify
+            # 내부 전용 엔드포인트(AI 콜백·채팅 적재·상태 조회)는 /internal/v1/lives/** prefix라
+            # 이 라우트에 걸리지 않는다 — 외부에 노출되지 않는다.
+            - id: live-service
+              uri: ${downstream.live-service-base-url}
+              predicates:
+                - Path=/api/v1/lives/**
 
 management:
   endpoints:

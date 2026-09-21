@@ -20,7 +20,7 @@ class StubOrderFundingClientUnitTest {
         assertThat(first.status()).isEqualTo("PENDING");
         assertThat(first.finalAmount()).isEqualTo(10_000L);
         assertThat(first.fundingPublicId()).isEqualTo(orderId);
-        assertThat(first.couponIssuanceId()).isNull();
+        assertThat(first.couponIssuanceIds()).isEmpty();
     }
 
     @Test

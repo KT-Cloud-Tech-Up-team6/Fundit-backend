@@ -49,7 +49,7 @@ class DefectRefundDecisionServiceUnitTest {
     }
 
     private RefundRequest defectRequest(UUID paymentId) {
-        return RefundRequest.requestDefect(FUNDING_ID, paymentId, "파손", List.of("url"));
+        return RefundRequest.requestDefect(FUNDING_ID, paymentId, UUID.randomUUID(), "파손", List.of("url"));
     }
 
     @Test

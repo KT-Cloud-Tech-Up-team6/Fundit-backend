@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,24 +58,23 @@ public class PaymentEventOutboxWorker {
         Map<String, Object> payload = event.getPayload();
         switch (event.getEventType()) {
             case PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED -> transport.sendPaymentCompleted(
-                    new PaymentCompletedTransportEvent(event.getFundingId(), toLong(payload.get("couponIssuanceId"))),
+                    new PaymentCompletedTransportEvent(event.getFundingId(), toLongList(payload.get("couponIssuanceIds"))),
                     event.getId());
             case PaymentEventOutboxJpaEntity.TYPE_REFUND_COMPLETED -> transport.sendRefundCompleted(
-                    new RefundCompletedTransportEvent(event.getFundingId(), toLong(payload.get("couponIssuanceId")),
+                    new RefundCompletedTransportEvent(event.getFundingId(), toLongList(payload.get("couponIssuanceIds")),
                             (String) payload.get("refundReason"), Boolean.TRUE.equals(payload.get("fullRefund"))),
                     event.getId());
             default -> throw new IllegalStateException("알 수 없는 결제 이벤트 타입: " + event.getEventType());
         }
     }
 
-    /** JSONB 역직렬화 시 숫자가 Integer/Long/Double 중 무엇으로 오든 안전하게 Long으로 변환한다. */
-    private Long toLong(Object value) {
-        if (value == null) {
-            return null;
+    /** JSONB 역직렬화 시 리스트 원소 숫자가 Integer/Long/Double 중 무엇으로 오든 안전하게 Long으로 변환한다. */
+    private List<Long> toLongList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
         }
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        return Long.valueOf(value.toString());
+        return list.stream()
+                .map(v -> v instanceof Number number ? number.longValue() : Long.valueOf(v.toString()))
+                .toList();
     }
 }

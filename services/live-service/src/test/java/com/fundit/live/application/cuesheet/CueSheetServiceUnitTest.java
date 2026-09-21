@@ -1,6 +1,7 @@
 package com.fundit.live.application.cuesheet;
 
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ai.AiProductContextAssembler;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.cuesheet.LiveCueSheet;
 import com.fundit.live.domain.cuesheet.LiveCueSheetRepository;
@@ -29,6 +30,7 @@ class CueSheetServiceUnitTest {
     @Mock private LiveCueSheetRepository cueSheetRepository;
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private AiClient aiClient;
+    @Mock private AiProductContextAssembler productContextAssembler;
 
     @InjectMocks private CueSheetService cueSheetService;
 
@@ -46,10 +48,13 @@ class CueSheetServiceUnitTest {
     }
 
     @Test
-    void 생성을_요청하면_GENERATING으로_저장하고_AI를_부른다() {
+    void 생성을_요청하면_GENERATING으로_저장하고_상품정보를_실어_AI를_부른다() {
         // given
         givenOwnedSessionForUpdate();
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.empty());
+        AiClient.PrepareRequest product = new AiClient.PrepareRequest("에어쿡 프로", "가전", "주방가전",
+                null, UUID.randomUUID().toString(), List.of(), List.of());
+        given(productContextAssembler.assemble(any())).willReturn(product);
 
         // when
         cueSheetService.requestGeneration(sellerId, liveId, "SCENARIO", 580, true,
@@ -59,7 +64,9 @@ class CueSheetServiceUnitTest {
         ArgumentCaptor<LiveCueSheet> captor = ArgumentCaptor.forClass(LiveCueSheet.class);
         verify(cueSheetRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(GenerationStatus.GENERATING);
-        verify(aiClient).requestCueSheet(anyString(), any());
+        ArgumentCaptor<AiClient.CueSheetRequest> requestCaptor = ArgumentCaptor.forClass(AiClient.CueSheetRequest.class);
+        verify(aiClient).requestCueSheet(anyString(), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().product()).isEqualTo(product);
     }
 
     @Test

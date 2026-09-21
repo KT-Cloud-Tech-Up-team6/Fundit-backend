@@ -1,5 +1,6 @@
 package com.fundit.payment.application.funding;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,7 +29,7 @@ public interface OrderFundingClient {
             String status,
             long finalAmount,
             String orderName,
-            Long couponIssuanceId,
+            List<Long> couponIssuanceIds,
             UUID fundingPublicId,
             long shippingFee,
             long discountAmount) {

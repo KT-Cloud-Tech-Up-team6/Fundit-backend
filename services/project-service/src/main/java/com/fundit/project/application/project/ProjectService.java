@@ -15,6 +15,7 @@ import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaEntity;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.query.ProjectListProjection;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
@@ -55,6 +56,7 @@ public class ProjectService {
     private final MediaUrlValidator mediaUrlValidator;
     private final ProjectIndexEventPublisher projectIndexEventPublisher;
     private final SellerProfileClient sellerProfileClient;
+    private final RichTextSanitizer richTextSanitizer;
 
     /** statuses가 비어있으면 전체 상태를 대상으로 한다. */
     @Transactional(readOnly = true)
@@ -127,18 +129,33 @@ public class ProjectService {
         if (command.coverImageUrl() != null) {
             mediaUrlValidator.validate(publicId, command.coverImageUrl(), MediaCategory.IMAGE);
         }
-        if (command.introContent() != null) {
-            // VIDEO_URL은 유튜브 등 외부 영상 링크 용도라 S3 검증 대상이 아니다(ApiSpec #8 참고).
-            for (IntroContentBlock block : command.introContent()) {
-                if (block.type() == IntroContentType.IMAGE) {
-                    mediaUrlValidator.validate(publicId, block.value(), MediaCategory.IMAGE);
-                }
-            }
-        }
-        project.updateStory(command.title(), command.coverImageUrl(), command.introContent());
+        List<IntroContentBlock> introContent = command.introContent() == null ? null
+                : sanitizeIntroContent(publicId, command.introContent());
+        project.updateStory(command.title(), command.coverImageUrl(), introContent);
         Project saved = projectRepository.save(project);
         publishIndexUpdateIfPublic(saved);
         return saved;
+    }
+
+    /**
+     * IMAGE는 S3 업로드 여부를 검증하고(ApiSpec #8), TEXT는 굵게/색상/정렬 서식을 보존하되
+     * XSS를 막기 위해 화이트리스트로 정제한다(security.md S2). VIDEO_URL은 유튜브 등 외부 링크라
+     * 둘 다 대상이 아니다.
+     */
+    private List<IntroContentBlock> sanitizeIntroContent(UUID publicId, List<IntroContentBlock> blocks) {
+        List<IntroContentBlock> sanitized = new ArrayList<>();
+        for (IntroContentBlock block : blocks) {
+            switch (block.type()) {
+                case IMAGE -> {
+                    mediaUrlValidator.validate(publicId, block.value(), MediaCategory.IMAGE);
+                    sanitized.add(block);
+                }
+                case TEXT -> sanitized.add(new IntroContentBlock(IntroContentType.TEXT,
+                        richTextSanitizer.sanitize(block.value())));
+                case VIDEO_URL -> sanitized.add(block);
+            }
+        }
+        return sanitized;
     }
 
     /**

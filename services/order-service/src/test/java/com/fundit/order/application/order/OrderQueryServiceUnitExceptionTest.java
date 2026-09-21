@@ -2,6 +2,7 @@ package com.fundit.order.application.order;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
@@ -30,9 +31,35 @@ class OrderQueryServiceUnitExceptionTest {
     private FundingRepository fundingRepository;
     @Mock
     private FundingCouponApplicationJpaRepository couponApplicationJpaRepository;
+    @Mock
+    private ProjectOwnershipClient projectOwnershipClient;
 
     @InjectMocks
     private OrderQueryService orderQueryService;
+
+    @Test
+    void 발송목록_조회시_존재하지_않는_프로젝트면_NOT_FOUND_예외가_발생한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void 발송목록_조회시_타인_프로젝트면_FORBIDDEN_예외가_발생한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.of(UUID.randomUUID()));
+
+        // when & then
+        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
+    }
 
     @Test
     void 존재하지_않는_주문이면_NOT_FOUND_예외가_발생한다() {

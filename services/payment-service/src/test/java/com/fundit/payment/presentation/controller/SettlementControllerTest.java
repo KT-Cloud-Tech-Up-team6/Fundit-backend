@@ -12,19 +12,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,14 +68,47 @@ class SettlementControllerTest {
     }
 
     @Test
-    void 다운로드_가능_검증만_통과하면_204를_반환한다() throws Exception {
+    void 정산목록을_조회하면_200을_반환한다() throws Exception {
         UUID sellerId = UUID.randomUUID();
-        doNothing().when(settlementDownloadService).assertDownloadable(sellerId, 77L);
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(settlementQueryService.listForSeller(sellerId, pageable)).thenReturn(new PageImpl<>(
+                List.of(new SettlementQueryService.SettlementBatchSummary(77L, "INTERIM", "PENDING",
+                        Instant.EPOCH, Instant.EPOCH, 70_000L)),
+                pageable, 1));
+
+        mockMvc.perform(get("/api/v1/settlements")
+                        .header("X-User-Id", sellerId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].settlementBatchId").value(77));
+    }
+
+    @Test
+    void CSV를_다운로드하면_200과_첨부파일_헤더를_반환한다() throws Exception {
+        UUID sellerId = UUID.randomUUID();
+        when(settlementDownloadService.download(sellerId, 77L))
+                .thenReturn("settlementBatchId\n77\n".getBytes(StandardCharsets.UTF_8));
 
         mockMvc.perform(get("/api/v1/settlements/77/download")
                         .header("X-User-Id", sellerId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"settlement-77.csv\""));
+    }
+
+    @Test
+    void 이의신청_목록을_조회하면_200을_반환한다() throws Exception {
+        UUID sellerId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(settlementDisputeService.listForSeller(sellerId, pageable)).thenReturn(new PageImpl<>(
+                List.of(new SettlementDisputeService.DisputeSummary(9L, 77L, "사유", "RECEIVED", Instant.EPOCH, null)),
+                pageable, 1));
+
+        mockMvc.perform(get("/api/v1/settlements/disputes")
+                        .header("X-User-Id", sellerId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].disputeId").value(9));
     }
 
     @Test

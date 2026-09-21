@@ -51,7 +51,7 @@ class CouponControllerTest {
 
     private Coupon coupon() {
         return Coupon.builder().id(1L).couponCode("LIVE-XY12").couponName("라이브 쿠폰")
-                .discountType(DiscountType.AMOUNT).discountValue(3_000)
+                .discountType(DiscountType.AMOUNT).discountValue(3_000).maxDiscountAmount(5_000L)
                 .issuerType(IssuerType.PLATFORM).targetScope(CouponTargetScope.ALL)
                 .minFundingAmount(0).perMemberLimit(1).remainingQuantity(5)
                 .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel(IssueChannel.LIVE).version(0).build();
@@ -88,6 +88,8 @@ class CouponControllerTest {
                 .andExpect(jsonPath("$.content[0].couponCode").value("LIVE-XY12"))
                 .andExpect(jsonPath("$.content[0].minFundingAmount").value(0))
                 .andExpect(jsonPath("$.content[0].perMemberLimit").value(1))
-                .andExpect(jsonPath("$.content[0].targetScope").value("ALL"));
+                .andExpect(jsonPath("$.content[0].targetScope").value("ALL"))
+                .andExpect(jsonPath("$.content[0].issuerType").value("PLATFORM"))
+                .andExpect(jsonPath("$.content[0].maxDiscountAmount").value(5000));
     }
 }

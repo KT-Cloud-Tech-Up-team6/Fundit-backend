@@ -4,11 +4,15 @@ import com.fundit.payment.domain.settlement.SettlementBatch;
 import com.fundit.payment.domain.settlement.SettlementBatchItem;
 import com.fundit.payment.domain.settlement.SettlementBatchRepository;
 import com.fundit.payment.domain.settlement.SettlementBatchType;
+import com.fundit.payment.infrastructure.persistence.settlement.SettlementBatchJpaEntity;
+import com.fundit.payment.infrastructure.persistence.settlement.SettlementBatchJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,13 +30,38 @@ class SettlementQueryServiceUnitTest {
     @Mock
     private SettlementBatchRepository settlementBatchRepository;
     @Mock
+    private SettlementBatchJpaRepository settlementBatchJpaRepository;
+    @Mock
     private OrderSettlementAggregateClient orderSettlementAggregateClient;
 
     private SettlementQueryService settlementQueryService;
 
     @BeforeEach
     void setUp() {
-        settlementQueryService = new SettlementQueryService(settlementBatchRepository, orderSettlementAggregateClient);
+        settlementQueryService = new SettlementQueryService(settlementBatchRepository, settlementBatchJpaRepository,
+                orderSettlementAggregateClient);
+    }
+
+    @Test
+    void 판매자_정산목록을_요약으로_변환한다() {
+        // given
+        PageRequest pageable = PageRequest.of(0, 20);
+        SettlementBatchJpaEntity entity = SettlementBatchJpaEntity.builder()
+                .id(77L).sellerId(SELLER_ID).batchType("INTERIM").status("PENDING")
+                .periodStart(Instant.EPOCH).periodEnd(Instant.EPOCH).totalAmount(70_000L)
+                .build();
+        when(settlementBatchJpaRepository.findBySellerIdOrderByIdDesc(SELLER_ID, pageable))
+                .thenReturn(new PageImpl<>(List.of(entity), pageable, 1));
+
+        // when
+        var page = settlementQueryService.listForSeller(SELLER_ID, pageable);
+
+        // then
+        assertThat(page.getContent()).singleElement().satisfies(summary -> {
+            assertThat(summary.settlementBatchId()).isEqualTo(77L);
+            assertThat(summary.batchType()).isEqualTo("INTERIM");
+            assertThat(summary.totalAmount()).isEqualTo(70_000L);
+        });
     }
 
     @Test

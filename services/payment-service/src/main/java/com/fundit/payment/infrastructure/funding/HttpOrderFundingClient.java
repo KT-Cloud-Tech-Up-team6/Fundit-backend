@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -49,7 +50,7 @@ public class HttpOrderFundingClient implements OrderFundingClient {
                 throw new DependencyFailureException(new IllegalStateException("order-service 응답 본문 없음"));
             }
             return new FundingSnapshot(response.memberId(), response.sellerId(), response.status(),
-                    response.finalAmount(), response.orderName(), response.couponIssuanceId(),
+                    response.finalAmount(), response.orderName(), response.couponIssuanceIds(),
                     response.fundingPublicId(), response.shippingFee(), response.discountAmount());
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
@@ -57,7 +58,7 @@ public class HttpOrderFundingClient implements OrderFundingClient {
     }
 
     private record InternalFundingResponse(UUID memberId, UUID sellerId, String status, long finalAmount,
-                                             String orderName, Long couponIssuanceId, UUID fundingPublicId,
+                                             String orderName, List<Long> couponIssuanceIds, UUID fundingPublicId,
                                              long shippingFee, long discountAmount) {
     }
 }

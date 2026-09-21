@@ -14,6 +14,7 @@ import com.fundit.live.presentation.dto.CueSheetResponse;
 import com.fundit.live.presentation.dto.CueSheetUpdateRequest;
 import com.fundit.live.presentation.dto.InsightsResponse;
 import com.fundit.live.presentation.dto.OriginalMessageResponse;
+import com.fundit.live.presentation.dto.UnansweredResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,8 +34,9 @@ import java.util.UUID;
 /**
  * AI 큐시트·대표질문 계열. 인가는 전부 소유권 검증이다.
  *
- * <p>비동기 생성은 202를 돌려주고 FE가 {@code GET}의 status를 폴링한다 —
- * <b>FE는 AI를 직접 호출하지 않는다</b>(AI ↔ BE/FE 협의 확정).
+ * <p>비동기 생성(큐시트)은 202를 돌려주고 FE가 {@code GET}의 status를 폴링한다.
+ * Q&A/FAQ는 반대로 전부 동기 조회다 — <b>FE는 여전히 AI를 직접 호출하지 않는다</b>
+ * (AI ↔ BE/FE 협의 확정, 호출 방향만 BE→AI로 바뀌었다).
  */
 @RestController
 @RequestMapping("/api/v1/lives/{liveId}")
@@ -68,10 +71,11 @@ public class LiveAiController {
                 cueSheetService.replaceSegments(user.id(), liveId, request.segmentsJson()));
     }
 
-    /** AI 관심사/대표질문 집계(요구사항정의서 6.4.4.2). 3분 주기로 갱신된다. */
+    /** AI 집계 Q&A(요구사항정의서 6.4.4.2). AI가 이미 집계·정렬한 결과를 그대로 내려준다. */
     @GetMapping("/chat/insights")
-    public InsightsResponse insights(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
-        return InsightsResponse.from(questionInsightService.insights(user.id(), liveId));
+    public InsightsResponse insights(@LoginUser CurrentUser user, @PathVariable UUID liveId,
+                                     @RequestParam(defaultValue = "10") int topN) {
+        return InsightsResponse.from(questionInsightService.faq(user.id(), liveId, topN));
     }
 
     /** 대표질문 원본 채팅(요구사항정의서 6.4.4.3). */
@@ -85,8 +89,8 @@ public class LiveAiController {
     }
 
     /**
-     * AI 추천답변 생성/전송(요구사항정의서 6.4.4.5·6.4.4.6).
-     * {@code GENERATE}는 초안만 만든다 — {@code SEND}를 호출해야 채팅에 게시된다.
+     * 미답변 질문 판매자 답변(요구사항정의서 6.4.4.5·6.4.4.6).
+     * {@code GENERATE}는 초안 미리보기만 한다 — {@code SEND}를 호출해야 등록된다.
      */
     @PostMapping("/chat/questions/{questionId}/ai-answer")
     public AiAnswerResponse aiAnswer(@LoginUser CurrentUser user, @PathVariable UUID liveId,
@@ -94,11 +98,19 @@ public class LiveAiController {
                                      @Valid @RequestBody AiAnswerRequest request) {
         if (request.isSend()) {
             aiAnswerService.send(user.id(), liveId, questionId, request.finalAnswer());
-            return new AiAnswerResponse(request.finalAnswer(), true, true);
+            return new AiAnswerResponse(request.finalAnswer(), List.of(), true);
         }
-        AiClient.AnswerDraft draft = aiAnswerService.generate(user.id(), liveId, questionId,
-                request.contextOrEmpty());
-        return new AiAnswerResponse(draft.draftAnswer(), draft.grounded(), false);
+        AiClient.UnansweredDetail detail = aiAnswerService.draft(user.id(), liveId, questionId);
+        List<String> referenceChunks = detail.reference() == null ? List.of()
+                : detail.reference().chunks().stream().map(AiClient.ReferenceChunk::text).toList();
+        return new AiAnswerResponse(detail.draft(), referenceChunks, false);
+    }
+
+    /** 미답변 질문 창(요구사항정의서 6.4.4.5). 근거를 못 찾은 질문만 모인다. */
+    @GetMapping("/chat/unanswered")
+    public UnansweredResponse unanswered(@LoginUser CurrentUser user, @PathVariable UUID liveId,
+                                         @RequestParam(defaultValue = "10") int topN) {
+        return UnansweredResponse.from(questionInsightService.unanswered(user.id(), liveId, topN));
     }
 
     /** 답변된 질문 모아보기(요구사항정의서 11.3.4) — 채팅창 Q&A 버튼. 인증 불필요. */

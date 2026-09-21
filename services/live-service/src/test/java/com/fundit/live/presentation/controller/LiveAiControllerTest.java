@@ -81,24 +81,63 @@ class LiveAiControllerTest {
     }
 
     @Test
-    void insights는_aiStatus를_함께_내려준다() throws Exception {
-        // given — PREPARING과 "질문 0건"을 화면이 다른 문구로 안내해야 한다(PRD 6.4.4.4)
-        when(questionInsightService.insights(any(), any())).thenReturn(
-                new QuestionInsightService.Insights("PREPARING", Map.of(), List.of()));
+    void insights는_AI가_집계한_결과를_그대로_내려준다() throws Exception {
+        // given — 집계는 AI가 한다. 여기서 topic으로 다시 묶지 않는다
+        when(questionInsightService.faq(any(), any(), anyInt())).thenReturn(List.of(
+                LiveQuestionSummaryJpaEntity.builder()
+                        .id(1L).publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0002")
+                        .summaryText("타이머 기능 돼요?").relatedQuestionCount(4).answered(true)
+                        .answerText("네, 최대 12시간입니다").build()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/{liveId}/chat/insights", liveId)
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.aiStatus").value("PREPARING"));
+                .andExpect(jsonPath("$.qna[0].summaryText").value("타이머 기능 돼요?"));
     }
 
     @Test
-    void GENERATE는_채팅에_게시하지_않는다() throws Exception {
+    void 원본_채팅은_AI_응답을_그대로_내려준다() throws Exception {
+        // given
+        when(questionInsightService.originalMessages(any(), any(), any()))
+                .thenReturn(List.of(new AiClient.FaqComment("c2", "예약 타이머 있어요?", 20000)));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/chat/questions/{qid}", liveId, UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].content").value("예약 타이머 있어요?"));
+    }
+
+    @Test
+    void unanswered는_pending과_answered를_함께_내려준다() throws Exception {
+        // given
+        when(questionInsightService.unanswered(any(), any(), anyInt())).thenReturn(
+                new QuestionInsightService.UnansweredView(
+                        List.of(LiveQuestionSummaryJpaEntity.builder()
+                                .id(1L).publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0002")
+                                .summaryText("타이머 기능 돼요?").relatedQuestionCount(3).answered(false).build()),
+                        List.of(LiveQuestionSummaryJpaEntity.builder()
+                                .id(2L).publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0007")
+                                .summaryText("판매자 답변 완료 건").relatedQuestionCount(2).answered(true).build())));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/chat/unanswered", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pending[0].representativeText").value("타이머 기능 돼요?"))
+                .andExpect(jsonPath("$.answered[0].count").value(2));
+    }
+
+    @Test
+    void GENERATE는_초안만_만들고_기록하지_않는다() throws Exception {
         // given — 자동 게시 금지가 정책이다(협의 확정)
-        when(aiAnswerService.generate(any(), any(), any(), any()))
-                .thenReturn(new AiClient.AnswerDraft("초안입니다", true));
+        when(aiAnswerService.draft(any(), any(), any()))
+                .thenReturn(new AiClient.UnansweredDetail("질문", 1,
+                        new AiClient.Reference(List.of(), List.of()), "초안입니다", null));
 
         // when & then
         mockMvc.perform(post("/api/v1/lives/{liveId}/chat/questions/{qid}/ai-answer", liveId, UUID.randomUUID())

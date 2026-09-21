@@ -187,7 +187,7 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
         when(orderQueryService.listMyOrders(eq(memberId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, List.of("CANCEL")))));
+                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, 0L, List.of("CANCEL")))));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
@@ -230,6 +230,7 @@ class OrderControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lineItems[0].rewardName").value("얼리버드 패키지"))
+                .andExpect(jsonPath("$.lineItems[0].options[0].optionValueId").value(100))
                 .andExpect(jsonPath("$.lineItems[0].options[0].optionGroupName").value("색상"))
                 .andExpect(jsonPath("$.lineItems[0].options[0].optionValue").value("블랙"));
     }

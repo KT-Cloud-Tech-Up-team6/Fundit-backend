@@ -38,7 +38,7 @@ class PaymentEventOutboxWorkerUnitTest {
         // given
         setUp();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("couponIssuanceId", 7L);
+        payload.put("couponIssuanceIds", List.of(7L));
         payload.put("paidAt", "2026-09-08T14:23:11Z");
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
@@ -55,7 +55,7 @@ class PaymentEventOutboxWorkerUnitTest {
                 ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
         verify(transport).sendPaymentCompleted(captor.capture(), any());
         assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 1024L));
-        assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
+        assertThat(captor.getValue().couponIssuanceIds()).containsExactly(7L);
         assertThat(event.getPublishedAt()).isNotNull();
     }
 
@@ -81,10 +81,10 @@ class PaymentEventOutboxWorkerUnitTest {
     }
 
     @Test
-    void 환불완료_이벤트는_Integer_쿠폰ID도_Long으로_변환한다() {
+    void 환불완료_이벤트는_Integer_쿠폰ID_리스트도_Long_리스트로_변환한다() {
         setUp();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("couponIssuanceId", 7);
+        payload.put("couponIssuanceIds", List.of(7, 8));
         payload.put("refundReason", "CANCELLED_BY_MEMBER");
         payload.put("fullRefund", true);
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
@@ -100,19 +100,19 @@ class PaymentEventOutboxWorkerUnitTest {
                 ArgumentCaptor.forClass(PaymentEventTransport.RefundCompletedTransportEvent.class);
         verify(transport).sendRefundCompleted(captor.capture(), any());
         assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 2048L));
-        assertThat(captor.getValue().couponIssuanceId()).isEqualTo(7L);
+        assertThat(captor.getValue().couponIssuanceIds()).containsExactly(7L, 8L);
         assertThat(captor.getValue().refundReason()).isEqualTo("CANCELLED_BY_MEMBER");
         assertThat(captor.getValue().fullRefund()).isTrue();
         assertThat(event.getPublishedAt()).isNotNull();
     }
 
     @Test
-    void 쿠폰ID가_문자열이면_Long으로_파싱한다() {
+    void 쿠폰ID가_없으면_빈_리스트로_전달한다() {
         setUp();
         PaymentEventOutboxJpaEntity event = PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
                 .fundingId(new UUID(0L, 1L))
-                .payload(Map.of("couponIssuanceId", "9"))
+                .payload(Map.of())
                 .build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
 
@@ -121,7 +121,7 @@ class PaymentEventOutboxWorkerUnitTest {
         ArgumentCaptor<PaymentEventTransport.PaymentCompletedTransportEvent> captor =
                 ArgumentCaptor.forClass(PaymentEventTransport.PaymentCompletedTransportEvent.class);
         verify(transport).sendPaymentCompleted(captor.capture(), any());
-        assertThat(captor.getValue().couponIssuanceId()).isEqualTo(9L);
+        assertThat(captor.getValue().couponIssuanceIds()).isEmpty();
     }
 
     @Test

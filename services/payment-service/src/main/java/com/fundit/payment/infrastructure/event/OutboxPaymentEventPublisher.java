@@ -23,7 +23,7 @@ public class OutboxPaymentEventPublisher implements PaymentEventPublisher {
     @Override
     public void publishPaymentCompleted(PaymentCompletedEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("couponIssuanceId", event.couponIssuanceId());
+        payload.put("couponIssuanceIds", event.couponIssuanceIds());
         payload.put("paidAt", event.paidAt() == null ? null : event.paidAt().toString());
         outboxRepository.save(PaymentEventOutboxJpaEntity.builder()
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
@@ -36,7 +36,7 @@ public class OutboxPaymentEventPublisher implements PaymentEventPublisher {
     @Override
     public void publishRefundCompleted(RefundCompletedEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("couponIssuanceId", event.couponIssuanceId());
+        payload.put("couponIssuanceIds", event.couponIssuanceIds());
         payload.put("refundReason", event.refundReason().name());
         payload.put("fullRefund", event.fullRefund());
         outboxRepository.save(PaymentEventOutboxJpaEntity.builder()

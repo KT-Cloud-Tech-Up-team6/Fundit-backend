@@ -1,6 +1,7 @@
 package com.fundit.payment.application.event;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -11,8 +12,8 @@ import java.util.UUID;
  * <p><b>payload 계약은 order-service가 이미 구현해둔 소비자 코드
  * ({@code order-service PaymentEventListener}) 기준이다</b> — payment-service CLAUDE.md
  * "⚠️ 가장 먼저 읽을 것" 섹션이 PaymentApiSpec.md/PaymentFunctionalSpec.md보다 우선한다.
- * 특히 {@code couponIssuanceId}를 반드시 채워 보내야 하고, {@code refundReason}은 order-service가
- * 정의한 4종 enum 이름을 그대로 써야 한다.
+ * {@code couponIssuanceIds}는 이 주문에 적용된 쿠폰 전체(최대 2개, 플랫폼+메이커, 없으면 빈 리스트)를
+ * 반드시 채워 보내야 하고, {@code refundReason}은 order-service가 정의한 4종 enum 이름을 그대로 써야 한다.
  */
 public interface PaymentEventPublisher {
 
@@ -20,7 +21,7 @@ public interface PaymentEventPublisher {
 
     void publishRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(UUID paymentId, UUID fundingId, Long couponIssuanceId, Instant paidAt) {
+    record PaymentCompletedEvent(UUID paymentId, UUID fundingId, List<Long> couponIssuanceIds, Instant paidAt) {
     }
 
     /**
@@ -31,7 +32,7 @@ public interface PaymentEventPublisher {
         GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
     }
 
-    record RefundCompletedEvent(UUID paymentId, UUID fundingId, Long couponIssuanceId,
+    record RefundCompletedEvent(UUID paymentId, UUID fundingId, List<Long> couponIssuanceIds,
                                  RefundReason refundReason, boolean fullRefund) {
     }
 }

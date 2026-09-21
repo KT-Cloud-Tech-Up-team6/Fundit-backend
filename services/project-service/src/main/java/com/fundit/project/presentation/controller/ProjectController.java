@@ -200,7 +200,7 @@ public class ProjectController {
     public FundingStatusResponse getFundingStatus(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
         var view = projectStatsService.getFundingStatus(user.id(), projectId);
         var rewardStats = view.rewardStats().stream()
-                .map(r -> new RewardStatResponse(r.rewardId(), r.purchasedQuantity()))
+                .map(r -> new RewardStatResponse(r.rewardId(), r.optionValueId(), r.purchasedQuantity(), r.purchasedAmount()))
                 .toList();
         return new FundingStatusResponse(view.currentAmount(), view.achievementRate(), view.participantCount(),
                 view.openNotifyCount(), view.wishCount(), rewardStats, view.remainingDays(), view.lastSyncedAt());
@@ -221,7 +221,7 @@ public class ProjectController {
                         fundingStatus.participantCount(), fundingStatus.remainingDays()),
                 view.hasLiveVerification(),
                 new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()),
-                view.categoryMajor(), view.categoryMinor());
+                view.categoryMajor(), view.categoryMinor(), view.businessType());
     }
 
     private List<IntroContentBlockResponse> toIntroContentResponse(List<IntroContentBlock> blocks) {

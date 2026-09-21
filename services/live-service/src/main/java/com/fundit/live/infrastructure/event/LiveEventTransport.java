@@ -1,5 +1,7 @@
 package com.fundit.live.infrastructure.event;
 
+import java.util.List;
+
 /**
  * 아웃박스 워커가 쓰는 발행 포트. 실패는 예외로 알려야 워커가 미발행으로 남긴다.
  *
@@ -20,8 +22,16 @@ public interface LiveEventTransport {
     record LiveEndedEvent(String eventId, String liveId, String projectId, String endedAt) {
     }
 
-    /** payload가 배열이라 아웃박스 컬럼이 JSONB다. */
-    record QuestionsSummarizedEvent(String eventId, String liveId, String projectId, String summariesJson) {
+    /**
+     * payload가 배열이라 아웃박스 컬럼이 JSONB다. {@code LiveDomainApiSpec.md}의
+     * "질문요약 발행" 절과 필드명을 맞춘다 — {@code questionSummaryId}는
+     * {@code live_question_summaries.public_id}다(project의 {@code question_summary_id}와 타입 일치).
+     */
+    record QuestionsSummarizedEvent(String eventId, String liveId, String projectId,
+                                    List<SummaryItem> summaries) {
+
+        public record SummaryItem(String questionSummaryId, String summaryText, int questionCount) {
+        }
     }
 
     record LiveStartedEvent(String eventId, String liveId, String projectId, String startedAt) {

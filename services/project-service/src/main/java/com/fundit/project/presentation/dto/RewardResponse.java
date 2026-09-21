@@ -1,5 +1,7 @@
 package com.fundit.project.presentation.dto;
 
+import java.util.List;
+
 public record RewardResponse(
         Long rewardId,
         String rewardDisplayCode,
@@ -16,6 +18,8 @@ public record RewardResponse(
         Long earlyBirdDiscountValue,
         Long earlyBirdDiscountedPrice,
         Long shippingFee,
-        Integer estimatedDeliveryDays
+        Integer estimatedDeliveryDays,
+        boolean simpleRefundDisabled,
+        List<RewardOptionGroupResponse> options
 ) {
 }

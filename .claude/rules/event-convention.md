@@ -57,6 +57,7 @@ reward.create.v1           ❌  과거형 아님
 | `payment.completed.v1` | payment | order (쿠폰) | `fundingId` |
 | `refund.completed.v1` | payment | order (쿠폰) | `fundingId` |
 | `project.funding-deadline-reached.v1` | project | order | `projectId` |
+| `project.funding-reward-stats-updated.v1` | order | project (판매자 펀딩현황 rewardStats) | `projectId` |
 | `shipping.completed.v1` | fulfillment | payment (정산) | `fundingId` |
 | `payment.reconciliation-required.v1` | 미정 | payment | `fundingId` |
 | `live.started.v1` | live | notification (시작 알림) | `liveId` |

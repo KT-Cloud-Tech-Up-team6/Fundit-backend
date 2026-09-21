@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,8 +29,11 @@ public class Payment {
     private String pgSecret;
     private final long amount;
     private final String orderName;
-    /** order-service {@code coupon_issuances.id} 참조, FK 아님. 쿠폰 미적용 주문이면 null. */
-    private final Long couponIssuanceId;
+    /**
+     * order-service {@code coupon_issuances.id} 참조, FK 아님. 최대 2개(플랫폼+메이커),
+     * 쿠폰 미적용 주문이면 빈 리스트.
+     */
+    private final List<Long> couponIssuanceIds;
     private PaymentMethod paymentMethod;
     private String easyPayProvider;
     private PaymentStatus status;
@@ -39,7 +43,7 @@ public class Payment {
     private Instant updatedAt;
 
     public static Payment create(UUID fundingId, UUID memberId, String pgOrderId, long amount, String orderName,
-                                  Long couponIssuanceId, String idempotencyKey) {
+                                  List<Long> couponIssuanceIds, String idempotencyKey) {
         return Payment.builder()
                 .id(UUID.randomUUID())
                 .fundingId(fundingId)
@@ -47,7 +51,7 @@ public class Payment {
                 .pgOrderId(pgOrderId)
                 .amount(amount)
                 .orderName(orderName)
-                .couponIssuanceId(couponIssuanceId)
+                .couponIssuanceIds(couponIssuanceIds == null ? List.of() : couponIssuanceIds)
                 .status(PaymentStatus.PENDING)
                 .idempotencyKey(idempotencyKey)
                 .build();

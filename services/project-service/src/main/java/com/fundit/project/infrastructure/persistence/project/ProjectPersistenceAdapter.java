@@ -2,9 +2,13 @@ package com.fundit.project.infrastructure.persistence.project;
 
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
+import com.fundit.project.domain.project.ProjectStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,5 +32,13 @@ public class ProjectPersistenceAdapter implements ProjectRepository {
     @Override
     public Optional<Project> findById(Long id) {
         return jpaRepository.findByIdAndDeletedAtIsNull(id).map(mapper::toDomain);
+    }
+
+    @Override
+    public List<Project> findOngoingWithDeadlineReached(Instant now, Pageable pageable) {
+        return jpaRepository
+                .findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNullOrderByIdAsc(
+                        ProjectStatus.ONGOING.name(), now, pageable)
+                .stream().map(mapper::toDomain).toList();
     }
 }

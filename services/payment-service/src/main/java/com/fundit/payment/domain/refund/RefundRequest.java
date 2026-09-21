@@ -21,6 +21,8 @@ public class RefundRequest {
     /** order-service {@code Funding.publicId}(외부 노출 orderId). */
     private final UUID fundingId;
     private final UUID paymentId;
+    /** 판매자 환불 목록 조회용 — DEFECT 신청 시점에만 채워진다(그 외 유형은 판매자 검토 대상이 아니라 null). */
+    private final UUID sellerId;
     private final RefundTriggerType triggerType;
     private RefundRequestStatus status;
     private Boolean isFullRefund;
@@ -32,7 +34,7 @@ public class RefundRequest {
     private Instant processedAt;
 
     /** PAYMENT-006 — 하자환불 신청. 증빙 누락 시 신청 자체를 차단한다. */
-    public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, String reasonDetail,
+    public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
                                                List<String> evidenceUrls) {
         if (evidenceUrls == null || evidenceUrls.isEmpty()) {
             throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
@@ -40,6 +42,7 @@ public class RefundRequest {
         return RefundRequest.builder()
                 .fundingId(fundingId)
                 .paymentId(paymentId)
+                .sellerId(sellerId)
                 .triggerType(RefundTriggerType.DEFECT)
                 .status(RefundRequestStatus.REQUESTED)
                 .reasonDetail(reasonDetail)
