@@ -37,6 +37,20 @@ public interface ChatMessageJpaRepository extends JpaRepository<ChatMessageJpaEn
     List<ChatMessageJpaEntity> findBySessionIdAndSentAtBetweenOrderBySentAtAsc(
             Long sessionId, Instant from, Instant to);
 
-    /** 대표질문 원본 조회(요구사항정의서 6.4.4.3). */
+    /** 대표질문 원본 조회(요구사항정의서 6.4.4.3). 과거 데이터 호환용 — 신규 흐름은 AI에 위임한다. */
     List<ChatMessageJpaEntity> findByQuestionSummaryIdOrderBySentAtAsc(Long questionSummaryId);
+
+    /**
+     * AI 배치 전송기 대상. 방송 중 세션 하나당 최대 50건씩 오래된 순으로 뽑는다 —
+     * AI 문서가 "배치 최대 50건"을 명시했다.
+     */
+    List<ChatMessageJpaEntity> findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(Long sessionId);
+
+    /**
+     * 전송 완료 표시. {@code IN} 절로 한 번에 처리한다 — 건별 UPDATE는 배치 50건이면
+     * 쿼리 50번이 된다.
+     */
+    @Modifying
+    @Query("update ChatMessageJpaEntity c set c.sentToAiAt = :sentAt where c.id in :ids")
+    void markSentToAi(@Param("ids") List<Long> ids, @Param("sentAt") java.time.Instant sentAt);
 }

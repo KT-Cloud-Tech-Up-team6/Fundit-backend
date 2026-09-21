@@ -16,9 +16,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AiAnswerServiceUnitTest {
@@ -35,7 +36,7 @@ class AiAnswerServiceUnitTest {
 
     private LiveQuestionSummaryJpaEntity summary() {
         return LiveQuestionSummaryJpaEntity.builder()
-                .id(5L).publicId(questionId).sessionId(1L)
+                .id(5L).publicId(questionId).sessionId(1L).aiQuestionId("fq_0002")
                 .summaryText("사이즈가 어떻게 되나요?").relatedQuestionCount(12).answered(false).build();
     }
 
@@ -50,45 +51,35 @@ class AiAnswerServiceUnitTest {
         // given — 자동 게시가 아니다. 판매자 승인 후 전송이 협의 결정이다.
         LiveQuestionSummaryJpaEntity s = summary();
         givenOwnedAndSummary(s);
-        given(aiClient.generateAnswer(anyString(), anyString(), any()))
-                .willReturn(new AiClient.AnswerDraft("500ml/700ml 두 가지입니다.", true));
+        given(aiClient.unansweredDetail(anyString(), eq("fq_0002"))).willReturn(
+                new AiClient.UnansweredDetail("사이즈가 어떻게 되나요?", 12,
+                        new AiClient.Reference(List.of(), List.of()),
+                        "500ml/700ml 두 가지입니다.", null));
 
         // when
-        AiClient.AnswerDraft draft = aiAnswerService.generate(sellerId, liveId, questionId, List.of("상세페이지"));
+        AiClient.UnansweredDetail draft = aiAnswerService.draft(sellerId, liveId, questionId);
 
         // then
-        assertThat(draft.draftAnswer()).isNotBlank();
+        assertThat(draft.draft()).isNotBlank();
         assertThat(s.isAnswered()).isFalse();
         assertThat(s.getAnswerText()).isNull();
     }
 
     @Test
-    void 근거가_없으면_grounded_false지만_에러가_아니다() {
-        // given — 503으로 올리면 화면이 Empty State를 그릴 수 없다(PRD 6.4.4.5)
-        givenOwnedAndSummary(summary());
-        given(aiClient.generateAnswer(anyString(), anyString(), any()))
-                .willReturn(new AiClient.AnswerDraft(null, false));
-
-        // when
-        AiClient.AnswerDraft draft = aiAnswerService.generate(sellerId, liveId, questionId, List.of());
-
-        // then
-        assertThat(draft.grounded()).isFalse();
-    }
-
-    @Test
-    void SEND해야_답변이_저장된다() {
+    void SEND해야_AI에_등록되고_저장된다() {
         // given — 채팅 스트림은 지나가면 끝이라 저장하지 않으면 Q&A 버튼이 보여줄 게 없다
         LiveQuestionSummaryJpaEntity s = summary();
         givenOwnedAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(true));
 
         // when
         aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
 
         // then
+        verify(aiClient).registerSellerAnswer(liveId.toString(), "fq_0002", "500ml/700ml 두 가지입니다.");
         assertThat(s.isAnswered()).isTrue();
         assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
         assertThat(s.getAnsweredAt()).isNotNull();
     }
-
 }

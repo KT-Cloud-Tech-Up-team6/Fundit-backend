@@ -25,6 +25,10 @@ live:
     # IVS와 같은 이유로 기본값을 두지 않는다. 미설정이면 기동이 실패한다 —
     # 스텁으로 흘러가면 큐시트·추천답변이 "[stub] ..." 문자열로 "성공"한다.
     mode: ${LIVE_AI_MODE}
+    base-url: ${LIVE_AI_BASE_URL}
+    # AI 서버가 Authorization: Bearer 헤더를 요구한다. 값이 없으면 헤더를 안 붙이는데,
+    # 그건 AI 서버가 "개발 모드"(API_TOKEN 미설정)일 때만 통과하므로 운영에서는 반드시 채운다.
+    token: ${LIVE_AI_TOKEN}
 
 # 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
 springdoc:
