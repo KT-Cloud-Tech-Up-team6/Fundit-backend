@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -79,5 +80,26 @@ class ChatMessageJpaRepositoryIntegrationTest {
         // then
         assertThat(found).hasSize(2).extracting(ChatMessageJpaEntity::getContent)
                 .containsExactly("시작", "중간");
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 트랜잭션_밖에서_불러도_전송_완료가_저장된다() {
+        // given — 발송 스케줄러는 AI 호출 때문에 트랜잭션 없이 부른다. readOnly 트랜잭션을
+        // 물려받으면 UPDATE가 실패해 같은 댓글이 계속 재전송된다
+        Long id = chatMessageRepository.save(ChatMessageJpaEntity.builder()
+                .ivsMessageId("sent-1").sessionId(sessionId).senderId(UUID.randomUUID())
+                .content("질문").sentAt(Instant.parse("2026-09-10T11:00:00Z")).build()).getId();
+        try {
+            // when
+            chatMessageRepository.markSentToAi(java.util.List.of(id), Instant.parse("2026-09-10T11:00:03Z"));
+
+            // then
+            assertThat(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(sessionId))
+                    .isEmpty();
+        } finally {
+            // 이 테스트만 커밋되므로 다른 테스트의 count()에 섞이지 않게 지운다
+            chatMessageRepository.deleteAllInBatch();
+        }
     }
 }

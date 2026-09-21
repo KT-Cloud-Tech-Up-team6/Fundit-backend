@@ -31,12 +31,15 @@ class StubAiClientUnitTest {
     }
 
     @Test
-    void 근거가_없으면_grounded_false를_돌려준다() {
-        // given — 503으로 올리면 화면이 Empty State를 그릴 수 없다(PRD 6.4.4.5)
-        AiClient.AnswerDraft draft = new StubAiClient().generateAnswer("live", "질문", List.of());
+    void 댓글_배치는_전부_무시_처리로_흉내낸다() {
+        // given — 답변이 있는 척하면 화면 검증이 어긋난다
+        var comments = List.of(new AiClient.CommentInput("c1", "질문", 0, java.util.UUID.randomUUID()));
+
+        // when
+        AiClient.CommentBatchResult result = new StubAiClient().submitComments("live", comments);
 
         // then
-        assertThat(draft.grounded()).isFalse();
-        assertThat(draft.draftAnswer()).isNull();
+        assertThat(result.questions()).isEmpty();
+        assertThat(result.ignored()).hasSize(1);
     }
 }

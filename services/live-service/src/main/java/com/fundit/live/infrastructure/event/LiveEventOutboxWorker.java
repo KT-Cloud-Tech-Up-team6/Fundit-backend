@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.List;
+
 /**
  * 미발행 아웃박스 행을 꺼내 발행한다. 실패하면 {@code published_at}을 채우지 않고
  * {@code attempt_count}만 올려 다음 주기에 재시도한다.
@@ -66,7 +68,7 @@ public class LiveEventOutboxWorker {
                     new LiveEndedEvent(eventId, payload.liveId(), payload.projectId(), payload.occurredAt()));
             case LiveEventOutboxJpaEntity.TYPE_QUESTIONS_SUMMARIZED -> transport.sendQuestionsSummarized(
                     new QuestionsSummarizedEvent(eventId, payload.liveId(), payload.projectId(),
-                            payload.summariesJson()));
+                            payload.summaries()));
             case LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED -> transport.sendLiveStarted(
                     new LiveStartedEvent(eventId, payload.liveId(), payload.projectId(), payload.occurredAt()));
             default -> throw new IllegalStateException("알 수 없는 이벤트 타입: " + event.getEventType());
@@ -74,9 +76,10 @@ public class LiveEventOutboxWorker {
     }
 
     /**
-     * 아웃박스 payload의 공통 형태. 질문요약만 summariesJson을 쓰고 나머지는 null이다 —
+     * 아웃박스 payload의 공통 형태. 질문요약만 summaries를 쓰고 나머지는 null이다 —
      * 종류별 레코드를 3개 두면 역직렬화 분기가 타입마다 생긴다.
      */
-    private record Payload(String liveId, String projectId, String occurredAt, String summariesJson) {
+    private record Payload(String liveId, String projectId, String occurredAt,
+                           List<QuestionsSummarizedEvent.SummaryItem> summaries) {
     }
 }

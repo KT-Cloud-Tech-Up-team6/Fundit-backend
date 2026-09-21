@@ -12,7 +12,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -66,7 +65,7 @@ class AiAnswerServiceUnitExceptionTest {
         given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> aiAnswerService.generate(sellerId, liveId, questionId, List.of()))
+        assertThatThrownBy(() -> aiAnswerService.draft(sellerId, liveId, questionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);

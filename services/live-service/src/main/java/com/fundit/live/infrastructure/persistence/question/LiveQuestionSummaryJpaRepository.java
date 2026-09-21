@@ -26,4 +26,7 @@ public interface LiveQuestionSummaryJpaRepository extends JpaRepository<LiveQues
     Optional<LiveQuestionSummaryJpaEntity> findByPublicIdAndSessionId(UUID publicId, Long sessionId);
 
     Optional<LiveQuestionSummaryJpaEntity> findByPublicId(UUID publicId);
+
+    /** AI 클러스터(qid) 단위 upsert 판단용. {@code aiQuestionId}가 null인 과거 행은 대상이 아니다. */
+    Optional<LiveQuestionSummaryJpaEntity> findBySessionIdAndAiQuestionId(Long sessionId, String aiQuestionId);
 }

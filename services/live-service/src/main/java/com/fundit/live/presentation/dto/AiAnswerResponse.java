@@ -1,8 +1,10 @@
 package com.fundit.live.presentation.dto;
 
+import java.util.List;
+
 /**
- * {@code grounded=false}는 상품정보에서 근거를 찾지 못했다는 뜻이다. 에러가 아니라 상태다 —
- * 판매자가 그대로 보내지 않도록 화면에서 경고한다.
+ * {@code referenceChunks}는 근거가 아니라 판매자 참고용이다 — AI가 확인 못 한 사실은
+ * {@code draftAnswer}에 {@code [판매자 확인 필요: ...]}로 비워둔다(임의 생성 금지).
  */
-public record AiAnswerResponse(String draftAnswer, boolean grounded, boolean sent) {
+public record AiAnswerResponse(String draftAnswer, List<String> referenceChunks, boolean sent) {
 }

@@ -1,0 +1,119 @@
+package com.fundit.live.infrastructure.chat;
+
+import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.domain.session.LiveStatus;
+import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
+import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
+import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
+import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+class ChatCommentBatchSenderUnitTest {
+
+    @Mock private LiveSessionJpaRepository sessionRepository;
+    @Mock private ChatMessageJpaRepository chatMessageRepository;
+    @Mock private AiClient aiClient;
+
+    @InjectMocks private ChatCommentBatchSender sender;
+
+    private LiveSessionJpaEntity session() {
+        return LiveSessionJpaEntity.builder()
+                .id(1L).publicId(UUID.randomUUID()).status(LiveStatus.LIVE)
+                .actualStartAt(Instant.parse("2026-09-20T10:00:00Z")).build();
+    }
+
+    private ChatMessageJpaEntity message(long id) {
+        return ChatMessageJpaEntity.builder()
+                .id(id).ivsMessageId("m" + id).sessionId(1L).senderId(UUID.randomUUID())
+                .content("질문").sentAt(Instant.parse("2026-09-20T10:05:00Z")).build();
+    }
+
+    @Test
+    void 보낼_채팅이_없으면_AI를_부르지_않는다() {
+        // given
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of());
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then
+        verify(aiClient, never()).submitComments(any(), any());
+    }
+
+    @Test
+    void 성공하면_전송_완료로_표시한다() {
+        // given
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L), message(11L)));
+        given(aiClient.submitComments(any(), any())).willReturn(
+                new AiClient.CommentBatchResult(List.of(),
+                        List.of(new AiClient.IgnoredComment("10", "SMALLTALK"),
+                                new AiClient.IgnoredComment("11", "SMALLTALK")),
+                        List.of()));
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getValue()).containsExactlyInAnyOrder(10L, 11L);
+    }
+
+    @Test
+    void errors에_실린_댓글은_전송_완료_표시에서_뺀다() {
+        // given — 임의 답변으로 대체하지 않고 재시도 대상으로 남긴다
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L), message(11L)));
+        given(aiClient.submitComments(any(), any())).willReturn(
+                new AiClient.CommentBatchResult(List.of(),
+                        List.of(new AiClient.IgnoredComment("10", "SMALLTALK")),
+                        List.of(new AiClient.CommentError("11", "EVIDENCE_UNAVAILABLE", "실패"))));
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then — 10만 완료 처리, 11은 다음 배치에서 재시도
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getValue()).containsExactly(10L);
+    }
+
+    @Test
+    void 응답에_없는_댓글은_전송_완료로_표시하지_않는다() {
+        // given — 11은 questions·ignored·errors 어디에도 없고, 99는 요청하지 않은 ID다
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L), message(11L)));
+        given(aiClient.submitComments(any(), any())).willReturn(new AiClient.CommentBatchResult(
+                List.of(new AiClient.AnsweredQuestion("q_0001", "10", "흡입력?",
+                        AiClient.HandledBy.PRODUCT, "성능", 1000,
+                        new AiClient.GeneratedAnswer("20000Pa입니다", AiClient.Grounding.GROUNDED, false, "kb_1"),
+                        List.of())),
+                List.of(new AiClient.IgnoredComment("99", "SMALLTALK")), null));
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then — 10만 완료 처리, 11은 다음 배치에서 다시 보낸다
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getValue()).containsExactly(10L);
+    }
+}

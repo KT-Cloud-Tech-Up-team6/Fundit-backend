@@ -30,6 +30,8 @@ live:
     # stub | http — AI 서버 주소·계약이 확정되기 전까지 stub이다.
     # 값이 없으면 스텁도 안 뜬다(matchIfMissing=false) — 여기 기본값이 그 안전망이다.
     mode: stub
+    # 댓글 배치 전송 주기. AI팀 권장치(3초)를 그대로 쓴다.
+    comments-poll-interval-ms: 3000
 
 springdoc:
   api-docs:

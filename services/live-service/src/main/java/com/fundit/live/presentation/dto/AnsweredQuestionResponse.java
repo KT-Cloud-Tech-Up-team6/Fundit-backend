@@ -16,6 +16,7 @@ public record AnsweredQuestionResponse(UUID questionId, String summaryText, int 
 
     public static AnsweredQuestionResponse from(LiveQuestionSummaryJpaEntity e) {
         return new AnsweredQuestionResponse(e.getPublicId(), e.getSummaryText(),
-                e.getRelatedQuestionCount(), e.getAnswerText(), "SELLER", e.getAnsweredAt());
+                e.getRelatedQuestionCount(), e.getAnswerText(),
+                e.getAnsweredBy() == null ? "SELLER" : e.getAnsweredBy().name(), e.getAnsweredAt());
     }
 }
