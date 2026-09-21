@@ -124,4 +124,21 @@ class WishJpaRepositoryIntegrationTest {
         var wish = wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent().getFirst();
         assertThat(wish.projectTitle()).isEqualTo("새 제목");
     }
+
+    @Test
+    void 버전이_있는_스냅샷은_버전_없는_이벤트로_덮이지_않는다() {
+        // given — 버전 7이 반영된 뒤 버전 없는(구버전 발행) 이벤트가 온다
+        UUID memberId = createMember();
+        UUID publicId = UUID.randomUUID();
+        projectSnapshotJpaRepository.upsert(30L, publicId, "버전7 제목", "https://img/v7.png", 7L);
+
+        // when
+        projectSnapshotJpaRepository.upsert(30L, publicId, "버전없는 제목", "https://img/none.png", null);
+        wishJpaRepository.insertIgnoringConflict(memberId, 30L);
+
+        // then — 제목도 버전도 그대로다(버전이 null로 바뀌면 이후 옛 이벤트가 다시 덮을 수 있다)
+        var wish = wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent().getFirst();
+        assertThat(wish.projectTitle()).isEqualTo("버전7 제목");
+        assertThat(projectSnapshotJpaRepository.findById(30L).orElseThrow().getSourceVersion()).isEqualTo(7L);
+    }
 }

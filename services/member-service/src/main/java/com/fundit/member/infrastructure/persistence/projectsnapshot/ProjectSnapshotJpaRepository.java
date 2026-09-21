@@ -12,7 +12,8 @@ public interface ProjectSnapshotJpaRepository extends JpaRepository<ProjectSnaps
 
     /**
      * 승인·수정 이벤트를 그대로 반영한다(멱등). 이미 더 최신 버전이 반영돼 있으면 무시한다 —
-     * 재전송된 옛 이벤트가 최신 제목·썸네일을 덮으면 안 된다. 버전이 없는(구버전) 이벤트는 반영한다.
+     * 재전송된 옛 이벤트가 최신 제목·썸네일을 덮으면 안 된다. 버전이 없는(구버전) 이벤트는 저장된 버전도
+     * 없을 때만 반영한다 — 버전 있는 값을 null로 덮으면 이후 어떤 옛 이벤트든 다시 덮을 수 있게 된다.
      * 리스너는 트랜잭션 밖에서 부르므로 여기서 트랜잭션을 연다.
      */
     @Transactional
@@ -27,7 +28,6 @@ public interface ProjectSnapshotJpaRepository extends JpaRepository<ProjectSnaps
                 source_version = EXCLUDED.source_version,
                 synced_at = now()
             WHERE project_snapshots.source_version IS NULL
-               OR EXCLUDED.source_version IS NULL
                OR EXCLUDED.source_version >= project_snapshots.source_version
             """, nativeQuery = true)
     void upsert(@Param("projectId") Long projectId, @Param("publicId") UUID publicId,
