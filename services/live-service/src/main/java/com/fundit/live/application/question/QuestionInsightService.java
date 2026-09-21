@@ -59,8 +59,11 @@ public class QuestionInsightService {
         List<LiveQuestionSummaryJpaEntity> pending = result.pending().stream()
                 .map(item -> upsertPending(session.getId(), item))
                 .toList();
+        // 답변 완료 행은 AiAnswerService가 기존 행에 recordAnswer로만 만든다 — 여기서 새로 만들면
+        // 답변 정보 없는 "완료" 행이 생기므로 있는 행만 돌려준다.
         List<LiveQuestionSummaryJpaEntity> answered = result.answered().stream()
-                .map(item -> upsertPending(session.getId(), item))
+                .flatMap(item -> summaryRepository
+                        .findBySessionIdAndAiQuestionId(session.getId(), item.qid()).stream())
                 .toList();
         return new UnansweredView(pending, answered);
     }

@@ -82,23 +82,51 @@ class QuestionInsightServiceUnitTest {
     }
 
     @Test
-    void unanswered는_pending과_answered를_각각_반영한다() {
-        // given
+    void unanswered의_answered는_기존_행만_돌려주고_답변을_보존한다() {
+        // given — fq_0007은 판매자가 답변해 둔 행, fq_0009는 로컬에 없는 행
+        LiveQuestionSummaryJpaEntity sellerAnswered = q("fq_0007", 2);
+        sellerAnswered.recordAnswer("네, 됩니다.", Instant.now());
         given(sessionRepository.findOwned(liveId, sellerId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.empty());
-        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0007")).willReturn(Optional.empty());
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0007")).willReturn(Optional.of(sellerAnswered));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0009")).willReturn(Optional.empty());
         given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(aiClient.unanswered(anyString(), anyInt())).willReturn(new AiClient.UnansweredList(
                 List.of(new AiClient.UnansweredItem("fq_0002", "타이머 기능 돼요?", 3)),
-                List.of(new AiClient.UnansweredItem("fq_0007", "판매자 답변 완료 건", 2))));
+                List.of(new AiClient.UnansweredItem("fq_0007", "판매자 답변 완료 건", 2),
+                        new AiClient.UnansweredItem("fq_0009", "모르는 건", 1))));
 
         // when
         var view = questionInsightService.unanswered(sellerId, liveId, 10);
 
-        // then
+        // then — 없는 행으로 답변 정보 없는 "완료" 행을 만들지 않는다
         assertThat(view.pending()).hasSize(1);
-        assertThat(view.answered()).hasSize(1);
+        assertThat(view.answered()).containsExactly(sellerAnswered);
+        assertThat(sellerAnswered.getAnsweredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
+    }
+
+    @Test
+    void AI가_NONE으로_와도_판매자_답변을_지우지_않는다() {
+        // given — 판매자가 먼저 답변했고, AI 쪽 집계는 아직 반영 전이라 NONE으로 온다
+        LiveQuestionSummaryJpaEntity existing = q("fq_0002", 1);
+        existing.recordAnswer("네, 됩니다.", Instant.now());
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(existing));
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.faq(anyString(), anyInt())).willReturn(new AiClient.FaqResult(180, List.of(
+                new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 3, "앱·원격제어",
+                        AiClient.AnsweredBy.NONE, null, null, false))));
+
+        // when
+        questionInsightService.faq(sellerId, liveId, 10);
+
+        // then
+        assertThat(existing.isAnswered()).isTrue();
+        assertThat(existing.getAnsweredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
+        assertThat(existing.getAnswerText()).isEqualTo("네, 됩니다.");
+        assertThat(existing.getRelatedQuestionCount()).isEqualTo(3);
     }
 
     @Test

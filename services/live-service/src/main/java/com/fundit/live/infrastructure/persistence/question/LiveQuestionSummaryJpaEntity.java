@@ -94,9 +94,15 @@ public class LiveQuestionSummaryJpaEntity {
         this.topic = item.category();
         this.summaryText = item.representativeText();
         this.relatedQuestionCount = item.count();
-        this.answeredBy = item.answeredBy();
         this.promoted = item.promoted();
-        if (item.answeredBy() != AiClient.AnsweredBy.NONE) {
+        // NONE은 이미 남긴 답변(판매자 recordAnswer 등)을 지우지 않는다 — answered=true인데
+        // answeredBy=NONE인 모순 행이 생긴다. AI 계약에 "답변 철회"는 없다.
+        if (item.answeredBy() == AiClient.AnsweredBy.NONE) {
+            if (!this.answered) {
+                this.answeredBy = AiClient.AnsweredBy.NONE;
+            }
+        } else {
+            this.answeredBy = item.answeredBy();
             this.answered = true;
             this.answerText = item.answer();
             this.answeredAt = item.answeredAt();
