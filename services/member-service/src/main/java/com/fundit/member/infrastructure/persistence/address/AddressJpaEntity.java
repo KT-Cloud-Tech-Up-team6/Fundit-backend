@@ -60,6 +60,23 @@ public class AddressJpaEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    public void update(String recipientName, String phoneNumber, String zipcode,
+                       String addressLine1, String addressLine2) {
+        this.recipientName = recipientName;
+        this.phoneNumber = phoneNumber;
+        this.zipcode = zipcode;
+        this.addressLine1 = addressLine1;
+        this.addressLine2 = addressLine2;
+    }
+
+    public void markDefault() {
+        this.isDefault = true;
+    }
+
+    public void unmarkDefault() {
+        this.isDefault = false;
+    }
+
     @PrePersist
     protected void onCreate() {
         if (this.createdAt == null) this.createdAt = Instant.now();

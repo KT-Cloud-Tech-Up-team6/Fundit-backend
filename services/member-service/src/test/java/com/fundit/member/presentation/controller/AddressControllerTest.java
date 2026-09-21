@@ -82,4 +82,36 @@ class AddressControllerTest {
         mockMvc.perform(get("/api/v1/addresses"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void 배송지를_수정하고_기본으로_지정하고_삭제한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        AddressService.AddressItem item =
+                new AddressService.AddressItem(1L, "김철수", "01099998888", "54321", "강남대로 2", null, true);
+        when(addressService.update(eq(accountId), eq(1L), any())).thenReturn(item);
+        when(addressService.changeDefault(accountId, 1L)).thenReturn(item);
+
+        // when & then
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/addresses/1")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"recipientName": "김철수", "phoneNumber": "01099998888", "zipcode": "54321",
+                                 "addressLine1": "강남대로 2", "isDefault": true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipientName").value("김철수"));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/addresses/1/default")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isDefault").value(true));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/addresses/1")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(addressService).delete(accountId, 1L);
+    }
 }

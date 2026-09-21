@@ -15,6 +15,7 @@
 | POST | `/api/v1/auth/login` | X | 일반 로그인 |
 | POST | `/api/v1/auth/login/social` | X | 소셜 로그인 |
 | POST | `/api/v1/auth/token/refresh` | X (Refresh Token 쿠키가 인증 수단) | Access Token 재발급 |
+| POST | `/api/v1/auth/logout` | X (Refresh Token 쿠키로 대상 식별) | 로그아웃 — 이 기기의 refresh 토큰 폐기 + 쿠키 만료 |
 | POST | `/api/v1/auth/find-email` | X | 이메일 찾기 1단계 — 마스킹 |
 | POST | `/api/v1/auth/find-email/reveal` | X | 이메일 찾기 2단계 — 전문 공개 |
 | POST | `/api/v1/auth/reset-password` | X | 비밀번호 재설정 링크 발송 |
@@ -32,7 +33,7 @@
 로그인/회원가입 성공 시 서버는 Access Token은 응답 바디로, **Refresh Token은 아래 속성의 쿠키로** 내려준다. 응답 바디에는 Refresh Token을 포함하지 않는다.
 
 ```
-Set-Cookie: refreshToken=<value>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/token/refresh; Max-Age=1209600
+Set-Cookie: refreshToken=<value>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600
 ```
 
 - `HttpOnly`: JS에서 값 접근 불가 → XSS로 토큰 탈취 원천 차단.
@@ -610,3 +611,27 @@ Validation / Business Rules
 ## ⚠️ 남은 확인 필요 사항
 
 (현재 없음)
+
+---
+
+### 로그아웃
+
+```
+POST /api/v1/auth/logout
+```
+
+Auth Required: **X** — access 토큰이 만료된 뒤에도 로그아웃할 수 있어야 한다. 대상은 Refresh Token 쿠키로 식별한다.
+
+Response Body (200)
+
+```json
+{ "message": "로그아웃되었습니다." }
+```
+
+```
+Set-Cookie: refreshToken=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=0
+```
+
+- 쿠키의 refresh 토큰 **하나만** 폐기한다(다른 기기 세션은 유지).
+- **멱등**: 쿠키가 없거나 무효·만료·이미 폐기된 토큰이어도 200이다. 이미 폐기된 토큰이어도 재사용 탐지(전체 세션 강제 로그아웃)를 트리거하지 않는다.
+- 쿠키 Path를 `/api/v1/auth`로 둔 이유: 재발급(`/token/refresh`)과 로그아웃(`/logout`) 모두 이 쿠키를 받아야 한다. 재발급 경로로만 좁히면 브라우저가 로그아웃 요청에 쿠키를 싣지 않는다.
