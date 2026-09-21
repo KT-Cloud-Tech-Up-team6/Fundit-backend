@@ -52,3 +52,8 @@ mail:
   # QA가 메일 없이 재설정 링크를 확인하도록 본문까지 로그에 남긴다. dev 전용 — 운영 yml에는 두지 않는다
   # (재설정 링크는 사실상 베어러 토큰이라 로그 유출은 토큰 탈취와 같다, security.md S10).
   log-body: true
+
+test-accounts:
+  # QA 테스트 계정 2개(QaTestAccountSeeder) 공용 비밀번호. 비어 있으면 생성하지 않는다.
+  # dev 전용 — local·prod yml에는 두지 않는다.
+  password: ${TEST_ACCOUNT_PASSWORD:}
