@@ -70,15 +70,17 @@ public class FundingInternalQueryService {
                 .mapToLong(FundingCouponApplicationJpaEntity::getDiscountAmount)
                 .sum();
         long finalAmount = funding.totalRewardAmount() + funding.getShippingFee() - discountAmount;
-        // 한 주문에 쿠폰이 최대 2개(플랫폼+메이커) 붙을 수 있지만 이 필드는 단수다 — payment-service
-        // PaymentCompletedEvent도 이미 단수로 고정돼 있어 그 계약에 맞춰 첫 번째 적용분만 노출한다
-        // [알려진 제약 — 복수 적용 건의 사용확정/복원 전체 반영은 별도 이슈].
-        Long couponIssuanceId = couponApplications.isEmpty() ? null : couponApplications.get(0).getCouponIssuanceId();
+        // 한 주문에 쿠폰이 최대 2개(플랫폼+메이커)까지 붙을 수 있어 전부 리스트로 넘긴다 —
+        // payment-service가 이 값을 그대로 스냅샷했다가 결제완료/환불완료 이벤트에 실어 보내면
+        // 이 서비스가 전부 사용확정/복원 처리한다(ORDER-015).
+        List<Long> couponIssuanceIds = couponApplications.stream()
+                .map(FundingCouponApplicationJpaEntity::getCouponIssuanceId)
+                .toList();
         UUID sellerId = projectOwnershipClient.findSellerId(funding.getProjectId()).orElse(null);
 
         return new FundingSnapshot(funding.getId(), funding.getProjectId(), funding.getMemberId(),
                 funding.getPublicId(), sellerId, funding.getStatus().name(), finalAmount,
-                orderName(funding.getLineItems()), couponIssuanceId, couponApplications.size(),
+                orderName(funding.getLineItems()), couponIssuanceIds,
                 funding.getShippingFee(), discountAmount);
     }
 
@@ -120,7 +122,7 @@ public class FundingInternalQueryService {
      */
     public record FundingSnapshot(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId,
                                    UUID sellerId, String status, long finalAmount, String orderName,
-                                   Long couponIssuanceId, int appliedCouponCount, long shippingFee, long discountAmount) {
+                                   List<Long> couponIssuanceIds, long shippingFee, long discountAmount) {
     }
 
     public record OrderSummarySnapshot(UUID orderId, String projectTitle, List<FundingLineItem> lineItems) {

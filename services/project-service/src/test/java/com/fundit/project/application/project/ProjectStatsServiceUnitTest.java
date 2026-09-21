@@ -164,17 +164,33 @@ class ProjectStatsServiceUnitTest {
     @Test
     void 리워드_통계_이벤트를_받으면_스냅샷을_교체한다() {
         // given
+        UUID publicId = UUID.randomUUID();
         List<RewardStat> stats = List.of(new RewardStat(1L, 100L, 2, 20_000L));
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId)));
         when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
         when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        projectStatsService.applyRewardStats(1L, stats);
+        projectStatsService.applyRewardStats(publicId, stats);
 
         // then
         var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
         verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
         assertThat(captor.getValue().getRewardStats()).isEqualTo(stats);
         assertThat(captor.getValue().getLastSyncedAt()).isNotNull();
+    }
+
+    @Test
+    void 알수없는_projectPublicId면_스냅샷_저장없이_건너뛴다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
+
+        // when
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, 100L, 2, 20_000L)));
+
+        // then
+        verify(fundingStatusSnapshotJpaRepository, never()).save(any());
     }
 }

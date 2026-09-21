@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,7 +15,7 @@ class PaymentUnitTest {
     private static final UUID MEMBER_ID = UUID.randomUUID();
 
     private Payment newPendingPayment() {
-        return Payment.create(FUNDING_ID, MEMBER_ID, "fundit-abc123", 89_000L, "테스트 주문", 7L, "idem-key-1");
+        return Payment.create(FUNDING_ID, MEMBER_ID, "fundit-abc123", 89_000L, "테스트 주문", List.of(7L), "idem-key-1");
     }
 
     @Test
@@ -27,7 +28,7 @@ class PaymentUnitTest {
         assertThat(payment.getId()).isNotNull();
         assertThat(payment.getFundingId()).isEqualTo(FUNDING_ID);
         assertThat(payment.getAmount()).isEqualTo(89_000L);
-        assertThat(payment.getCouponIssuanceId()).isEqualTo(7L);
+        assertThat(payment.getCouponIssuanceIds()).containsExactly(7L);
     }
 
     @Test

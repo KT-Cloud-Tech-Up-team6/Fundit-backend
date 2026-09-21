@@ -12,6 +12,7 @@ import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,7 +37,7 @@ class KafkaFundingRewardStatsEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.send(
-                new RewardStatsUpdatedEvent(1L, List.of(new RewardStatItem(2L, 3L, 1, 1000L))), 9L))
+                new RewardStatsUpdatedEvent(UUID.randomUUID(), List.of(new RewardStatItem(2L, 3L, 1, 1000L))), 9L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /** PAYMENT-001 — 결제 시도 생성(결제위젯 렌더링 준비). */
@@ -44,9 +45,9 @@ public class PaymentCreateService {
             throw new BusinessException(PaymentErrorCode.FUNDING_NOT_PENDING);
         }
 
-        // ④ Payment(PENDING) 생성 — finalAmount/orderName/couponIssuanceId를 스냅샷으로 고정
+        // ④ Payment(PENDING) 생성 — finalAmount/orderName/couponIssuanceIds를 스냅샷으로 고정
         Payment payment = Payment.create(orderId, accountId, generateUniquePgOrderId(),
-                snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceId(),
+                snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceIds(),
                 UUID.randomUUID().toString());
         return PaymentCreateResult.from(paymentRepository.save(payment));
     }
@@ -60,10 +61,10 @@ public class PaymentCreateService {
     }
 
     public record PaymentCreateResult(UUID paymentId, String pgOrderId, long amount, String orderName,
-                                       Long couponIssuanceId) {
+                                       List<Long> couponIssuanceIds) {
         static PaymentCreateResult from(Payment payment) {
             return new PaymentCreateResult(payment.getId(), payment.getPgOrderId(), payment.getAmount(),
-                    payment.getOrderName(), payment.getCouponIssuanceId());
+                    payment.getOrderName(), payment.getCouponIssuanceIds());
         }
     }
 }

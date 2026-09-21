@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,7 +60,7 @@ class PaymentConfirmServiceIntegrationTest {
     void 승인에_성공하면_결제완료와_아웃박스_적재가_같은_트랜잭션에_들어간다() {
         // given
         Payment payment = Payment.create(new UUID(0L, 1024L), java.util.UUID.randomUUID(), "fundit-order-1",
-                89_000L, "테스트 주문", 7L, "idem-1");
+                89_000L, "테스트 주문", List.of(7L), "idem-1");
         Payment saved = paymentRepository.save(payment);
         when(tossPaymentsClient.confirm(anyString(), anyString(), anyLong())).thenReturn(
                 new TossPaymentsClient.TossPaymentResult("pay_key_1", "fundit-order-1", "secret_1", "카드",

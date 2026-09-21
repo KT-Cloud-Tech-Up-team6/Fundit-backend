@@ -46,7 +46,7 @@ class HttpOrderFundingClientUnitTest {
                           "status": "PENDING",
                           "finalAmount": 89000,
                           "orderName": "테스트 주문",
-                          "couponIssuanceId": 7,
+                          "couponIssuanceIds": [7, 8],
                           "fundingPublicId": "%s",
                           "shippingFee": 3000,
                           "discountAmount": 2000
@@ -60,7 +60,7 @@ class HttpOrderFundingClientUnitTest {
         assertThat(snapshot.status()).isEqualTo("PENDING");
         assertThat(snapshot.finalAmount()).isEqualTo(89_000L);
         assertThat(snapshot.orderName()).isEqualTo("테스트 주문");
-        assertThat(snapshot.couponIssuanceId()).isEqualTo(7L);
+        assertThat(snapshot.couponIssuanceIds()).containsExactly(7L, 8L);
         assertThat(snapshot.fundingPublicId()).isEqualTo(new UUID(2L, 1024L));
         assertThat(snapshot.shippingFee()).isEqualTo(3_000L);
         assertThat(snapshot.discountAmount()).isEqualTo(2_000L);
@@ -91,7 +91,7 @@ class HttpOrderFundingClientUnitTest {
                           "status": "PENDING",
                           "finalAmount": 89000,
                           "orderName": "테스트 주문",
-                          "couponIssuanceId": null,
+                          "couponIssuanceIds": [],
                           "fundingPublicId": "%s",
                           "shippingFee": 0,
                           "discountAmount": 0

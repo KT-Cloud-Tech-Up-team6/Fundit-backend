@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -38,7 +39,7 @@ class KafkaPaymentEventTransportUnitTest {
         // given
         setUp();
         UUID fundingId = new UUID(0L, 1024L);
-        var event = new PaymentEventTransport.PaymentCompletedTransportEvent(fundingId, 7L);
+        var event = new PaymentEventTransport.PaymentCompletedTransportEvent(fundingId, List.of(7L));
 
         // when
         transport.sendPaymentCompleted(event, 42L);
@@ -49,7 +50,7 @@ class KafkaPaymentEventTransportUnitTest {
         Map<String, Object> payload = payloadCaptor.getValue();
         assertThat(payload.get("eventId")).isEqualTo("payment:42");
         assertThat(payload.get("fundingId")).isEqualTo(fundingId);
-        assertThat(payload.get("couponIssuanceId")).isEqualTo(7L);
+        assertThat(payload.get("couponIssuanceIds")).isEqualTo(List.of(7L));
     }
 
     @SuppressWarnings("unchecked")
@@ -58,7 +59,7 @@ class KafkaPaymentEventTransportUnitTest {
         // given
         setUp();
         UUID fundingId = new UUID(0L, 2048L);
-        var event = new PaymentEventTransport.RefundCompletedTransportEvent(fundingId, 9L, "CANCELLED_BY_MEMBER", true);
+        var event = new PaymentEventTransport.RefundCompletedTransportEvent(fundingId, List.of(9L), "CANCELLED_BY_MEMBER", true);
 
         // when
         transport.sendRefundCompleted(event, 77L);
@@ -69,7 +70,7 @@ class KafkaPaymentEventTransportUnitTest {
         Map<String, Object> payload = payloadCaptor.getValue();
         assertThat(payload.get("eventId")).isEqualTo("payment:77");
         assertThat(payload.get("fundingId")).isEqualTo(fundingId);
-        assertThat(payload.get("couponIssuanceId")).isEqualTo(9L);
+        assertThat(payload.get("couponIssuanceIds")).isEqualTo(List.of(9L));
         assertThat(payload.get("refundReason")).isEqualTo("CANCELLED_BY_MEMBER");
         assertThat(payload.get("fullRefund")).isEqualTo(true);
     }

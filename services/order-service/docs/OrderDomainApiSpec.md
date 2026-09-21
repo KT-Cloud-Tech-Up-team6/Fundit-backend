@@ -113,7 +113,7 @@ POST /api/v1/orders/preview
 - 금액 계산은 항상 서버에서 수행(리워드 단가·배송비·쿠폰 할인율 모두 서버 조회값 사용), 클라이언트가 보낸 금액을 신뢰하지 않는다(S4).
 - 리워드금액 합산 + **배송비 고정 3,000원**(`order.policy.default-shipping-fee`) + 쿠폰 할인(`FREE_SHIPPING`은 배송비 한도 내에서 할인, `coupons.max_discount_amount` 설정 시 그 한도까지) 반영. 프로젝트/리워드별 배송비 정책은 아직 없어 고정값이다.
 - 쿠폰이 최소 펀딩금액 미달·만료·본인 미보유 등으로 적용 불가능하면 해당 쿠폰은 `appliedCoupons`에 넣지 않고 `unavailableCoupons`에 사유 코드로 안내한다(예: `MIN_AMOUNT_NOT_MET`, `EXPIRED`, `NOT_OWNED`, `ALREADY_USED`, `NOT_FOUND`, `BUDGET_EXCEEDED`, `NOT_APPLICABLE`). preview 자체는 422를 내지 않는다.
-- **[알려진 제약] 쿠폰 2개(플랫폼+메이커) 동시 적용 시 결제완료/환불 이벤트는 첫 번째 쿠폰만 반영한다.** 결제 시점의 `payment.completed.v1`/`refund.completed.v1` payload(`couponIssuanceId`)가 단수라, `funding_coupon_applications`에 2건이 있어도 사용확정(USED)·환불복원(AVAILABLE) 처리는 첫 번째 건에만 적용된다(`FundingInternalQueryService.toSnapshot()` 주석 참고). 두 번째 쿠폰의 실제 최종 상태는 이 API들의 응답만으로는 확인할 수 없고, 향후 이벤트 payload를 복수 지원으로 바꿔야 해결된다(별도 이슈, 이번 범위 밖).
+- **[해결됨, 2026-09-21] 쿠폰 2개(플랫폼+메이커) 동시 적용도 결제완료/환불 이벤트가 전부 반영한다.** `payment.completed.v1`/`refund.completed.v1` payload가 `couponIssuanceIds`(리스트)로 바뀌어, `funding_coupon_applications`에 있는 적용 쿠폰 전부가 사용확정(USED)/환불복원(AVAILABLE) 처리된다(`FundingInternalQueryService.toSnapshot()` 참고).
 
 ---
 
@@ -211,7 +211,6 @@ GET /api/v1/orders/{orderId}
       "options": [ { "optionGroupName": "색상", "optionValue": "화이트" } ] }
   ],
   "shippingFee": 3000, "discountAmount": 3000, "finalAmount": 39000,
-  "couponLifecycleScope": "FIRST_ONLY",
   "shippingAddress": {
     "recipientName": "홍길동", "phoneNumber": "010-1234-5678",
     "zipcode": "12345", "addressLine1": "...", "addressLine2": "101동 101호"
@@ -224,7 +223,7 @@ GET /api/v1/orders/{orderId}
 
 - `orderId`(public_id) 소유권 서버 검증 — 타인 주문 접근 시 `403 FORBIDDEN`(S4). 없으면 `404 NOT_FOUND`.
 - **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산식이 같다.
-- **`couponLifecycleScope`는 항상 `FIRST_ONLY`.** 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceId`는 단수라, 사용확정(USED)·환불복원(AVAILABLE)은 **첫 번째 적용 쿠폰만** 처리된다. 두 번째 쿠폰은 결제 후에도 `AVAILABLE`로 남을 수 있고, 환불 시에도 복원되지 않는다. 복수 쿠폰 이벤트 계약은 별도 이슈.
+- 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceIds`(리스트)에 전부 담겨 발행되므로, 사용확정(USED)/환불복원(AVAILABLE)이 두 쿠폰 모두에 처리된다.
 - `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
 - `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전(`isAlreadyShipped=false`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, 배송완료(`deliveredAt != null`) → `["DEFECT_REFUND_REQUEST"]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
 - 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`).
@@ -446,9 +445,7 @@ GET /internal/fundings/{fundingId}
   "status": "PENDING",
   "finalAmount": 35100,
   "orderName": "얼리버드 패키지 외 1건",
-  "couponIssuanceId": 5,
-  "appliedCouponCount": 2,
-  "couponLifecycleScope": "FIRST_ONLY",
+  "couponIssuanceIds": [5, 6],
   "shippingFee": 3000,
   "discountAmount": 2000
 }
@@ -460,7 +457,7 @@ GET /internal/fundings/{fundingId}
 - `projectId`는 project-service `publicId`(UUID). `fundingPublicId`는 외부 노출 `orderId`.
 - `finalAmount`는 `totalRewardAmount + shippingFee - discountAmount`(`funding_coupon_applications` 합산). `orderName`은 첫 번째 라인아이템 리워드명 기준("리워드명" 또는 2건 이상이면 "리워드명 외 N건")으로 만든 표시용 문자열이다.
 - `shippingFee`/`discountAmount`는 위 `finalAmount` 계산식의 구성요소를 그대로 노출한다(R05 — payment-service 환불 예상금액 사전계산용). 둘 다 신규 추가 필드라 기존 소비자(`HttpOrderFundingClient`)는 무시해도 무방(api-convention.md "필드 추가는 버전을 올리지 않음").
-- `couponIssuanceId`는 적용 쿠폰 중 **첫 번째 건만**(단수). `appliedCouponCount`가 2여도 결제완료/환불 이벤트는 이 ID 하나만 실어 보낸다. `couponLifecycleScope`=`FIRST_ONLY`가 그 제약을 응답에 명시한다.
+- `couponIssuanceIds`는 적용 쿠폰 전체(최대 2개, 플랫폼+메이커)다. payment-service가 이 값을 그대로 스냅샷했다가 결제완료/환불완료 이벤트에 실어 보내면 이 서비스가 전부 사용확정/복원 처리한다.
 - payment-service `HttpOrderFundingClient`(PAYMENT-001)가 이 응답 그대로를 소비한다. 필드명을 바꾸면 그쪽 역직렬화가 깨진다.
 
 ---
@@ -742,5 +739,4 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 - **재입고 알림 신청 기능 중복**: 위 7번 엔드포인트 참고 — member-service `MvpImplementationSummary.md`의 MEMBER-008과 소유권 정리 필요.
 - **LIVE 쿠폰 "방송 중" 검증**: claim 시 live-service 조회를 생략 중.
 - **`GET /api/v1/inventories/{rewardId}` 인증**: 게이트웨이 미라우팅으로 외부 차단만 하고, 서비스 간 호출에는 내부 키를 요구하지 않는다. project-service HTTP 클라이언트도 아직 Noop.
-- **내부 펀딩 스냅샷 필드**: payment-service HTTP 클라이언트가 기대하는 `status`/`finalAmount`/`orderName`/`sellerId`/`couponIssuanceId`는 현재 응답에 없다.
 - **`project.funding-deadline-reached.v1` 미발행**: ORDER-006 리스너는 있으나 project-service가 토픽을 발행하지 않아 성립/미달 판정이 트리거되지 않는다.

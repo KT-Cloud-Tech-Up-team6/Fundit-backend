@@ -40,7 +40,7 @@ public class KafkaPaymentEventTransport implements PaymentEventTransport {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("eventId", SERVICE_NAME + ":" + outboxId);
         payload.put("fundingId", event.fundingId());
-        payload.put("couponIssuanceId", event.couponIssuanceId());
+        payload.put("couponIssuanceIds", event.couponIssuanceIds());
         send(KafkaTopics.PAYMENT_COMPLETED, String.valueOf(event.fundingId()), payload);
     }
 
@@ -49,7 +49,7 @@ public class KafkaPaymentEventTransport implements PaymentEventTransport {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("eventId", SERVICE_NAME + ":" + outboxId);
         payload.put("fundingId", event.fundingId());
-        payload.put("couponIssuanceId", event.couponIssuanceId());
+        payload.put("couponIssuanceIds", event.couponIssuanceIds());
         payload.put("refundReason", event.refundReason());
         payload.put("fullRefund", event.fullRefund());
         send(KafkaTopics.REFUND_COMPLETED, String.valueOf(event.fundingId()), payload);

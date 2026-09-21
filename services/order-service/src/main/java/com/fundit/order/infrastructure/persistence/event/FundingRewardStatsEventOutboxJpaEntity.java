@@ -18,6 +18,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /** 단순 애그리거트 — 리워드 구매 통계 이벤트의 트랜잭셔널 아웃박스 행(프로젝트당 1행, 전체 교체). */
 @Getter
@@ -33,7 +34,7 @@ public class FundingRewardStatsEventOutboxJpaEntity {
     private Long id;
 
     @Column(name = "project_id", nullable = false)
-    private Long projectId;
+    private UUID projectId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "reward_stats", nullable = false, columnDefinition = "jsonb")

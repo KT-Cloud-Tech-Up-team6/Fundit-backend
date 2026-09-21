@@ -210,8 +210,7 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orderId").value(orderId.toString()))
-                .andExpect(jsonPath("$.couponLifecycleScope").value("FIRST_ONLY"));
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()));
     }
 
     @Test

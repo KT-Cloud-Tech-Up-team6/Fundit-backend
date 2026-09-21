@@ -59,7 +59,7 @@ public class PaymentConfirmService {
 
         // ⑤ 같은 트랜잭션에서 아웃박스 적재 — 별도 트랜잭션으로 분리하지 않는다(CLAUDE.md "절대 하지 말아야 할 것")
         paymentEventPublisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
-                saved.getId(), saved.getFundingId(), saved.getCouponIssuanceId(), saved.getPaidAt()));
+                saved.getId(), saved.getFundingId(), saved.getCouponIssuanceIds(), saved.getPaidAt()));
 
         return PaymentConfirmResult.from(saved);
     }

@@ -21,7 +21,7 @@
 }
 ```
 
-- **처리 절차**: ① `OrderFundingClient.fetch(fundingId)`로 스냅샷을 받는다. **기본은 `StubOrderFundingClient`**(고정값). `order.integration.funding-client.mode=http`이면 `GET /internal/fundings/{fundingId}`를 `X-Internal-Api-Key`로 호출하고 `{ memberId, sellerId, status, finalAmount, orderName, couponIssuanceId }`를 기대한다. **order-service 실제 응답은 `{ projectId, memberId, fundingPublicId }`뿐이라 HTTP 모드를 켜도 결제 시도에 필요한 필드가 비어 있다.** ② 스냅샷 `memberId`가 `CurrentUser.id`와 다르면 `403 FORBIDDEN` ③ `status != 'PENDING'`이면 `409 FUNDING_NOT_PENDING` ④ 검증 통과 시 `Payment(PENDING)` 생성, `finalAmount`/`orderName`/`couponIssuanceId`를 `payments`에 스냅샷
+- **처리 절차**: ① `OrderFundingClient.fetch(fundingId)`로 스냅샷을 받는다. **기본은 `StubOrderFundingClient`**(고정값). `order.integration.funding-client.mode=http`이면 `GET /internal/fundings/{fundingId}`를 `X-Internal-Api-Key`로 호출하고 `{ memberId, sellerId, status, finalAmount, orderName, couponIssuanceIds }`를 기대한다. **order-service 실제 응답은 `{ projectId, memberId, fundingPublicId }`뿐이라 HTTP 모드를 켜도 결제 시도에 필요한 필드가 비어 있다.** ② 스냅샷 `memberId`가 `CurrentUser.id`와 다르면 `403 FORBIDDEN` ③ `status != 'PENDING'`이면 `409 FUNDING_NOT_PENDING` ④ 검증 통과 시 `Payment(PENDING)` 생성, `finalAmount`/`orderName`/`couponIssuanceIds`를 `payments`에 스냅샷
 
 - **Response 201 Created**
 
@@ -31,12 +31,11 @@
   "pgOrderId": "fundit-3f8a91c2b7",
   "amount": 89000,
   "orderName": "세상에 없는 프라이팬 외 1건",
-  "couponIssuanceId": 5,
-  "couponLifecycleScope": "FIRST_ONLY"
+  "couponIssuanceIds": [5, 6]
 }
 ```
 
-- **복수 쿠폰 제약**: 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payments.coupon_issuance_id`와 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceId`는 **단수(첫 번째 적용 건)**다. `couponLifecycleScope`=`FIRST_ONLY`가 그 범위를 응답에 명시한다. 결제 금액(`amount`)은 두 쿠폰 할인을 합산한 `finalAmount`를 쓴다. 사용확정/복원은 첫 번째 쿠폰만 되고, 두 번째는 결제 후에도 AVAILABLE로 남을 수 있으며 환불 시 복원되지 않는다. 전체 지원은 이벤트 payload 복수화가 필요(이번 범위 밖).
+- **복수 쿠폰**: 주문에 플랫폼+메이커 쿠폰이 같이 있으면 `payments.coupon_issuance_ids`와 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceIds`에 최대 2개(플랫폼+메이커) 전부 담긴다. 결제 금액(`amount`)은 두 쿠폰 할인을 합산한 `finalAmount`를 쓴다. 사용확정/복원도 리스트에 담긴 쿠폰 전부에 적용된다.
 
 > 프론트엔드는 이 응답값으로 결제위젯을 초기화·렌더링한다.
 > 1. `tossPayments.widgets({ customerKey })` — `customerKey`는 백엔드가 발급하지 않고, 로그인 회원의 `member_id`(UUID)를 프론트가 그대로 사용한다(무작위·비유추 값 요건 충족, `PaymentERD.md` 1장 참고). 이 응답에는 포함하지 않는다.
@@ -65,7 +64,7 @@
 }
 ```
 
-- **처리 절차**: 서버가 `orderId`로 결제 시도 조회 → 본인 소유 검증 → `amount`를 PAYMENT-001 시점 스냅샷값과 대조(불일치 시 승인 API 호출 없이 즉시 실패) → 토스 결제승인 API(`POST /v1/payments/confirm`)를 **위젯 시크릿 키**로 서버-투-서버 호출 → 성공 시 `pg_payment_key` 저장 후 `COMPLETED` → 같은 트랜잭션에서 `payment_event_outbox`에 `PaymentCompleted` 적재(order-service DB에 직접 쓰지 않음, PAYMENT-016 워커가 `payment.completed.v1`로 비동기 발행). Kafka 페이로드는 `{ eventId, fundingId, couponIssuanceId }`이다(`paidAt`/`paymentId`는 브로커로 나가지 않음).
+- **처리 절차**: 서버가 `orderId`로 결제 시도 조회 → 본인 소유 검증 → `amount`를 PAYMENT-001 시점 스냅샷값과 대조(불일치 시 승인 API 호출 없이 즉시 실패) → 토스 결제승인 API(`POST /v1/payments/confirm`)를 **위젯 시크릿 키**로 서버-투-서버 호출 → 성공 시 `pg_payment_key` 저장 후 `COMPLETED` → 같은 트랜잭션에서 `payment_event_outbox`에 `PaymentCompleted` 적재(order-service DB에 직접 쓰지 않음, PAYMENT-016 워커가 `payment.completed.v1`로 비동기 발행). Kafka 페이로드는 `{ eventId, fundingId, couponIssuanceIds }`이다(`paidAt`/`paymentId`는 브로커로 나가지 않음).
 
 - **Response 200 OK**
 
@@ -202,7 +201,7 @@
 { "refundId": 501, "status": "COMPLETED" }
 ```
 
-- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **MVP는 전액 취소만 수행**한다(반품비 차감 등 부분취소 금액 산정이 미확정이라 `payments.amount` 전액을 취소). 완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceId, refundReason, fullRefund }` (`refundReason`=`POST_SUCCESS_DEFECT`, `fullRefund`=`true`). 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
+- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **MVP는 전액 취소만 수행**한다(반품비 차감 등 부분취소 금액 산정이 미확정이라 `payments.amount` 전액을 취소). 완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceIds, refundReason, fullRefund }` (`refundReason`=`POST_SUCCESS_DEFECT`, `fullRefund`=`true`). 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
 - **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `PG_CANCEL_FAILED`(422), `NOT_FOUND`(404)
 
 ---
@@ -389,7 +388,7 @@
 {
   "eventId": "payment:42",
   "fundingId": 1024,
-  "couponIssuanceId": 7
+  "couponIssuanceIds": [7, 8]
 }
 ```
 
@@ -399,7 +398,7 @@
 {
   "eventId": "payment:77",
   "fundingId": 1024,
-  "couponIssuanceId": 7,
+  "couponIssuanceIds": [7],
   "refundReason": "CANCELLED_BY_MEMBER",
   "fullRefund": true
 }
@@ -450,4 +449,4 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 
 - **`payment_event_outbox` 재시도 상한**: PAYMENT-016 예외처리의 "N회 이상 연속 실패 시 알림" N값 미정.
 - **PAYMENT-017 `SYSTEM_RECONCILIATION` → order-service `RefundReason` 매핑**: payment는 `trigger_type=SYSTEM_RECONCILIATION`으로 기록하고, Kafka `refundReason`은 임시로 `GOAL_FAILURE_AUTO_REFUND`로 보낸다(order-service enum에 대응 값이 없음). order-service 발행·enum 추가 시 재확인.
-- **order-service 내부 API 페이로드 불일치**: 엔드포인트 `GET /internal/fundings/{fundingId}`는 있다. 기본 모드는 stub. HTTP 클라이언트가 기대하는 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceId`는 order 응답에 아직 없다.
+- **order-service 내부 API 연동**: `GET /internal/fundings/{fundingId}`/`GET /internal/orders/{orderId}`가 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceIds`를 전부 제공한다(연동 완료, CLAUDE.md "연동 현황" 참고). 기본 모드는 여전히 stub — 로컬에서 order-service를 안 띄웠으면 `ORDER_FUNDING_CLIENT_MODE=stub` 유지.

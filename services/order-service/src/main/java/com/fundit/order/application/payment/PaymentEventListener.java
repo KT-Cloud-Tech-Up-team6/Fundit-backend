@@ -1,5 +1,7 @@
 package com.fundit.order.application.payment;
 
+import java.util.List;
+
 /**
  * ORDER-015 — payment-service가 발행하는 결제완료/환불 이벤트를 구독해 이 서비스 소유
  * 테이블(coupon_issuances, 그리고 fundings.status)을 자체적으로 갱신한다(DB-per-service 원칙).
@@ -22,7 +24,8 @@ public interface PaymentEventListener {
     /** 환불 완료 — 환불 유형에 따라 쿠폰 복원 여부와 Funding 상태를 함께 반영한다. */
     void onRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(Long fundingId, Long couponIssuanceId) {
+    /** {@code couponIssuanceIds}는 이 주문에 적용된 쿠폰 전체(최대 2개, 플랫폼+메이커)다. */
+    record PaymentCompletedEvent(Long fundingId, List<Long> couponIssuanceIds) {
     }
 
     /**
@@ -34,6 +37,7 @@ public interface PaymentEventListener {
         GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
     }
 
-    record RefundCompletedEvent(Long fundingId, Long couponIssuanceId, RefundReason refundReason, boolean fullRefund) {
+    record RefundCompletedEvent(Long fundingId, List<Long> couponIssuanceIds, RefundReason refundReason,
+                                 boolean fullRefund) {
     }
 }

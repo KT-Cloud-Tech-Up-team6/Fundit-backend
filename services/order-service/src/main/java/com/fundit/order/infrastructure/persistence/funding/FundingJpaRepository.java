@@ -23,10 +23,16 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
     /**
      * PROJECT-015 펀딩 집계 배치 대상 — 참여자로 셀 수 있는(결제완료, 미환불) 펀딩이 하나라도
      * 있는 프로젝트만 순회한다. PENDING(미결제)·취소·환불 건은 통계에서 제외한다.
+     *
+     * <p><b>레거시 {@code project_id}(Long)가 아니라 {@code project_public_id}(UUID)로 조회한다.</b>
+     * cross-service ID 통일(#69) 이후 {@link com.fundit.order.infrastructure.persistence.funding.FundingMapper}가
+     * 신규 펀딩에 레거시 컬럼을 더 이상 채우지 않아, 그 컬럼으로 조회하면 항상 빈 목록이 나와
+     * 이 배치가 실질적으로 아무 것도 처리하지 못한다.
      */
-    @Query(value = "SELECT DISTINCT project_id FROM fundings WHERE status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')",
+    @Query(value = "SELECT DISTINCT project_public_id FROM fundings "
+            + "WHERE status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED') AND project_public_id IS NOT NULL",
             nativeQuery = true)
-    List<Long> findDistinctProjectIdsWithCountableFundings();
+    List<UUID> findDistinctProjectPublicIdsWithCountableFundings();
 
     Page<FundingJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
 

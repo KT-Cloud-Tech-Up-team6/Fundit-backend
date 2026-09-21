@@ -71,14 +71,13 @@ class FundingInternalQueryServiceUnitTest {
         assertThat(snapshot.status()).isEqualTo("GOAL_ACHIEVED");
         assertThat(snapshot.finalAmount()).isEqualTo(1000L);
         assertThat(snapshot.orderName()).isEqualTo("리워드");
-        assertThat(snapshot.couponIssuanceId()).isNull();
-        assertThat(snapshot.appliedCouponCount()).isZero();
+        assertThat(snapshot.couponIssuanceIds()).isEmpty();
         assertThat(snapshot.shippingFee()).isEqualTo(0L);
         assertThat(snapshot.discountAmount()).isEqualTo(0L);
     }
 
     @Test
-    void 쿠폰이_적용된_펀딩이면_할인액을_반영한_최종금액과_couponIssuanceId를_반환한다() {
+    void 쿠폰이_적용된_펀딩이면_할인액을_반영한_최종금액과_couponIssuanceIds를_반환한다() {
         // given
         UUID publicId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
@@ -94,9 +93,30 @@ class FundingInternalQueryServiceUnitTest {
 
         // then
         assertThat(snapshot.finalAmount()).isEqualTo(700L);
-        assertThat(snapshot.couponIssuanceId()).isEqualTo(77L);
-        assertThat(snapshot.appliedCouponCount()).isEqualTo(1);
+        assertThat(snapshot.couponIssuanceIds()).containsExactly(77L);
         assertThat(snapshot.sellerId()).isNull();
+    }
+
+    @Test
+    void 쿠폰이_2개_적용된_펀딩이면_전부_반환한다() {
+        // given — 플랫폼+메이커 쿠폰 동시 적용
+        UUID publicId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        FundingCouponApplicationJpaEntity platform = FundingCouponApplicationJpaEntity.builder()
+                .fundingId(1024L).couponIssuanceId(77L).discountAmount(300L).build();
+        FundingCouponApplicationJpaEntity maker = FundingCouponApplicationJpaEntity.builder()
+                .fundingId(1024L).couponIssuanceId(88L).discountAmount(200L).build();
+        when(fundingRepository.findById(1024L)).thenReturn(Optional.of(funding(1024L, publicId, memberId, projectId)));
+        when(couponApplicationJpaRepository.findByFundingId(1024L)).thenReturn(List.of(platform, maker));
+        when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.empty());
+
+        // when
+        var snapshot = service.getSnapshot(1024L);
+
+        // then
+        assertThat(snapshot.finalAmount()).isEqualTo(500L);
+        assertThat(snapshot.couponIssuanceIds()).containsExactly(77L, 88L);
     }
 
     @Test

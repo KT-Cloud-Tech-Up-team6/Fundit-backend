@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * PROJECT-015 — 프로젝트별 리워드 구매 통계를 하루 한 번 재계산해 아웃박스에 적재한다
  * (PRD 7.1.3 "데이터 갱신 주기: 1일"). 프로젝트마다 별도 트랜잭션으로 처리해 한 건이 실패해도
@@ -24,13 +26,13 @@ public class FundingRewardStatsBatchService {
 
     @Scheduled(cron = "${funding-reward-stats-batch.cron:0 0 3 * * *}")
     public void recomputeAll() {
-        for (Long projectId : fundingJpaRepository.findDistinctProjectIdsWithCountableFundings()) {
+        for (UUID projectId : fundingJpaRepository.findDistinctProjectPublicIdsWithCountableFundings()) {
             recomputeOne(projectId);
         }
     }
 
     @Transactional
-    public void recomputeOne(Long projectId) {
+    public void recomputeOne(UUID projectId) {
         var rewardStats = fundingLineItemJpaRepository.aggregateRewardStatsByProjectId(projectId).stream()
                 .map(p -> new RewardStatItem(p.getRewardId(), p.getOptionValueId(), p.getTotalQuantity(), p.getTotalAmount()))
                 .toList();

@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,7 +62,7 @@ class RefundExecutionServiceUnitTest {
     }
 
     private Payment completedPayment() {
-        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", 7L, "idem");
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", List.of(7L), "idem");
         payment.markCompleted("pay_key_1", "secret_1", PaymentMethod.CARD, null, Instant.now());
         return payment;
     }

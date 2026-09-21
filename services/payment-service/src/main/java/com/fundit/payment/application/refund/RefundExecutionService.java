@@ -135,7 +135,7 @@ public class RefundExecutionService {
         RefundRequest saved = refundRequestRepository.save(completed);
 
         paymentEventPublisher.publishRefundCompleted(new PaymentEventPublisher.RefundCompletedEvent(
-                payment.getId(), payment.getFundingId(), payment.getCouponIssuanceId(),
+                payment.getId(), payment.getFundingId(), payment.getCouponIssuanceIds(),
                 triggerType.toOrderServiceReason(), isFullRefund));
         paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
                 payment.getFundingId(), payment.getMemberId(), RefundNotificationStatus.COMPLETED));

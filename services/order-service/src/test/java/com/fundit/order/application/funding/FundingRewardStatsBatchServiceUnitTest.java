@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -33,18 +34,19 @@ class FundingRewardStatsBatchServiceUnitTest {
     @Test
     void 옵션값_단위로_집계해_발행한다() {
         // given
-        when(fundingLineItemJpaRepository.aggregateRewardStatsByProjectId(7L)).thenReturn(List.of(
+        UUID projectId = UUID.randomUUID();
+        when(fundingLineItemJpaRepository.aggregateRewardStatsByProjectId(projectId)).thenReturn(List.of(
                 projection(1L, 100L, 2, 20_000L),
                 projection(1L, null, 1, 9_000L)));
 
         // when
-        batchService.recomputeOne(7L);
+        batchService.recomputeOne(projectId);
 
         // then
         ArgumentCaptor<FundingRewardStatsPublisher.RewardStatsUpdatedEvent> captor =
                 ArgumentCaptor.forClass(FundingRewardStatsPublisher.RewardStatsUpdatedEvent.class);
         verify(fundingRewardStatsPublisher).publishRewardStatsUpdated(captor.capture());
-        assertThat(captor.getValue().projectId()).isEqualTo(7L);
+        assertThat(captor.getValue().projectId()).isEqualTo(projectId);
         assertThat(captor.getValue().rewardStats()).containsExactly(
                 new RewardStatItem(1L, 100L, 2, 20_000L),
                 new RewardStatItem(1L, null, 1, 9_000L));
