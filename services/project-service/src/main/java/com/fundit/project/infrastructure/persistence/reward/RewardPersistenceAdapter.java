@@ -7,8 +7,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -24,33 +30,71 @@ public class RewardPersistenceAdapter implements RewardRepository {
         return mapper.toDomain(rewardJpaRepository.save(mapper.toEntity(reward)));
     }
 
+    /**
+     * {@code group.id()}가 이 리워드의 기존 그룹과 일치하면 그 그룹 행을 그대로 두고 이름/값만
+     * 갱신한다(ID 유지) — 그 외(신규 그룹, 또는 다른 리워드 소속이라 이 리워드의 기존 그룹
+     * 목록에 없는 ID)는 새 그룹으로 취급한다. 요청에 없는 기존 그룹은 삭제한다. 값은 그룹
+     * 단위로 항상 통째로 교체한다(개별 값 ID를 참조하는 소비자가 없어 그룹 단위 안정성이면 충분).
+     */
     @Override
     @Transactional
     public void replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups) {
         if (rewardJpaRepository.findByIdForUpdate(rewardId).isEmpty()) {
             return;
         }
-        for (RewardOptionGroupJpaEntity existingGroup : optionGroupJpaRepository.findByRewardId(rewardId)) {
-            optionValueJpaRepository.deleteByOptionGroupId(existingGroup.getId());
-        }
-        optionGroupJpaRepository.deleteByRewardId(rewardId);
+        Map<Long, RewardOptionGroupJpaEntity> existingById = optionGroupJpaRepository.findByRewardId(rewardId).stream()
+                .collect(Collectors.toMap(RewardOptionGroupJpaEntity::getId, Function.identity()));
 
+        Set<Long> keptGroupIds = new HashSet<>();
         int groupSortOrder = 0;
         for (RewardOptionGroup group : optionGroups) {
-            RewardOptionGroupJpaEntity savedGroup = optionGroupJpaRepository.save(RewardOptionGroupJpaEntity.builder()
-                    .rewardId(rewardId)
-                    .name(group.groupName())
-                    .sortOrder(groupSortOrder++)
-                    .build());
-
-            int valueSortOrder = 0;
-            for (String value : group.values()) {
-                optionValueJpaRepository.save(RewardOptionValueJpaEntity.builder()
-                        .optionGroupId(savedGroup.getId())
-                        .value(value)
-                        .sortOrder(valueSortOrder++)
-                        .build());
+            RewardOptionGroupJpaEntity existing = group.id() == null ? null : existingById.get(group.id());
+            Long groupId = existing == null
+                    ? insertGroup(rewardId, group.groupName(), groupSortOrder++)
+                    : updateGroup(existing, group.groupName(), groupSortOrder++);
+            if (existing != null) {
+                keptGroupIds.add(groupId);
+                optionValueJpaRepository.deleteByOptionGroupId(groupId);
             }
+            replaceValues(groupId, group.values());
+        }
+
+        for (RewardOptionGroupJpaEntity existing : existingById.values()) {
+            if (!keptGroupIds.contains(existing.getId())) {
+                optionValueJpaRepository.deleteByOptionGroupId(existing.getId());
+                optionGroupJpaRepository.delete(existing);
+            }
+        }
+    }
+
+    private Long insertGroup(Long rewardId, String name, int sortOrder) {
+        return optionGroupJpaRepository.save(RewardOptionGroupJpaEntity.builder()
+                .rewardId(rewardId)
+                .name(name)
+                .sortOrder(sortOrder)
+                .build()).getId();
+    }
+
+    /** merge()로 갱신되므로 @PrePersist가 돌지 않는다 — createdAt은 유지, updatedAt만 직접 갱신한다. */
+    private Long updateGroup(RewardOptionGroupJpaEntity existing, String name, int sortOrder) {
+        return optionGroupJpaRepository.save(RewardOptionGroupJpaEntity.builder()
+                .id(existing.getId())
+                .rewardId(existing.getRewardId())
+                .name(name)
+                .sortOrder(sortOrder)
+                .createdAt(existing.getCreatedAt())
+                .updatedAt(Instant.now())
+                .build()).getId();
+    }
+
+    private void replaceValues(Long groupId, List<String> values) {
+        int valueSortOrder = 0;
+        for (String value : values) {
+            optionValueJpaRepository.save(RewardOptionValueJpaEntity.builder()
+                    .optionGroupId(groupId)
+                    .value(value)
+                    .sortOrder(valueSortOrder++)
+                    .build());
         }
     }
 

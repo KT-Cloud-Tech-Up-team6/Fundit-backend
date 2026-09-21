@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /** 새소식 등록(판매자)/조회(공통), 새소식 댓글 등록/조회(PROJECT-010, PROJECT-022, PROJECT-023). */
@@ -59,6 +60,31 @@ public class NoticeService {
                 .filter(Project::isPublic)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         return notice;
+    }
+
+    /**
+     * 재편집 저장 — 소유 판매자만 가능하다. 전달되지 않은(null) 필드는 기존값을 유지한다.
+     * 등록(create)과 동일하게 프로젝트 공개 여부는 따지지 않는다(소유권만 검증) — 작성 시점부터
+     * 이미 그렇게 처리하고 있어 일관성을 맞춘다.
+     */
+    @Transactional
+    public ProjectNoticeJpaEntity update(UUID sellerId, Long noticeId, String title, String content) {
+        ProjectNoticeJpaEntity notice = noticeJpaRepository.findById(noticeId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        Project project = projectRepository.findById(notice.getProjectId())
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (!project.isOwnedBy(sellerId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        return noticeJpaRepository.save(ProjectNoticeJpaEntity.builder()
+                .id(notice.getId())
+                .projectId(notice.getProjectId())
+                .noticeType(notice.getNoticeType())
+                .title(title != null ? title : notice.getTitle())
+                .content(content != null ? content : notice.getContent())
+                .createdAt(notice.getCreatedAt())
+                .updatedAt(Instant.now())
+                .build());
     }
 
     @Transactional

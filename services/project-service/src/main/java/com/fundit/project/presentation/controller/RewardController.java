@@ -138,7 +138,7 @@ public class RewardController {
     private List<RewardOptionGroup> toOptionGroups(List<RewardOptionRequest> options) {
         if (options == null) return null;
         return options.stream()
-                .map(o -> new RewardOptionGroup(o.groupName(), o.values()))
+                .map(o -> new RewardOptionGroup(o.optionGroupId(), o.groupName(), o.values()))
                 .toList();
     }
 
@@ -147,14 +147,15 @@ public class RewardController {
     }
 
     /**
-     * 생성/수정 응답 전용 — 도메인 {@code Reward}는 옵션 그룹/값에 DB ID를 담지 않는다
-     * (RewardMapper 참고). 재편집 화면이 필요로 하는 ID 포함 옵션은 {@link #toSellerResponse}
-     * (판매자 목록 조회)로만 제공한다.
+     * 생성/수정 응답 전용 — {@code groupId}는 요청에 실려온 값을 그대로 되돌려줄 뿐이다(신규 그룹은
+     * null, PATCH로 유지된 기존 그룹은 그 ID). 값 단위 ID는 그룹 값 목록이 항상 통째로 교체되므로
+     * 애초에 없다(RewardOptionRequest 참고). 신규 그룹이 실제로 부여받은 ID까지 포함한 전체 목록은
+     * {@link #toSellerResponse}(판매자 목록 조회, GET .../rewards/mine)로 재조회해야 한다.
      */
     private RewardResponse toResponse(Reward reward) {
         List<RewardOptionGroupResponse> options = reward.getOptionGroups() == null ? List.of()
                 : reward.getOptionGroups().stream()
-                        .map(g -> new RewardOptionGroupResponse(null, g.groupName(),
+                        .map(g -> new RewardOptionGroupResponse(g.id(), g.groupName(),
                                 g.values().stream().map(val -> new RewardOptionValueResponse(null, val)).toList()))
                         .toList();
         return new RewardResponse(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
