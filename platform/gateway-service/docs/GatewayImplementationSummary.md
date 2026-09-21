@@ -63,7 +63,9 @@ Phase 1까지 auth-service와 member-service는 붙어 동작했지만, 인증 �
 | 경로 | 대상 |
 |---|---|
 | `/api/v1/auth/**` | auth-service (8081) |
-| `/api/v1/members/**`, `/api/v1/wishes/**`, `/api/v1/addresses/**`, `/api/v1/terms/**` | member-service (8082) |
+| `/api/v1/members/**`, `/api/v1/wishes/**`, `/api/v1/addresses/**`, `/api/v1/terms/**`, `/api/v1/follows/**` | member-service (8082) |
+| `/api/v1/notifications/**`, `/api/v1/notification-settings/**`, `/api/v1/lives/*/notify` | notification-service — live-service보다 먼저 매칭 |
+| `/api/v1/lives/**` | live-service |
 
 ### `modules:common-webmvc` (인증 플러밍 추가)
 
