@@ -8,6 +8,7 @@ import com.fundit.notification.application.notification.NotificationService;
 import com.fundit.notification.application.setting.NotificationSettingService;
 import com.fundit.notification.presentation.dto.NotificationListItemResponse;
 import com.fundit.notification.presentation.dto.NotificationReadResponse;
+import com.fundit.notification.presentation.dto.NotificationSettingItemResponse;
 import com.fundit.notification.presentation.dto.NotificationSettingRequest;
 import com.fundit.notification.presentation.dto.NotificationSettingResponse;
 import com.fundit.notification.presentation.dto.PageResponse;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /** 알림함(NOTI-003/004/005/007). 회원 식별자는 @LoginUser에서만 가져오고 요청으로 받지 않는다(security.md S4). */
 @RestController
@@ -58,6 +61,14 @@ public class NotificationController {
     @GetMapping("/notifications/unread-count")
     public UnreadCountResponse getUnreadCount(@LoginUser CurrentUser user) {
         return new UnreadCountResponse(notificationService.countUnread(user.id()));
+    }
+
+    /** 재접속 시 설정 화면 복원용. 한 번도 바꾸지 않은 유형은 수신(true)으로 나온다. */
+    @GetMapping("/notification-settings")
+    public List<NotificationSettingItemResponse> getSettings(@LoginUser CurrentUser user) {
+        return notificationSettingService.getSettings(user.id()).stream()
+                .map(item -> new NotificationSettingItemResponse(item.notifType(), item.enabled()))
+                .toList();
     }
 
     @PutMapping("/notification-settings")

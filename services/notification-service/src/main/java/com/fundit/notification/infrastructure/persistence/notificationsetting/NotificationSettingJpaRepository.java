@@ -6,10 +6,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface NotificationSettingJpaRepository
         extends JpaRepository<NotificationSettingJpaEntity, NotificationSettingId> {
+
+    /** NOTI-004 조회 — 이 회원이 수신 거부한 유형들(행 존재 = 거부). */
+    List<NotificationSettingJpaEntity> findByMemberId(UUID memberId);
 
     /** 행이 존재하면 수신 거부다 — NOTI-006 적재 전 확인용. */
     boolean existsByMemberIdAndNotifType(UUID memberId, NotifType notifType);
