@@ -119,4 +119,24 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.saved").value(true));
         verify(notificationSettingService).setEnabled(accountId, NotifType.SHIPPING_UPDATE, false);
     }
+
+    @Test
+    void 알림_수신설정을_조회한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        org.mockito.Mockito.when(notificationSettingService.getSettings(accountId)).thenReturn(java.util.List.of(
+                new com.fundit.notification.application.setting.NotificationSettingService.SettingItem(
+                        NotifType.LIVE_START, true),
+                new com.fundit.notification.application.setting.NotificationSettingService.SettingItem(
+                        NotifType.SHIPPING_UPDATE, false)));
+
+        // when & then
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/notification-settings")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].notifType").value("LIVE_START"))
+                .andExpect(jsonPath("$[0].enabled").value(true))
+                .andExpect(jsonPath("$[1].enabled").value(false));
+    }
 }
