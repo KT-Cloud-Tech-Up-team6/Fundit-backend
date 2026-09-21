@@ -69,6 +69,7 @@ class ShippingDelayRefundServiceUnitExceptionTest {
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        // 이미 발송된 경우이므로 isDelayed 값과 무관하게(발송 시작 자체가 판단 기준) ALREADY_SHIPPED가 우선한다.
         when(shippingStatusClient.fetch(FUNDING_ID))
                 .thenReturn(new ShippingStatusClient.ShippingStatus(true, false, null, null));
 
@@ -76,6 +77,25 @@ class ShippingDelayRefundServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.ALREADY_SHIPPED));
+        verifyNoInteractions(refundExecutionService);
+    }
+
+    @Test
+    void 미발송이지만_아직_지연아니면_NOT_YET_DELAYED다() {
+        // given
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
+        payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
+        when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(shippingStatusClient.fetch(FUNDING_ID))
+                .thenReturn(new ShippingStatusClient.ShippingStatus(false, false, null, null));
+
+        // when
+        assertThatThrownBy(() -> shippingDelayRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(PaymentErrorCode.NOT_YET_DELAYED));
+
+        // then
         verifyNoInteractions(refundExecutionService);
     }
 }

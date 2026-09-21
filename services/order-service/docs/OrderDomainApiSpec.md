@@ -17,8 +17,9 @@
 | 13 | GET | `/internal/orders/{orderId}` | 내부 펀딩 스냅샷 조회(orderId UUID) | 내부 키 (`InternalGatewaySecretFilter`) | payment/fulfillment v2 연동 |
 | 14 | GET | `/internal/projects/{projectId}/funding-participants` | 내부 펀딩 성립 참여자 조회 | 내부 키 (`InternalGatewaySecretFilter`) | fulfillment 연동 |
 | 15 | GET | `/internal/orders/order-summaries` | 내부 주문 요약 배치 조회(프로젝트명·라인아이템) | 내부 키 (`InternalGatewaySecretFilter`) | payment 연동(V04) |
+| 16 | GET | `/internal/fundings/{fundingId}/settlement-aggregate` | 내부 정산 집계 조회(리워드·옵션별 판매수량/금액, 메이커 쿠폰 차감액) | 내부 키 (`InternalGatewaySecretFilter`) | payment 연동(PAYMENT-009/012) |
 
-> ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 애플리케이션 로직이 있으나 `@KafkaListener` 배선이 없어 `payment.completed.v1`/`refund.completed.v1`을 소비하지 않습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
+> ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 `PaymentEventKafkaListener`가 `payment.completed.v1`/`refund.completed.v1`을 구독해 실제로 배선되어 있습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
 > **식별자 계약 (cross-service ID 통일 #69)**:
 > - 공개 REST의 `orderId`는 `fundings.public_id`(UUID).
@@ -532,6 +533,37 @@ GET /internal/orders/order-summaries?orderIds={orderId1},{orderId2},...
 - 존재하지 않는 `orderId`는 결과에서 조용히 빠진다(요청한 개수보다 응답 배열이 짧을 수 있다) — 배치 API는 부분 실패를 에러로 취급하지 않는다.
 - `lineItems`는 `GET /api/v1/orders/{orderId}` 상세 응답의 `lineItems`와 동일한 구조(`OrderLineItemDetailResponse`)를 그대로 재사용한다.
 - 쿠폰 할인·최종 결제액은 포함하지 않는다 — payment-service 자체 `payments.amount`가 이미 최종 결제액을 갖고 있어 중복 계산하지 않는다.
+
+---
+
+### 16. 내부 정산 집계 조회
+
+```
+GET /internal/fundings/{fundingId}/settlement-aggregate
+```
+
+**Auth Required**: 내부 전용. 12번과 동일하게 게이트웨이 미라우팅 + `InternalGatewaySecretFilter`(`X-Internal-Api-Key`).
+
+**호출 주체**: payment-service 정산(`GET /api/v1/settlements/{settlementBatchId}` PAYMENT-009, 선정산/최종정산 배치 생성 PAYMENT-012) — 배치 항목(`settlement_batch_items`)마다 건별로 호출한다.
+
+**Request**: Path Variable: `fundingId`(Long PK, `fundings.id`)
+
+**Response Body**
+
+```json
+{
+  "lineItems": [
+    { "rewardId": 1, "rewardName": "얼리버드 패키지", "optionName": "색상: 화이트, 사이즈: L", "quantity": 2, "amount": 20000 }
+  ],
+  "makerCouponDeductionAmount": 3000
+}
+```
+
+**Validation / Business Rules**
+
+- `lineItems`는 `funding_line_items`/`funding_line_item_options` 주문 시점 스냅샷 그대로다(리워드/옵션명이 나중에 바뀌어도 과거 정산 내역은 불변). 옵션이 여러 개면 `"그룹명: 값"`을 쉼표로 이어붙인다. 옵션이 없으면 `optionName`은 `null`.
+- `makerCouponDeductionAmount`는 `funding_coupon_applications`를 `coupon_issuances`→`coupons`로 조인해 `issuer_type='MAKER'`인 적용분만 합산한다(PRD 16.5.3 — 플랫폼 발급 쿠폰은 플랫폼이 부담하므로 메이커 정산에서 차감하지 않는다).
+- 존재하지 않는 `fundingId` → `404 NOT_FOUND`.
 
 ---
 

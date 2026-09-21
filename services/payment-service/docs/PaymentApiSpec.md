@@ -209,8 +209,8 @@
 { "refundId": 502, "status": "COMPLETED" }
 ```
 
-- **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`만 확인한다. `FulfillmentDelayed` 이벤트는 구독하지 않는다. 이미 발송이면 `409 ALREADY_SHIPPED`. 발송 전이면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재.
-- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_FOUND`(404), `FORBIDDEN`(403)
+- **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`/`isDelayed`를 함께 확인한다(`FulfillmentDelayed` 이벤트는 구독하지 않고 동기 조회 결과만 씀). 이미 발송이면 `409 ALREADY_SHIPPED`. 미발송이어도 아직 발송 예정일이 지나지 않았으면(`isDelayed=false`) `422 NOT_YET_DELAYED`. 미발송이고 지연된 상태면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재.
+- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_YET_DELAYED`(422, 아직 발송 지연 상태 아님), `NOT_FOUND`(404), `FORBIDDEN`(403)
 
 ---
 
@@ -305,8 +305,8 @@
 ```
 
 - **Response 201 Created**: `{ "disputeId": 12, "status": "RECEIVED" }`
-- **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류)
-- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404)
+- **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류). 이의신청 기산일은 배치 유형별로 다르다 — 선정산(INTERIM)은 배치 생성일(`createdAt`), 최종정산(FINAL)은 배치에 속한 펀딩들의 실제 배송완료일(fulfillment-service `ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 가장 늦은 값 + 14일
+- **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404), `DEPENDENCY_FAILURE`(503, 최종정산인데 배송완료일 확인 불가)
 
 ---
 
@@ -381,6 +381,7 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 | `EVIDENCE_REQUIRED` | 400 | 하자환불 신청 시 증빙 자료 누락 |
 | `REASON_REQUIRED` | 400 | 하자환불 반려 시 사유 누락 |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) |
+| `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음(`isDelayed=false`) |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 가능 기간(7일) 경과 |
 
 > `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용. `CommonErrorCode.NOT_FOUND`(404)는 funding/결제/환불/정산 대상을 찾지 못했을 때 재사용(`FUNDING_NOT_FOUND` 코드는 없음). `CommonErrorCode.SERVICE_UNAVAILABLE`(503)은 PAYMENT-010 미구현 다운로드에 재사용.

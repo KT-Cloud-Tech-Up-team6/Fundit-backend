@@ -564,13 +564,37 @@
 
 ---
 
+## 32. PROJECT-031 — 펀딩 마감 감시/자동 판정 트리거
+
+- **PRD 코드**: -
+- **권한**: 시스템(배치, 인증 없음)
+- **담당 서비스**: project-service
+- **대분류**: 시스템
+- **보안/권한 고려사항**: 없음(외부 입력을 받지 않는 내부 배치)
+- **소분류**: 펀딩 마감 감시
+- **예외 처리**: 발행 실패 시 아웃박스에 미발행으로 남아 다음 주기에 재시도(로깅만으로 성공 처리하지 않음)
+- **요구사항**: 프로젝트의 `funding_deadline` 도래를 감지해 order-service에 통지한다 — 이 이벤트가 없으면
+  order-service의 목표 미달 자동환불(ORDER-006) 파이프라인 전체가 동작하지 않는다
+- **우선순위**: MVP
+- **입력값**: 없음(스케줄러가 `status=ONGOING and funding_deadline <= now()`인 프로젝트를 직접 조회)
+- **중분류**: 배치
+- **처리 내용(기술)**: `FundingDeadlineWatcher`(`@Scheduled`, 기본 1분 주기)가 대상 프로젝트를 조회해
+  `project.funding-deadline-reached.v1`(payload: `eventId, projectId(Long), goalAmount`)을 아웃박스에 적재하고,
+  같은 트랜잭션에서 `projects.deadline_notified_at`을 채워 다음 주기에 같은 프로젝트가 다시 잡히지 않게 한다
+  (중복 발행 방지). 실제 Kafka 발행은 `FundingDeadlineEventOutboxWorker`가 별도 주기로 재시도한다
+- **출력값**: 없음(비동기 이벤트 발행)
+- **트리거 방식**: 배치(스케줄러)
+
+---
+
 ## 이벤트 발행/구독 요약
 
-토픽명은 `{도메인}.{사건}.v{N}` (`event-convention.md`). `notification.raised.v1` publisher와 `project.funding-deadline-reached.v1` 발행은 **없음**.
+토픽명은 `{도메인}.{사건}.v{N}` (`event-convention.md`). `notification.raised.v1` publisher는 **없음**.
 
 | 기능 ID | 토픽 | 방향 | 상태 |
 | --- | --- | --- | --- |
 | PROJECT-029 | `project.approved.v1` | 발행 → search | ✅ 필수항목 완료로 공개(ONGOING) 전환 시. payload: `eventId, projectId(Long), publicId, sellerId, sellerDisplayName(현재 null/Noop), title, thumbnailUrl, categoryMajor, categoryMinor, goalAmount, fundingStartAt, fundingDeadline, createdAt, sourceVersion` |
+| PROJECT-031 | `project.funding-deadline-reached.v1` | 발행 → order | ✅ `FundingDeadlineWatcher`가 마감 도래 프로젝트를 감지해 발행. payload: `eventId, projectId(Long), goalAmount` |
 | PROJECT-004, PROJECT-006 | `project.updated.v1` | 발행 → search | ✅ 공개 프로젝트의 기본정보/스토리 수정 시에만. payload는 공개 전환과 동일 |
 | PROJECT-007 | `reward.created.v1` / `reward.updated.v1` | 발행 → order | ✅ 생성/수정 시. `projectId`는 내부 Long. 삭제·환불정책은 미발행 |
 | PROJECT-015 | 펀딩 집계 | 구독 | ❌ Kafka 컨슈머 없음. `funding_status_snapshots` 조회만 |

@@ -2,8 +2,11 @@ package com.fundit.payment.application.settlement;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.error.DependencyFailureException;
+import com.fundit.payment.application.refund.ShippingStatusClient;
 import com.fundit.payment.domain.PaymentErrorCode;
 import com.fundit.payment.domain.settlement.SettlementBatch;
+import com.fundit.payment.domain.settlement.SettlementBatchItem;
 import com.fundit.payment.domain.settlement.SettlementBatchRepository;
 import com.fundit.payment.domain.settlement.SettlementBatchType;
 import com.fundit.payment.infrastructure.persistence.settlement.SettlementDisputeJpaRepository;
@@ -32,12 +35,15 @@ class SettlementDisputeServiceUnitExceptionTest {
     private SettlementBatchRepository settlementBatchRepository;
     @Mock
     private SettlementDisputeJpaRepository settlementDisputeJpaRepository;
+    @Mock
+    private ShippingStatusClient shippingStatusClient;
 
     private SettlementDisputeService settlementDisputeService;
 
     @BeforeEach
     void setUp() {
-        settlementDisputeService = new SettlementDisputeService(settlementBatchRepository, settlementDisputeJpaRepository);
+        settlementDisputeService = new SettlementDisputeService(settlementBatchRepository, settlementDisputeJpaRepository,
+                shippingStatusClient);
     }
 
     @Test
@@ -78,5 +84,39 @@ class SettlementDisputeServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.DISPUTE_PERIOD_EXPIRED));
+    }
+
+    @Test
+    void 최종정산은_배송완료일_14일후_7일이_지나면_DISPUTE_PERIOD_EXPIRED_예외가_발생한다() {
+        // given — 배송완료 22일 전이라 14+7=21일 창을 이미 지났다(배치 생성일 기준이면 통과했을 케이스)
+        SettlementBatch batch = SettlementBatch.create(SELLER_ID, SettlementBatchType.FINAL,
+                        Instant.now(), Instant.now(), 100_000L, 3_000L, 0L, 0L,
+                        List.of(SettlementBatchItem.of(1L, UUID.randomUUID(), 100_000L, 100_000L)))
+                .toBuilder().createdAt(Instant.now().minus(Duration.ofDays(1))).build();
+        when(settlementBatchRepository.findById(77L)).thenReturn(Optional.of(batch));
+        when(shippingStatusClient.fetch(1L)).thenReturn(
+                new ShippingStatusClient.ShippingStatus(true, false, Instant.now().minus(Duration.ofDays(22)), null));
+
+        // when & then
+        assertThatThrownBy(() -> settlementDisputeService.create(SELLER_ID, 77L, "사유", List.of()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(PaymentErrorCode.DISPUTE_PERIOD_EXPIRED));
+    }
+
+    @Test
+    void 최종정산인데_배송완료일을_확인할_수_없으면_DEPENDENCY_FAILURE_예외가_발생한다() {
+        // given — shipping.completed.v1로만 생성되는 배치가 배송완료일을 못 찾는 건 시스템 불변식 위반이라
+        // 배치 생성일로 조용히 대체하지 않고 명시적으로 실패해야 한다.
+        SettlementBatch batch = SettlementBatch.create(SELLER_ID, SettlementBatchType.FINAL,
+                        Instant.now(), Instant.now(), 100_000L, 3_000L, 0L, 0L,
+                        List.of(SettlementBatchItem.of(1L, UUID.randomUUID(), 100_000L, 100_000L)))
+                .toBuilder().createdAt(Instant.now()).build();
+        when(settlementBatchRepository.findById(77L)).thenReturn(Optional.of(batch));
+        when(shippingStatusClient.fetch(1L)).thenReturn(new ShippingStatusClient.ShippingStatus(true, false, null, null));
+
+        // when & then
+        assertThatThrownBy(() -> settlementDisputeService.create(SELLER_ID, 77L, "사유", List.of()))
+                .isInstanceOf(DependencyFailureException.class);
     }
 }

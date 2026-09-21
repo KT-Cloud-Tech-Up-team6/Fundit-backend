@@ -144,7 +144,7 @@
 - **대분류**: 소비자
 - **보안/권한 고려사항**: [S4] 본인 주문만 신청 가능, orderId 조작 차단 — `@LoginUser CurrentUser`
 - **소분류**: 발송지연 결제취소 신청
-- **예외 처리**: 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) → `ALREADY_SHIPPED`(409), 취소 불가 안내+배송현황 확인 유도
+- **예외 처리**: 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) → `ALREADY_SHIPPED`(409), 취소 불가 안내+배송현황 확인 유도 / 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422)
 - **요구사항**: 발송 지연을 사유로 결제 취소를 신청한다
 - **우선순위**: MVP
 - **입력값**: fundingId. 호출자 식별은 `@LoginUser CurrentUser`
@@ -202,12 +202,12 @@
 - **대분류**: 판매자
 - **보안/권한 고려사항**: [S4] 본인 배치만 신청 — `@LoginUser CurrentUser`
 - **소분류**: 정산 이의 신청
-- **예외 처리**: 이의신청 가능 기간(7일) 경과 → `DISPUTE_PERIOD_EXPIRED`(409). 현재 구현은 배치 `createdAt`을 대리 기준으로 사용(실제 발송일 연동 전)
+- **예외 처리**: 이의신청 가능 기간(7일) 경과 → `DISPUTE_PERIOD_EXPIRED`(409). 최종정산인데 fulfillment-service에서 배송완료일을 확인할 수 없으면(시스템 불변식 위반) → `DEPENDENCY_FAILURE`(503)
 - **요구사항**: 정산 금액에 이의를 신청하고 지급을 보류한다
 - **우선순위**: MVP
 - **입력값**: settlementBatchId, 사유, 증빙. 호출자 식별은 `@LoginUser CurrentUser`
 - **중분류**: 정산
-- **처리 내용(기술)**: 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환. PAYMENT-015는 이 상태를 지급 대상에서 제외한다
+- **처리 내용(기술)**: 이의신청 기산일("발송일")은 배치 유형별로 다르다 — 선정산(INTERIM)은 배송 전에 생성되므로 배치 생성 시점(`createdAt`)이 곧 발송 시점이지만, 최종정산(FINAL)은 "마지막 배송완료일+14일"이 실제 발송 기준이라 `ShippingStatusClient`(PAYMENT-008과 동일 포트)로 배치에 속한 각 펀딩의 실제 배송완료일을 조회해 가장 늦은 값을 기준으로 계산한다. 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환하며, PAYMENT-015는 이 상태를 지급 대상에서 제외한다
 - **출력값**: `{ disputeId, status: RECEIVED }`
 - **트리거 방식**: API 호출
 
