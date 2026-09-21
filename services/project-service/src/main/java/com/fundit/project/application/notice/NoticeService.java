@@ -50,6 +50,17 @@ public class NoticeService {
         return noticeJpaRepository.findList(project.getId(), noticeType, sorted);
     }
 
+    /** 새소식 단건 조회(본문 포함) — 열람·재편집용. 목록과 동일하게 소속 프로젝트가 공개일 때만 조회 가능. */
+    @Transactional(readOnly = true)
+    public ProjectNoticeJpaEntity get(Long noticeId) {
+        ProjectNoticeJpaEntity notice = noticeJpaRepository.findById(noticeId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        projectRepository.findById(notice.getProjectId())
+                .filter(Project::isPublic)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return notice;
+    }
+
     @Transactional
     public ProjectNoticeCommentJpaEntity createComment(UUID memberId, Long noticeId, String content) {
         requirePublicNotice(noticeId);
@@ -74,11 +85,7 @@ public class NoticeService {
 
     /** 공개 목록과 동일 — 새소식 없음/소속 프로젝트 비공개는 존재 여부를 구분하지 않고 404. */
     private void requirePublicNotice(Long noticeId) {
-        ProjectNoticeJpaEntity notice = noticeJpaRepository.findById(noticeId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        projectRepository.findById(notice.getProjectId())
-                .filter(Project::isPublic)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        get(noticeId);
     }
 
     private Project loadOwnedProject(UUID sellerId, UUID projectPublicId) {

@@ -38,8 +38,8 @@ import static org.awaitility.Awaitility.await;
  * 왕복시켜 {@link PaymentEventKafkaListener} → {@code PaymentEventSyncService}까지 실제로 동작하는지
  * end-to-end로 검증한다({@link RewardEventKafkaListenerIntegrationTest}와 동일한 형태).
  *
- * <p>쿠폰 복원 분기(couponIssuanceId != null)는 {@code PaymentEventSyncServiceUnitTest}가 이미
- * 단위 테스트로 검증하므로, 여기서는 couponIssuanceId=null로 보내 "Kafka 토픽 → 리스너 → Funding
+ * <p>쿠폰 사용확정/복원 분기(couponIssuanceIds가 채워진 경우)는 {@code PaymentEventSyncServiceUnitTest}가
+ * 이미 단위 테스트로 검증하므로, 여기서는 couponIssuanceIds=[]로 보내 "Kafka 토픽 → 리스너 → Funding
  * 상태 반영"이라는 배선 자체만 검증한다.
  */
 @SpringBootTest
@@ -91,7 +91,7 @@ class PaymentEventKafkaListenerIntegrationTest {
         // given — payment-service PaymentEventTransport가 실제로 보낼 payload 형태
         Funding funding = givenPendingFunding();
         String json = """
-                {"eventId":"payment:701","fundingId":%d,"couponIssuanceId":null}
+                {"eventId":"payment:701","fundingId":%d,"couponIssuanceIds":[]}
                 """.formatted(funding.getId());
 
         // when
@@ -112,7 +112,7 @@ class PaymentEventKafkaListenerIntegrationTest {
         // given — 성립 후 하자 전액환불(POST_SUCCESS_DEFECT, fullRefund=true) 케이스
         Funding funding = givenPendingFunding();
         String json = """
-                {"eventId":"payment:702","fundingId":%d,"couponIssuanceId":null,
+                {"eventId":"payment:702","fundingId":%d,"couponIssuanceIds":[],
                  "refundReason":"POST_SUCCESS_DEFECT","fullRefund":true}
                 """.formatted(funding.getId());
 

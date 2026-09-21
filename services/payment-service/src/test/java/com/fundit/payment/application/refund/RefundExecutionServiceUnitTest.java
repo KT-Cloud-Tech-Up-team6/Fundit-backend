@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,7 +62,7 @@ class RefundExecutionServiceUnitTest {
     }
 
     private Payment completedPayment() {
-        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", 7L, "idem");
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", List.of(7L), "idem");
         payment.markCompleted("pay_key_1", "secret_1", PaymentMethod.CARD, null, Instant.now());
         return payment;
     }
@@ -113,7 +114,7 @@ class RefundExecutionServiceUnitTest {
     void 판매자_승인_부분취소는_전액이_아니므로_보류금을_해제하지_않는다() {
         // given
         Payment payment = completedPayment();
-        RefundRequest refundRequest = RefundRequest.requestDefect(FUNDING_ID, payment.getId(), "파손", java.util.List.of("url"));
+        RefundRequest refundRequest = RefundRequest.requestDefect(FUNDING_ID, payment.getId(), UUID.randomUUID(), "파손", java.util.List.of("url"));
         when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
         when(tossPaymentsClient.cancel("pay_key_1", 50_000L, "하자환불 승인"))
                 .thenReturn(new TossPaymentsClient.TossCancelResult("tx_2", Instant.now(), 50_000L));

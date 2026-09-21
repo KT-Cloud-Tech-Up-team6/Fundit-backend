@@ -6,6 +6,7 @@ import com.fundit.payment.domain.payment.PaymentStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,7 +28,7 @@ class PaymentMapperUnitTest {
                 .pgSecret("secret")
                 .amount(89_000L)
                 .orderName("테스트 주문")
-                .couponIssuanceId(7L)
+                .couponIssuanceIds(List.of(7L))
                 .paymentMethod(PaymentMethod.EASY_PAY)
                 .easyPayProvider("KAKAOPAY")
                 .status(PaymentStatus.COMPLETED)
@@ -48,7 +49,7 @@ class PaymentMapperUnitTest {
         assertThat(restored.getPaymentMethod()).isEqualTo(PaymentMethod.EASY_PAY);
         assertThat(restored.getEasyPayProvider()).isEqualTo("KAKAOPAY");
         assertThat(restored.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
-        assertThat(restored.getCouponIssuanceId()).isEqualTo(7L);
+        assertThat(restored.getCouponIssuanceIds()).containsExactly(7L);
         assertThat(restored.getPaidAt()).isEqualTo(now);
     }
 

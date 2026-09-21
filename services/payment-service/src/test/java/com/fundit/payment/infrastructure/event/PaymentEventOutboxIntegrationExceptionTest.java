@@ -64,7 +64,7 @@ class PaymentEventOutboxIntegrationExceptionTest {
                 .eventType(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED)
                 .paymentId(UUID.randomUUID())
                 .fundingId(new UUID(0L, 1024L))
-                .payload(Map.of("couponIssuanceId", 7L))
+                .payload(Map.of("couponIssuanceIds", List.of(7L)))
                 .build());
 
         // when

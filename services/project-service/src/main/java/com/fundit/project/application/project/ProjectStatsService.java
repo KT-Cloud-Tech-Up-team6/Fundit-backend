@@ -10,6 +10,8 @@ import com.fundit.project.infrastructure.persistence.fundingstatus.FundingStatus
 import com.fundit.project.infrastructure.persistence.opennotify.ProjectOpenNotifyRequestJpaRepository;
 import com.fundit.project.infrastructure.persistence.wishstats.ProjectWishStatJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProjectStatsService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectStatsService.class);
 
     private final ProjectRepository projectRepository;
     private final FundingStatusSnapshotJpaRepository fundingStatusSnapshotJpaRepository;
@@ -59,6 +63,31 @@ public class ProjectStatsService {
         return fundingStatusSnapshotJpaRepository.findAllById(projectIds).stream()
                 .collect(Collectors.toMap(FundingStatusSnapshotJpaEntity::getProjectId,
                         s -> new FundingStatusSnapshotView(s.getCurrentAmount(), s.getAchievementRate(), s.getParticipantCount())));
+    }
+
+    /**
+     * order-service {@code project.funding-reward-stats-updated.v1} — reward_stats 전체 교체.
+     * order-service는 이 서비스의 내부 PK를 모르므로 publicId(UUID)로 보낸다 — 여기서 내부 id로
+     * 변환한다. 알 수 없는 publicId(삭제/오탐)면 예외로 파티션을 막지 않고 이 메시지만 건너뛴다
+     * (event-convention.md 7번, at-least-once라 재전송돼도 같은 스냅샷으로 수렴하므로 멱등).
+     */
+    @Transactional
+    public void applyRewardStats(UUID projectPublicId, List<RewardStat> rewardStats) {
+        Project project = projectRepository.findByPublicId(projectPublicId).orElse(null);
+        if (project == null) {
+            log.warn("알 수 없는 projectPublicId로 리워드 통계 이벤트 수신, 건너뜀. projectPublicId={}", projectPublicId);
+            return;
+        }
+        Long projectId = project.getId();
+        FundingStatusSnapshotJpaEntity snapshot = fundingStatusSnapshotJpaRepository.findById(projectId)
+                .orElseGet(() -> FundingStatusSnapshotJpaEntity.builder()
+                        .projectId(projectId)
+                        .currentAmount(0L)
+                        .achievementRate(0)
+                        .participantCount(0)
+                        .build());
+        snapshot.replaceRewardStats(rewardStats);
+        fundingStatusSnapshotJpaRepository.save(snapshot);
     }
 
     @Transactional

@@ -42,6 +42,10 @@ public class RefundRequestJpaEntity {
     @Column(name = "payment_id", nullable = false)
     private UUID paymentId;
 
+    /** 판매자 환불 목록 조회용 — DEFECT 신청 시점에 order-service 조회로 채운다. 그 외 유형은 null. */
+    @Column(name = "seller_id")
+    private UUID sellerId;
+
     @Column(name = "trigger_type", nullable = false, length = 30)
     private String triggerType;
 

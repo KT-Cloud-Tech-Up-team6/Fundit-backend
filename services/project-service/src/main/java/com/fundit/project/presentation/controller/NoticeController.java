@@ -11,6 +11,7 @@ import com.fundit.project.presentation.dto.NoticeCommentCreateRequest;
 import com.fundit.project.presentation.dto.NoticeCommentListItemResponse;
 import com.fundit.project.presentation.dto.NoticeCommentResponse;
 import com.fundit.project.presentation.dto.NoticeCreateRequest;
+import com.fundit.project.presentation.dto.NoticeDetailResponse;
 import com.fundit.project.presentation.dto.NoticeResponse;
 import com.fundit.project.presentation.dto.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,6 +66,14 @@ public class NoticeController {
         validateSort(sort);
         var result = noticeService.list(projectId, noticeType, PageRequest.of(page, size)).map(this::toResponse);
         return PageResponse.from(result);
+    }
+
+    @Operation(summary = "새소식 본문 조회", description = "열람·재편집용. 목록과 동일하게 소속 프로젝트가 공개일 때만 조회 가능하다.")
+    @GetMapping("/notices/{noticeId}")
+    public NoticeDetailResponse get(@PathVariable Long noticeId) {
+        ProjectNoticeJpaEntity notice = noticeService.get(noticeId);
+        return new NoticeDetailResponse(notice.getId(), notice.getNoticeType(), notice.getTitle(),
+                notice.getContent(), notice.getCreatedAt());
     }
 
     @Operation(summary = "새소식 댓글 등록", description = "500자 제한.")

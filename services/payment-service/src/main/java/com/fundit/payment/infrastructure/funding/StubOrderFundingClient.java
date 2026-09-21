@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -27,7 +28,7 @@ public class StubOrderFundingClient implements OrderFundingClient {
                 "PENDING",
                 10_000L,
                 "[스텁] 테스트 주문 #" + orderId,
-                null,
+                List.of(),
                 orderId,
                 0L,
                 0L);
@@ -44,7 +45,7 @@ public class StubOrderFundingClient implements OrderFundingClient {
                 "PENDING",
                 10_000L,
                 "[스텁] 테스트 주문 #" + fundingId,
-                null,
+                List.of(),
                 new UUID(2L, fundingId),
                 0L,
                 0L);

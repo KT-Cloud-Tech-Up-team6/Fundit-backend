@@ -2,6 +2,7 @@ package com.fundit.payment.application.refund;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
@@ -32,12 +33,15 @@ class DefectRefundRequestServiceUnitExceptionTest {
     private PaymentRepository paymentRepository;
     @Mock
     private RefundRequestRepository refundRequestRepository;
+    @Mock
+    private OrderFundingClient orderFundingClient;
 
     private DefectRefundRequestService defectRefundRequestService;
 
     @BeforeEach
     void setUp() {
-        defectRefundRequestService = new DefectRefundRequestService(paymentRepository, refundRequestRepository);
+        defectRefundRequestService = new DefectRefundRequestService(paymentRepository, refundRequestRepository,
+                orderFundingClient);
     }
 
     @Test

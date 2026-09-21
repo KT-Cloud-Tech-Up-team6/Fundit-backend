@@ -58,17 +58,17 @@ public interface PaymentEventListener {
     void onPaymentCompleted(PaymentCompletedEvent event);
     void onRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(Long fundingId, Long couponIssuanceId) {}
+    record PaymentCompletedEvent(Long fundingId, List<Long> couponIssuanceIds) {}
 
     enum RefundReason {
         GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
     }
-    record RefundCompletedEvent(Long fundingId, Long couponIssuanceId, RefundReason refundReason, boolean fullRefund) {}
+    record RefundCompletedEvent(Long fundingId, List<Long> couponIssuanceIds, RefundReason refundReason, boolean fullRefund) {}
 }
 ```
 
 **이 서비스가 반드시 지켜야 할 것:**
-- `PaymentCompleted` 이벤트에는 **`couponIssuanceId`를 이 서비스가 직접 채워서 보내야 합니다.** 이 값은 order-service의 `funding_coupon_applications`에만 있는 값이라, 이 서비스가 결제 시도 생성 시점(PAYMENT-001)에 order-service로부터 함께 받아서 `payments` 테이블에 같이 저장해뒀다가, 이벤트 발행 시 그대로 실어 보내야 합니다. 쿠폰이 적용 안 된 주문이면 `null`.
+- `PaymentCompleted`/`RefundCompleted` 이벤트에는 **`couponIssuanceIds`(리스트)를 이 서비스가 직접 채워서 보내야 합니다.** 한 주문에 플랫폼+메이커 쿠폰이 함께 적용될 수 있어(최대 2개) 전부 담아 보내야 order-service가 전부 사용확정/복원 처리합니다 — 첫 번째 것만 보내면 두 번째 쿠폰은 영영 USED/복원되지 않습니다. 이 값은 order-service의 `funding_coupon_applications`에만 있는 값이라, 이 서비스가 결제 시도 생성 시점(PAYMENT-001)에 order-service로부터 함께 받아서 `payments` 테이블에 같이 저장해뒀다가, 이벤트 발행 시 그대로 실어 보내야 합니다. 쿠폰이 적용 안 된 주문이면 빈 리스트.
 - `RefundCompleted`의 `refundReason`은 order-service가 이미 정의한 enum 4종 이름 그대로 매핑해서 보내야 합니다:
 
   | 이 서비스의 환불 트리거(`refund_requests.trigger_type`) | order-service가 기대하는 `RefundReason` | 비고 |
@@ -82,6 +82,8 @@ public interface PaymentEventListener {
 - `FundingGoalFailed`/`FundingCancelledByMember`(이 서비스가 **구독**하는 쪽)는 **펀딩 1건당 1개씩** 발행됩니다. payload에 `paymentId`가 없으므로 이 서비스가 자기 `payments` 테이블에서 `funding_id`로 완료된 결제(`payments.completed_funding_id` 유니크 인덱스)를 직접 찾아야 합니다.
 
 > **문서 정합성 안내**: `PaymentFunctionalSpec.md`/`PaymentApiSpec.md`의 `RefundCompleted` payload는 `couponIssuanceId`를 빼는 방향으로 서술돼 있는데, 이는 order-service의 실제 코드와 다릅니다. 구현은 이 CLAUDE.md(실제 코드 기준)를 따르세요.
+>
+> **복수 쿠폰 전체 지원(2026-09-21)**: 예전에는 이 필드가 단수(`couponIssuanceId`)라 플랫폼+메이커 쿠폰이 같이 적용된 주문은 첫 번째 쿠폰만 사용확정/복원됐다(`OrderDetailResponse.couponLifecycleScope=FIRST_ONLY`로 표시). 지금은 리스트(`couponIssuanceIds`)로 바뀌어 전부 처리된다 — `couponLifecycleScope`/`appliedCouponCount` 필드는 그 한계를 알리던 용도라 제거됐다.
 
 ---
 
@@ -136,10 +138,10 @@ dependencies {
 ## API별 구현 노트
 
 ### PAYMENT-001 `POST /api/v1/payments`
-`OrderFundingClient.fetch(fundingId)` 호출 → `memberId` 대조(불일치 403) → `status='PENDING'` 확인(아니면 409) → `Payment(PENDING)` 생성, `amount`/`order_name`/`coupon_issuance_id`를 응답값 그대로 스냅샷. `pg_order_id`는 내부 PK를 노출하지 않는 별도 랜덤값(영문 대소문자/숫자/`-`/`_`, 6~64자)으로 채번. `OrderFundingClient` 호출 실패(타임아웃 포함) → `DEPENDENCY_FAILURE`(503).
+`OrderFundingClient.fetch(fundingId)` 호출 → `memberId` 대조(불일치 403) → `status='PENDING'` 확인(아니면 409) → `Payment(PENDING)` 생성, `amount`/`order_name`/`coupon_issuance_ids`를 응답값 그대로 스냅샷. `pg_order_id`는 내부 PK를 노출하지 않는 별도 랜덤값(영문 대소문자/숫자/`-`/`_`, 6~64자)으로 채번. `OrderFundingClient` 호출 실패(타임아웃 포함) → `DEPENDENCY_FAILURE`(503).
 
 ### PAYMENT-002 `POST /api/v1/payments/confirm`
-요청 `amount`를 PAYMENT-001 스냅샷 값과만 대조(재계산 금지, 불일치 시 토스 API 호출 없이 422) → 토스 승인 API(위젯 시크릿 키) 서버-투-서버 호출 → 성공: `Payment(COMPLETED)` + **같은 트랜잭션**에서 `payment_event_outbox`에 `PaymentCompleted(fundingId, couponIssuanceId)` 적재 → 실패: `Payment(FAILED)`만 기록, 이벤트 없음. 인증 후 10분 초과 → 410.
+요청 `amount`를 PAYMENT-001 스냅샷 값과만 대조(재계산 금지, 불일치 시 토스 API 호출 없이 422) → 토스 승인 API(위젯 시크릿 키) 서버-투-서버 호출 → 성공: `Payment(COMPLETED)` + **같은 트랜잭션**에서 `payment_event_outbox`에 `PaymentCompleted(fundingId, couponIssuanceIds)` 적재 → 실패: `Payment(FAILED)`만 기록, 이벤트 없음. 인증 후 10분 초과 → 410.
 
 ### 웹훅 `POST /api/v1/payments/webhook/toss`
 서명 헤더 검증 실패 시 401, `@LoginUser` 요구 안 함. `PAYMENT_STATUS_CHANGED`/`CANCEL_STATUS_CHANGED` 등 보정용 — 1-2 승인 흐름을 대체하지 않음.
@@ -151,7 +153,7 @@ dependencies {
 하자유형(불량/파손/표시광고상이) + 증빙(사진/설명) 첨부해 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 생성. 증빙 누락 시 `EVIDENCE_REQUIRED`(400). 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행).
 
 ### PAYMENT-007 `PATCH /api/v1/refunds/{refundId}/decision`
-판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출, 반품비 차감 시 부분취소(취소금액 < `payments.amount`면 `is_full_refund=false`) → 완료 시 `RefundCompleted(fundingId, couponIssuanceId, POST_SUCCESS_DEFECT, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
+판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출, 반품비 차감 시 부분취소(취소금액 < `payments.amount`면 `is_full_refund=false`) → 완료 시 `RefundCompleted(fundingId, couponIssuanceIds, POST_SUCCESS_DEFECT, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
 
 ### PAYMENT-008 `POST /api/v1/refunds/shipping-delay`
 `ShippingStatusClient.fetch()`로 `isAlreadyShipped`/`isDelayed`를 함께 확인한 뒤 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409). 미발송이어도 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422).
@@ -160,7 +162,7 @@ dependencies {
 본인(해당 메이커) 배치만 조회 가능(403). `gross_amount`/`platform_fee_amount`(3%)/`coupon_deduction_amount`/`refund_deduction_amount`/`total_amount`와, `OrderSettlementAggregateClient`로 조회한 리워드·옵션별 판매 수량·금액(`lineItems`)을 합성해 응답.
 
 ### PAYMENT-010 `GET /api/v1/settlements/{settlementBatchId}/download`
-PDF/엑셀 등 파일 생성 후 다운로드 URL 또는 파일 스트림 반환. 파일 생성 라이브러리는 팀 컨벤션 없으니 신규 결정 필요[정책 확인 필요].
+~~PDF/엑셀 등 파일 생성 후 다운로드~~ — 해결. PDF/엑셀 라이브러리 도입 대신 CSV(`text/csv`, `Content-Disposition: attachment`)로 제공한다. PAYMENT-009와 동일한 `SettlementQueryService.getDetail`로 조회/권한검증을 재사용해 배치 요약 1행 + 라인아이템을 CSV로 직렬화한다(`SettlementDownloadService`).
 
 ### PAYMENT-011 `POST /api/v1/settlements/{settlementBatchId}/disputes`
 발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 발송일은 배치 유형별로 다르다 — INTERIM은 `createdAt`, FINAL은 배치에 속한 펀딩들의 실제 배송완료일(`ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 최신값+14일(`SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY`). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
@@ -203,7 +205,7 @@ order-service가 아직 이 이벤트를 발행하지 않으므로(아래 "정�
 
 ## 도메인 테이블 (스키마 요약 — 전체 DDL은 `PaymentERD.md` 참고)
 
-- `payment.payments` — `funding_id`(Long, FK 아님), `pg_order_id`, `pg_payment_key`, `amount`/`order_name`(PAYMENT-001 스냅샷), `coupon_issuance_id`(신규 — `PaymentERD.md`에 없으니 구현 시 컬럼 추가), `status`(`PENDING`/`COMPLETED`/`FAILED`/`CANCELLED`), `completed_funding_id`(생성 컬럼, 유니크 제약으로 "펀딩당 완료 결제 1건" 강제).
+- `payment.payments` — `funding_id`(Long, FK 아님), `pg_order_id`, `pg_payment_key`, `amount`/`order_name`(PAYMENT-001 스냅샷), `coupon_issuance_ids`(JSONB 리스트, 신규 — `PaymentERD.md`에 없으니 구현 시 컬럼 추가), `status`(`PENDING`/`COMPLETED`/`FAILED`/`CANCELLED`), `completed_funding_id`(생성 컬럼, 유니크 제약으로 "펀딩당 완료 결제 1건" 강제).
 - `payment.payment_event_outbox` — `PaymentCompleted`/`RefundCompleted` 발행용 아웃박스(PAYMENT-016).
 - `refund.refund_requests` — `trigger_type`(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`, 위 매핑표로 `RefundReason` 변환), `is_full_refund`.
 - `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(연동 완료, 위 "연동 현황" 참고).
@@ -263,7 +265,7 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 ## 이 서비스에서 절대 하지 말아야 할 것
 
 - order-service의 `fundings`/`coupon_issuances` 테이블을 직접 쓰지 말 것 — 이벤트로만 통지
-- `RefundCompleted` payload에서 `couponIssuanceId`를 생략하지 말 것
+- `RefundCompleted`/`PaymentCompleted` payload에서 `couponIssuanceIds`를 생략하거나 첫 번째 것만 보내지 말 것(전부 보내야 복수 쿠폰이 사용확정/복원됨)
 - PAYMENT-001에서 받은 `finalAmount`를 PAYMENT-002에서 재계산/재조회하지 말 것
 - 결제 승인 성공 처리와 아웃박스 적재를 별도 트랜잭션으로 분리하지 말 것
 - 브로커가 없다고 이벤트 발행/구독 비즈니스 로직 자체를 생략하지 말 것 — 인터페이스 뒤에서 완성해둘 것
@@ -278,6 +280,5 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - ~~정산 집계 API 부재~~ — 해결(order-service `GET /internal/fundings/{fundingId}/settlement-aggregate` 신설), `HttpOrderSettlementAggregateClient`로 연동 완료.
 - **레이스 컨디션 보상 미구현**: order-service가 아직 `PaymentReconciliationRequired`를 발행하지 않음(PAYMENT-017 대상 이벤트 없음) — 연동 이슈에서 함께 처리.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
-- PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.
 - 적립금(`point_transactions`) MVP 포함 여부 미정.
 - ~~게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록~~ — 등록 완료(`platform/gateway-service/src/main/resources/application.yml`, `/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**`). 웹훅 경로(`/api/v1/payments/webhook/toss`)도 `X-User-Id` 없는 요청은 필터가 자동 통과시키므로 별도 화이트리스트 없이 정상 동작한다.

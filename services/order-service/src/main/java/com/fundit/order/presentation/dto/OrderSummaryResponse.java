@@ -14,8 +14,8 @@ import java.util.UUID;
  * {@code sellerDisplayName}/{@code thumbnailUrl}은 project-service 조회 실패 시 null일 수 있다(V03, 부가 정보).
  */
 public record OrderSummaryResponse(
-        UUID orderId, UUID projectId, String projectTitle, String status, long finalAmount, Instant createdAt,
-        String sellerDisplayName, String thumbnailUrl, String rewardSummary, int totalQuantity,
+        UUID orderId, UUID projectId, String projectTitle, String status, long discountAmount, long finalAmount,
+        Instant createdAt, String sellerDisplayName, String thumbnailUrl, String rewardSummary, int totalQuantity,
         List<String> availableActions
 ) {
 
@@ -23,8 +23,9 @@ public record OrderSummaryResponse(
         Funding funding = item.funding();
         ProjectSummaryClient.ProjectSummary summary = item.projectSummary();
         List<FundingLineItem> lineItems = funding.getLineItems();
+        long finalAmount = funding.totalRewardAmount() + funding.getShippingFee() - item.discountAmount();
         return new OrderSummaryResponse(funding.getPublicId(), funding.getProjectId(), funding.getProjectTitle(),
-                funding.getStatus().name(), funding.totalRewardAmount() + funding.getShippingFee(), funding.getCreatedAt(),
+                funding.getStatus().name(), item.discountAmount(), finalAmount, funding.getCreatedAt(),
                 summary == null ? null : summary.sellerDisplayName(), summary == null ? null : summary.thumbnailUrl(),
                 rewardSummary(lineItems), lineItems.stream().mapToInt(FundingLineItem::quantity).sum(),
                 item.availableActions());

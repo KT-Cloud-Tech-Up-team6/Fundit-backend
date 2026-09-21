@@ -82,6 +82,17 @@ public final class KafkaTopics {
     /** 프로젝트 펀딩 마감 도달. 발행: project / 구독: order(성공·실패 판정). 파티션 키: projectId. */
     public static final String PROJECT_FUNDING_DEADLINE_REACHED = "project.funding-deadline-reached.v1";
 
+    /**
+     * 리워드·옵션값 단위 펀딩 구매 통계 갱신(1일 주기 배치, PRD 7.1.3).
+     * 발행: order / 구독: project(판매자 펀딩현황 rewardStats). 파티션 키: projectId(project-service
+     * publicId, UUID — order-service는 project-service 내부 PK를 모르므로 UUID로 발행하고,
+     * project-service가 자기 DB에서 publicId→내부 id로 변환한다).
+     * payload.rewardStats[] = { rewardId, optionValueId, purchasedQuantity, purchasedAmount }.
+     * optionValueId=null 은 리워드 전체 합계(옵션값별 행을 합산하지 말고 이 행을 총 판매량으로 쓸 것 —
+     * 옵션 그룹이 2개 이상이면 옵션값별 행 합산은 실제보다 부풀려진다).
+     */
+    public static final String PROJECT_FUNDING_REWARD_STATS_UPDATED = "project.funding-reward-stats-updated.v1";
+
     /** 배송 완료. 발행: fulfillment / 구독: payment(최종 정산). 파티션 키: fundingId. */
     public static final String SHIPPING_COMPLETED = "shipping.completed.v1";
 

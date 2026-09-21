@@ -7,5 +7,5 @@ public record ProjectDetailResponse(
         UUID projectId, String title, String status, Long goalAmount,
         String coverImageUrl, List<IntroContentBlockResponse> introContent,
         FundingStatusSummaryResponse fundingStatus, boolean hasLiveVerification, SellerSummaryResponse seller,
-        String categoryMajor, String categoryMinor) {
+        String categoryMajor, String categoryMinor, String businessType) {
 }

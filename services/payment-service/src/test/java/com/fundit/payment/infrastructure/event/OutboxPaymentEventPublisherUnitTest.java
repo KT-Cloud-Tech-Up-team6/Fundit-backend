@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +36,7 @@ class OutboxPaymentEventPublisherUnitTest {
         Instant paidAt = Instant.parse("2026-09-08T01:00:00Z");
 
         publisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
-                paymentId, new UUID(0L, 1024L), 7L, paidAt));
+                paymentId, new UUID(0L, 1024L), List.of(7L), paidAt));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
@@ -43,19 +44,19 @@ class OutboxPaymentEventPublisherUnitTest {
         assertThat(saved.getEventType()).isEqualTo(PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED);
         assertThat(saved.getPaymentId()).isEqualTo(paymentId);
         assertThat(saved.getFundingId()).isEqualTo(new UUID(0L, 1024L));
-        assertThat(saved.getPayload().get("couponIssuanceId")).isEqualTo(7L);
+        assertThat(saved.getPayload().get("couponIssuanceIds")).isEqualTo(List.of(7L));
         assertThat(saved.getPayload().get("paidAt")).isEqualTo(paidAt.toString());
     }
 
     @Test
     void paidAt이_없으면_payload에_null을_넣는다() {
         publisher.publishPaymentCompleted(new PaymentEventPublisher.PaymentCompletedEvent(
-                UUID.randomUUID(), new UUID(0L, 1L), null, null));
+                UUID.randomUUID(), new UUID(0L, 1L), List.of(), null));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());
         assertThat(captor.getValue().getPayload().get("paidAt")).isNull();
-        assertThat(captor.getValue().getPayload().get("couponIssuanceId")).isNull();
+        assertThat(captor.getValue().getPayload().get("couponIssuanceIds")).isEqualTo(List.of());
     }
 
     @Test
@@ -63,7 +64,7 @@ class OutboxPaymentEventPublisherUnitTest {
         UUID paymentId = UUID.randomUUID();
 
         publisher.publishRefundCompleted(new PaymentEventPublisher.RefundCompletedEvent(
-                paymentId, new UUID(0L, 1024L), 7L, PaymentEventPublisher.RefundReason.POST_SUCCESS_DEFECT, false));
+                paymentId, new UUID(0L, 1024L), List.of(7L), PaymentEventPublisher.RefundReason.POST_SUCCESS_DEFECT, false));
 
         ArgumentCaptor<PaymentEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(PaymentEventOutboxJpaEntity.class);
         verify(outboxRepository).save(captor.capture());

@@ -17,6 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.verify;
@@ -51,10 +52,10 @@ class PaymentControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
         when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
-                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
-                        ORDER_ID, 0L, 0L));
+                new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문",
+                        List.of(), ORDER_ID, 0L, 0L));
         when(paymentCreateService.create(memberId, ORDER_ID)).thenReturn(
-                new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문"));
+                new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문", List.of()));
 
         // when & then
         mockMvc.perform(post("/api/v1/payments")

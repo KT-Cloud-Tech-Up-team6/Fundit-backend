@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class PaymentEventSyncService implements PaymentEventListener {
@@ -28,8 +30,8 @@ public class PaymentEventSyncService implements PaymentEventListener {
             fundingRepository.save(funding);
         });
 
-        if (event.couponIssuanceId() != null) {
-            couponIssuanceRepository.findById(event.couponIssuanceId()).ifPresent(issuance -> {
+        for (Long couponIssuanceId : orEmpty(event.couponIssuanceIds())) {
+            couponIssuanceRepository.findById(couponIssuanceId).ifPresent(issuance -> {
                 if (issuance.isAvailable()) {
                     issuance.markUsed(event.fundingId());
                     couponIssuanceRepository.save(issuance);
@@ -47,9 +49,10 @@ public class PaymentEventSyncService implements PaymentEventListener {
             case POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY -> event.fullRefund();
         };
 
-        if (shouldRestoreCoupon && event.couponIssuanceId() != null) {
-            couponIssuanceRepository.findById(event.couponIssuanceId())
-                    .ifPresent(this::restore);
+        if (shouldRestoreCoupon) {
+            for (Long couponIssuanceId : orEmpty(event.couponIssuanceIds())) {
+                couponIssuanceRepository.findById(couponIssuanceId).ifPresent(this::restore);
+            }
         }
 
         boolean isPostSuccessRefund = event.refundReason() == RefundReason.POST_SUCCESS_DEFECT
@@ -60,6 +63,10 @@ public class PaymentEventSyncService implements PaymentEventListener {
                 fundingRepository.save(funding);
             });
         }
+    }
+
+    private List<Long> orEmpty(List<Long> couponIssuanceIds) {
+        return couponIssuanceIds == null ? List.of() : couponIssuanceIds;
     }
 
     private void restore(CouponIssuance issuance) {

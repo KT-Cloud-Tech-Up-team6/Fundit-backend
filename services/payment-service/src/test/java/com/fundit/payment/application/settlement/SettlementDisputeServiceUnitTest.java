@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -103,5 +105,40 @@ class SettlementDisputeServiceUnitTest {
         // then — 오래된 배송완료일(20일 전)이 아니라 최신(6일 전) 기준으로 계산돼 아직 기간 내다
         assertThat(result.status()).isEqualTo("RECEIVED");
         assertThat(batch.getStatus()).isEqualTo(SettlementBatchStatus.ON_HOLD);
+    }
+
+    @Test
+    void 판매자_이의신청목록을_요약으로_변환한다() {
+        // given
+        PageRequest pageable = PageRequest.of(0, 20);
+        var dispute = SettlementDisputeJpaEntity.builder()
+                .id(9L).batchId(77L).sellerId(SELLER_ID).reason("사유").status("RECEIVED").build();
+        when(settlementDisputeJpaRepository.findBySellerIdOrderByIdDesc(SELLER_ID, pageable))
+                .thenReturn(new PageImpl<>(List.of(dispute), pageable, 1));
+
+        // when
+        var page = settlementDisputeService.listForSeller(SELLER_ID, pageable);
+
+        // then
+        assertThat(page.getContent()).singleElement().satisfies(summary -> {
+            assertThat(summary.disputeId()).isEqualTo(9L);
+            assertThat(summary.settlementBatchId()).isEqualTo(77L);
+            assertThat(summary.status()).isEqualTo("RECEIVED");
+        });
+    }
+
+    @Test
+    void 본인_이의신청_상세를_조회한다() {
+        // given
+        var dispute = SettlementDisputeJpaEntity.builder()
+                .id(9L).batchId(77L).sellerId(SELLER_ID).reason("사유").status("RECEIVED").build();
+        when(settlementDisputeJpaRepository.findById(9L)).thenReturn(Optional.of(dispute));
+
+        // when
+        var summary = settlementDisputeService.getDetail(SELLER_ID, 9L);
+
+        // then
+        assertThat(summary.disputeId()).isEqualTo(9L);
+        assertThat(summary.settlementBatchId()).isEqualTo(77L);
     }
 }

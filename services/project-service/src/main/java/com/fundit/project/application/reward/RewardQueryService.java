@@ -5,8 +5,6 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.reward.EarlyBirdDiscountType;
-import com.fundit.project.domain.reward.Reward;
-import com.fundit.project.domain.reward.RewardRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaEntity;
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import com.fundit.project.infrastructure.persistence.reward.RewardOptionGroupJpaEntity;
@@ -25,7 +23,6 @@ import java.util.UUID;
 public class RewardQueryService {
 
     private final ProjectRepository projectRepository;
-    private final RewardRepository rewardRepository;
     private final RewardJpaRepository rewardJpaRepository;
     private final RewardOptionGroupJpaRepository optionGroupJpaRepository;
     private final RewardOptionValueJpaRepository optionValueJpaRepository;
@@ -50,15 +47,21 @@ public class RewardQueryService {
         return toConsumerView(reward);
     }
 
-    /** 판매자용 — 공개 여부와 무관하게 소유권 검증만으로 조회한다(DRAFT 포함). */
+    /**
+     * 판매자용 — 공개 여부와 무관하게 소유권 검증만으로 조회한다(DRAFT 포함). 재편집 화면이
+     * 옵션 분류·값·ID와 환불정책을 그대로 복원해야 해서, 옵션을 담지 않는 도메인 {@code Reward}
+     * 대신 소비자 조회와 동일하게 JPA 엔티티에서 직접 옵션을 읽어 채운다.
+     */
     @Transactional(readOnly = true)
-    public List<Reward> listForSeller(UUID sellerId, UUID projectPublicId) {
+    public List<RewardSellerView> listForSeller(UUID sellerId, UUID projectPublicId) {
         Project project = projectRepository.findByPublicId(projectPublicId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!project.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
-        return rewardRepository.findByProjectId(project.getId());
+        return rewardJpaRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(project.getId()).stream()
+                .map(this::toSellerView)
+                .toList();
     }
 
     private RewardConsumerView toConsumerView(RewardJpaEntity reward) {
@@ -76,6 +79,21 @@ public class RewardQueryService {
                 reward.getIsEarlyBird(), reward.getEarlyBirdDiscountType(), reward.getEarlyBirdDiscountValue(),
                 earlyBirdDiscountedPrice(reward), reward.getIsLimited(), remainingStock, options, soldOut,
                 reward.getShippingFee(), reward.getEstimatedDeliveryDays());
+    }
+
+    private RewardSellerView toSellerView(RewardJpaEntity reward) {
+        List<RewardOptionGroupView> options = reward.getHasOption()
+                ? optionGroupJpaRepository.findByRewardIdAndDeletedAtIsNullOrderBySortOrderAsc(reward.getId()).stream()
+                        .map(this::toGroupView)
+                        .toList()
+                : List.of();
+
+        return new RewardSellerView(reward.getId(), reward.getRewardDisplayCode(), reward.getName(),
+                reward.getDescription(), reward.getImageUrl(), reward.getPrice(),
+                reward.getIsLimited(), reward.getQuantity(), reward.getHasOption(), reward.getSortOrder(),
+                reward.getIsEarlyBird(), reward.getEarlyBirdDiscountType(), reward.getEarlyBirdDiscountValue(),
+                earlyBirdDiscountedPrice(reward), reward.getShippingFee(), reward.getEstimatedDeliveryDays(),
+                reward.getSimpleRefundDisabled(), options);
     }
 
     private Long earlyBirdDiscountedPrice(RewardJpaEntity reward) {
@@ -114,5 +132,13 @@ public class RewardQueryService {
             EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue, Long earlyBirdDiscountedPrice,
             boolean isLimited, Integer remainingStock, List<RewardOptionGroupView> options, boolean soldOut,
             Long shippingFee, Integer estimatedDeliveryDays) {
+    }
+
+    public record RewardSellerView(
+            Long rewardId, String rewardDisplayCode, String name, String description, String imageUrl,
+            Long price, boolean isLimited, Integer quantity, boolean hasOption, int sortOrder,
+            boolean isEarlyBird, EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
+            Long earlyBirdDiscountedPrice, Long shippingFee, Integer estimatedDeliveryDays,
+            boolean simpleRefundDisabled, List<RewardOptionGroupView> options) {
     }
 }

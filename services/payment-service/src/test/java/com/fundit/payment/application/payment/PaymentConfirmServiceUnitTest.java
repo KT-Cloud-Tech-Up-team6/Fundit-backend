@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,7 +47,7 @@ class PaymentConfirmServiceUnitTest {
     @Test
     void 승인에_성공하면_결제가_완료되고_이벤트가_발행된다() {
         // given
-        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", 7L, "idem");
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", List.of(7L), "idem");
         when(paymentRepository.findByPgOrderId("fundit-order-1")).thenReturn(Optional.of(payment));
         when(tossPaymentsClient.confirm("pay_key_1", "fundit-order-1", 89_000L)).thenReturn(
                 new TossPaymentsClient.TossPaymentResult("pay_key_1", "fundit-order-1", "secret_1", "간편결제",

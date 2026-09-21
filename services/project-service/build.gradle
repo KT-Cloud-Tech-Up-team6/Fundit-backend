@@ -12,4 +12,7 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation 'org.testcontainers:testcontainers-kafka'
+
+    // 스토리 TEXT 블록의 굵게/색상/정렬 서식을 HTML로 저장하기 전 XSS 방지용 화이트리스트 정제(security.md S2)
+    implementation 'org.jsoup:jsoup:1.18.1'
 }

@@ -47,7 +47,7 @@ class PaymentControllerV2Test {
         UUID memberId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
         when(paymentCreateService.create(memberId, FUNDING_ID)).thenReturn(
-                new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문"));
+                new PaymentCreateService.PaymentCreateResult(paymentId, "fundit-abc", 89_000L, "테스트 주문", null));
 
         // when & then
         mockMvc.perform(post("/api/v2/payments")

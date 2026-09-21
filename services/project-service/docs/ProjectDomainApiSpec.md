@@ -20,6 +20,7 @@
 | 14-2 | GET | `/api/v1/rewards/{rewardId}` | 리워드 상세 조회(소비자) | X (공통) | PROJECT-028 |
 | 15 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
 | 16 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
+| 16-1 | GET | `/api/v1/notices/{noticeId}` | 새소식 본문 조회(열람·재편집용) | X (공통) | PROJECT-022 |
 | 17 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (로그인 회원, 구매이력 미검증) | PROJECT-023 |
 | 18 | GET | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 목록 조회 | X (공통) | PROJECT-023 |
 | 19 | POST | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 질문/응원 등록(소비자) | O (로그인 회원, 구매이력 미검증) | PROJECT-024 |
@@ -299,7 +300,7 @@ PATCH /api/v1/projects/{projectId}/story
 - `title` 40자 제한(DB 컬럼 제약과 동일).
 - `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
 - `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
-- `introContent`의 텍스트 항목은 소비자 화면에 그대로 노출되므로 출력 인코딩 적용(XSS 방지, S2).
+- `type=TEXT`의 `value`는 굵게/색상(`color`, hex)/정렬(`text-align`)/글자굵기(`font-weight`) 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 허용 태그(`b/strong/i/em/u/p/br/span/div/ul/ol/li`)와 위 4종 CSS 선언만 남기고 나머지(스크립트, 이벤트 속성, 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다.
 - 임시저장 겸용이며 부분 필드만 전달해도 저장 가능.
 - 프로젝트가 이미 공개 상태이면 저장 후 `project.updated.v1`을 발행한다(#4와 동일 조건). 스토리 GET API는 별도로 두지 않는다.
 
@@ -401,6 +402,7 @@ POST /api/v1/projects/{projectId}/rewards
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).
+- 응답에도 `simpleRefundDisabled`/`options`가 포함되지만, 생성/수정 직후 응답이라 `options`의 `groupId`/`valueId`는 `null`이다(방금 요청한 값을 그대로 반영할 뿐 DB 조회를 다시 하지 않음) — 재편집 화면처럼 실제 ID가 필요하면 #14-1로 다시 조회한다.
 
 ---
 
@@ -561,7 +563,11 @@ GET /api/v1/projects/{projectId}/rewards/mine
     "earlyBirdDiscountValue": 10,
     "earlyBirdDiscountedPrice": 35100,
     "shippingFee": 3000,
-    "estimatedDeliveryDays": 7
+    "estimatedDeliveryDays": 7,
+    "simpleRefundDisabled": false,
+    "options": [
+      { "groupId": 10, "groupName": "색상", "values": [{ "valueId": 100, "value": "화이트" }, { "valueId": 101, "value": "블랙" }] }
+    ]
   }
 ]
 ```
@@ -569,8 +575,9 @@ GET /api/v1/projects/{projectId}/rewards/mine
 **Validation / Business Rules**
 
 - #14(소비자용)와 달리 **공개 여부와 무관하게 소유권 검증만으로 조회**한다 — DRAFT 단계의 "리워드 등록/관리"
-  화면(No./리워드명/가격/수량/할인 적용여부)에서 사용.
-- 옵션 그룹/값은 담지 않는다(등록/수정 응답과 동일 — 필요하면 리워드 상세를 별도 조회).
+  화면(No./리워드명/가격/수량/할인 적용여부)에서 사용. 작성 중(비공개) 프로젝트의 리워드 재편집 화면도 이 API로 조회한다.
+- `options`는 #14(소비자용)와 동일하게 옵션 그룹/값의 실제 DB ID를 포함한다(재편집 시 PATCH 요청에 필요) — `hasOption=false`면 빈 배열.
+- `simpleRefundDisabled`는 #13 등록값을 그대로 노출한다.
 - 잔여재고/품절 여부는 포함하지 않는다(판매자 화면은 설정값만 보여주면 되고, order-service 조회가 필요 없다).
 - 소유권 불일치 → `403 FORBIDDEN`, 존재하지 않는 프로젝트 → `404 NOT_FOUND`.
 
@@ -673,6 +680,30 @@ GET /api/v1/projects/{projectId}/notices
 
 - `noticeType` 파라미터는 화이트리스트 검증(동적 정렬/필터 조건 삽입 방지, S1).
 - 정렬은 항상 생성일 역순(최신순)이다. `sort=POPULAR`도 400은 아니지만 **인기순을 적용하지 않는다**(조회수/인기 집계 컬럼·이벤트 없음). `LATEST`/`POPULAR` 외 값 → `400 INVALID_INPUT`.
+
+---
+
+### 16-1. 새소식 본문 조회
+
+```
+GET /api/v1/notices/{noticeId}
+```
+
+**Auth Required**: X (공통)
+
+**Request**: Path Parameter: `noticeId`
+
+**Response Body**
+
+```json
+{ "noticeId": 501, "noticeType": "PRODUCTION_UPDATE", "title": "생산 진행 상황 안내", "content": "...", "createdAt": "2026-09-05T10:00:00" }
+```
+
+**Validation / Business Rules**
+
+- #16(목록)과 동일 — 새소식 없음 또는 소속 프로젝트 비공개는 존재 여부를 구분하지 않고 `404 NOT_FOUND`.
+- 열람·재편집(판매자)용으로 본문(`content`)을 포함한다. 목록(#16)은 피드 노출용이라 본문을 담지 않는다.
+- 이 API는 조회 전용이다 — 새소식 수정(PATCH)은 아직 없다(등록만 #15로 가능).
 
 ---
 
@@ -920,7 +951,7 @@ GET /api/v1/projects/{projectId}/preview
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`/`businessType`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
 - 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
@@ -949,14 +980,15 @@ GET /api/v1/projects/{projectId}
   "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
   "hasLiveVerification": true,
   "seller": { "sellerId": "...", "displayName": null },
-  "categoryMajor": "패션", "categoryMinor": "의류"
+  "categoryMajor": "패션", "categoryMinor": "의류",
+  "businessType": "GENERAL"
 }
 ```
 
 **Validation / Business Rules**
 
 - `status`가 `DRAFT`인 미공개 프로젝트 조회 시 `404 NOT_FOUND`(본인이면 미리보기 API 사용).
-- 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH).
+- 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH). `businessType`은 #4 저장값을 그대로 노출해 재조회 시 기존 선택을 복원할 수 있게 한다(`GENERAL`/`SOLE`/`CORP`, 미입력이면 `null`).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
 - **[2026-09-18 추가]** `categoryMajor`/`categoryMinor`는 order-service의 CATEGORY 스코프 쿠폰 매칭(ORDER-010)이 이 값을 조회해 쓴다 — 공개 계약이니 필드명을 바꾸면 그쪽 연동이 깨진다.
@@ -1130,7 +1162,7 @@ GET /api/v1/projects/{projectId}/funding-status
 {
   "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128,
   "openNotifyCount": 40, "wishCount": 210,
-  "rewardStats": [ { "rewardId": 1, "purchasedQuantity": 30 } ],
+  "rewardStats": [ { "rewardId": 1, "optionValueId": null, "purchasedQuantity": 30, "purchasedAmount": 1170000 } ],
   "remainingDays": 5, "lastSyncedAt": "2026-09-05T00:00:00"
 }
 ```
@@ -1138,7 +1170,8 @@ GET /api/v1/projects/{projectId}/funding-status
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 조회 가능(S4).
-- `funding_status_snapshots` 테이블을 읽는다. **order-service 펀딩 집계 Kafka 컨슈머는 구현되어 있지 않다** — 스냅샷을 채우는 발행/구독이 없어 행이 없으면 금액·달성률·참여자수·리워드별 구매수량은 0, `lastSyncedAt`은 null.
+- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). `currentAmount`/`achievementRate`/`participantCount`는 아직 별도 집계 이벤트가 없어 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
+- `optionValueId`가 null이면 옵션 없는 리워드 합계, 있으면 해당 옵션값 한정 통계다.
 - `openNotifyCount`는 `project_open_notify_requests` COUNT, `wishCount`는 `project_wish_stats` 읽기 모델(아래 #34와 동일). `remainingDays`는 `funding_deadline` 기준 계산.
 
 ---
@@ -1237,8 +1270,8 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 | PROJECT-029 | 발행 | `project.approved.v1` | 필수항목 완료로 ONGOING 전환 시 아웃박스 적재. 파티션 키: 내부 `projectId`(Long). 구독: search-service(SEARCH-011) |
 | PROJECT-004, PROJECT-006 | 발행 | `project.updated.v1` | 공개(`isPublic()`) 프로젝트의 기본정보/스토리 수정 시에만. DRAFT 수정은 발행하지 않음. payload 계약은 공개 전환 이벤트와 동일 |
 | PROJECT-007 | 발행 | `reward.created.v1` / `reward.updated.v1` | 리워드 생성/수정 시(삭제·환불정책 PATCH는 미발행). 파티션 키: `rewardId`. `projectId`는 **내부 Long** |
-| PROJECT-015 | 구독 | (없음) | `funding_status_snapshots` 조회만. 펀딩 집계 Kafka 컨슈머 없음 |
-| PROJECT-016 | 구독 | (없음) | Spring `@EventListener`만 존재. `project.wished.v1`/`project.unwished.v1` Kafka 컨슈머 없음 |
+| PROJECT-015 | 구독 | `project.funding-reward-stats-updated.v1` | order-service 1일 배치. `reward_stats` 전체 교체. 파티션 키: 내부 `projectId` |
+| PROJECT-016 | 구독 | `project.wished.v1` / `project.unwished.v1` | 찜 통계 |
 | PROJECT-018, PROJECT-029, PROJECT-030 반려 | 발행 | (없음) | `notification.raised.v1`를 발행하지 않음 |
 
 ### `project.approved.v1` / `project.updated.v1` payload

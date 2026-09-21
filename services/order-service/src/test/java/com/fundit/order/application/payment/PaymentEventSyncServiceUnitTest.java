@@ -52,7 +52,7 @@ class PaymentEventSyncServiceUnitTest {
         when(couponIssuanceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
-        paymentEventSyncService.onPaymentCompleted(new PaymentEventListener.PaymentCompletedEvent(1L, 5L));
+        paymentEventSyncService.onPaymentCompleted(new PaymentEventListener.PaymentCompletedEvent(1L, List.of(5L)));
 
         // then
         assertThat(funding.getStatus()).isEqualTo(FundingStatus.FUNDING_IN_PROGRESS);
@@ -73,7 +73,7 @@ class PaymentEventSyncServiceUnitTest {
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, 5L, PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
+                    1L, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
 
             // then
             assertThat(issuance.isAvailable()).isTrue();
@@ -90,7 +90,7 @@ class PaymentEventSyncServiceUnitTest {
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, 5L, PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
+                    1L, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
 
             // then
             assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.EXPIRED);
@@ -101,7 +101,7 @@ class PaymentEventSyncServiceUnitTest {
         void 마감전_단순변심_취소는_쿠폰을_복원하지_않는다() {
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, 5L, PaymentEventListener.RefundReason.CANCELLED_BY_MEMBER, true));
+                    1L, List.of(5L), PaymentEventListener.RefundReason.CANCELLED_BY_MEMBER, true));
 
             // then
             verify(couponIssuanceRepository, never()).findById(any());
@@ -120,7 +120,7 @@ class PaymentEventSyncServiceUnitTest {
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, 5L, PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, true));
+                    1L, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, true));
 
             // then
             assertThat(issuance.isAvailable()).isTrue();
@@ -131,7 +131,7 @@ class PaymentEventSyncServiceUnitTest {
         void 성립후_하자환불이_부분환불이면_쿠폰을_복원하지않고_펀딩상태도_바꾸지않는다() {
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, 5L, PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, false));
+                    1L, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, false));
 
             // then
             verify(couponIssuanceRepository, never()).findById(any());

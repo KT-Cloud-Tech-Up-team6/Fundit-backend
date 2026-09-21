@@ -5,6 +5,7 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.payment.domain.settlement.SettlementBatch;
 import com.fundit.payment.domain.settlement.SettlementBatchRepository;
 import com.fundit.payment.domain.settlement.SettlementBatchType;
+import com.fundit.payment.infrastructure.persistence.settlement.SettlementBatchJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,13 +30,16 @@ class SettlementQueryServiceUnitExceptionTest {
     @Mock
     private SettlementBatchRepository settlementBatchRepository;
     @Mock
+    private SettlementBatchJpaRepository settlementBatchJpaRepository;
+    @Mock
     private OrderSettlementAggregateClient orderSettlementAggregateClient;
 
     private SettlementQueryService settlementQueryService;
 
     @BeforeEach
     void setUp() {
-        settlementQueryService = new SettlementQueryService(settlementBatchRepository, orderSettlementAggregateClient);
+        settlementQueryService = new SettlementQueryService(settlementBatchRepository, settlementBatchJpaRepository,
+                orderSettlementAggregateClient);
     }
 
     @Test

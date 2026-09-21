@@ -7,6 +7,7 @@ import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
@@ -49,6 +50,8 @@ class ProjectServiceUnitTest {
     private ProjectIndexEventPublisher projectIndexEventPublisher;
     @Mock
     private SellerProfileClient sellerProfileClient;
+    @Mock
+    private RichTextSanitizer richTextSanitizer;
 
     @InjectMocks
     private ProjectService projectService;
@@ -183,6 +186,7 @@ class ProjectServiceUnitTest {
                     new IntroContentBlock(IntroContentType.VIDEO_URL, "https://youtube.com/x"));
             when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
             when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(richTextSanitizer.sanitize(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
             projectService.updateStory(sellerId, publicId, new ProjectService.UpdateStoryCommand(null, null, introContent));
@@ -191,6 +195,26 @@ class ProjectServiceUnitTest {
             verify(mediaUrlValidator).validate(publicId, imageUrl, MediaCategory.IMAGE);
             verify(mediaUrlValidator, never()).validate(publicId, "https://youtube.com/x", MediaCategory.IMAGE);
             verify(mediaUrlValidator, never()).validate(publicId, "본문", MediaCategory.IMAGE);
+        }
+
+        @Test
+        void TEXT_블록은_RichTextSanitizer로_정제한_값이_저장된다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedDraftProject(sellerId, publicId);
+            List<IntroContentBlock> introContent = List.of(
+                    new IntroContentBlock(IntroContentType.TEXT, "<script>alert(1)</script><b>굵게</b>"));
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(richTextSanitizer.sanitize("<script>alert(1)</script><b>굵게</b>")).thenReturn("<b>굵게</b>");
+
+            // when
+            Project result = projectService.updateStory(sellerId, publicId,
+                    new ProjectService.UpdateStoryCommand(null, null, introContent));
+
+            // then
+            assertThat(result.getIntroContent()).containsExactly(new IntroContentBlock(IntroContentType.TEXT, "<b>굵게</b>"));
         }
     }
 

@@ -16,6 +16,14 @@ funding-event-outbox:
   poll-interval-ms: 5000
   batch-size: 50
 
+# PROJECT-015 — 리워드 구매 통계 배치(매일 03:00 재계산, PRD 7.1.3 24시간 주기) + 발행 아웃박스.
+funding-reward-stats-batch:
+  cron: "0 0 3 * * *"
+funding-reward-stats-event-outbox:
+  worker-enabled: true
+  poll-interval-ms: 5000
+  batch-size: 50
+
 order:
   policy:
     # ORDER-013: 미결제 주문 자동 만료 유예시간(분). order-service CLAUDE.md
