@@ -45,4 +45,15 @@ auth:
 
 password-reset:
   # 메일에 실을 프론트 링크. `%s` 자리에 토큰이 들어간다.
-  url-template: https://dev.fundit.com/reset-password?token=%s
+  # QA 환경(FE·API 동일 출처). `%s` 자리에 토큰이 들어간다.
+  url-template: https://infrastudy.store/reset-password?token=%s
+
+mail:
+  # QA가 메일 없이 재설정 링크를 확인하도록 본문까지 로그에 남긴다. dev 전용 — 운영 yml에는 두지 않는다
+  # (재설정 링크는 사실상 베어러 토큰이라 로그 유출은 토큰 탈취와 같다, security.md S10).
+  log-body: true
+
+test-accounts:
+  # QA 테스트 계정 2개(QaTestAccountSeeder) 공용 비밀번호. 비어 있으면 생성하지 않는다.
+  # dev 전용 — local·prod yml에는 두지 않는다.
+  password: ${TEST_ACCOUNT_PASSWORD:}

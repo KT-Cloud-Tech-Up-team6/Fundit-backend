@@ -64,6 +64,8 @@ public class SecurityConfig {
                         // 1단계가 인증 전이라 열거 위험이 있어 EmailFindService가 시도 횟수를 제한한다.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/signup",
                                 "/api/v1/auth/token/refresh", "/api/v1/auth/identity-verifications",
+                                // access 토큰이 만료된 뒤에도 로그아웃할 수 있어야 한다
+                                "/api/v1/auth/logout",
                                 "/api/v1/auth/login/social", "/api/v1/auth/signup/social",
                                 "/api/v1/auth/social/link",
                                 "/api/v1/auth/find-email", "/api/v1/auth/find-email/reveal",
