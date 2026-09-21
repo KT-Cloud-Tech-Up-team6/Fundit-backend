@@ -12,14 +12,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * AI 추천답변 생성/전송(요구사항정의서 6.4.4.5·6.4.4.6).
+ * 미답변 질문 판매자 답변(요구사항정의서 6.4.4.5·6.4.4.6). AI가 근거를 못 찾은
+ * ({@code handledBy=UNANSWERABLE}) 질문만 이 흐름을 탄다 — 근거를 찾은 질문은
+ * {@code submitComments} 응답으로 이미 즉시 답변되어 있다({@code ChatCommentBatchSender}).
  *
- * <p><b>생성과 전송이 분리돼 있다.</b> {@code GENERATE}는 초안만 만들고 채팅에 게시하지 않는다 —
- * 협의 결정이 "AI 추천 답변은 판매자 승인 후 전송"이다. 한 호출로 합치면 승인 단계가 사라진다.
+ * <p><b>생성과 등록이 분리돼 있다.</b> {@code draft}는 AI가 만든 초안 미리보기일 뿐 아무것도
+ * 기록하지 않는다 — 판매자가 확인·수정한 최종 문구만 {@link #send}로 등록된다.
  */
 @Service
 @RequiredArgsConstructor
@@ -29,30 +30,22 @@ public class AiAnswerService {
     private final LiveSessionRepository sessionRepository;
     private final AiClient aiClient;
 
-    /**
-     * 초안만 만든다. 이 호출은 채팅에 아무것도 남기지 않는다.
-     *
-     * <p>{@code grounded=false}는 상품정보에서 근거를 찾지 못했다는 뜻이며 에러가 아니다 —
-     * 503으로 올리면 화면이 "관련 상품정보가 없습니다"를 그릴 수 없다(요구사항정의서 6.4.4.5).
-     */
+    /** 초안 미리보기. 이 호출은 아무것도 기록하지 않는다. */
     @Transactional(readOnly = true)
-    public AiClient.AnswerDraft generate(UUID sellerId, UUID liveId, UUID questionId,
-                                         List<String> productContext) {
+    public AiClient.UnansweredDetail draft(UUID sellerId, UUID liveId, UUID questionId) {
         LiveQuestionSummaryJpaEntity summary = loadSummaryOf(loadOwned(sellerId, liveId), questionId);
-        return aiClient.generateAnswer(liveId.toString(), summary.getSummaryText(), productContext);
+        return aiClient.unansweredDetail(liveId.toString(), summary.getAiQuestionId());
     }
 
     /**
-     * 판매자가 확인·수정한 최종 문구를 답변으로 <b>기록</b>한다.
+     * 판매자가 확인·수정한 최종 문구를 AI에 등록하고 로컬에도 <b>기록</b>한다.
      *
-     * <p>저장하는 이유: 채팅 스트림은 지나가면 끝이라, 남기지 않으면 소비자 Q&A 버튼
-     * (요구사항정의서 11.3.4)이 "답변들을 모아본다"를 할 수 없다.
+     * <p>AI 등록이 성공해야 로컬에 남긴다 — AI 쪽이 실패했는데 로컬만 "답변 완료"로 표시되면
+     * 다음 유사 질문이 다시 미답변으로 잡히는데 화면은 이미 답변된 것으로 보여준다.
      *
      * <p><b>[천장] 채팅 게시는 아직 판매자 화면이 자기 채팅 토큰으로 직접 한다.</b>
      * BE가 대신 게시하려면 IVS Chat {@code SendMessage} 클라이언트가 필요한데,
      * 지금은 IVS 연동 전체가 스텁이라({@code live.ivs.mode=stub}) 만들 대상이 없다.
-     * AWS 자격증명이 내려와 {@code AwsIvsClient}가 붙는 시점에 이 메서드가
-     * "게시 → 기록" 순서를 갖게 하고, 재시도 중복 게시는 {@code answered} 플래그로 막는다.
      */
     @Transactional
     public LiveQuestionSummaryJpaEntity send(UUID sellerId, UUID liveId, UUID questionId, String finalAnswer) {
@@ -60,6 +53,7 @@ public class AiAnswerService {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "답변 내용이 비어 있습니다.");
         }
         LiveQuestionSummaryJpaEntity summary = loadSummaryOf(loadOwned(sellerId, liveId), questionId);
+        aiClient.registerSellerAnswer(liveId.toString(), summary.getAiQuestionId(), finalAnswer);
         summary.recordAnswer(finalAnswer, Instant.now());
         return summary;
     }
