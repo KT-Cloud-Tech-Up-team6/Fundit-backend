@@ -18,10 +18,13 @@
 | PATCH | `/api/v1/lives/{liveId}/cue-sheet` | O (본인 소유 LIVE) | AI 큐시트 직접 수정 |
 | POST | `/api/v1/lives/{liveId}/start` | O (본인 소유 LIVE) | LIVE 시작 |
 | POST | `/api/v1/lives/{liveId}/end` | O (본인 소유 LIVE) | LIVE 종료 |
-| GET | `/api/v1/lives/{liveId}/chat/insights` | O (본인 소유 LIVE) | AI 관심사/대표질문 집계 조회 |
-| GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}` | O (본인 소유 LIVE) | 대표질문 원본 채팅 조회 |
-| GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}/related-products` | O (본인 소유 LIVE) | 질문 관련 상품정보 조회 |
-| POST | `/api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer` | O (본인 소유 LIVE) | AI 추천답변 생성 및 채팅 전송 |
+| GET | `/api/v1/lives/{liveId}/chat/insights` | O (본인 소유 LIVE) | AI 집계 Q&A(FAQ) 조회 |
+| GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}` | O (본인 소유 LIVE) | 대표질문(FAQ 클러스터) 원본 채팅 조회 |
+| GET | `/api/v1/lives/{liveId}/chat/unanswered` | O (본인 소유 LIVE) | 미답변 질문 창(근거 없음) 조회 |
+| POST | `/api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer` | O (본인 소유 LIVE) | AI 추천답변 초안 생성/등록 |
+
+> `/related-products`(질문 관련 상품정보 단독 조회)는 구현되지 않았다 — AI 실계약(v1)에서 그 역할은
+> `ai-answer`(GENERATE)의 `referenceChunks`가 대신한다.
 | GET | `/api/v1/lives/{liveId}/highlights` | O (본인 소유 LIVE) | 하이라이트(마커/클립) 목록 조회 |
 | PATCH | `/api/v1/lives/{liveId}/highlights/{highlightId}` | O (본인 소유 LIVE) | 하이라이트 구간·라벨·자막 수정 |
 | POST | `/api/v1/lives/{liveId}/highlights/{highlightId}/regenerate` | O (본인 소유 LIVE) | 하이라이트 개별 재생성 |
@@ -144,34 +147,46 @@ AI가 우리 스키마에 의존하기 시작하면 컬럼 하나를 바꿀 때�
 AI가 주는 코드를 그대로 흘려보내지 않는다
 `error-handling.md`가 *"등록된 `ErrorCode`가 아닌 임의 문자열 코드를 직접 반환하지 않는다"* 로 정하고 있다.
 
+**Q&A/FAQ(AI팀 실계약 v1, 2026-09-17 확정)** — 아래 2건 외에는 새 `LiveErrorCode`를 만들지 않았다.
+`CommonErrorCode`가 이미 409/404를 갖고 있어 재정의할 이유가 없었다.
+
 | AI 응답 | live → FE | 왜 이렇게 매핑하나 |
 | --- | --- | --- |
-| `409 NOT_READY_TO_GENERATE` | `LiveErrorCode.CUE_SHEET_NOT_READY` (409) | `CommonErrorCode`에 409가 `CONFLICT` 하나뿐이라 아래 항목과 합쳐진다. FE가 "생성 조건 미충족"과 "AI 준비 중"을 같은 문구로 띄우면 안 된다 |
-| `409 NOT_PREPARED` | `LiveErrorCode.AI_NOT_PREPARED` (409) | 요구사항정의서 6.4.4.4의 "AI 준비 미완료" 안내. `GET /chat/insights`의 `aiStatus: PREPARING`과 같은 상태다 |
+| `409 NOT_PREPARED` (`submitComments`) | `CommonErrorCode.CONFLICT` (409) | 상품정보 색인(`prepare`) 누락 — 우리 쪽 배선 실수라 사용자에게 보일 값은 아니지만 로그에서 원인을 바로 구분하려고 409로 둔다 |
+| `404` (`unansweredDetail`/`registerSellerAnswer`) | `CommonErrorCode.NOT_FOUND` (404) | 클러스터(`qid`)가 이미 사라짐(재클러스터링 등) |
+| `401 UNAUTHORIZED` 등 그 외 전부 | `DependencyFailureException` (503) | 우리 쪽 토큰 설정 오류나 AI 서버 장애 — 사용자 응답이 아니라 장애로 다룬다 |
+
+**큐시트·하이라이트(미확정, 초안 상태 유지)** — 아래는 AI팀과 아직 확인되지 않은 가정이다. 확인되면 이 표를 고친다.
+
+| AI 응답 | live → FE | 왜 이렇게 매핑하나 |
+| --- | --- | --- |
+| `409 NOT_READY_TO_GENERATE` | `LiveErrorCode.CUE_SHEET_NOT_READY` (409) | `CommonErrorCode`에 409가 `CONFLICT` 하나뿐이라 위 Q&A 항목과 합쳐진다. FE가 "생성 조건 미충족"과 "AI 준비 중"을 같은 문구로 띄우면 안 된다 |
 | `422 VALIDATION_ERROR` | `CommonErrorCode.BUSINESS_RULE_VIOLATION` (422) | **우리가 조립한 입력이 규격을 벗어난 것 = 우리 버그**다. 사용자가 고칠 수 없으니 도메인 코드를 따로 만들 이유가 없다 |
 | `502 GENERATION_FAILED` | `LiveErrorCode.AI_GENERATION_FAILED` (503) | `CommonErrorCode`에 502가 없다. 재시도하면 될 수 있는 생성 실패와 AI 서버 다운(`DEPENDENCY_FAILURE`)을 FE가 구분해야 한다 |
-| `503 EVIDENCE_UNAVAILABLE` | **에러로 내리지 않는다** — `200` + `grounded: false` | ↓ |
 
-`LiveErrorCode`는 위 3개로 시작한다. 나머지는 `CommonErrorCode`로 충분하다.
-
-**`EVIDENCE_UNAVAILABLE`을 에러로 올리지 않는 이유**:
+**`EVIDENCE_UNAVAILABLE`(근거 없음)은 에러가 아니다.**
 코파일럿은 판매자가 초안을 보고 판단하는 화면이다.
 503을 던지면 화면에 보여줄 게 없어지는데, 요구사항정의서 6.4.4.5는 *"관련 상품정보가 없습니다"* Empty State를 요구한다. **근거 없음은 정상 응답의 한 상태다.**
-`POST .../ai-answer`가 이미 `grounded: false`로 표현하고 있고, 판매자가 그대로 보내지 않도록 화면에서 경고한다.
+실계약에선 `AiClient.Grounding`(`GROUNDED`/`UNGROUNDED`)으로 표현되고, `UNGROUNDED`면 `AiAnswerResponse.draftAnswer`가 `[판매자 확인 필요: ...]`로 비워진다.
 
-#### 비동기 생성 — 폴링 대상은 우리다
+#### 비동기 생성 — 폴링 대상은 우리다 (큐시트·하이라이트만 해당)
 
-큐시트(`202 Accepted` → `GET /cue-sheet`의 `status`)와 하이라이트(`generation_status`)가 이미
-이 방식이다.
+큐시트(`202 Accepted` → `GET /cue-sheet`의 `status`)와 하이라이트(`generation_status`)가 이 방식이다.
 **FE는 AI를 폴링하지 않고 live를 폴링한다.**
 
-> ⚠️ **live가 AI 결과를 회수하는 경로는 아직 미정이다.**
-live가 AI를 폴링하는지, AI가 결과를 우리 내부 엔드포인트로 밀어주는지에 따라 AI job 식별자 컬럼 필요 여부가 갈린다.
+> ⚠️ **큐시트·하이라이트에서 live가 AI 결과를 회수하는 경로는 아직 미정이다** — 위 표와 별개로
+> 여전히 초안이다. live가 AI를 폴링하는지, AI가 결과를 우리 내부 엔드포인트로 밀어주는지에 따라
+> AI job 식별자 컬럼 필요 여부가 갈린다.
 >
+> **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
+> 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
+> BE가 화면을 그릴 때마다 동기 조회한다(AI팀 실계약 v1, 2026-09-17 확정).
 
 **AI 장애가 방송을 막지 않는다.**
 큐시트·대표질문·하이라이트 호출이 전부 실패해도 송출과 채팅은 정상이어야 한다(요구사항정의서 6.4.4.2).
-AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 두지 않는다.
+AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 두지 않는다 — Q&A/FAQ 쪽은
+`ChatCommentBatchSender`(3초 주기 배치)와 `prepare`/`updateContext`(트랜잭션 커밋 후 호출)가
+이 원칙을 지킨다.
 
 ---
 
@@ -456,85 +471,94 @@ Validation / Business Rules
 
 ---
 
-### AI 관심사/대표질문 집계 조회 (요구사항정의서 6.4.4.2)
+### AI 집계 Q&A(FAQ) 조회 (요구사항정의서 6.4.4.2, AI 실계약 v1)
 
 ```
-GET /api/v1/lives/{liveId}/chat/insights
+GET /api/v1/lives/{liveId}/chat/insights?topN=10
 ```
+
+**집계는 AI가 한다 — BE는 여기서 topic으로 다시 GROUP BY하지 않는다.** `aiClient.faq()` 응답을
+로컬 `live_question_summaries`에 upsert(고정된 `questionId`를 유지하기 위해서일 뿐)하고 그대로 내려준다.
 
 Response Body
 
 ```json
 {
-  "aiStatus": "READY",
-  "topics": [ { "topic": "사이즈/색상", "count": 42 } ],
-  "representativeQuestions": [
-    { "questionId": "0199d1...", "summaryText": "사이즈가 어떻게 되나요?", "count": 18, "answered": false }
-  ],
-  "updatedAt": "2026-09-10T20:06:00+09:00"
+  "qna": [
+    { "questionId": "0199d1...", "summaryText": "타이머 기능 돼요?", "count": 4,
+      "category": "앱·원격제어", "answeredBy": "SELLER", "answeredAt": "2026-09-20T20:06:00Z",
+      "answerText": "네, 최대 12시간입니다.", "promoted": true }
+  ]
 }
 ```
 
 Validation / Business Rules
 
-- 정렬은 **질문 발생 건수 내림차순**이다(요구사항정의서 6.4.4.3).
-- 집계는 **3분 주기**로 갱신된다. `updatedAt`으로 마지막 갱신 시점을 내려 클라이언트가 "N분 전 기준"을 표시할 수 있게 한다.
-- 집계 데이터가 없으면 빈 배열이다. 클라이언트가 Empty State를 표시한다.
-- **`aiStatus`: `PREPARING`(상품정보 준비 중) / `READY`.** 요구사항정의서 6.4.4.4가 "AI 준비가 완료되지 않은 경우"와
-  "집계된 질문이 없는 경우"를 **다른 문구로** 안내하라고 요구한다 — 빈 배열만 내려주면 화면이 두 상황을 구분할 수 없다.
-- **이 API가 실패해도 LIVE 방송·채팅은 정상 동작해야 한다**(요구사항정의서 6.4.4.2). 호출 실패를 방송 화면 전체의 오류로 처리하지 않는다.
+- 정렬은 **AI가 이미 확정해 내려준 순서 그대로**다(요구사항정의서 6.4.4.3, 질문 발생 건수 내림차순).
+- 집계 데이터가 없으면 `qna: []`다. 클라이언트가 Empty State를 표시한다.
+- **이 API가 실패해도 LIVE 방송·채팅은 정상 동작해야 한다**(요구사항정의서 6.4.4.2) — AI 실패는
+  `DependencyFailureException`(503)으로 뜨고, 호출 실패를 방송 화면 전체의 오류로 처리하지 않는다.
+- `aiStatus: PREPARING` 같은 별도 상태 필드는 **없다.** `prepare` 미호출 상태에서 채팅 배치를
+  보내면 `409`가 나지만, 조회 계열(`faq`/`unanswered`)은 AI가 빈 결과로 응답하는 것으로 확인됐다
+  (2026-09-17 E2E 검증).
 
 ---
 
-### 대표질문 원본 조회
+### 대표질문(FAQ 클러스터) 원본 채팅 조회
 
 ```
 GET /api/v1/lives/{liveId}/chat/questions/{questionId}
 ```
 
+**원본은 이제 로컬에 없다.** `chat_messages.question_summary_id`로 찾던 이전 설계를 걷어냈다 —
+AI의 `GET /faq/{qid}/comments`가 클러스터 원본을 그대로 갖고 있어 그쪽에 위임한다
+(`questionId`는 우리 로컬 PK, 내부적으로 `live_question_summaries.ai_question_id`(AI의 `qid`)로
+변환해 AI를 호출한다).
+
+Response Body — 배열을 그대로 반환한다(래퍼 없음)
+
+```json
+[ { "commentId": "c2", "content": "예약 타이머 있어요?", "atMs": 20000 } ]
+```
+
+Validation / Business Rules
+
+- 본인 LIVE 소유의 `questionId`만 접근 가능하다(S4) — 세션 소속을 대조하지 않으면 남의 liveId에
+  아무 `questionId`나 붙여 원본을 읽을 수 있다(IDOR).
+- 출력 시 인코딩한다(S2).
+
+---
+
+### 미답변 질문 창 조회 (요구사항정의서 6.4.4.5)
+
+```
+GET /api/v1/lives/{liveId}/chat/unanswered?topN=10
+```
+
+AI가 근거를 못 찾은(`UNANSWERABLE`) 질문만 모인다. `pending`은 아직 판매자 답변 전, `answered`는
+이미 등록된 답변이 있어 화면에서 회색 처리할 항목이다.
+
 Response Body
 
 ```json
 {
-  "questionId": "0199d1...",
-  "summaryText": "사이즈가 어떻게 되나요?",
-  "originalMessages": [ { "messageId": 9931, "content": "사이즈 알려주세요", "sentAt": "..." } ]
+  "pending": [ { "questionId": "0199d1...", "representativeText": "타이머 기능 돼요?", "count": 3 } ],
+  "answered": [ { "questionId": "0199d2...", "representativeText": "판매자 답변 완료 건", "count": 2 } ]
 }
 ```
 
-Validation / Business Rules
-
-- 원본 댓글은 `chat_messages.question_summary_id`로 찾는다. 출력 시 인코딩한다(S2).
-- 본인 LIVE 데이터만 접근 가능하다(S4).
-
 ---
 
-### 질문 관련 상품정보 조회 (요구사항정의서 6.4.4.5)
-
-```
-GET /api/v1/lives/{liveId}/chat/questions/{questionId}/related-products
-```
-
-Response Body
-
-```json
-{ "items": [ { "rewardOptionId": 501, "field": "사이즈", "value": "500ml / 700ml" } ] }
-```
-
-Validation / Business Rules
-
-- 관련 상품정보가 없으면 **빈 배열**로 응답한다. 근거 없는 내용을 임의로 채우지 않는다(요구사항정의서 6.4.4.5).
-- 근거는 **리워드 기본 정보와 상세페이지로 한정**한다. 이 범위 밖의 값은 답변 근거로 쓰지 않는다.
-
----
-
-### AI 추천답변 생성/전송 (요구사항정의서 6.4.4.6)
+### AI 추천답변 초안/등록 (요구사항정의서 6.4.4.6)
 
 ```
 POST /api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer
 ```
 
-Request Body — 생성
+**미답변 창(`GET /chat/unanswered`)에서 진입한 질문 전용이다** — 근거를 찾은 질문은 채팅 배치
+응답으로 이미 즉시 답변되어 있어 이 흐름을 타지 않는다.
+
+Request Body — 초안 미리보기(`GENERATE`, 아무것도 기록하지 않는다)
 
 ```json
 { "action": "GENERATE" }
@@ -543,10 +567,10 @@ Request Body — 생성
 Response Body
 
 ```json
-{ "draftAnswer": "500ml/700ml 두 가지 사이즈로 제공됩니다.", "grounded": true }
+{ "draftAnswer": "500ml/700ml 두 가지 사이즈로 제공됩니다.", "referenceChunks": ["..."], "sent": false }
 ```
 
-Request Body — 전송
+Request Body — 등록(`SEND`)
 
 ```json
 { "action": "SEND", "finalAnswer": "500ml/700ml 두 가지 사이즈로 제공됩니다." }
@@ -554,10 +578,15 @@ Request Body — 전송
 
 Validation / Business Rules
 
-- **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 실제 채팅에 게시된다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
-- **`SEND` 시 최종 문구를 `live_question_summaries.answer_text`에 저장하고 `is_answered`를 올린다.** 채팅으로만 흘려보내면 소비자 Q&A 버튼이 보여줄 게 남지 않는다.
-- `grounded: false`는 상품정보에서 근거를 찾지 못했다는 뜻이다. 판매자가 그대로 보내지 않도록 화면에서 경고한다.
+- **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 AI의 `registerSellerAnswer`에 등록되고
+  `live_question_summaries.answer_text`/`is_answered`가 채워진다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
+- **채팅에는 아직 자동 게시되지 않는다.** `IvsClient`에 `SendMessage`류가 없어(스텁만 존재)
+  실제 채팅 게시는 그 클라이언트가 생기는 별도 작업으로 미뤄졌다 — 지금은 저장·조회까지만이다.
+- `referenceChunks`는 근거가 아니라 판매자 참고용이다. AI가 확인 못 한 사실은 `draftAnswer`에
+  `[판매자 확인 필요: ...]`로 비워둔다(임의 생성 금지).
 - **환불·결제·배송 등 정책 항목은 AI가 요약·재구성하지 않고 판매자가 등록한 원문을 그대로 제공한다**(요구사항정의서 6.4.3).
+- 등록되면 AI의 Live Knowledge에도 반영돼(`SellerAnswerResult.liveKnowledgeRegistered`) 이후
+  같은/유사 질문은 LLM 없이 이 답변으로 즉시 응답된다(`SELLER_CONFIRMED`).
 - 전송 전 출력 인코딩·필터링을 거친다(S2). 생성 실패 시 수동 답변으로 유도한다.
 
 ---
@@ -578,7 +607,7 @@ payload — 봉투 없이 평평한 JSON(`event-convention.md` 4번)
 {
   "eventId": "live:1042",
   "liveId": "0199c3a0-...",
-  "projectId": 42,
+  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
   "summaries": [
     { "questionSummaryId": "0199d1...", "summaryText": "배송은 얼마나 걸리나요?", "questionCount": 12 }
   ]
@@ -589,9 +618,15 @@ Validation / Business Rules
 
 - **아웃박스(`live_event_outbox`)로 발행한다.** 이 이벤트가 유실되면 LIVE 검증 탭이 영영 비어 있고, 방송은 이미 끝나서 재생성 트리거가 없다. `eventId`는 `"live:{outboxId}"`(규약 5번).
 - `projectId`를 실어 보낸다 — project가 `live_verifications.project_id`를 채울 때 live에 되묻지 않아도 된다.
+  ⚠️ **현재 구현은 project-service의 `public_id`(UUID, 문자열)를 그대로 싣는다.**
+  `live_verifications.project_id`가 `projects(id)`(내부 BIGINT) FK라 그대로는 못 쓸 수 있다 —
+  live-service는 project-service 공개 API로 내부 BIGINT를 받을 방법이 없어(공개 상세 응답에
+  UUID만 있음), 필요하면 project 담당자가 UUID→BIGINT 변환을 컨슈머 쪽에서 하거나 별도 조회
+  API를 열어야 한다(확인 대기).
 - `questionSummaryId`는 `live_question_summaries.public_id`이고, project의 `question_summary_id`(VARCHAR(100))와 타입이 맞는다.
 - 소비 측 멱등 기준(`eventId` vs `questionSummaryId` UNIQUE)은 project 담당자와 맞춘다 — Kafka는 at-least-once라 같은 이벤트가 두 번 온다.
-- 두 토픽을 `modules:common`의 `KafkaTopics`와 `.claude/rules/event-convention.md` 토픽 표에 등록해야 한다.
+- 두 토픽을 `modules:common`의 `KafkaTopics`와 `.claude/rules/event-convention.md` 토픽 표에 등록해야 한다(이미 등록되어 있다면 재확인).
+- **project-service 쪽 컨슈머는 아직 없다** — 이번 작업은 발행까지만 완성했다(담당자가 다름).
 
 ---
 

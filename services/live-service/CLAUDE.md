@@ -14,16 +14,26 @@ LIVE 관련 작업을 시작하기 전에 **`services/live-service/docs/LiveFunc
 
 API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니다.
 
-> 확인 상태: 27블록(MVP 11 / P1 9 / P2 7) 구현 완료. 엔드포인트 33개, 테스트 124개.
+> 확인 상태: 27블록(MVP 11 / P1 9 / P2 7) 구현 완료 + AI Q&A/FAQ 실계약(v1) 연동. 엔드포인트 34개, 테스트 180개.
 >
 > **외부 연동 2개는 스텁이다.** 자격증명·계약이 확정되면 클래스 하나씩 추가하고 프로퍼티만 바꾼다.
-> - `live.ivs.mode=stub` → `StubIvsClient`. 실제는 `AwsIvsClient`(AWS SDK ivs·ivschat, 의존성은 이미 있음)
-> - `live.ai.mode=stub` → `StubAiClient`. AI 서버 주소·계약 확정 후 `HttpAiClient`
+> - `live.ivs.mode=stub` → `StubIvsClient`. 실제는 `AwsIvsClient`(AWS SDK ivs·ivschat, 의존성은 이미 있음) —
+>   **채팅에 메시지를 쓰는 `SendMessage`류가 아직 없다.** AI 추천답변 `SEND`가 지금 저장·조회까지만
+>   하는 이유가 이것이다(아래 "AI 추천답변은 자동 게시하지 않는다" 참고).
+> - `live.ai.mode=stub` → `StubAiClient`, `=http` → `HttpAiClient`. **Q&A/FAQ는 AI팀 실계약(v1,
+>   2026-09-17 E2E 검증 완료)으로 연동 완료됐다** — `prepare`/`updateContext`/`submitComments`/
+>   `faq`/`faqComments`/`unanswered`/`unansweredDetail`/`registerSellerAnswer`/`summary`.
+>   **큐시트·하이라이트는 여전히 미확정**이라 `HttpAiClient.requestCueSheet`/`requestHighlights`는
+>   `UnsupportedOperationException`을 던진다 — 그 계약이 나오면 채운다.
 >
-> **AI 결과 수신 방식은 가정이다** — AI가 live의 내부 엔드포인트로 밀어주는 구조로 만들었다
-> (`POST /internal/v1/lives/{liveId}/cue-sheet`, `.../highlights`). 확인요청 회신이 "BE가 폴링"으로
-> 오면 내부 엔드포인트 2개를 빼고 AI job 식별자 컬럼과 폴링 스케줄러를 넣는다 —
-> **도메인·서비스·컨트롤러는 그대로다.**
+> **큐시트·하이라이트에서 AI 결과 수신 방식은 여전히 가정이다** — AI가 live의 내부 엔드포인트로
+> 밀어주는 구조로 만들었다(`POST /internal/v1/lives/{liveId}/cue-sheet`, `.../highlights`).
+> 확인요청 회신이 "BE가 폴링"으로 오면 내부 엔드포인트 2개를 빼고 AI job 식별자 컬럼과 폴링
+> 스케줄러를 넣는다 — **도메인·서비스·컨트롤러는 그대로다.**
+>
+> **Q&A/FAQ는 이 문제가 없다** — 비동기 결과 자체가 없다. `ChatCommentBatchSender`가 3초 주기로
+> 채팅을 배치 전송하면 그 HTTP 응답으로 바로 답변이 오고, 나머지 조회는 화면을 그릴 때마다
+> BE가 동기 호출한다.
 >
 > **미결 1건**: 하이라이트 성과 통계의 `fundingConversionCount`. 조회·클릭은 소비자 공개 조회
 > 엔드포인트가 세지만 펀딩 전환 기여는 order 집계가 필요하고 그 주체가 정해지지 않았다.
@@ -35,8 +45,8 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 - `live_cue_sheets` — AI 큐시트. **세션당 1행**이고 구간 배열은 `segments` JSONB다. `status=GENERATING`이 중복 생성 요청 차단의 근거다.
 - `live_likes` — 좋아요. PK `(session_id, member_id)` 자체가 중복 방지다.
 - `live_highlights` — **마커와 클립을 한 테이블에 `kind`로 구분**한다. `is_public` 기본값이 FALSE인 게 "판매자 확정 전 비공개" 정책이다.
-- `chat_messages` — 원본 채팅. `question_summary_id`로 어느 대표질문에 묶였는지 표시한다(1:N이라 매핑 테이블을 두지 않는다). IVS Chat Room ARN은 `live_sessions.ivs_chat_room_arn`에 있다 — 세션당 1개라 테이블로 빼지 않았다.
-- `live_question_summaries` — AI 대표질문. 원본 채팅은 `chat_messages.question_summary_id`가 가리킨다.
+- `chat_messages` — 원본 채팅. `sent_to_ai_at`으로 AI 배치 전송 여부를 표시한다(`ChatCommentBatchSender`가 3초 주기로 미전송분만 골라 보낸다). `question_summary_id`는 더 이상 채워지지 않는다 — 대표질문 원본은 이제 AI의 `GET /faq/{qid}/comments`에서 그때그때 받아온다(로컬 사본을 두지 않는다). IVS Chat Room ARN은 `live_sessions.ivs_chat_room_arn`에 있다 — 세션당 1개라 테이블로 빼지 않았다.
+- `live_question_summaries` — AI FAQ 클러스터. `ai_question_id`가 AI의 `qid`(FAQ 계열)다. AI 응답을 그대로 upsert할 뿐 여기서 다시 집계하지 않는다.
 - `live_event_outbox` — `live.ended.v1` / `live.questions-summarized.v1` 발행용. payload가 배열이라 JSONB다.
 
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
@@ -47,8 +57,9 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 - **AI 실패가 방송을 막지 않는다**: 큐시트·대표질문·하이라이트 API가 실패해도 송출과 채팅은 정상이어야 한다(`PRD` 6.4.4.2). AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 만들지 말 것.
 - **AI는 우리가 조립한 컨텍스트만 받는다**: 흐름은 `FE → BE → AI → BE → FE`이고 FE는 AI 서버를 직접 부르지 않는다(협의 확정). 호출 구현은 `auth-service`의 `PortOneRestClient` 패턴을 그대로 쓴다 — `RestClient` + connect/read 타임아웃 명시, 실패는 `DependencyFailureException`, 응답은 구조 검증 후 사용(S7). 기본 타임아웃을 그대로 두면 AI가 느려질 때 방송 화면이 같이 멈춘다.
 - **자동 생성물은 비공개로 시작한다**: 하이라이트는 `is_public=false`가 기본이고 판매자가 확정해야 소비자에게 보인다(`PRD` 6.6.3). 기본값을 TRUE로 바꾸면 검수 전 내용이 그대로 새어나간다.
-- **AI 추천답변은 자동 게시하지 않는다**: `GENERATE`로 초안만 만들고 판매자가 `SEND`해야 채팅에 올라간다. 환불·결제·배송 등 **정책 항목은 요약·재구성하지 않고 등록된 원문 그대로** 내보낸다(`PRD` 6.4.3).
-- **근거 없는 답변을 만들지 않는다**: 상품 질문의 근거 범위는 리워드 기본 정보와 상세페이지뿐이다. 관련 정보가 없으면 빈 배열로 응답하고 지어내지 않는다.
+- **AI 추천답변은 자동 게시하지 않는다**: `GENERATE`로 초안만 만들고 판매자가 `SEND`해야 `registerSellerAnswer`에 등록되고 `live_question_summaries`가 갱신된다. **`SEND`가 지금 실제 채팅에 게시하지는 않는다** — `IvsClient`에 `SendMessage`류가 없어서다(위 "외부 연동 2개는 스텁이다" 참고). 채팅 게시는 `AwsIvsClient`가 생기는 별도 작업으로 미뤄졌다. 환불·결제·배송 등 **정책 항목은 요약·재구성하지 않고 등록된 원문 그대로** 내보낸다(`PRD` 6.4.3).
+- **근거 없는 답변을 만들지 않는다**: 상품 질문의 근거 범위는 리워드 기본 정보와 상세페이지뿐이다. AI가 근거를 못 찾으면(`Grounding.UNGROUNDED`) 초안에 `[판매자 확인 필요: ...]`로 표시하고 지어내지 않는다.
+- **AI 컨텍스트는 값이 실제로 바뀌는 지점에서만 갱신한다**: `prepare`는 방송 시작 시 1회(상품이 바뀌면 재호출), `updateContext`는 방송 설정 저장 시. 둘 다 트랜잭션 커밋 후에 호출해 AI 실패·지연이 방송 시작/설정 저장 자체를 막지 않는다. 폴링은 두지 않는다(YAGNI).
 - **쿠폰 재고는 원자적 UPDATE로 차감한다**: `UPDATE ... SET remaining_quantity = remaining_quantity - 1 WHERE id = ? AND remaining_quantity > 0`. 조회 후 차감하면 방송 중 동시 요청에서 초과 발급이 난다.
 - **쿠폰은 order-service 소관이다. live는 상태만 답한다**: order `coupons`가 생애주기 전체를 갖고 있고 `issue_channel='LIVE'`·`live_session_id`·`drop_type`·낙관적 락까지 이미 있다. live는 `GET /internal/v1/lives/{liveId}/status`로 "이 방송이 진행 중인가"만 답한다. **호출 방향이 order → live다** — 쿠폰의 주인이 order이므로 판정 정보를 그쪽이 가져간다.
 - **질문요약은 Kafka로 밀어준다**: project-service가 `live_verifications`에 판매자 답변을 붙이려면 질문요약이 먼저 있어야 한다. 폴링이 아니라 `live.questions-summarized.v1` 발행이다(담당자 협의 확정).
@@ -59,19 +70,24 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 ## 에러 코드
 도메인 전용 코드는 `LiveErrorCode implements ErrorCode`로 만든다(서비스당 flat enum 1개 — `error-handling.md` 컨벤션). 다만 **상당수는 `CommonErrorCode`로 충분하다** — `NOT_FOUND`(없는 LIVE), `FORBIDDEN`(타인 소유), `INVALID_INPUT`, `CONFLICT`(중복 생성·상태 위반)는 이미 있으니 재정의하지 않는다.
 
-이 서비스 고유로 필요한 것은 **송출 오류**와 **AI 연동 3종**이다. 새로 만들기 전에 기능명세서의 예외 처리 항목부터 확인할 것.
+이 서비스 고유로 필요한 것은 **송출 오류**뿐이다 — AI 연동은 새 `LiveErrorCode`를 만들지 않고
+`CommonErrorCode`로 흡수했다(전체 표는 `LiveDomainApiSpec.md` "AI 연동" 절).
 
-AI 에러코드는 그대로 흘려보내지 않고 매핑한다(전체 표는 `LiveDomainApiSpec.md` "AI 연동" 절).
+**Q&A/FAQ(실계약 v1, 확정)**: AI의 `409 NOT_PREPARED`(`submitComments`) → `CommonErrorCode.CONFLICT`,
+AI의 `404`(`unansweredDetail`/`registerSellerAnswer`) → `CommonErrorCode.NOT_FOUND`, 그 외
+전부(`401` 등) → `DependencyFailureException`(503). `EVIDENCE_UNAVAILABLE`에 대응하는
+`Grounding.UNGROUNDED`는 **에러가 아니라 정상 응답의 한 상태**다 — `200` + `draftAnswer`에
+`[판매자 확인 필요: ...]`로 표시한다. 근거 없음을 에러로 올리면 `PRD` 6.4.4.5가 요구하는 Empty
+State를 그릴 수 없다.
 
-| `LiveErrorCode` | status | AI 원본 | 왜 `CommonErrorCode`로 안 되나 |
+**큐시트·하이라이트(미확정 초안, 아직 실계약 없음)**: 아래는 AI팀과 확인되지 않은 가정이다.
+
+| `LiveErrorCode` | status | AI 원본(가정) | 왜 `CommonErrorCode`로 안 되나 |
 | --- | --- | --- | --- |
-| `CUE_SHEET_NOT_READY` | 409 | `NOT_READY_TO_GENERATE` | 409가 `CONFLICT` 하나뿐이라 아래와 합쳐진다 |
-| `AI_NOT_PREPARED` | 409 | `NOT_PREPARED` | FE가 "생성 조건 미충족"과 "AI 준비 중"을 다른 문구로 안내해야 한다(`PRD` 6.4.4.4) |
+| `CUE_SHEET_NOT_READY` | 409 | `NOT_READY_TO_GENERATE` | 409가 `CONFLICT` 하나뿐이라 위 Q&A `NOT_PREPARED`와 합쳐진다 |
 | `AI_GENERATION_FAILED` | 503 | `502 GENERATION_FAILED` | 502가 없다. 재시도 가능한 생성 실패와 AI 서버 다운(`DEPENDENCY_FAILURE`)은 다른 UI다 |
 
-`422 VALIDATION_ERROR`는 `CommonErrorCode.BUSINESS_RULE_VIOLATION`, `503 EVIDENCE_UNAVAILABLE`은
-**에러가 아니라 `200` + `grounded: false`** 로 내린다 — 근거 없음은 정상 응답의 한 상태이고,
-에러로 올리면 `PRD` 6.4.4.5가 요구하는 Empty State를 그릴 수 없다.
+`422 VALIDATION_ERROR`는 `CommonErrorCode.BUSINESS_RULE_VIOLATION`으로 매핑한다(가정).
 
 IVS·AI 연동 실패는 `DependencyFailureException`으로 감싼다(infrastructure 계층).
 
