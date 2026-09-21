@@ -3,6 +3,7 @@ package com.fundit.live.application.session;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ai.AiProductContextAssembler;
 import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -55,11 +56,7 @@ public class LiveSettingsService {
                 try {
                     ProjectContextClient.ProjectContext context = projectContextClient
                             .find(session.getProjectId()).orElse(null);
-                    AiClient.FundingInfo funding = context == null || context.remainingDays() == null
-                            ? new AiClient.FundingInfo(null, context == null || context.achievementRate() == null
-                                    ? 0 : context.achievementRate())
-                            : new AiClient.FundingInfo(Instant.now().plusSeconds(context.remainingDays() * 86400L),
-                                    context.achievementRate() == null ? 0 : context.achievementRate());
+                    AiClient.FundingInfo funding = AiProductContextAssembler.fundingOf(context);
                     aiClient.updateContext(session.getPublicId().toString(), new AiClient.ContextUpdate(
                             session.getProjectId().toString(),
                             new AiClient.BroadcastInfo(null, true),
