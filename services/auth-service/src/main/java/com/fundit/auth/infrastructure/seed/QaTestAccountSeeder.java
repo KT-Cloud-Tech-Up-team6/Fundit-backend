@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -14,9 +13,12 @@ import java.util.List;
 /**
  * dev(QA) 환경 테스트 계정 2개를 기동 시 만든다 — 판매자용 A, 서포터용 B.
  *
- * <p><b>dev 전용이다.</b> {@code test-accounts.password}가 비어 있지 않을 때만 뜨고, 이 값은
+ * <p><b>dev 전용이다.</b> {@code test-accounts.password}가 비어 있으면 아무것도 하지 않고, 이 값은
  * application-dev.yml에만 {@code ${TEST_ACCOUNT_PASSWORD:}}로 정의된다 — local·prod yml에는 키 자체가
- * 없어 절대 뜨지 않는다. 비밀번호는 코드·yml에 두지 않고 배포 Secret으로 받는다.
+ * 없어 계정이 만들어지지 않는다. 비밀번호는 코드·yml에 두지 않고 배포 Secret으로 받는다.
+ *
+ * <p>조건 애노테이션({@code @ConditionalOnExpression})을 쓰지 않는 이유: 비밀번호가 SpEL 문자열에
+ * 그대로 삽입돼, 값에 {@code '}가 있으면 표현식이 깨져 서비스가 기동하지 못한다.
  *
  * <p>본인인증(PortOne)을 건너뛰고 {@link SignupService#createVerifiedAccount}를 직접 부른다 —
  * 보상 트랜잭션(member 실패 시 계정 삭제)은 회원가입과 같은 코드를 탄다. 이미 있는 이메일은 건너뛰어
@@ -24,7 +26,6 @@ import java.util.List;
  */
 @Slf4j
 @Component
-@ConditionalOnExpression("!'${test-accounts.password:}'.isBlank()")
 public class QaTestAccountSeeder implements ApplicationRunner {
 
     /** member-service가 요구하는 필수 약관(TermsCatalog). */
@@ -39,7 +40,7 @@ public class QaTestAccountSeeder implements ApplicationRunner {
     private final String password;
 
     public QaTestAccountSeeder(SignupService signupService, AccountRepository accountRepository,
-                               @Value("${test-accounts.password}") String password) {
+                               @Value("${test-accounts.password:}") String password) {
         this.signupService = signupService;
         this.accountRepository = accountRepository;
         this.password = password;
@@ -47,6 +48,9 @@ public class QaTestAccountSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (password.isBlank()) {
+            return;
+        }
         for (TestAccount account : ACCOUNTS) {
             if (accountRepository.findByEmail(account.email()).isPresent()) {
                 continue;
