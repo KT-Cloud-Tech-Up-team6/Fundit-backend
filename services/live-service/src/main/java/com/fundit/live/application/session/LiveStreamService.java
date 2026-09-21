@@ -4,9 +4,8 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ai.AiProductContextAssembler;
 import com.fundit.live.application.ivs.IvsClient;
-import com.fundit.live.application.project.ProjectContextClient;
-import com.fundit.live.application.project.ProjectRewardClient;
 import com.fundit.live.application.question.QuestionInsightService;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -26,7 +25,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,8 +44,7 @@ public class LiveStreamService {
     private final LiveEventOutboxJpaRepository outboxRepository;
     private final IvsClient ivsClient;
     private final AiClient aiClient;
-    private final ProjectContextClient projectContextClient;
-    private final ProjectRewardClient projectRewardClient;
+    private final AiProductContextAssembler productContextAssembler;
     private final QuestionInsightService questionInsightService;
     private final PlatformTransactionManager transactionManager;
 
@@ -96,30 +93,13 @@ public class LiveStreamService {
             @Override
             public void afterCommit() {
                 try {
-                    ProjectContextClient.ProjectContext context = projectContextClient
-                            .find(session.getProjectId()).orElse(null);
-                    List<AiClient.RewardInfo> rewards = projectRewardClient.findRewards(session.getProjectId());
-                    List<AiClient.KnowledgeChunk> knowledge = context == null
-                            ? List.of() : buildKnowledge(context.introTexts());
-                    aiClient.prepare(session.getPublicId().toString(), new AiClient.PrepareRequest(
-                            context == null ? null : context.title(),
-                            context == null ? null : context.categoryMajor(),
-                            context == null ? null : context.categoryMinor(),
-                            null, session.getProjectId().toString(), knowledge, rewards));
+                    aiClient.prepare(session.getPublicId().toString(), productContextAssembler.assemble(session));
                 } catch (RuntimeException e) {
                     // ponytail: 실패 시 재시도 없이 로그만 남긴다. 운영에서 누락이 보이면 재시도 작업 테이블로 옮긴다.
                     log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);
                 }
             }
         });
-    }
-
-    private List<AiClient.KnowledgeChunk> buildKnowledge(List<String> introTexts) {
-        List<AiClient.KnowledgeChunk> chunks = new ArrayList<>();
-        for (int i = 0; i < introTexts.size(); i++) {
-            chunks.add(new AiClient.KnowledgeChunk("intro-" + i, "상세설명", introTexts.get(i), false, "project-intro"));
-        }
-        return chunks;
     }
 
     @Transactional
