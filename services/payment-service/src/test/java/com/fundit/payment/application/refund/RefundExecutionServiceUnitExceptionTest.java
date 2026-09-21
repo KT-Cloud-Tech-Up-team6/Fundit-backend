@@ -103,7 +103,7 @@ class RefundExecutionServiceUnitExceptionTest {
     void 승인_대상_결제를_찾을_수_없으면_NOT_FOUND_예외가_발생한다() {
         // given
         var refundRequest = com.fundit.payment.domain.refund.RefundRequest.requestDefect(
-                FUNDING_ID, UUID.randomUUID(), "파손", java.util.List.of("url"));
+                FUNDING_ID, UUID.randomUUID(), UUID.randomUUID(), "파손", java.util.List.of("url"));
         when(paymentRepository.findById(refundRequest.getPaymentId())).thenReturn(Optional.empty());
 
         // when & then

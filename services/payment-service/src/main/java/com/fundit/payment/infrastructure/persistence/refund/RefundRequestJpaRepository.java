@@ -25,4 +25,16 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
             countQuery = "select count(r) from RefundRequestJpaEntity r, PaymentJpaEntity p "
                     + "where p.id = r.paymentId and p.memberId = :memberId")
     Page<RefundSummaryProjection> findSummariesByMemberId(@Param("memberId") UUID memberId, Pageable pageable);
+
+    /**
+     * 판매자 환불 목록 — DEFECT 신청 시점에 채워둔 {@code seller_id}로 직접 필터링한다(order-service
+     * 재조회 없음). seller_id가 null인 유형(즉시처리 트리거)은 애초에 판매자 검토 대상이 아니라 제외된다.
+     */
+    @Query(value = "select r.id as id, r.fundingOrderId as fundingId, r.triggerType as triggerType, "
+            + "r.status as status, p.amount as amount, r.requestedAt as requestedAt, "
+            + "r.reasonDetail as reasonDetail, r.rejectedReason as rejectedReason, r.processedAt as processedAt "
+            + "from RefundRequestJpaEntity r, PaymentJpaEntity p "
+            + "where p.id = r.paymentId and r.sellerId = :sellerId order by r.requestedAt desc",
+            countQuery = "select count(r) from RefundRequestJpaEntity r where r.sellerId = :sellerId")
+    Page<RefundSummaryProjection> findSummariesBySellerId(@Param("sellerId") UUID sellerId, Pageable pageable);
 }

@@ -134,4 +134,35 @@ class RefundQueryServiceUnitTest {
         assertThat(page.getContent()).singleElement().satisfies(summary ->
                 assertThat(summary.orderSummary().projectTitle()).isEqualTo("프로젝트"));
     }
+
+    @Test
+    void 판매자_환불목록을_프로젝션에서_뷰로_변환한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID fundingId = new UUID(0L, 4096L);
+        RefundSummaryProjection projection = new RefundSummaryProjection() {
+            public Long getId() { return 5L; }
+            public UUID getFundingId() { return fundingId; }
+            public String getTriggerType() { return "DEFECT"; }
+            public String getStatus() { return "REQUESTED"; }
+            public long getAmount() { return 50_000L; }
+            public Instant getRequestedAt() { return Instant.now(); }
+            public String getReasonDetail() { return "[DEFECTIVE] 파손됨"; }
+            public String getRejectedReason() { return null; }
+            public Instant getProcessedAt() { return null; }
+        };
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(refundRequestJpaRepository.findSummariesBySellerId(sellerId, pageable))
+                .thenReturn(new PageImpl<>(List.of(projection), pageable, 1));
+        when(orderSummaryClient.fetchBatch(List.of(fundingId))).thenReturn(Map.of());
+
+        // when
+        var page = refundQueryService.listForSeller(sellerId, pageable);
+
+        // then
+        assertThat(page.getContent()).singleElement().satisfies(summary -> {
+            assertThat(summary.refundId()).isEqualTo(5L);
+            assertThat(summary.triggerType()).isEqualTo("DEFECT");
+        });
+    }
 }

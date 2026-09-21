@@ -160,7 +160,7 @@ dependencies {
 본인(해당 메이커) 배치만 조회 가능(403). `gross_amount`/`platform_fee_amount`(3%)/`coupon_deduction_amount`/`refund_deduction_amount`/`total_amount`와, `OrderSettlementAggregateClient`로 조회한 리워드·옵션별 판매 수량·금액(`lineItems`)을 합성해 응답.
 
 ### PAYMENT-010 `GET /api/v1/settlements/{settlementBatchId}/download`
-PDF/엑셀 등 파일 생성 후 다운로드 URL 또는 파일 스트림 반환. 파일 생성 라이브러리는 팀 컨벤션 없으니 신규 결정 필요[정책 확인 필요].
+~~PDF/엑셀 등 파일 생성 후 다운로드~~ — 해결. PDF/엑셀 라이브러리 도입 대신 CSV(`text/csv`, `Content-Disposition: attachment`)로 제공한다. PAYMENT-009와 동일한 `SettlementQueryService.getDetail`로 조회/권한검증을 재사용해 배치 요약 1행 + 라인아이템을 CSV로 직렬화한다(`SettlementDownloadService`).
 
 ### PAYMENT-011 `POST /api/v1/settlements/{settlementBatchId}/disputes`
 발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 발송일은 배치 유형별로 다르다 — INTERIM은 `createdAt`, FINAL은 배치에 속한 펀딩들의 실제 배송완료일(`ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 최신값+14일(`SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY`). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
@@ -278,6 +278,5 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - ~~정산 집계 API 부재~~ — 해결(order-service `GET /internal/fundings/{fundingId}/settlement-aggregate` 신설), `HttpOrderSettlementAggregateClient`로 연동 완료.
 - **레이스 컨디션 보상 미구현**: order-service가 아직 `PaymentReconciliationRequired`를 발행하지 않음(PAYMENT-017 대상 이벤트 없음) — 연동 이슈에서 함께 처리.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
-- PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.
 - 적립금(`point_transactions`) MVP 포함 여부 미정.
 - ~~게이트웨이(`platform/gateway-service`)에 payment-service 라우트 미등록~~ — 등록 완료(`platform/gateway-service/src/main/resources/application.yml`, `/api/v1/payments/**,/api/v1/refunds/**,/api/v1/settlements/**`). 웹훅 경로(`/api/v1/payments/webhook/toss`)도 `X-User-Id` 없는 요청은 필터가 자동 통과시키므로 별도 화이트리스트 없이 정상 동작한다.

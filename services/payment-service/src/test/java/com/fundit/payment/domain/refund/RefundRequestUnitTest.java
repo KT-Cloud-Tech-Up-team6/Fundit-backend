@@ -16,7 +16,7 @@ class RefundRequestUnitTest {
     @Test
     void 하자환불을_신청하면_REQUESTED_상태로_생성된다() {
         // when
-        RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, "파손", List.of("https://cdn/a.jpg"));
+        RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("https://cdn/a.jpg"));
 
         // then
         assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REQUESTED);
@@ -41,7 +41,7 @@ class RefundRequestUnitTest {
         @Test
         void 승인하면_COMPLETED로_전환되고_전액여부가_기록된다() {
             // given
-            RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, "파손", List.of("url"));
+            RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
 
             // when
             request.approve(false);
@@ -54,7 +54,7 @@ class RefundRequestUnitTest {
         @Test
         void 반려하면_REJECTED로_전환되고_사유가_기록된다() {
             // given
-            RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, "파손", List.of("url"));
+            RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
 
             // when
             request.reject("제품 이상 없음 확인됨");

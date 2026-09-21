@@ -105,6 +105,30 @@ class SettlementDisputeServiceUnitExceptionTest {
     }
 
     @Test
+    void 상세조회시_이의신청이_없으면_NOT_FOUND_예외가_발생한다() {
+        // given
+        when(settlementDisputeJpaRepository.findById(9L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> settlementDisputeService.getDetail(SELLER_ID, 9L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void 상세조회시_본인_접수건이_아니면_FORBIDDEN_예외가_발생한다() {
+        // given
+        var dispute = com.fundit.payment.infrastructure.persistence.settlement.SettlementDisputeJpaEntity.builder()
+                .id(9L).batchId(77L).sellerId(UUID.randomUUID()).reason("사유").status("RECEIVED").build();
+        when(settlementDisputeJpaRepository.findById(9L)).thenReturn(Optional.of(dispute));
+
+        // when & then
+        assertThatThrownBy(() -> settlementDisputeService.getDetail(SELLER_ID, 9L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
+    }
+
+    @Test
     void 최종정산인데_배송완료일을_확인할_수_없으면_DEPENDENCY_FAILURE_예외가_발생한다() {
         // given — shipping.completed.v1로만 생성되는 배치가 배송완료일을 못 찾는 건 시스템 불변식 위반이라
         // 배치 생성일로 조용히 대체하지 않고 명시적으로 실패해야 한다.

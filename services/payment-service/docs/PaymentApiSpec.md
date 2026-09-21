@@ -139,6 +139,16 @@
 
 ---
 
+### 2-1b. GET `/api/v1/refunds/seller` — 판매자 환불 목록 (PAYMENT-003 seller 변형)
+
+- **권한**: 판매자(본인이 판매자인 DEFECT 신청만 대상)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Query Parameter**: `page`, `size`
+- **Response 200 OK**: 2-1과 동일한 응답 스키마.
+- **비고**: 하자환불 신청(2-2) 시점에 `refund_requests.seller_id`를 미리 채워둔 뒤(order-service 재조회 없이 신청 시점의 `OrderFundingClient` 응답을 그대로 저장) `seller_id`로만 필터링한다 — 즉시처리 트리거(참여취소/미달자동)는 `seller_id`가 없어 애초에 대상이 아니다.
+
+---
+
 ### 2-2. POST `/api/v1/refunds/defect` — 하자환불 신청 (PAYMENT-006)
 
 - **권한**: 구매자
@@ -263,6 +273,25 @@
 
 ## 3. 정산
 
+### 3-0. GET `/api/v1/settlements` — 정산 목록 (PAYMENT-009 변형)
+
+- **권한**: 판매자(본인 배치만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Query Parameter**: `page`, `size`
+- **Response 200 OK**
+
+```json
+{
+  "content": [
+    { "settlementBatchId": 77, "batchType": "INTERIM", "status": "PENDING",
+      "periodStart": "2026-09-01T00:00:00Z", "periodEnd": "2026-09-07T00:00:00Z", "totalAmount": 4711000 }
+  ],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
+}
+```
+
+- **비고**: `settlementBatchId`만 확인해 3-1 상세로 이어가는 진입점(리워드/옵션별 집계는 담지 않음, persistence-convention.md §3).
+
 ### 3-1. GET `/api/v1/settlements/{settlementBatchId}` — 정산 내역서 조회 (PAYMENT-009)
 
 - **권한**: 판매자(본인 정산 건만)
@@ -292,8 +321,9 @@
 
 - **권한**: 판매자(본인 정산 건만)
 - **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
-- **Response 503 SERVICE_UNAVAILABLE**: 본인 배치 접근 권한 검증 후, 파일(PDF/엑셀) 생성이 아직 준비되지 않아 `{ "code": "SERVICE_UNAVAILABLE", "message": "정산 내역서 다운로드 기능은 준비 중입니다." }`를 반환한다. `downloadUrl`을 주지 않는다.
-- **주요 에러 코드**: `FORBIDDEN`(403), `NOT_FOUND`(404), `SERVICE_UNAVAILABLE`(503)
+- **Response 200 OK**: `Content-Type: text/csv; charset=UTF-8`, `Content-Disposition: attachment; filename="settlement-{settlementBatchId}.csv"`. 본문은 3-1 상세와 동일한 데이터(배치 요약 1행 + 리워드/옵션별 라인아이템)를 CSV로 직렬화한 것.
+- **비고**: PDF/엑셀 대신 CSV로 제공한다(신규 의존성 없이 "테스트용 정산 파일" 요구사항 충족). 접근 권한 검증은 3-1과 동일한 로직(`SettlementQueryService.getDetail`)을 재사용한다.
+- **주요 에러 코드**: `FORBIDDEN`(403), `NOT_FOUND`(404)
 
 ### 3-3. POST `/api/v1/settlements/{settlementBatchId}/disputes` — 정산 이의 신청 (PAYMENT-011)
 
@@ -311,6 +341,30 @@
 - **Response 201 Created**: `{ "disputeId": 12, "status": "RECEIVED" }`
 - **처리 절차**: 접수 시 대상 `settlement_batches.status = ON_HOLD`로 전환(지급 보류). 이의신청 기산일은 배치 유형별로 다르다 — 선정산(INTERIM)은 배치 생성일(`createdAt`), 최종정산(FINAL)은 배치에 속한 펀딩들의 실제 배송완료일(fulfillment-service `ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 가장 늦은 값 + 14일
 - **주요 에러 코드**: `DISPUTE_PERIOD_EXPIRED`(409, 이의신청 가능 기간 경과), `FORBIDDEN`(403), `NOT_FOUND`(404), `DEPENDENCY_FAILURE`(503, 최종정산인데 배송완료일 확인 불가)
+
+### 3-4. GET `/api/v1/settlements/disputes` — 이의신청 목록 (PAYMENT-011 변형)
+
+- **권한**: 판매자(본인 접수 건만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Query Parameter**: `page`, `size`
+- **Response 200 OK**
+
+```json
+{
+  "content": [
+    { "disputeId": 12, "settlementBatchId": 77, "reason": "정산 금액 산출 내역이 실제 판매 수량과 다릅니다.",
+      "status": "RECEIVED", "requestedAt": "2026-09-10T09:00:00Z", "resolvedAt": null }
+  ],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
+}
+```
+
+### 3-5. GET `/api/v1/settlements/disputes/{disputeId}` — 이의신청 상세 (PAYMENT-011 변형)
+
+- **권한**: 판매자(본인 접수 건만, S4)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Response 200 OK**: 3-4 목록 항목과 동일한 스키마.
+- **주요 에러 코드**: `FORBIDDEN`(403, 본인 접수 건 아님), `NOT_FOUND`(404)
 
 ---
 
@@ -388,7 +442,7 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 | `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음(`isDelayed=false`) |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 가능 기간(7일) 경과 |
 
-> `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용. `CommonErrorCode.NOT_FOUND`(404)는 funding/결제/환불/정산 대상을 찾지 못했을 때 재사용(`FUNDING_NOT_FOUND` 코드는 없음). `CommonErrorCode.SERVICE_UNAVAILABLE`(503)은 PAYMENT-010 미구현 다운로드에 재사용.
+> `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용. `CommonErrorCode.NOT_FOUND`(404)는 funding/결제/환불/정산 대상을 찾지 못했을 때 재사용(`FUNDING_NOT_FOUND` 코드는 없음).
 
 ---
 
@@ -396,5 +450,4 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 
 - **`payment_event_outbox` 재시도 상한**: PAYMENT-016 예외처리의 "N회 이상 연속 실패 시 알림" N값 미정.
 - **PAYMENT-017 `SYSTEM_RECONCILIATION` → order-service `RefundReason` 매핑**: payment는 `trigger_type=SYSTEM_RECONCILIATION`으로 기록하고, Kafka `refundReason`은 임시로 `GOAL_FAILURE_AUTO_REFUND`로 보낸다(order-service enum에 대응 값이 없음). order-service 발행·enum 추가 시 재확인.
-- **PAYMENT-010 파일 생성 라이브러리**: 미정이라 현재는 503만 반환.
 - **order-service 내부 API 페이로드 불일치**: 엔드포인트 `GET /internal/fundings/{fundingId}`는 있다. 기본 모드는 stub. HTTP 클라이언트가 기대하는 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceId`는 order 응답에 아직 없다.

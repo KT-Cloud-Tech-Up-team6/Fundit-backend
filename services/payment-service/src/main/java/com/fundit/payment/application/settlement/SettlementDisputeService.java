@@ -12,6 +12,8 @@ import com.fundit.payment.domain.settlement.SettlementFeePolicy;
 import com.fundit.payment.infrastructure.persistence.settlement.SettlementDisputeJpaEntity;
 import com.fundit.payment.infrastructure.persistence.settlement.SettlementDisputeJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +85,32 @@ public class SettlementDisputeService {
         return lastDeliveredAt.plus(SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY);
     }
 
+    /** 접수한 이의신청의 목록·처리 상태 조회. */
+    @Transactional(readOnly = true)
+    public Page<DisputeSummary> listForSeller(UUID sellerId, Pageable pageable) {
+        return settlementDisputeJpaRepository.findBySellerIdOrderByIdDesc(sellerId, pageable).map(this::toSummary);
+    }
+
+    /** 이의신청 상세 — 본인 접수 건만 조회 가능(S4). */
+    @Transactional(readOnly = true)
+    public DisputeSummary getDetail(UUID sellerId, Long disputeId) {
+        SettlementDisputeJpaEntity dispute = settlementDisputeJpaRepository.findById(disputeId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (!dispute.getSellerId().equals(sellerId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        return toSummary(dispute);
+    }
+
+    private DisputeSummary toSummary(SettlementDisputeJpaEntity dispute) {
+        return new DisputeSummary(dispute.getId(), dispute.getBatchId(), dispute.getReason(), dispute.getStatus(),
+                dispute.getRequestedAt(), dispute.getResolvedAt());
+    }
+
     public record DisputeResult(Long disputeId, String status) {
+    }
+
+    public record DisputeSummary(Long disputeId, Long settlementBatchId, String reason, String status,
+                                  Instant requestedAt, Instant resolvedAt) {
     }
 }

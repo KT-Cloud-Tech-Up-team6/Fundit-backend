@@ -1,5 +1,6 @@
 package com.fundit.payment.application.refund;
 
+import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
@@ -28,17 +29,21 @@ class DefectRefundRequestServiceUnitTest {
 
     private static final UUID MEMBER_ID = UUID.randomUUID();
     private static final UUID FUNDING_ID = new UUID(0L, 1024L);
+    private static final UUID SELLER_ID = UUID.randomUUID();
 
     @Mock
     private PaymentRepository paymentRepository;
     @Mock
     private RefundRequestRepository refundRequestRepository;
+    @Mock
+    private OrderFundingClient orderFundingClient;
 
     private DefectRefundRequestService defectRefundRequestService;
 
     @BeforeEach
     void setUp() {
-        defectRefundRequestService = new DefectRefundRequestService(paymentRepository, refundRequestRepository);
+        defectRefundRequestService = new DefectRefundRequestService(paymentRepository, refundRequestRepository,
+                orderFundingClient);
     }
 
     @Test
@@ -47,6 +52,8 @@ class DefectRefundRequestServiceUnitTest {
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(new OrderFundingClient.FundingSnapshot(
+                MEMBER_ID, SELLER_ID, "SUCCEEDED", 89_000L, "주문", null, FUNDING_ID, 0L, 0L));
         when(refundRequestRepository.save(any())).thenAnswer(inv -> {
             RefundRequest saved = inv.getArgument(0);
             return saved.toBuilder().id(11L).build();
@@ -63,5 +70,6 @@ class DefectRefundRequestServiceUnitTest {
         verify(refundRequestRepository).save(captor.capture());
         assertThat(captor.getValue().getFundingId()).isEqualTo(FUNDING_ID);
         assertThat(captor.getValue().getPaymentId()).isEqualTo(payment.getId());
+        assertThat(captor.getValue().getSellerId()).isEqualTo(SELLER_ID);
     }
 }
