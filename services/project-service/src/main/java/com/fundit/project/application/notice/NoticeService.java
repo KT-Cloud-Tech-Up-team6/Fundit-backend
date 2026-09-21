@@ -69,7 +69,7 @@ public class NoticeService {
      */
     @Transactional
     public ProjectNoticeJpaEntity update(UUID sellerId, Long noticeId, String title, String content) {
-        ProjectNoticeJpaEntity notice = noticeJpaRepository.findById(noticeId)
+        ProjectNoticeJpaEntity notice = noticeJpaRepository.findByIdForUpdate(noticeId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         Project project = projectRepository.findById(notice.getProjectId())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

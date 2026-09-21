@@ -83,7 +83,7 @@ class NoticeServiceUnitTest {
         UUID sellerId = UUID.randomUUID();
         ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
                 .id(1L).projectId(1L).noticeType("FAQ").title("기존제목").content("기존내용").build();
-        when(noticeJpaRepository.findById(1L)).thenReturn(Optional.of(notice));
+        when(noticeJpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(notice));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(publicProject(sellerId, UUID.randomUUID())));
         when(noticeJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 

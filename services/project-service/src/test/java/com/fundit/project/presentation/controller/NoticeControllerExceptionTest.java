@@ -55,6 +55,7 @@ class NoticeControllerExceptionTest {
 
     @Test
     void 인증헤더_없이_새소식_수정시_401을_반환한다() throws Exception {
+        // when & then
         mockMvc.perform(patch("/api/v1/notices/1")
                         .contentType("application/json")
                         .content("{\"title\":\"새제목\"}"))
@@ -63,7 +64,10 @@ class NoticeControllerExceptionTest {
 
     @Test
     void 새소식_제목이_100자를_초과하면_400을_반환한다() throws Exception {
+        // given
         String tooLong = "a".repeat(101);
+
+        // when & then
         mockMvc.perform(patch("/api/v1/notices/1")
                         .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
                         .contentType("application/json")

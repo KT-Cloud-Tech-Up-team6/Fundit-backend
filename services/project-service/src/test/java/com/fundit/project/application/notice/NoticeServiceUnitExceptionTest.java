@@ -70,7 +70,7 @@ class NoticeServiceUnitExceptionTest {
     @Test
     void 존재하지_않는_새소식_수정시_404_예외가_발생한다() {
         // given
-        when(noticeJpaRepository.findById(99L)).thenReturn(Optional.empty());
+        when(noticeJpaRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> noticeService.update(UUID.randomUUID(), 99L, "새제목", null))
@@ -87,7 +87,7 @@ class NoticeServiceUnitExceptionTest {
         Project project = Project.builder()
                 .id(1L).publicId(UUID.randomUUID()).sellerId(UUID.randomUUID()).status(ProjectStatus.ONGOING)
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
-        when(noticeJpaRepository.findById(1L)).thenReturn(Optional.of(notice));
+        when(noticeJpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(notice));
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
 
         // when & then
