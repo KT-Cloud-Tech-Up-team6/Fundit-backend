@@ -5,20 +5,18 @@ import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
-import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
-import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
-import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 방송 중 채팅을 3초마다 모아 AI에 배치로 넘긴다(AI팀 실계약 A-3, 최대 50건/배치 권장).
@@ -38,17 +36,20 @@ public class ChatCommentBatchSender {
 
     private final LiveSessionJpaRepository sessionRepository;
     private final ChatMessageJpaRepository chatMessageRepository;
-    private final LiveQuestionSummaryJpaRepository summaryRepository;
     private final AiClient aiClient;
 
     @Scheduled(fixedDelayString = "${live.ai.comments-poll-interval-ms:3000}")
     public void sendPending() {
+        // ponytail: 세션을 순서대로 돈다. 동시 LIVE가 늘어 한 주기가 3초를 넘기면 bounded executor로 나눈다.
         for (LiveSessionJpaEntity session : sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)) {
             sendPendingFor(session);
         }
     }
 
-    @Transactional
+    /**
+     * 트랜잭션을 걸지 않는다 — AI 호출이 최대 1분이라 그동안 DB 커넥션을 잡을 이유가 없다.
+     * 쓰기는 {@code markSentToAi} 한 번뿐이고 그 메서드가 자체 트랜잭션을 연다.
+     */
     void sendPendingFor(LiveSessionJpaEntity session) {
         List<ChatMessageJpaEntity> pending = chatMessageRepository
                 .findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(session.getId());
@@ -69,14 +70,14 @@ public class ChatCommentBatchSender {
             return;
         }
 
-        for (AiClient.AnsweredQuestion q : result.questions()) {
-            upsertSummary(session.getId(), q);
-        }
-        // 성공적으로 응답이 온 건(질문이든 무시든)만 전송 완료 처리한다 — errors[]에 실린 건은
-        // 다음 배치에서 그대로 재시도해야 하므로 뺀다.
+        // AI가 처리했다고 응답한 건(질문이든 무시든)만 전송 완료 처리한다. errors[]에 실렸거나
+        // 응답에서 빠진 건은 다음 배치에서 다시 보낸다. 요청하지 않은 ID는 pending과의 교집합에서 걸러진다.
+        Set<String> handled = new HashSet<>();
+        result.questions().forEach(q -> handled.add(q.commentId()));
+        result.ignored().forEach(i -> handled.add(i.commentId()));
         List<Long> sentIds = pending.stream()
                 .map(ChatMessageJpaEntity::getId)
-                .filter(id -> result.errors().stream().noneMatch(e -> e.commentId().equals(String.valueOf(id))))
+                .filter(id -> handled.contains(String.valueOf(id)))
                 .toList();
         if (!sentIds.isEmpty()) {
             chatMessageRepository.markSentToAi(sentIds, Instant.now());
@@ -87,38 +88,5 @@ public class ChatCommentBatchSender {
     private long elapsedMs(LiveSessionJpaEntity session, Instant sentAt) {
         Instant start = session.getActualStartAt();
         return start == null ? 0 : Math.max(0, sentAt.toEpochMilli() - start.toEpochMilli());
-    }
-
-    /**
-     * AI가 이 댓글을 FAQ 클러스터로 묶었으면({@code handledBy != UNANSWERABLE}이라도 클러스터
-     * ID 없이 개별 응답만 오는 경우도 있어) 로컬에 없는 클러스터일 수 있다 — 그때는 최소 정보로
-     * 새로 만든다. 이미 있으면 다음 {@code GET /faq} 폴링 때 {@link LiveQuestionSummaryJpaEntity#applyFromAi}가
-     * 대표문구·건수를 채운다. 여기서는 "이 클러스터가 존재한다"만 보장한다.
-     */
-    private void upsertSummary(Long sessionId, AiClient.AnsweredQuestion q) {
-        if (q.handledBy() == AiClient.HandledBy.UNANSWERABLE || q.answer() == null) {
-            return;
-        }
-        // A-3 응답의 questionId(q_0001류)는 클러스터 qid가 아니라 로컬에 저장할 키가 없다 —
-        // 이 댓글 자체를 즉시 답변된 개별 건으로 남긴다(세션 안에서 댓글 단위 유일하므로
-        // ai_question_id에 이 값을 그대로 써도 다음 GET /faq 폴링이 진짜 qid로 갱신하기 전까지의
-        // 임시 식별자로 충돌하지 않는다).
-        boolean exists = summaryRepository.findBySessionIdAndAiQuestionId(sessionId, q.questionId()).isPresent();
-        if (exists) {
-            return;
-        }
-        summaryRepository.save(LiveQuestionSummaryJpaEntity.builder()
-                .publicId(UuidCreator.getTimeOrderedEpoch())
-                .sessionId(sessionId)
-                .aiQuestionId(q.questionId())
-                .topic(q.category())
-                .summaryText(q.text())
-                .relatedQuestionCount(1)
-                .handledBy(q.handledBy())
-                .answeredBy(AiClient.AnsweredBy.AI)
-                .answered(true)
-                .answerText(q.answer().text())
-                .answeredAt(Instant.now())
-                .build());
     }
 }
