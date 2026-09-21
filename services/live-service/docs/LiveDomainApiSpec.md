@@ -127,6 +127,8 @@ FE가 보는 것은 이 문서의 엔드포인트뿐이고, AI 계약 변경이 
 **AI가 우리 DB를 읽지 않으므로 컨텍스트는 live가 조립해 요청 바디에 싣는다.**
 큐시트는 프로젝트 상세·펀딩 스토리(요구사항정의서 6.2.4.2), 코파일럿은 리워드 기본 정보·상세페이지(6.4.4.5),
 하이라이트는 VOD·채팅 분류 결과(6.6.3)다.
+큐시트·Q&A `prepare`는 **같은 모양의 상품정보**를 쓴다 — 큐시트 요청의 `product`는 `prepare` 본문과 동일하고,
+둘 다 `AiProductContextAssembler`가 project-service 공개 상세(`introContent`)·리워드 목록으로 조립한다(큐시트 담당과 합의).
 **서비스 핵심 데이터의 정본은 BE가 갖는다.**
 AI가 우리 스키마에 의존하기 시작하면 컬럼 하나를 바꿀 때마다 AI 파트와 배포 일정을 맞춰야 한다.
 
@@ -177,6 +179,8 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 > ⚠️ **큐시트·하이라이트에서 live가 AI 결과를 회수하는 경로는 아직 미정이다** — 위 표와 별개로
 > 여전히 초안이다. live가 AI를 폴링하는지, AI가 결과를 우리 내부 엔드포인트로 밀어주는지에 따라
 > AI job 식별자 컬럼 필요 여부가 갈린다.
+> 큐시트는 **BE가 AI를 호출하고 응답으로 `segments`를 받는 동기 방식**을 큐시트 담당에게 제안해 회신 대기 중이다
+> (경로·최대 생성 시간·Q&A와 같은 서버인지). 확정 전까지 콜백 엔드포인트는 유지한다.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
 > 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
@@ -338,7 +342,7 @@ Response Body
   "mode": "SCENARIO",
   "totalDurationSec": 580,
   "segments": [
-    { "order": 1, "title": "오프닝", "summary": "제품명·핵심 한 줄 소개", "estimatedSec": 60, "script": null }
+    { "id": "scene-1", "title": "오프닝", "duration": 60, "outline": "제품명·핵심 한 줄 소개", "script": null }
   ]
 }
 ```
@@ -350,7 +354,7 @@ PATCH /api/v1/lives/{liveId}/cue-sheet
 Request Body
 
 ```json
-{ "segments": [ { "order": 1, "title": "오프닝", "summary": "수정된 내용", "estimatedSec": 45, "script": null } ] }
+{ "segments": [ { "id": "scene-1", "title": "오프닝", "duration": 45, "outline": "수정된 내용", "script": null } ] }
 ```
 
 Validation / Business Rules
@@ -360,7 +364,7 @@ Validation / Business Rules
 - 이미 `GENERATING` 상태면 `409` — 중복 생성 요청을 막는다(요구사항정의서 6.2.4.2).
 - **`jobId`를 따로 발급하지 않는다.** 세션당 큐시트가 1개라 `GET /cue-sheet`의 `status`로 폴링하면 충분하다. 초안의 `jobId`는 조회 경로가 별도로 없어 쓸 데가 없었다.
 - 재생성은 기존 행을 덮어쓴다. 이력 보관 요구가 없다.
-- `PATCH`는 판매자 직접 수정이며, 구간 추가·순서 변경도 이 API로 한다. 본문은 `{ "segments": [...] }`이고 **비어 있지 않은 JSON 배열**이어야 한다(아니면 `400`). 구간 내부 스키마는 AI 계약이 확정되기 전까지 서버가 해석하지 않는다.
+- `PATCH`는 판매자 직접 수정이며, 구간 추가·순서 변경도 이 API로 한다. 본문은 `{ "segments": [...] }`이고 **비어 있지 않은 JSON 배열**이어야 한다(아니면 `400`). 구간 내부는 서버가 해석하지 않고 그대로 저장한다. 필드명은 FE `CueScene`에 맞춘 `id`/`title`/`duration`(초)/`outline`/`script`이고(큐시트 담당 제안), AI가 근거 없는 수치를 경고할 때는 **구간 안에** `warnings: [{ "field", "reason" }]`를 싣는다 — 배열 밖 최상위 필드는 저장되지 않는다.
 - `mode`는 `SCENARIO`/`SCRIPT`만 받는다. 생성 결과 콜백의 `status`는 `COMPLETED`/`FAILED`만 받으며, **모르는 값을 실패로 굳히지 않고 `400`으로 돌려보낸다** — `PROCESSING` 같은 값을 FAILED로 저장하면 되돌릴 경로가 없다.
 - ⚠️ **AI 결과 콜백(`POST /internal/v1/lives/{liveId}/cue-sheet`)의 `segments`는 문자열이 아니라 JSON 배열이다.** 문자열로 받던 때는 JSON이 아닌 값이 JSONB 컬럼까지 가서 `400`이 아니라 `500`이 났다. 요청·응답·콜백 세 경로가 같은 모양(배열)이 됐다.
 - **생성 요청이 동시에 들어오면 한 건만 통과한다.** 세션 행을 잠근다 — 잠그지 않으면 더블클릭한 두 요청이 둘 다 "생성 중 아님"을 보고 AI 작업이 두 번 돈다.
