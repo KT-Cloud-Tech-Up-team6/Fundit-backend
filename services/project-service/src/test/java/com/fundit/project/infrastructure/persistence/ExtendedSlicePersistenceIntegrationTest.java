@@ -119,14 +119,14 @@ class ExtendedSlicePersistenceIntegrationTest {
         Long projectId = persistProjectId();
         FundingStatusSnapshotJpaEntity snapshot = FundingStatusSnapshotJpaEntity.builder()
                 .projectId(projectId).currentAmount(320000L).achievementRate(64).participantCount(128)
-                .rewardStats(List.of(new RewardStat(1L, 30))).lastSyncedAt(Instant.now()).build();
+                .rewardStats(List.of(new RewardStat(1L, null, 30, 300000L))).lastSyncedAt(Instant.now()).build();
 
         // when
         fundingStatusSnapshotJpaRepository.save(snapshot);
         FundingStatusSnapshotJpaEntity reloaded = fundingStatusSnapshotJpaRepository.findById(projectId).orElseThrow();
 
         // then
-        assertThat(reloaded.getRewardStats()).containsExactly(new RewardStat(1L, 30));
+        assertThat(reloaded.getRewardStats()).containsExactly(new RewardStat(1L, null, 30, 300000L));
     }
 
     @Test

@@ -234,13 +234,17 @@ class RewardControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardQueryService.listForSeller(sellerId, projectId)).thenReturn(List.of(reward(1L)));
+        var view = new RewardQueryService.RewardSellerView(1L, "R0000001", "얼리버드", "설명", null,
+                39000L, true, 100, false, 0, true, EarlyBirdDiscountType.RATE, 10L, 35100L,
+                null, null, true, List.of());
+        when(rewardQueryService.listForSeller(sellerId, projectId)).thenReturn(List.of(view));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/" + projectId + "/rewards/mine")
                         .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].rewardId").value(1))
-                .andExpect(jsonPath("$[0].earlyBirdDiscountType").value("RATE"));
+                .andExpect(jsonPath("$[0].earlyBirdDiscountType").value("RATE"))
+                .andExpect(jsonPath("$[0].simpleRefundDisabled").value(true));
     }
 }
