@@ -58,4 +58,19 @@ class AiProductContextAssemblerUnitTest {
         assertThat(product.productName()).isNull();
         assertThat(product.knowledge()).isEmpty();
     }
+
+    @Test
+    void 캠페인_현황은_남은_일수를_마감일로_환산하고_달성률을_싣는다() {
+        // given
+        ProjectContextClient.ProjectContext context = new ProjectContextClient.ProjectContext(
+                "에어쿡 프로", "가전", "주방가전", List.of(), 42, 3);
+
+        // when
+        AiClient.FundingInfo funding = AiProductContextAssembler.fundingOf(context);
+
+        // then
+        assertThat(funding.achievedRate()).isEqualTo(42);
+        assertThat(funding.deadline()).isBetween(
+                java.time.Instant.now().plusSeconds(3 * 86400L - 60), java.time.Instant.now().plusSeconds(3 * 86400L + 60));
+    }
 }

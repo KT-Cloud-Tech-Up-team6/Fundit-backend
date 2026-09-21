@@ -73,6 +73,8 @@ class AuthControllerExceptionTest {
     @MockitoBean
     private SignupService signupService;
     @MockitoBean
+    private com.fundit.auth.application.token.TokenLogoutService tokenLogoutService;
+    @MockitoBean
     private SocialLoginService socialLoginService;
     @MockitoBean
     private SocialSignupService socialSignupService;

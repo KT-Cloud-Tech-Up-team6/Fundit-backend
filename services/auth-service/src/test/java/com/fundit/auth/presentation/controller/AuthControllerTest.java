@@ -80,6 +80,8 @@ class AuthControllerTest {
     @MockitoBean
     private SignupService signupService;
     @MockitoBean
+    private com.fundit.auth.application.token.TokenLogoutService tokenLogoutService;
+    @MockitoBean
     private SocialLoginService socialLoginService;
     @MockitoBean
     private SocialSignupService socialSignupService;
@@ -177,6 +179,19 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
                 .andExpect(header().exists("Set-Cookie"));
+    }
+
+    @Test
+    void 로그아웃하면_토큰을_폐기하고_쿠키를_지운다() throws Exception {
+        // given & when & then — access 토큰 없이도 호출된다(만료 후 로그아웃)
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("refreshToken=;"),
+                        org.hamcrest.Matchers.containsString("Max-Age=0"),
+                        org.hamcrest.Matchers.containsString("Path=/api/v1/auth"))));
+        org.mockito.Mockito.verify(tokenLogoutService).logout("refresh-token");
     }
 
     @Test
