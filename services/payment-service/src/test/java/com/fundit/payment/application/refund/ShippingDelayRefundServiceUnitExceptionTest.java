@@ -89,11 +89,13 @@ class ShippingDelayRefundServiceUnitExceptionTest {
         when(shippingStatusClient.fetch(FUNDING_ID))
                 .thenReturn(new ShippingStatusClient.ShippingStatus(false, false, null, null));
 
-        // when & then
+        // when
         assertThatThrownBy(() -> shippingDelayRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.NOT_YET_DELAYED));
+
+        // then
         verifyNoInteractions(refundExecutionService);
     }
 }
