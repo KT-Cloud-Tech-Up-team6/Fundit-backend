@@ -80,6 +80,8 @@ class HttpAiClientUnitTest {
         assertThat(result.questions().getFirst().handledBy()).isEqualTo(AiClient.HandledBy.PRODUCT);
         assertThat(result.questions().getFirst().answer().grounding()).isEqualTo(AiClient.Grounding.GROUNDED);
         assertThat(result.ignored()).hasSize(1);
+        // 응답에 errors 필드가 없어도 null이 아니라 빈 리스트다 — 발송기가 그대로 순회한다
+        assertThat(result.errors()).isEmpty();
     }
 
     @Test

@@ -23,9 +23,9 @@ class HttpAiClientUnitExceptionTest {
     }
 
     @Test
-    void prepare_없이_댓글을_보내면_409를_그대로_알린다() {
-        // given — NOT_PREPARED. 우리 쪽 배선 실수라 사용자에게 보일 값이 아니지만
-        // CONFLICT로 구분해 로그에서 원인을 바로 알 수 있게 한다
+    void prepare_없이_댓글을_보내면_409를_의존성_실패로_알린다() {
+        // given — NOT_PREPARED. CONFLICT로 구분해 로그에서 원인을 바로 알 수 있게 하되,
+        // 발송기가 잡아 다른 세션 발송을 계속하도록 DependencyFailureException으로 올린다
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
@@ -37,8 +37,8 @@ class HttpAiClientUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> aiClient.submitComments("live-1",
                 List.of(new AiClient.CommentInput("c1", "질문", 0, UUID.randomUUID()))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isInstanceOf(DependencyFailureException.class)
+                .extracting(e -> ((DependencyFailureException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
     }
 

@@ -118,8 +118,14 @@ public interface AiClient {
     record CommentInput(String commentId, String text, long atMs, java.util.UUID senderId) {
     }
 
+    /** AI가 빈 컬렉션 필드를 생략해도 {@code null}이 새지 않게 빈 리스트로 바꾼다. */
     record CommentBatchResult(List<AnsweredQuestion> questions, List<IgnoredComment> ignored,
                               List<CommentError> errors) {
+        public CommentBatchResult {
+            questions = questions == null ? List.of() : questions;
+            ignored = ignored == null ? List.of() : ignored;
+            errors = errors == null ? List.of() : errors;
+        }
     }
 
     /**

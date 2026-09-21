@@ -22,8 +22,8 @@ import java.util.UUID;
  * <b>이 클래스에서 그 두 메서드를 호출하면 안 된다</b> — 미구현으로 두고
  * {@code UnsupportedOperationException}을 던져 잘못 배선됐을 때 조용히 무시되지 않게 한다.
  *
- * <p>응답은 신뢰하지 않고 구조 확인 후 사용한다(security.md S7) — 다만 필드가 record라서
- * 필수값이 없으면 역직렬화 시점에 이미 걸러진다. 여기서는 상태코드만 본다.
+ * <p>응답은 신뢰하지 않고 구조 확인 후 사용한다(security.md S7). 댓글 배치 응답에서 빠진
+ * 컬렉션은 {@link AiClient.CommentBatchResult}가 빈 리스트로 바꾼다.
  */
 @Component
 @ConditionalOnProperty(name = "live.ai.mode", havingValue = "http")
@@ -82,8 +82,10 @@ public class HttpAiClient implements AiClient {
                     .retrieve()
                     .onStatus(status -> status.value() == 409,
                             (req, res) -> {
-                                throw new BusinessException(CommonErrorCode.CONFLICT,
-                                        "AI 상품정보 색인이 먼저 필요합니다(prepare 미호출).");
+                                // 외부 의존성 실패로 올린다 — BusinessException이면 발송기의 catch를
+                                // 빠져나가 같은 주기의 다른 LIVE 세션 발송까지 끊긴다.
+                                throw new DependencyFailureException(CommonErrorCode.CONFLICT,
+                                        new IllegalStateException("AI 상품정보 색인이 먼저 필요합니다(prepare 미호출)."));
                             })
                     .body(CommentBatchResult.class);
         } catch (RestClientException e) {
