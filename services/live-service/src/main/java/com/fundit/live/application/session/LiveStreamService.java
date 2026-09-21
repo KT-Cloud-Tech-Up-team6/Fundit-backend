@@ -3,16 +3,24 @@ package com.fundit.live.application.session;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.error.DependencyFailureException;
+import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.application.ivs.IvsClient;
+import com.fundit.live.application.project.ProjectContextClient;
+import com.fundit.live.application.project.ProjectRewardClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaEntity;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -21,6 +29,7 @@ import java.util.UUID;
  * <p>IVS 호출이 실패하면 상태를 {@code ERROR}로 남기고 사유를 적은 뒤 예외를 던진다 —
  * 그냥 던지고 말면 판매자 화면이 "무슨 일이 있었는지"를 보여줄 수 없다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LiveStreamService {
@@ -28,6 +37,9 @@ public class LiveStreamService {
     private final LiveSessionRepository sessionRepository;
     private final LiveEventOutboxJpaRepository outboxRepository;
     private final IvsClient ivsClient;
+    private final AiClient aiClient;
+    private final ProjectContextClient projectContextClient;
+    private final ProjectRewardClient projectRewardClient;
 
     /**
      * {@code noRollbackFor}가 필요한 이유: IVS 실패 시 ERROR 상태를 저장하고
@@ -55,7 +67,45 @@ public class LiveStreamService {
         LiveSession saved = sessionRepository.save(session);
         // 도메인 변경과 같은 트랜잭션에 적재한다 — 방송은 시작됐는데 이벤트만 사라지는 경우가 없다.
         appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED, now);
+        schedulePrepare(saved);
         return saved;
+    }
+
+    /**
+     * AI 상품정보 색인({@code prepare})은 트랜잭션 커밋 후에 호출한다 — AI가 느리거나 실패해도
+     * 방송 시작 자체가 지연되거나 롤백되면 안 된다(요구사항정의서 6.4.4.2와 같은 원칙).
+     */
+    private void schedulePrepare(LiveSession session) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    ProjectContextClient.ProjectContext context = projectContextClient
+                            .find(session.getProjectId()).orElse(null);
+                    List<AiClient.RewardInfo> rewards = projectRewardClient.findRewards(session.getProjectId());
+                    List<AiClient.KnowledgeChunk> knowledge = context == null
+                            ? List.of() : buildKnowledge(context.introTexts());
+                    aiClient.prepare(session.getPublicId().toString(), new AiClient.PrepareRequest(
+                            context == null ? null : context.title(),
+                            context == null ? null : context.categoryMajor(),
+                            context == null ? null : context.categoryMinor(),
+                            null, session.getProjectId().toString(), knowledge, rewards));
+                } catch (RuntimeException e) {
+                    log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);
+                }
+            }
+        });
+    }
+
+    private List<AiClient.KnowledgeChunk> buildKnowledge(List<String> introTexts) {
+        List<AiClient.KnowledgeChunk> chunks = new ArrayList<>();
+        for (int i = 0; i < introTexts.size(); i++) {
+            chunks.add(new AiClient.KnowledgeChunk("intro-" + i, "상세설명", introTexts.get(i), false, "project-intro"));
+        }
+        return chunks;
     }
 
     @Transactional
