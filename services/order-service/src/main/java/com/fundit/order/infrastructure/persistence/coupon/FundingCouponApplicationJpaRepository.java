@@ -10,6 +10,20 @@ public interface FundingCouponApplicationJpaRepository extends JpaRepository<Fun
 
     List<FundingCouponApplicationJpaEntity> findByFundingId(Long fundingId);
 
+    /** ORDER-004 목록 화면 배치 조회용 — 건별 findByFundingId 반복(N+1) 방지. */
+    @Query("""
+            SELECT f.fundingId AS fundingId, COALESCE(SUM(f.discountAmount), 0) AS totalDiscount
+            FROM FundingCouponApplicationJpaEntity f
+            WHERE f.fundingId IN :fundingIds
+            GROUP BY f.fundingId
+            """)
+    List<FundingDiscountProjection> sumDiscountAmountByFundingIdIn(@Param("fundingIds") List<Long> fundingIds);
+
+    interface FundingDiscountProjection {
+        Long getFundingId();
+        Long getTotalDiscount();
+    }
+
     /**
      * PAYMENT-012 정산 집계용 — 메이커 발급 쿠폰(issuer_type='MAKER')만 차감 대상이다.
      * 플랫폼 발급 쿠폰은 플랫폼이 부담하므로 이 합계에 포함하지 않는다(PRD 16.5.3).

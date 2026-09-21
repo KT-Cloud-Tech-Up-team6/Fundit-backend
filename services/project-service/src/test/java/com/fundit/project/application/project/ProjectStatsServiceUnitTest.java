@@ -1,5 +1,6 @@
 package com.fundit.project.application.project;
 
+import com.fundit.project.domain.fundingstatus.RewardStat;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
@@ -16,10 +17,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -156,5 +159,22 @@ class ProjectStatsServiceUnitTest {
             // then
             verify(wishStatJpaRepository, never()).decrementIfPresent(1L);
         }
+    }
+
+    @Test
+    void 리워드_통계_이벤트를_받으면_스냅샷을_교체한다() {
+        // given
+        List<RewardStat> stats = List.of(new RewardStat(1L, 100L, 2, 20_000L));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(1L, stats);
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getRewardStats()).isEqualTo(stats);
+        assertThat(captor.getValue().getLastSyncedAt()).isNotNull();
     }
 }

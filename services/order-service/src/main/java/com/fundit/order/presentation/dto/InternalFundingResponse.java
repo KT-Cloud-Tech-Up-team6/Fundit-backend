@@ -12,12 +12,16 @@ import java.util.UUID;
  */
 public record InternalFundingResponse(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId,
                                        UUID sellerId, String status, long finalAmount, String orderName,
-                                       Long couponIssuanceId, long shippingFee, long discountAmount) {
+                                       Long couponIssuanceId, int appliedCouponCount, String couponLifecycleScope,
+                                       long shippingFee, long discountAmount) {
+
+    public static final String COUPON_LIFECYCLE_SCOPE_FIRST_ONLY = "FIRST_ONLY";
 
     public static InternalFundingResponse from(FundingSnapshot snapshot) {
         return new InternalFundingResponse(snapshot.fundingId(), snapshot.projectId(),
                 snapshot.memberId(), snapshot.fundingPublicId(), snapshot.sellerId(), snapshot.status(),
                 snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceId(),
+                snapshot.appliedCouponCount(), COUPON_LIFECYCLE_SCOPE_FIRST_ONLY,
                 snapshot.shippingFee(), snapshot.discountAmount());
     }
 }

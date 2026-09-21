@@ -58,6 +58,7 @@ public class HttpOrderFundingClient implements OrderFundingClient {
 
     private record InternalFundingResponse(UUID memberId, UUID sellerId, String status, long finalAmount,
                                              String orderName, Long couponIssuanceId, UUID fundingPublicId,
-                                             long shippingFee, long discountAmount) {
+                                             long shippingFee, long discountAmount, Integer appliedCouponCount,
+                                             String couponLifecycleScope) {
     }
 }

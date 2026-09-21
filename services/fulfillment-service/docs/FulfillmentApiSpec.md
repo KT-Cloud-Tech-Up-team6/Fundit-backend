@@ -36,6 +36,8 @@
 > FULFILLMENT-001(트래커 초기화), FULFILLMENT-004(미등록 알림), FULFILLMENT-007(배송완료 목업 처리), FULFILLMENT-010(미확인 자동확정)은 이벤트/스케줄러로만 트리거되어 REST 엔드포인트가 없습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
 > **(2차 검토)** #5·6·7은 초안에서 `/api/v1/fundings/{fundingId}/...`였으나 `projectId`를 경로에 포함하도록 수정했습니다. projectId가 경로에 있으면 판매자 소유권 검증(#5)이 "이 funding이 내 프로젝트 소속인가"라는 order-service 교차조회 없이 "이 프로젝트가 내 것인가"만으로 가능해지고, #7의 자동 DELIVERY 전이 로직 제거와 함께 일관성이 맞습니다.
+>
+> **발송 대상 목록**: fulfillment는 fundingId를 아는 단건 등록/조회만 제공한다. 판매자 화면의 주문UUID·리워드/옵션·수량·수령인·배송지 목록은 order-service `GET /api/v1/projects/{projectId}/orders`를 FE가 직접 호출한다.
 
 ---
 

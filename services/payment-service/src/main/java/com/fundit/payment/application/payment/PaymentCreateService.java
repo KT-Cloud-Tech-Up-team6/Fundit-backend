@@ -59,10 +59,11 @@ public class PaymentCreateService {
         return candidate;
     }
 
-    public record PaymentCreateResult(UUID paymentId, String pgOrderId, long amount, String orderName) {
+    public record PaymentCreateResult(UUID paymentId, String pgOrderId, long amount, String orderName,
+                                       Long couponIssuanceId) {
         static PaymentCreateResult from(Payment payment) {
             return new PaymentCreateResult(payment.getId(), payment.getPgOrderId(), payment.getAmount(),
-                    payment.getOrderName());
+                    payment.getOrderName(), payment.getCouponIssuanceId());
         }
     }
 }

@@ -20,6 +20,14 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
     /** payment-service 환불 목록(V04) 배치 조회용. */
     List<FundingJpaEntity> findByPublicIdIn(List<UUID> publicIds);
 
+    /**
+     * PROJECT-015 펀딩 집계 배치 대상 — 참여자로 셀 수 있는(결제완료, 미환불) 펀딩이 하나라도
+     * 있는 프로젝트만 순회한다. PENDING(미결제)·취소·환불 건은 통계에서 제외한다.
+     */
+    @Query(value = "SELECT DISTINCT project_id FROM fundings WHERE status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')",
+            nativeQuery = true)
+    List<Long> findDistinctProjectIdsWithCountableFundings();
+
     Page<FundingJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
 
     Page<FundingJpaEntity> findByMemberIdAndStatus(UUID memberId, String status, Pageable pageable);

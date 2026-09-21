@@ -72,6 +72,7 @@ class FundingInternalQueryServiceUnitTest {
         assertThat(snapshot.finalAmount()).isEqualTo(1000L);
         assertThat(snapshot.orderName()).isEqualTo("리워드");
         assertThat(snapshot.couponIssuanceId()).isNull();
+        assertThat(snapshot.appliedCouponCount()).isZero();
         assertThat(snapshot.shippingFee()).isEqualTo(0L);
         assertThat(snapshot.discountAmount()).isEqualTo(0L);
     }
@@ -94,6 +95,7 @@ class FundingInternalQueryServiceUnitTest {
         // then
         assertThat(snapshot.finalAmount()).isEqualTo(700L);
         assertThat(snapshot.couponIssuanceId()).isEqualTo(77L);
+        assertThat(snapshot.appliedCouponCount()).isEqualTo(1);
         assertThat(snapshot.sellerId()).isNull();
     }
 

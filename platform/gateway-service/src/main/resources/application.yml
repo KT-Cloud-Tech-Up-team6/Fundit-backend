@@ -45,8 +45,8 @@ spring:
             - id: order-service
               uri: ${downstream.order-service-base-url}
               predicates:
-                - Path=/api/v1/orders/**,/api/v1/coupons/**,/api/v1/reward-restock-notifications/**,/api/v1/projects/*/supporters/**,/api/v1/sellers/coupons/**
-            # project-service보다 반드시 먼저 온다 — /api/v1/projects/*/supporters, /api/v1/sellers/coupons가
+                - Path=/api/v1/orders/**,/api/v1/coupons/**,/api/v1/reward-restock-notifications/**,/api/v1/projects/*/supporters/**,/api/v1/projects/*/orders/**,/api/v1/sellers/coupons/**
+            # project-service보다 반드시 먼저 온다 — /api/v1/projects/*/supporters, /api/v1/projects/*/orders, /api/v1/sellers/coupons가
             # project-service의 /api/v1/projects/**, /api/v1/sellers/** 캐치올과 겹치기 때문
             # (정의 순서 = 첫 매치 우선, 위 fulfillment-service와 같은 이유).
             # GET /api/v1/inventories/{rewardId}는 의도적으로 라우트에 넣지 않는다 — project-service가

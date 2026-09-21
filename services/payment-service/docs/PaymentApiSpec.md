@@ -30,9 +30,13 @@
   "paymentId": "0198f2b1-2c3d-7a1e-9c4f-6a2b1e0d8f31",
   "pgOrderId": "fundit-3f8a91c2b7",
   "amount": 89000,
-  "orderName": "세상에 없는 프라이팬 외 1건"
+  "orderName": "세상에 없는 프라이팬 외 1건",
+  "couponIssuanceId": 5,
+  "couponLifecycleScope": "FIRST_ONLY"
 }
 ```
+
+- **복수 쿠폰 제약**: 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payments.coupon_issuance_id`와 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceId`는 **단수(첫 번째 적용 건)**다. `couponLifecycleScope`=`FIRST_ONLY`가 그 범위를 응답에 명시한다. 결제 금액(`amount`)은 두 쿠폰 할인을 합산한 `finalAmount`를 쓴다. 사용확정/복원은 첫 번째 쿠폰만 되고, 두 번째는 결제 후에도 AVAILABLE로 남을 수 있으며 환불 시 복원되지 않는다. 전체 지원은 이벤트 payload 복수화가 필요(이번 범위 밖).
 
 > 프론트엔드는 이 응답값으로 결제위젯을 초기화·렌더링한다.
 > 1. `tossPayments.widgets({ customerKey })` — `customerKey`는 백엔드가 발급하지 않고, 로그인 회원의 `member_id`(UUID)를 프론트가 그대로 사용한다(무작위·비유추 값 요건 충족, `PaymentERD.md` 1장 참고). 이 응답에는 포함하지 않는다.

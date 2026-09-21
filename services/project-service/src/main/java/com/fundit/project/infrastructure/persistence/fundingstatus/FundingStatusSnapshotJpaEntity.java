@@ -17,10 +17,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 단순 애그리거트 — order-service가 발행하는 펀딩 집계 이벤트를 구독해 채우는 읽기 모델
- * (project-service CLAUDE.md 핵심 설계 결정, PROJECT-015). 메시지 브로커 미구성으로 현재는
- * 구독자가 없어 값이 채워지지 않은 프로젝트는 기본값(0)으로 조회된다(RewardEventPublisher와
- * 동일한 성격의 placeholder 상태 — 이벤트 인프라가 준비되면 실제 구독자를 붙인다).
+ * 단순 애그리거트 — order-service {@code project.funding-reward-stats-updated.v1} 를 구독해 채우는 읽기 모델.
+ * currentAmount 등은 아직 다른 집계 이벤트가 없어 기본값(0)일 수 있고, reward_stats 만 이 이벤트로 교체된다.
  */
 @Getter
 @Entity
@@ -49,4 +47,9 @@ public class FundingStatusSnapshotJpaEntity {
 
     @Column(name = "last_synced_at")
     private Instant lastSyncedAt;
+
+    public void replaceRewardStats(List<RewardStat> rewardStats) {
+        this.rewardStats = rewardStats;
+        this.lastSyncedAt = Instant.now();
+    }
 }

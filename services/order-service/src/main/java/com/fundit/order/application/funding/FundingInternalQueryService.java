@@ -78,7 +78,8 @@ public class FundingInternalQueryService {
 
         return new FundingSnapshot(funding.getId(), funding.getProjectId(), funding.getMemberId(),
                 funding.getPublicId(), sellerId, funding.getStatus().name(), finalAmount,
-                orderName(funding.getLineItems()), couponIssuanceId, funding.getShippingFee(), discountAmount);
+                orderName(funding.getLineItems()), couponIssuanceId, couponApplications.size(),
+                funding.getShippingFee(), discountAmount);
     }
 
     /** PAYMENT-009/012 정산 집계 — 리워드·옵션별 판매 수량/금액과 메이커 쿠폰 차감액을 함께 반환한다. */
@@ -119,7 +120,7 @@ public class FundingInternalQueryService {
      */
     public record FundingSnapshot(Long fundingId, UUID projectId, UUID memberId, UUID fundingPublicId,
                                    UUID sellerId, String status, long finalAmount, String orderName,
-                                   Long couponIssuanceId, long shippingFee, long discountAmount) {
+                                   Long couponIssuanceId, int appliedCouponCount, long shippingFee, long discountAmount) {
     }
 
     public record OrderSummarySnapshot(UUID orderId, String projectTitle, List<FundingLineItem> lineItems) {

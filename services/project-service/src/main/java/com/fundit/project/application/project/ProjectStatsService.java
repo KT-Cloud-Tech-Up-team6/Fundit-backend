@@ -61,6 +61,20 @@ public class ProjectStatsService {
                         s -> new FundingStatusSnapshotView(s.getCurrentAmount(), s.getAchievementRate(), s.getParticipantCount())));
     }
 
+    /** order-service {@code project.funding-reward-stats-updated.v1} — reward_stats 전체 교체. */
+    @Transactional
+    public void applyRewardStats(Long projectId, List<RewardStat> rewardStats) {
+        FundingStatusSnapshotJpaEntity snapshot = fundingStatusSnapshotJpaRepository.findById(projectId)
+                .orElseGet(() -> FundingStatusSnapshotJpaEntity.builder()
+                        .projectId(projectId)
+                        .currentAmount(0L)
+                        .achievementRate(0)
+                        .participantCount(0)
+                        .build());
+        snapshot.replaceRewardStats(rewardStats);
+        fundingStatusSnapshotJpaRepository.save(snapshot);
+    }
+
     @Transactional
     public void applyProjectWished(Long projectId, UUID memberId) {
         if (wishStatJpaRepository.insertMemberIfAbsent(projectId, memberId) > 0) {

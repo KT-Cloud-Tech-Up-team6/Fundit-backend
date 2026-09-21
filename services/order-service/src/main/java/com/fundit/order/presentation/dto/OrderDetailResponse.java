@@ -13,7 +13,7 @@ import java.util.UUID;
 public record OrderDetailResponse(
         UUID orderId, String status, List<OrderLineItemDetailResponse> lineItems, long shippingFee,
         long discountAmount, long finalAmount, ShippingAddressResponse shippingAddress, java.time.Instant paidAt,
-        List<String> availableActions
+        List<String> availableActions, String couponLifecycleScope
 ) {
 
     public static OrderDetailResponse from(OrderQueryService.FundingDetail detail) {
@@ -22,6 +22,7 @@ public record OrderDetailResponse(
                 funding.getPublicId(), funding.getStatus().name(),
                 funding.getLineItems().stream().map(OrderLineItemDetailResponse::from).toList(),
                 funding.getShippingFee(), detail.discountAmount(), detail.finalAmount(),
-                ShippingAddressResponse.from(funding.getShippingAddress()), null, detail.availableActions());
+                ShippingAddressResponse.from(funding.getShippingAddress()), null, detail.availableActions(),
+                InternalFundingResponse.COUPON_LIFECYCLE_SCOPE_FIRST_ONLY);
     }
 }
