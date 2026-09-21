@@ -10,6 +10,7 @@ import com.fundit.auth.application.social.SocialLinkService;
 import com.fundit.auth.application.social.SocialLoginService;
 import com.fundit.auth.application.social.SocialSignupService;
 import com.fundit.auth.application.token.TokenIssuer;
+import com.fundit.auth.application.token.TokenLogoutService;
 import com.fundit.auth.application.token.TokenRefreshService;
 import com.fundit.auth.presentation.RefreshTokenCookieFactory;
 import com.fundit.auth.presentation.dto.CheckEmailResponse;
@@ -72,6 +73,7 @@ public class AuthController {
     private final SocialSignupService socialSignupService;
     private final SocialLinkService socialLinkService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
+    private final TokenLogoutService tokenLogoutService;
 
     @GetMapping("/check-email")
     public CheckEmailResponse checkEmail(@RequestParam @NotBlank @Email String email) {
@@ -172,6 +174,19 @@ public class AuthController {
 
         return withRefreshTokenCookie(tokens.refreshToken())
                 .body(new TokenRefreshResponse(tokens.accessToken()));
+    }
+
+    /**
+     * 로그아웃 — 이 기기의 refresh 토큰을 폐기하고 쿠키를 지운다. access 토큰이 이미 만료된 상태에서도
+     * 호출할 수 있어야 해서 인증을 요구하지 않는다(SecurityConfig). 쿠키가 없어도 200이다(멱등).
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<MessageResponse> logout(
+            @CookieValue(value = "refreshToken", required = false) String refreshToken) {
+        tokenLogoutService.logout(refreshToken);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.expire().toString())
+                .body(new MessageResponse("로그아웃되었습니다."));
     }
 
     @PatchMapping("/password")
