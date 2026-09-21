@@ -71,10 +71,13 @@ public interface AiClient {
     /** 방송 종료 후 요약. */
     SummaryResult summary(String liveId, int topN);
 
-    /** {@code product}는 {@code prepare}와 같은 모양이다 — 큐시트 담당과 합의해 파서를 공유한다. */
+    /**
+     * {@code product}는 {@code prepare}와 같은 모양이다 — 큐시트 담당과 합의해 파서를 공유한다.
+     * {@code funding}은 "목표 현황" 구간용 캠페인 진행 현황으로, {@code context} PUT과 같은 모양이다.
+     */
     record CueSheetRequest(String mode, int targetDurationSec, boolean demoAvailable,
                            List<String> emphasisPoints, String tone, List<String> mandatoryPhrases,
-                           PrepareRequest product) {
+                           PrepareRequest product, FundingInfo funding) {
     }
 
     /**
