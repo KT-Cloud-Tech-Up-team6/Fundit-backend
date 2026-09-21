@@ -65,6 +65,7 @@ public class LiveSettingsService {
                             new AiClient.BroadcastInfo(null, true),
                             funding, java.util.Map.of()));
                 } catch (RuntimeException e) {
+                    // ponytail: 실패 시 재시도 없이 로그만 남긴다. 운영에서 누락이 보이면 재시도 작업 테이블로 옮긴다.
                     log.warn("AI context 갱신 실패, liveId={}", session.getPublicId(), e);
                 }
             }

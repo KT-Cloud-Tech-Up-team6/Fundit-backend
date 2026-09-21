@@ -17,9 +17,12 @@ import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJp
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
@@ -46,6 +49,7 @@ public class LiveStreamService {
     private final ProjectContextClient projectContextClient;
     private final ProjectRewardClient projectRewardClient;
     private final QuestionInsightService questionInsightService;
+    private final PlatformTransactionManager transactionManager;
 
     private static final int FINAL_SUMMARY_TOP_N = 100;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -103,6 +107,7 @@ public class LiveStreamService {
                             context == null ? null : context.categoryMinor(),
                             null, session.getProjectId().toString(), knowledge, rewards));
                 } catch (RuntimeException e) {
+                    // ponytail: 실패 시 재시도 없이 로그만 남긴다. 운영에서 누락이 보이면 재시도 작업 테이블로 옮긴다.
                     log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);
                 }
             }
@@ -135,6 +140,10 @@ public class LiveStreamService {
      * 끝낸다) 한 뒤 그 결과로 {@code live.questions-summarized.v1}을 발행한다 — project-service의
      * LIVE 검증 탭이 이 이벤트로만 채워진다(`LiveDomainApiSpec.md` "질문요약 발행" 절, 담당자 협의
      * 확정). AI 실패로 방송 종료 자체가 막히면 안 되므로 트랜잭션 커밋 후에 호출한다.
+     *
+     * <p>{@code afterCommit} 안의 쓰기는 이미 커밋된 트랜잭션에 합류해 버려 커밋되지 않는다
+     * ({@code TransactionSynchronization#afterCommit} javadoc) — 그래서 {@code REQUIRES_NEW}로
+     * 새 트랜잭션을 열고, 요약 upsert와 아웃박스 적재를 그 안에서 함께 커밋한다.
      */
     private void scheduleQuestionsSummarized(UUID sellerId, LiveSession session) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -143,10 +152,12 @@ public class LiveStreamService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                // ponytail: AI 장애면 발행을 포기하고 로그만 남긴다. 유실이 실제로 문제 되면 재시도 작업 테이블로 옮긴다.
                 try {
-                    List<LiveQuestionSummaryJpaEntity> summaries = questionInsightService.faq(
-                            sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N);
-                    appendQuestionsSummarizedOutbox(session, summaries);
+                    TransactionTemplate tx = new TransactionTemplate(transactionManager);
+                    tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                    tx.executeWithoutResult(status -> appendQuestionsSummarizedOutbox(session,
+                            questionInsightService.faq(sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N)));
                 } catch (RuntimeException e) {
                     log.warn("AI 질문요약 발행 실패, liveId={}", session.getPublicId(), e);
                 }
