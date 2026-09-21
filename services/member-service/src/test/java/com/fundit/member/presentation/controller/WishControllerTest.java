@@ -74,13 +74,14 @@ class WishControllerTest {
         // given
         UUID accountId = UUID.randomUUID();
         when(wishService.getWishes(accountId, PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(new WishService.WishItem(1L, "프로젝트A", null, null))));
+                .thenReturn(new PageImpl<>(List.of(new WishService.WishItem(1L, java.util.UUID.fromString("018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f"), "프로젝트A", null, null))));
 
         // when & then
         mockMvc.perform(get("/api/v1/wishes").header("X-User-Id", accountId.toString())
                         .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].projectTitle").value("프로젝트A"))
+                .andExpect(jsonPath("$.content[0].projectPublicId").value("018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f"))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 }
