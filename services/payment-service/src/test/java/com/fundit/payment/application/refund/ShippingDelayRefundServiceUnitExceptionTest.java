@@ -82,12 +82,14 @@ class ShippingDelayRefundServiceUnitExceptionTest {
 
     @Test
     void 미발송이지만_아직_지연아니면_NOT_YET_DELAYED다() {
+        // given
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
         when(shippingStatusClient.fetch(FUNDING_ID))
                 .thenReturn(new ShippingStatusClient.ShippingStatus(false, false, null, null));
 
+        // when & then
         assertThatThrownBy(() -> shippingDelayRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())

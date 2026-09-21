@@ -57,7 +57,11 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
             """)
     List<ProjectSummaryProjection> findSummariesByPublicIdIn(@Param("publicIds") List<UUID> publicIds);
 
-    /** FundingDeadlineWatcher 배치 대상 — 마감이 지났는데 아직 통지하지 않은 진행중 프로젝트. */
-    List<ProjectJpaEntity> findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNull(
-            String status, Instant now);
+    /**
+     * FundingDeadlineWatcher 배치 대상 — 마감이 지났는데 아직 통지하지 않은 진행중 프로젝트.
+     * {@code Pageable}로 배치 크기를 제한한다(마감이 한 번에 몰려도 한 트랜잭션에서 전부 읽지 않음).
+     * id 오름차순으로 고정해야 페이지마다 겹치거나 빠지는 행 없이 안정적으로 순회한다.
+     */
+    List<ProjectJpaEntity> findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNullOrderByIdAsc(
+            String status, Instant now, Pageable pageable);
 }

@@ -4,6 +4,7 @@ import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -34,10 +35,10 @@ public class ProjectPersistenceAdapter implements ProjectRepository {
     }
 
     @Override
-    public List<Project> findOngoingWithDeadlineReached(Instant now) {
+    public List<Project> findOngoingWithDeadlineReached(Instant now, Pageable pageable) {
         return jpaRepository
-                .findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNull(
-                        ProjectStatus.ONGOING.name(), now)
+                .findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNullOrderByIdAsc(
+                        ProjectStatus.ONGOING.name(), now, pageable)
                 .stream().map(mapper::toDomain).toList();
     }
 }

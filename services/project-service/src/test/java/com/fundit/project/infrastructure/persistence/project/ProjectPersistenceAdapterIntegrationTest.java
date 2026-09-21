@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -73,9 +74,27 @@ class ProjectPersistenceAdapterIntegrationTest {
                 .build());
 
         // when
-        var result = projectRepository.findOngoingWithDeadlineReached(Instant.now());
+        var result = projectRepository.findOngoingWithDeadlineReached(Instant.now(), PageRequest.of(0, 10));
 
         // then
         assertThat(result).extracting(Project::getId).containsExactly(target.getId());
+    }
+
+    @Test
+    void 배치_크기를_넘는_대상은_다음_페이지로_밀린다() {
+        // given — 대상 3건인데 배치 크기를 2로 제한
+        for (int i = 0; i < 3; i++) {
+            projectRepository.save(base()
+                    .status(ProjectStatus.ONGOING)
+                    .fundingDeadline(Instant.now().minusSeconds(60))
+                    .build());
+        }
+
+        // when
+        var firstPage = projectRepository.findOngoingWithDeadlineReached(Instant.now(), PageRequest.of(0, 2));
+
+        // then — id 오름차순으로 앞 2건만 가져오고 나머지 1건은 이번 페이지에 없다
+        assertThat(firstPage).hasSize(2);
+        assertThat(firstPage).isSortedAccordingTo(java.util.Comparator.comparing(Project::getId));
     }
 }

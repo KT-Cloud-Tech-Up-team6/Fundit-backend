@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,9 +44,10 @@ class FundingDeadlineWatcherUnitTest {
     @Test
     void 마감_도래한_프로젝트를_발행하고_통지_표시를_남긴다() {
         // given
-        watcher = new FundingDeadlineWatcher(projectRepository, fundingDeadlinePublisher);
+        watcher = new FundingDeadlineWatcher(projectRepository, fundingDeadlinePublisher, 200);
         Project project = ongoingProject(1L, 5_000_000L);
-        when(projectRepository.findOngoingWithDeadlineReached(any(Instant.class))).thenReturn(List.of(project));
+        when(projectRepository.findOngoingWithDeadlineReached(any(Instant.class), any(Pageable.class)))
+                .thenReturn(List.of(project));
 
         // when
         watcher.detectReachedDeadlines();
@@ -62,10 +64,27 @@ class FundingDeadlineWatcherUnitTest {
     }
 
     @Test
+    void 배치_크기만큼만_조회한다() {
+        // given
+        watcher = new FundingDeadlineWatcher(projectRepository, fundingDeadlinePublisher, 3);
+        when(projectRepository.findOngoingWithDeadlineReached(any(Instant.class), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        // when
+        watcher.detectReachedDeadlines();
+
+        // then — 마감이 한 번에 몰려도 한 트랜잭션에서 배치 크기 이상은 읽지 않는다
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(projectRepository).findOngoingWithDeadlineReached(any(Instant.class), pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(3);
+    }
+
+    @Test
     void 대상이_없으면_아무것도_발행하지_않는다() {
         // given
-        watcher = new FundingDeadlineWatcher(projectRepository, fundingDeadlinePublisher);
-        when(projectRepository.findOngoingWithDeadlineReached(any(Instant.class))).thenReturn(List.of());
+        watcher = new FundingDeadlineWatcher(projectRepository, fundingDeadlinePublisher, 200);
+        when(projectRepository.findOngoingWithDeadlineReached(any(Instant.class), any(Pageable.class)))
+                .thenReturn(List.of());
 
         // when
         watcher.detectReachedDeadlines();

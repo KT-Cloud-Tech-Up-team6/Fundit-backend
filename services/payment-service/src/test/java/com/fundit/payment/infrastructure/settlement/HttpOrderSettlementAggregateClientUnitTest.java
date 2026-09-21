@@ -36,6 +36,7 @@ class HttpOrderSettlementAggregateClientUnitTest {
 
     @Test
     void 내부API키를_붙여_라인아이템을_조회한다() {
+        // given
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024/settlement-aggregate"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
@@ -48,8 +49,10 @@ class HttpOrderSettlementAggregateClientUnitTest {
                         }
                         """, MediaType.APPLICATION_JSON));
 
+        // when
         var lineItems = client.fetchLineItems(1024L);
 
+        // then
         assertThat(lineItems).hasSize(1);
         assertThat(lineItems.get(0).rewardId()).isEqualTo(1L);
         assertThat(lineItems.get(0).rewardName()).isEqualTo("얼리버드 패키지");
@@ -61,23 +64,28 @@ class HttpOrderSettlementAggregateClientUnitTest {
 
     @Test
     void 내부API키를_붙여_메이커_쿠폰_차감액을_조회한다() {
+        // given
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024/settlement-aggregate"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
                         {"lineItems": [], "makerCouponDeductionAmount": 3000}
                         """, MediaType.APPLICATION_JSON));
 
+        // when
         long amount = client.fetchMakerCouponDeductionAmount(1024L);
 
+        // then
         assertThat(amount).isEqualTo(3000L);
         server.verify();
     }
 
     @Test
     void 호출이_실패하면_DEPENDENCY_FAILURE로_감싼다() {
+        // given
         server.expect(requestTo("http://localhost:8084/internal/fundings/1024/settlement-aggregate"))
                 .andRespond(withServerError());
 
+        // when & then
         assertThatThrownBy(() -> client.fetchLineItems(1024L))
                 .isInstanceOf(DependencyFailureException.class);
     }
