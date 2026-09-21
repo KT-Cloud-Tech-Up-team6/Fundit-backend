@@ -71,8 +71,10 @@ public interface AiClient {
     /** 방송 종료 후 요약. */
     SummaryResult summary(String liveId, int topN);
 
+    /** {@code product}는 {@code prepare}와 같은 모양이다 — 큐시트 담당과 합의해 파서를 공유한다. */
     record CueSheetRequest(String mode, int targetDurationSec, boolean demoAvailable,
-                           List<String> emphasisPoints, String tone, List<String> mandatoryPhrases) {
+                           List<String> emphasisPoints, String tone, List<String> mandatoryPhrases,
+                           PrepareRequest product) {
     }
 
     /**
