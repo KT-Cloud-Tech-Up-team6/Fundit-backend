@@ -1,5 +1,6 @@
 package com.fundit.payment.application.settlement;
 
+import com.fundit.payment.domain.settlement.SettlementFeePolicy;
 import com.fundit.payment.infrastructure.persistence.settlement.SettlementScheduleJpaEntity;
 import com.fundit.payment.infrastructure.persistence.settlement.SettlementScheduleJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,6 @@ import java.time.ZonedDateTime;
 public class SettlementScheduleService implements FundingSucceededListener, ShippingCompletionListener {
 
     private static final int INTERIM_BUSINESS_DAYS = 5;
-    private static final int FINAL_DAYS_AFTER_SHIPPING = 14;
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private final SettlementScheduleJpaRepository settlementScheduleJpaRepository;
@@ -59,7 +59,7 @@ public class SettlementScheduleService implements FundingSucceededListener, Ship
                 .projectId(event.projectId())
                 .sellerId(event.sellerId())
                 .batchType(SettlementScheduleJpaEntity.TYPE_FINAL)
-                .dueAt(event.completedAt().plus(java.time.Duration.ofDays(FINAL_DAYS_AFTER_SHIPPING)))
+                .dueAt(event.completedAt().plus(SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY))
                 .build());
     }
 

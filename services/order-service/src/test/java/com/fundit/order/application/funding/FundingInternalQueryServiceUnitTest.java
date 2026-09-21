@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
+import com.fundit.order.domain.funding.FundingLineItemOption;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
@@ -189,5 +190,55 @@ class FundingInternalQueryServiceUnitTest {
 
         // then
         assertThat(summaries).isEmpty();
+    }
+
+    @Test
+    void 정산_집계_조회시_옵션이_없으면_optionName이_null이다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(fundingRepository.findById(1024L)).thenReturn(Optional.of(funding(1024L, publicId, memberId, projectId)));
+        when(couponApplicationJpaRepository.sumMakerCouponDiscountAmount(1024L)).thenReturn(3_000L);
+
+        // when
+        var aggregate = service.getSettlementAggregate(1024L);
+
+        // then
+        assertThat(aggregate.lineItems()).hasSize(1);
+        assertThat(aggregate.lineItems().get(0).rewardId()).isEqualTo(5L);
+        assertThat(aggregate.lineItems().get(0).optionName()).isNull();
+        assertThat(aggregate.lineItems().get(0).amount()).isEqualTo(1000L);
+        assertThat(aggregate.makerCouponDeductionAmount()).isEqualTo(3_000L);
+    }
+
+    @Test
+    void 정산_집계_조회시_옵션이_있으면_optionName으로_합쳐진다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Funding funding = funding(1024L, publicId, memberId, projectId).toBuilder()
+                .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 1, 1000L, List.of(
+                        new FundingLineItemOption(1L, 10L, "색상", 100L, "화이트"),
+                        new FundingLineItemOption(2L, 11L, "사이즈", 200L, "L")))))
+                .build();
+        when(fundingRepository.findById(1024L)).thenReturn(Optional.of(funding));
+        when(couponApplicationJpaRepository.sumMakerCouponDiscountAmount(1024L)).thenReturn(0L);
+
+        // when
+        var aggregate = service.getSettlementAggregate(1024L);
+
+        // then
+        assertThat(aggregate.lineItems().get(0).optionName()).isEqualTo("색상: 화이트, 사이즈: L");
+    }
+
+    @Test
+    void 정산_집계_조회시_펀딩이_없으면_예외가_발생한다() {
+        // given
+        when(fundingRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> service.getSettlementAggregate(1L)).isInstanceOf(BusinessException.class);
     }
 }

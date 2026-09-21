@@ -94,6 +94,9 @@ public class ProjectJpaEntity {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "deadline_notified_at")
+    private Instant deadlineNotifiedAt;
+
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();

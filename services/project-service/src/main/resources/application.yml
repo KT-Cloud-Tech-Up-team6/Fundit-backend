@@ -20,6 +20,20 @@ project-index-event-outbox:
   poll-interval-ms: 5000
   batch-size: 50
 
+# 펀딩 마감 감시(FundingDeadlineWatcher) — 대상 감지 주기. 마감 시각 판정용이라 초 단위로
+# 촘촘할 필요는 없어 아웃박스 워커보다 느슨한 기본값(1분)을 둔다.
+# batch-size: 한 주기에 마감이 몰려도 한 트랜잭션에서 전부 읽지 않도록 상한을 둔다 — 남은 건은
+# 다음 주기(1분 뒤)에 마저 처리된다.
+funding-deadline-watcher:
+  poll-interval-ms: 60000
+  batch-size: 200
+
+# project.funding-deadline-reached.v1 발행용 아웃박스 워커.
+funding-deadline-event-outbox:
+  worker-enabled: true
+  poll-interval-ms: 5000
+  batch-size: 50
+
 # 이미지/영상 업로드 주소 발급(S3 Presigned URL, 할일 D 확정 스펙) — bucket/region은 시크릿이
 # 아니지만 환경마다 달라 application-dev.yml/application-prod.yml에서 env로만 채운다.
 media:

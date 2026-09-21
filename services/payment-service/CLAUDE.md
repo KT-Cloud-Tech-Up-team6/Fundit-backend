@@ -87,9 +87,7 @@ public interface PaymentEventListener {
 
 ## 연동 현황 — order-service/fulfillment-service 내부 API
 
-`OrderFundingClient`(PAYMENT-001)와 `ShippingStatusClient`(PAYMENT-008)는 **연동 완료**됐습니다. `application-dev.yml`/`application-prod.yml`의 `ORDER_FUNDING_CLIENT_MODE`/`SHIPPING_STATUS_CLIENT_MODE` 기본값이 `http`로 전환돼 있고, `HttpOrderFundingClient`/`HttpShippingStatusClient`가 실제 order-service/fulfillment-service 응답 필드와 1:1로 매핑됩니다. 로컬에서 해당 서비스가 안 떠 있으면 `ORDER_FUNDING_CLIENT_MODE=stub`/`SHIPPING_STATUS_CLIENT_MODE=stub` 환경변수로 되돌려 스텁으로 개발할 수 있습니다.
-
-정산(PAYMENT-009/012)은 여전히 order-service의 `funding_line_items`/`funding_coupon_applications` 집계 조회 API가 없습니다 — `OrderSettlementAggregateClient` 포트를 두고 스텁으로 개발하세요(이건 아직 미해결).
+`OrderFundingClient`(PAYMENT-001), `ShippingStatusClient`(PAYMENT-008), `OrderSettlementAggregateClient`(PAYMENT-009/012)는 **연동 완료**됐습니다. `application-dev.yml`/`application-prod.yml`의 `ORDER_FUNDING_CLIENT_MODE`/`SHIPPING_STATUS_CLIENT_MODE` 기본값이 `http`로 전환돼 있고, `HttpOrderFundingClient`/`HttpShippingStatusClient`/`HttpOrderSettlementAggregateClient`가 실제 order-service/fulfillment-service 응답 필드와 1:1로 매핑됩니다. `OrderSettlementAggregateClient`는 `OrderFundingClient`와 같은 스위치(`ORDER_FUNDING_CLIENT_MODE`)를 공유합니다 — 어차피 같은 order-service 연동이라 별도 플래그를 두지 않았습니다. order-service 쪽 실제 엔드포인트는 `GET /internal/fundings/{fundingId}/settlement-aggregate`(`OrderDomainApiSpec.md` 16번)입니다. 로컬에서 해당 서비스가 안 떠 있으면 `ORDER_FUNDING_CLIENT_MODE=stub`/`SHIPPING_STATUS_CLIENT_MODE=stub` 환경변수로 되돌려 스텁으로 개발할 수 있습니다.
 
 ---
 
@@ -156,7 +154,7 @@ dependencies {
 판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출, 반품비 차감 시 부분취소(취소금액 < `payments.amount`면 `is_full_refund=false`) → 완료 시 `RefundCompleted(fundingId, couponIssuanceId, POST_SUCCESS_DEFECT, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
 
 ### PAYMENT-008 `POST /api/v1/refunds/shipping-delay`
-FS-096 판정 결과(`FulfillmentDelayed`) 확인 후 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409).
+`ShippingStatusClient.fetch()`로 `isAlreadyShipped`/`isDelayed`를 함께 확인한 뒤 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409). 미발송이어도 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422).
 
 ### PAYMENT-009 `GET /api/v1/settlements/{settlementBatchId}`
 본인(해당 메이커) 배치만 조회 가능(403). `gross_amount`/`platform_fee_amount`(3%)/`coupon_deduction_amount`/`refund_deduction_amount`/`total_amount`와, `OrderSettlementAggregateClient`로 조회한 리워드·옵션별 판매 수량·금액(`lineItems`)을 합성해 응답.
@@ -165,7 +163,7 @@ FS-096 판정 결과(`FulfillmentDelayed`) 확인 후 즉시 처리(단순변심
 PDF/엑셀 등 파일 생성 후 다운로드 URL 또는 파일 스트림 반환. 파일 생성 라이브러리는 팀 컨벤션 없으니 신규 결정 필요[정책 확인 필요].
 
 ### PAYMENT-011 `POST /api/v1/settlements/{settlementBatchId}/disputes`
-발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
+발송일로부터 7일 이내만 접수 가능(경과 시 `DISPUTE_PERIOD_EXPIRED` 409). 발송일은 배치 유형별로 다르다 — INTERIM은 `createdAt`, FINAL은 배치에 속한 펀딩들의 실제 배송완료일(`ShippingStatusClient` 조회, PAYMENT-008과 동일 포트) 중 최신값+14일(`SettlementFeePolicy.FINAL_SETTLEMENT_NOTICE_DELAY`). 접수 시 대상 `settlement_batches.status`를 `ON_HOLD`로 전환(PAYMENT-015가 이 상태면 지급 대상에서 제외하도록 반드시 확인).
 
 ---
 
@@ -208,7 +206,7 @@ order-service가 아직 이 이벤트를 발행하지 않으므로(아래 "정�
 - `payment.payments` — `funding_id`(Long, FK 아님), `pg_order_id`, `pg_payment_key`, `amount`/`order_name`(PAYMENT-001 스냅샷), `coupon_issuance_id`(신규 — `PaymentERD.md`에 없으니 구현 시 컬럼 추가), `status`(`PENDING`/`COMPLETED`/`FAILED`/`CANCELLED`), `completed_funding_id`(생성 컬럼, 유니크 제약으로 "펀딩당 완료 결제 1건" 강제).
 - `payment.payment_event_outbox` — `PaymentCompleted`/`RefundCompleted` 발행용 아웃박스(PAYMENT-016).
 - `refund.refund_requests` — `trigger_type`(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`, 위 매핑표로 `RefundReason` 변환), `is_full_refund`.
-- `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(스텁 처리, 위 "연동 현황" 참고).
+- `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(연동 완료, 위 "연동 현황" 참고).
 
 ---
 
@@ -255,6 +253,7 @@ public PaymentCreateResponse create(@LoginUser CurrentUser user, @Valid @Request
 | `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 서명 검증 실패 |
 | `EVIDENCE_REQUIRED` / `REASON_REQUIRED` | 400 | 하자환불 신청/반려 시 필수값 누락 |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송됨 |
+| `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 기간(7일) 경과 |
 | `UNSUPPORTED_MEDIA_TYPE` | 400 | 증빙 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반(F09) |
 | `MEDIA_TOO_LARGE` | 400 | 증빙 업로드 주소 발급 시 용량 제한(10MB) 초과(F09) |
@@ -276,7 +275,7 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 ## 정책값 / 확인 필요 사항
 
 - ~~order-service 내부 API(`OrderFundingClient`) 및 `fundings.final_amount` 컬럼 부재~~ — 해결(order-service #74), `ORDER_FUNDING_CLIENT_MODE=http` 전환 완료.
-- **정산 집계 API 부재**: order-service `OrderSettlementAggregateClient`(PAYMENT-009/012용)는 아직 노출 API가 없어 스텁 유지 — 별도 이슈에서 처리.
+- ~~정산 집계 API 부재~~ — 해결(order-service `GET /internal/fundings/{fundingId}/settlement-aggregate` 신설), `HttpOrderSettlementAggregateClient`로 연동 완료.
 - **레이스 컨디션 보상 미구현**: order-service가 아직 `PaymentReconciliationRequired`를 발행하지 않음(PAYMENT-017 대상 이벤트 없음) — 연동 이슈에서 함께 처리.
 - `RefundReason.CANCELLED_BY_MEMBER` 실제 발행 필요 여부 재확인.
 - PAYMENT-010 파일(PDF/엑셀) 생성 라이브러리 미정.
