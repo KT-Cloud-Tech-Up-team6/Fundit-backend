@@ -116,7 +116,7 @@ class HttpAiClientUnitTest {
         HttpAiClient aiClient = new HttpAiClient(builder().build(), builder().build());
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
-                                "SCENARIO", 580, false, List.of(), null, List.of(), null)))
+                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 }
