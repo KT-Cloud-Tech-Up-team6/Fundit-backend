@@ -24,6 +24,9 @@
 | GET | `/api/v1/follows` | O | 내 팔로우 **판매자** 목록 조회 |
 | GET | `/api/v1/addresses` | O | 배송지 목록 조회 |
 | POST | `/api/v1/addresses` | O | 배송지 등록 |
+| PUT | `/api/v1/addresses/{addressId}` | O | 배송지 수정 |
+| PATCH | `/api/v1/addresses/{addressId}/default` | O | 기본 배송지 지정 |
+| DELETE | `/api/v1/addresses/{addressId}` | O | 배송지 삭제 |
 
 ---
 
@@ -374,6 +377,29 @@ Validation / Business Rules
 - `addressLine1`은 프론트엔드가 도로명주소 API로 직접 검색해 채운 값을 그대로 받는다.
 - 필수값 누락 시 400.
 - 개인정보(주소)는 저장·전송 시 암호화.
+- `isDefault=true`로 등록하면 기존 기본 배송지가 해제된다. **회원당 기본 배송지는 최대 1개**다(DB 부분 유니크 인덱스로 보장).
+
+---
+
+### 배송지 수정 / 기본 지정 / 삭제
+
+```
+PUT    /api/v1/addresses/{addressId}
+PATCH  /api/v1/addresses/{addressId}/default
+DELETE /api/v1/addresses/{addressId}
+```
+
+Auth Required: **O**
+
+- `PUT`: 요청 본문은 배송지 등록과 같다(전체 수정, 같은 검증). 응답은 배송지 목록 항목과 같은 모양(`id`, `recipientName`, `phoneNumber`, `zipcode`, `addressLine1`, `addressLine2`, `isDefault`).
+- `PATCH .../default`: 본문 없음. 이 배송지를 기본으로 지정하고 기존 기본을 해제한다. 응답은 `PUT`과 같다.
+- `DELETE`: `204 No Content`.
+
+Validation / Business Rules
+
+- **본인 배송지만** 수정·지정·삭제할 수 있다. 남의 `addressId`면 `404`(존재 여부를 드러내지 않는다, S4).
+- `PUT`에서 `isDefault=true`면 기존 기본이 해제되고, `false`(또는 생략)면 이 배송지의 기본 지정이 해제된다.
+- **기본 배송지를 삭제하면 기본 배송지가 없는 상태가 된다.** 다른 배송지를 자동으로 기본으로 올리지 않는다 — 다음 주문 때 사용자가 고른다.
 
 ---
 
@@ -390,6 +416,8 @@ Validation / Business Rules
 - **[확정, 2026-09-16 #58] MEMBER-007 팔로우 복귀**: PM이 MEMBER-006을 "찜한 프로젝트 목록과 찜한 판매자 목록"으로 변경 — 판매자 목록이 필요해져 팔로우를 구현하고 `PUT`/`DELETE`/`GET /api/v1/follows`를 이 문서로 되가져왔다(위 `[확정, 2026-09-03]` 항목 중 007 부분 무효). 목록은 `GET /api/v1/wishes`에 합치지 않는다 — 응답 아이템 모양이 달라 페이지네이션이 하나로 묶인다.
 - **[구현 메모, 2026-09-16 #58] 찜 이벤트 발행**: 찜 등록/해제가 `member_event_outbox`에 같은 트랜잭션으로 적재되고, 워커가 `project.wished.v1`/`project.unwished.v1`로 발행한다(파티션 키 `memberId`). 발행 측은 끝났고, **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다** — 그쪽 `ProjectWishStatsEventSubscriber`는 인프로세스 `@EventListener`라 토픽을 직접 받지 못한다.
 - **[구현 메모, 2026-09-16 #58] 회원가입 이벤트 발행**: `POST /api/v1/members`가 성공하면 같은 트랜잭션에서 `member_event_outbox`에 적재되고 워커가 `member.signed-up.v1`로 발행한다(파티션 키 `memberId`). order-service가 이 토픽으로 웰컴 쿠폰(ORDER-007)을 발급한다. 발행 실패는 워커가 재시도하며 **가입 API를 깨지 않는다** — 여기서 예외가 나가면 auth-service가 보상 트랜잭션으로 계정을 지운다.
+
+- **[확정, 2026-09-21 #101] 배송지 수정·삭제·기본 지정**: QA 요청으로 추가. 기본 배송지가 여러 개 저장될 수 있던 문제를 V5 부분 유니크 인덱스로 막았다(기존 중복은 회원별 최신 1개만 남기고 정리). 기본을 삭제하면 기본 없음으로 둔다(자동 승계 안 함, 사용자 결정).
 
 ## ⚠️ 남은 확인 필요 사항
 
