@@ -45,7 +45,8 @@ public class RewardService {
                 command.shippingFee(), command.estimatedDeliveryDays());
         Reward saved = rewardRepository.save(reward);
         if (reward.getOptionGroups() != null && !reward.getOptionGroups().isEmpty()) {
-            rewardRepository.replaceOptions(saved.getId(), reward.getOptionGroups());
+            List<RewardOptionGroup> persistedOptions = rewardRepository.replaceOptions(saved.getId(), reward.getOptionGroups());
+            saved = saved.toBuilder().optionGroups(persistedOptions).build();
         }
 
         rewardEventPublisher.publishRewardCreated(
@@ -104,7 +105,8 @@ public class RewardService {
                 shippingFee, estimatedDeliveryDays);
         Reward saved = rewardRepository.save(reward);
         if (command.optionGroups() != null) {
-            rewardRepository.replaceOptions(saved.getId(), command.optionGroups());
+            List<RewardOptionGroup> persistedOptions = rewardRepository.replaceOptions(saved.getId(), command.optionGroups());
+            saved = saved.toBuilder().optionGroups(persistedOptions).build();
         }
 
         rewardEventPublisher.publishRewardUpdated(

@@ -132,7 +132,7 @@ class ProjectRewardPersistenceIntegrationTest {
         // when
         rewardRepository.replaceOptions(reward.getId(), options);
 
-        // then — replaceOptions 자체가 예외 없이 완료되면 정상(옵션은 응답에 되읽지 않는 설계).
+        // then — replaceOptions 자체가 예외 없이 완료되면 정상(영속화된 그룹은 반환값으로 되읽는다).
         Reward reloaded = rewardRepository.findById(reward.getId()).orElseThrow();
         assertThat(reloaded.getId()).isEqualTo(reward.getId());
     }

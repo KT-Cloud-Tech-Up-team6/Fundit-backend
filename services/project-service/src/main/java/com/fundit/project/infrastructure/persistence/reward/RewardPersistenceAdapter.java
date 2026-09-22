@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,14 +39,15 @@ public class RewardPersistenceAdapter implements RewardRepository {
      */
     @Override
     @Transactional
-    public void replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups) {
+    public List<RewardOptionGroup> replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups) {
         if (rewardJpaRepository.findByIdForUpdate(rewardId).isEmpty()) {
-            return;
+            return List.of();
         }
         Map<Long, RewardOptionGroupJpaEntity> existingById = optionGroupJpaRepository.findByRewardId(rewardId).stream()
                 .collect(Collectors.toMap(RewardOptionGroupJpaEntity::getId, Function.identity()));
 
         Set<Long> keptGroupIds = new HashSet<>();
+        List<RewardOptionGroup> persisted = new ArrayList<>();
         int groupSortOrder = 0;
         for (RewardOptionGroup group : optionGroups) {
             RewardOptionGroupJpaEntity existing = group.id() == null ? null : existingById.get(group.id());
@@ -57,6 +59,7 @@ public class RewardPersistenceAdapter implements RewardRepository {
                 optionValueJpaRepository.deleteByOptionGroupId(groupId);
             }
             replaceValues(groupId, group.values());
+            persisted.add(new RewardOptionGroup(groupId, group.groupName(), group.values()));
         }
 
         for (RewardOptionGroupJpaEntity existing : existingById.values()) {
@@ -65,6 +68,7 @@ public class RewardPersistenceAdapter implements RewardRepository {
                 optionGroupJpaRepository.delete(existing);
             }
         }
+        return persisted;
     }
 
     private Long insertGroup(Long rewardId, String name, int sortOrder) {
@@ -75,7 +79,10 @@ public class RewardPersistenceAdapter implements RewardRepository {
                 .build()).getId();
     }
 
-    /** merge()로 갱신되므로 @PrePersist가 돌지 않는다 — createdAt은 유지, updatedAt만 직접 갱신한다. */
+    /**
+     * merge()로 갱신되므로 @PrePersist가 돌지 않는다 — createdAt은 유지한다. updatedAt은 설정하지
+     * 않아도 된다: trg_reward_option_groups_updated_at이 UPDATE 시 항상 덮어쓴다.
+     */
     private Long updateGroup(RewardOptionGroupJpaEntity existing, String name, int sortOrder) {
         return optionGroupJpaRepository.save(RewardOptionGroupJpaEntity.builder()
                 .id(existing.getId())
@@ -83,7 +90,7 @@ public class RewardPersistenceAdapter implements RewardRepository {
                 .name(name)
                 .sortOrder(sortOrder)
                 .createdAt(existing.getCreatedAt())
-                .updatedAt(Instant.now())
+                .updatedAt(existing.getUpdatedAt())
                 .build()).getId();
     }
 

@@ -147,10 +147,9 @@ public class RewardController {
     }
 
     /**
-     * 생성/수정 응답 전용 — {@code groupId}는 요청에 실려온 값을 그대로 되돌려줄 뿐이다(신규 그룹은
-     * null, PATCH로 유지된 기존 그룹은 그 ID). 값 단위 ID는 그룹 값 목록이 항상 통째로 교체되므로
-     * 애초에 없다(RewardOptionRequest 참고). 신규 그룹이 실제로 부여받은 ID까지 포함한 전체 목록은
-     * {@link #toSellerResponse}(판매자 목록 조회, GET .../rewards/mine)로 재조회해야 한다.
+     * 생성/수정 응답 전용 — {@code groupId}는 {@code replaceOptions}가 반환한, 실제로 영속화된
+     * 그룹 ID다(신규 그룹도 새로 부여받은 ID가 채워진다). 값 단위 ID는 그룹 값 목록이 항상 통째로
+     * 교체되므로 애초에 없다(RewardOptionRequest 참고).
      */
     private RewardResponse toResponse(Reward reward) {
         List<RewardOptionGroupResponse> options = reward.getOptionGroups() == null ? List.of()
