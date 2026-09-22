@@ -77,4 +77,18 @@ class PaymentCreateServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
     }
+
+    @Test
+    void 이미_완료된_결제가_있으면_PENDING_재사용보다_먼저_거부한다() {
+        // given — order-service의 결제완료 반영이 비동기라 그 창 동안 재호출된 상황을 재현
+        Payment completed = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-completed", 89_000L, "완료된 주문", null, "idem");
+        when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(completed));
+
+        // when & then
+        assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.CONFLICT));
+        org.mockito.Mockito.verifyNoInteractions(orderFundingClient);
+        org.mockito.Mockito.verify(paymentRepository, org.mockito.Mockito.never()).findPendingByFundingId(FUNDING_ID);
+    }
 }
