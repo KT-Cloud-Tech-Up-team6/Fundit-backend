@@ -41,10 +41,17 @@
 | GET | `/api/v1/lives/{liveId}/playback` | X | LIVE 시청 정보 조회 |
 | PUT | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요(idempotent) |
 | DELETE | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요 취소(idempotent) |
-| GET | `/api/v1/lives/{liveId}/share-link` | X | LIVE 공유 링크 생성 |
+| GET | `/api/v1/lives/{liveId}/share-link` | X | LIVE 공유 링크 생성 — **미구현**(아래 참고) |
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
 | GET | `/api/v1/lives/{liveId}/vod/chat` | X | 다시보기 시간대별 채팅 조회 |
+
+> **`/share-link`는 구현되어 있지 않다.** 공유 URL은 프론트 도메인·경로를 알아야 조립할 수 있는데
+> BE가 프론트 경로를 아는 순간 화면 구조가 바뀔 때마다 BE를 같이 배포해야 한다. 프론트가 `liveId`로
+> 직접 조립하는 쪽이 맞다고 보고 미구현으로 두었다 — 필요하면 별도 논의.
+>
+> 같은 이유로 **소비자 LIVE 상세(`GET /api/v1/lives/{liveId}`)도 없다.** 시청 진입점은 `/playback`이고,
+> 그 응답이 `projectId`·`likeCount`까지 포함한다. 목록에서 받은 `liveId`로 `/playback`을 부르면 된다.
 
 ### 엔드포인트 목록 — 공통 / 내부
 
@@ -787,7 +794,8 @@ GET /api/v1/lives/banner
 Response Body
 
 ```json
-{ "items": [ { "liveId": "0199...", "introText": "...", "thumbnailUrl": "...", "viewerCount": 234 } ] }
+[ { "liveId": "0199...", "introText": "...", "status": "LIVE", "projectId": "0198...",
+    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12, "createdAt": "2026-09-20T10:00:00Z" } ]
 ```
 
 ```
@@ -832,15 +840,24 @@ Response Body
 
 ```json
 {
-  "status": "LIVE",
-  "playbackUrl": "<https://xxx.live-video.net/.../master.m3u8?token=...&exp=>...",
-  "linkedProject": { "projectId": "0198...", "title": "무선 미니 가습기", "achievementRate": 142 }
+  "liveId": "0199...",
+  "type": "LIVE",
+  "playbackUrl": "<https://xxx.live-video.net/.../master.m3u8>",
+  "projectId": "0198...",
+  "likeCount": 12,
+  "vodReadyAt": null
 }
 ```
 
 Validation / Business Rules
 
-- **`playbackUrl`은 서명과 만료시간을 부여해 발급한다.** 원본 경로를 그대로 노출하지 않는다(S7 준용).
+- ⚠️ **`playbackUrl` 서명·만료는 아직 미구현이다.** 현재는 IVS 원본 재생 URL을 그대로 내려준다
+  (`LivePlaybackService`). IVS private channel + playback key 설정이 선행돼야 해서 자격증명 확보 후
+  적용한다 — 별도 티켓. 규칙 자체(S7 준용, 원본 경로 비노출)는 유효하다.
+- 연동 프로젝트는 `linkedProject` 객체가 아니라 **`projectId` 평면 필드**로만 내려간다. 제목·달성률이
+  필요하면 프론트가 project 상세를 따로 조회한다 — live가 project 응답을 중계하면 두 서비스가 같이 배포돼야 한다.
+- 종료된 방송으로 자동 전환되면 `type`이 `VOD`가 되고 `vodReadyAt`이 채워진다. `type`은 명세 초안의
+  `status`를 대체한 이름이다(세션 상태 `LiveStatus`와 구분하려고 바꿨다).
 - **종료된 방송을 요청하면 다시보기(VOD) 정보로 자동 전환해 응답한다**(요구사항정의서 11.2.4). 클라이언트가 404를 받고 따로 VOD를 재요청하지 않아도 된다.
 - `DRAFT`·`ERROR` 상태는 `404`로 응답한다 — 존재 여부 자체를 노출하지 않는다.
 - 방송 화면에 상시 노출할 연동 프로젝트 배너 정보를 함께 내려준다(요구사항정의서 11.2.3).
