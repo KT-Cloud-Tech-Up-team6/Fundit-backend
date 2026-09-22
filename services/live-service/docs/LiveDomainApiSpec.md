@@ -183,11 +183,22 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 큐시트(`202 Accepted` → `GET /cue-sheet`의 `status`)와 하이라이트(`generation_status`)가 이 방식이다.
 **FE는 AI를 폴링하지 않고 live를 폴링한다.**
 
-> ⚠️ **큐시트·하이라이트에서 live가 AI 결과를 회수하는 경로는 아직 미정이다** — 위 표와 별개로
-> 여전히 초안이다. live가 AI를 폴링하는지, AI가 결과를 우리 내부 엔드포인트로 밀어주는지에 따라
-> AI job 식별자 컬럼 필요 여부가 갈린다.
-> 큐시트는 **BE가 AI를 호출하고 응답으로 `segments`를 받는 동기 방식**을 큐시트 담당에게 제안해 회신 대기 중이다
-> (경로·최대 생성 시간·Q&A와 같은 서버인지). 확정 전까지 콜백 엔드포인트는 유지한다.
+> **큐시트는 BE→AI 동기 호출로 확정됐다(큐시트 담당 협의, 2026-09-22)** — AI가 결과를 밀어주는
+> 콜백은 폐기했다. `POST /cue-sheets`(AI 서버, liveId는 바디에 평평하게 포함)를 **판매자 요청
+> 스레드가 아니라 별도 스레드에서** 호출하고, 응답 `{"segments":[...]}`을 그대로 저장한다.
+> 실패는 4xx/5xx와 `{"status":"FAILED","failure_reason":...}` 둘 다 같은 경로로 처리한다.
+> AI job 식별자 컬럼은 필요 없다 — `GET /cue-sheet`의 `status`가 그 역할이다.
+> `/internal/v1/lives/{liveId}/cue-sheet`(콜백 수신 엔드포인트)는 **삭제됐다.**
+>
+> - Q&A 코파일럿과 **다른 AI 서버**다(별도 레포·팀) — base-url·토큰이 분리돼 있다
+>   (`LIVE_CUESHEET_AI_BASE_URL`/`LIVE_CUESHEET_AI_TOKEN`).
+> - 읽기 타임아웃은 200초(실측 평균 86.5초·최대 122.1초 + 여유, "3분 이상" 합의 충족).
+> - 요청 스레드를 직접 잡지 않는 이유: 최대 3분+ 걸릴 수 있는 호출을 요청 스레드에서 기다리게
+>   하면 판매자가 버튼을 누르고 그만큼 기다리게 된다. `@Async` +
+>   `@TransactionalEventListener(AFTER_COMMIT)`로 분리한다(`CueSheetService` 참고).
+>
+> **하이라이트는 여전히 계약 미정이다** — 위 문제가 그대로 남아 있다. AI가 결과를 우리 내부
+> 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어주는 콜백 구조를 유지한다.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
 > 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
@@ -372,8 +383,9 @@ Validation / Business Rules
 - **`jobId`를 따로 발급하지 않는다.** 세션당 큐시트가 1개라 `GET /cue-sheet`의 `status`로 폴링하면 충분하다. 초안의 `jobId`는 조회 경로가 별도로 없어 쓸 데가 없었다.
 - 재생성은 기존 행을 덮어쓴다. 이력 보관 요구가 없다.
 - `PATCH`는 판매자 직접 수정이며, 구간 추가·순서 변경도 이 API로 한다. 본문은 `{ "segments": [...] }`이고 **비어 있지 않은 JSON 배열**이어야 한다(아니면 `400`). 구간 내부는 서버가 해석하지 않고 그대로 저장한다. 필드명은 FE `CueScene`에 맞춘 `id`/`title`/`duration`(초)/`outline`/`script`이고(큐시트 담당 제안), AI가 근거 없는 수치를 경고할 때는 **구간 안에** `warnings: [{ "field", "reason" }]`를 싣는다 — 배열 밖 최상위 필드는 저장되지 않는다.
-- `mode`는 `SCENARIO`/`SCRIPT`만 받는다. 생성 결과 콜백의 `status`는 `COMPLETED`/`FAILED`만 받으며, **모르는 값을 실패로 굳히지 않고 `400`으로 돌려보낸다** — `PROCESSING` 같은 값을 FAILED로 저장하면 되돌릴 경로가 없다.
-- ⚠️ **AI 결과 콜백(`POST /internal/v1/lives/{liveId}/cue-sheet`)의 `segments`는 문자열이 아니라 JSON 배열이다.** 문자열로 받던 때는 JSON이 아닌 값이 JSONB 컬럼까지 가서 `400`이 아니라 `500`이 났다. 요청·응답·콜백 세 경로가 같은 모양(배열)이 됐다.
+- 내부적으로 다루는 생성 결과 `status`는 `COMPLETED`/`FAILED`만 받으며, **모르는 값을 실패로 굳히지 않고 예외로 돌려보낸다** — `PROCESSING` 같은 값을 FAILED로 저장하면 되돌릴 경로가 없다.
+- **AI 응답의 `segments`는 문자열이 아니라 JSON 배열이다.** 문자열로 받던 때는 JSON이 아닌 값이 JSONB 컬럼까지 가서 `400`이 아니라 `500`이 났다. 요청·응답이 같은 모양(배열)이다.
+- AI 호출(`POST /cue-sheets`)은 판매자 요청 스레드가 아니라 커밋 후 별도 스레드에서 이뤄진다 — 위 "비동기 생성" 절 참고. 호출 실패는 `FAILED`로 저장되고 재시도는 판매자가 재생성 요청을 다시 보내는 것으로 대신한다(자동 재시도 없음, YAGNI).
 - **생성 요청이 동시에 들어오면 한 건만 통과한다.** 세션 행을 잠근다 — 잠그지 않으면 더블클릭한 두 요청이 둘 다 "생성 중 아님"을 보고 AI 작업이 두 번 돈다.
 - AI 응답은 그대로 신뢰하지 않고 구조·길이를 검증한 뒤 저장한다(`security.md` S7).
 

@@ -35,6 +35,12 @@ live:
     mode: stub
     # 댓글 배치 전송 주기. AI팀 권장치(3초)를 그대로 쓴다.
     comments-poll-interval-ms: 3000
+  cuesheet-ai:
+    # 커밋 후~AI 호출 사이 서버가 죽으면 GENERATING이 영영 안 풀린다 — 이 시간을 넘기면
+    # 스윕 워커가 FAILED로 풀어 재생성 버튼을 다시 누를 수 있게 한다.
+    # 200초(읽기 타임아웃) + 여유.
+    stale-after-ms: 240000
+    recovery-interval-ms: 60000
 
 springdoc:
   api-docs:

@@ -3,7 +3,6 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.chat.ChatIngestService;
-import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.highlight.HighlightService;
 import com.fundit.live.application.session.LiveStatusQueryService;
 import com.fundit.live.infrastructure.security.InternalEndpointConfig;
@@ -37,7 +36,6 @@ class InternalLiveControllerExceptionTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private ChatIngestService chatIngestService;
-    @MockitoBean private CueSheetService cueSheetService;
     @MockitoBean private HighlightService highlightService;
     @MockitoBean private LiveStatusQueryService liveStatusQueryService;
 
@@ -54,36 +52,6 @@ class InternalLiveControllerExceptionTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(INGEST_BODY.formatted(UUID.randomUUID())))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void 내부_키가_없으면_큐시트_결과를_주입할_수_없다() throws Exception {
-        // given & when & then — 열려 있으면 임의 큐시트 주입이 가능하다(S4)
-        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"status\": \"COMPLETED\", \"segments\": [{\"order\":1}] }"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void JSON이_아닌_큐시트_구간은_400이다() throws Exception {
-        // given & when & then — String으로 받던 때는 JSONB 컬럼이 거부해 500이 났다.
-        // AI가 잘못 보낸 건데 우리 서버 오류로 보인다
-        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"status\": \"COMPLETED\", \"segments\": \"깨진 값\" }"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void 빈_구간_배열은_400이다() throws Exception {
-        // given & when & then
-        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{ \"status\": \"COMPLETED\", \"segments\": [] }"))
-                .andExpect(status().isBadRequest());
     }
 
     @Test

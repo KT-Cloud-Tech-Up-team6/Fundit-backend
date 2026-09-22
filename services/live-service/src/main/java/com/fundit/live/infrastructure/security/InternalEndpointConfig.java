@@ -26,12 +26,6 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/v1/lives/{liveId}/status");
     }
 
-    /** AI가 큐시트 생성 결과를 밀어주는 경로. 열려 있으면 임의 큐시트 주입이 가능하다. */
-    @Bean
-    public InternalEndpoint cueSheetCallbackEndpoint() {
-        return new InternalEndpoint("POST", "/internal/v1/lives/{liveId}/cue-sheet");
-    }
-
     /** AI가 하이라이트 생성 결과를 밀어주는 경로. */
     @Bean
     public InternalEndpoint highlightCallbackEndpoint() {

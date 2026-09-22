@@ -10,17 +10,21 @@ import java.util.Map;
 /**
  * AI 서버 주소도 계약도 확정 전이라 쓰는 스텁. {@code live.ai.mode=stub}일 때만 뜬다 — 기본값으로 두면 운영에서 스텁이 조용히 선택돼 큐시트·추천답변이 {@code "[stub] ..."} 문자열로 "성공"한다.
  *
- * <p>비동기 요청(큐시트·하이라이트)은 아무것도 하지 않는다 — 결과는 AI가 내부 엔드포인트로
- * 밀어주는 구조라 스텁이 흉내 낼 대상이 없다. Q&A/FAQ는 반대로 전부 동기 호출이라
- * 빈 값·PREPARING 상태로 흉내 낸다.
+ * <p>하이라이트 요청은 아무것도 하지 않는다 — 결과는 AI가 내부 엔드포인트로 밀어주는 구조라
+ * 스텁이 흉내 낼 대상이 없다(계약 미정). 큐시트는 <b>동기 호출로 바뀌어서</b>(2026-09-22 협의)
+ * 캔 응답을 바로 돌려준다 — 안 그러면 콜백을 기다리던 옛 경로가 사라져 로컬에서 영원히
+ * {@code GENERATING}에 머문다. Q&A/FAQ도 전부 동기라 빈 값·PREPARING 상태로 흉내 낸다.
  */
 @Component
 @ConditionalOnProperty(name = "live.ai.mode", havingValue = "stub", matchIfMissing = false)
 public class StubAiClient implements AiClient {
 
+    private static final String STUB_SEGMENTS = """
+            [{"id":"stub-0","title":"오프닝","duration":30,"outline":"[stub] 상품 소개","script":"[stub] 안녕하세요."}]""";
+
     @Override
-    public void requestCueSheet(String liveId, CueSheetRequest request) {
-        // 요청만 거는 경로다. 스텁은 성공으로 두고, 결과 수신은 내부 엔드포인트가 담당한다.
+    public String requestCueSheet(String liveId, CueSheetRequest request) {
+        return STUB_SEGMENTS;
     }
 
     @Override

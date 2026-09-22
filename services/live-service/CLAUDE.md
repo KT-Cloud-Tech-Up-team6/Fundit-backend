@@ -23,13 +23,20 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 > - `live.ai.mode=stub` → `StubAiClient`, `=http` → `HttpAiClient`. **Q&A/FAQ는 AI팀 실계약(v1,
 >   2026-09-17 E2E 검증 완료)으로 연동 완료됐다** — `prepare`/`updateContext`/`submitComments`/
 >   `faq`/`faqComments`/`unanswered`/`unansweredDetail`/`registerSellerAnswer`/`summary`.
->   **큐시트·하이라이트는 여전히 미확정**이라 `HttpAiClient.requestCueSheet`/`requestHighlights`는
+>   **큐시트도 실계약(2026-09-22 확정)으로 연동 완료됐다** — 아래 참고.
+>   **하이라이트는 여전히 미확정**이라 `HttpAiClient.requestHighlights`는
 >   `UnsupportedOperationException`을 던진다 — 그 계약이 나오면 채운다.
 >
-> **큐시트·하이라이트에서 AI 결과 수신 방식은 여전히 가정이다** — AI가 live의 내부 엔드포인트로
-> 밀어주는 구조로 만들었다(`POST /internal/v1/lives/{liveId}/cue-sheet`, `.../highlights`).
-> 확인요청 회신이 "BE가 폴링"으로 오면 내부 엔드포인트 2개를 빼고 AI job 식별자 컬럼과 폴링
-> 스케줄러를 넣는다 — **도메인·서비스·컨트롤러는 그대로다.**
+> **큐시트는 BE→AI 동기 호출로 확정됐다** — Q&A 코파일럿과 다른 AI 서버다(별도 base-url·토큰,
+> `live.cuesheet-ai.*`). AI 응답이 최대 3분+ 걸릴 수 있어 판매자 요청 스레드가 아니라
+> `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`로 분리된 스레드에서 부른다
+> (`CueSheetService.onCueSheetGenerationRequested`). 콜백 수신 엔드포인트
+> (`POST /internal/v1/lives/{liveId}/cue-sheet`)는 삭제됐다.
+>
+> **하이라이트는 여전히 콜백(push) 가정이다** — AI가 live의 내부 엔드포인트로 밀어주는 구조로
+> 만들었다(`POST /internal/v1/lives/{liveId}/highlights`). 확인요청 회신이 "BE가 폴링"으로 오면
+> 내부 엔드포인트를 빼고 AI job 식별자 컬럼과 폴링 스케줄러를 넣는다 —
+> **도메인·서비스·컨트롤러는 그대로다.**
 >
 > **Q&A/FAQ는 이 문제가 없다** — 비동기 결과 자체가 없다. `ChatCommentBatchSender`가 3초 주기로
 > 채팅을 배치 전송하면 그 HTTP 응답으로 바로 답변이 오고, 나머지 조회는 화면을 그릴 때마다
@@ -80,7 +87,8 @@ AI의 `404`(`unansweredDetail`/`registerSellerAnswer`) → `CommonErrorCode.NOT_
 비어 있는 것으로 그 상태를 판단한다(AI의 `GET /unanswered/{qid}` 응답에 grounded 플래그가 없다).
 근거 없음을 에러로 올리면 `PRD` 6.4.4.5가 요구하는 Empty State를 그릴 수 없다.
 
-**큐시트·하이라이트(미확정 초안, 아직 실계약 없음)**: 아래는 AI팀과 확인되지 않은 가정이다.
+**큐시트·하이라이트 에러코드 매핑(미확정 초안)**: 전송 방식(큐시트는 동기 호출)은 확정됐지만,
+AI가 실패를 어떤 코드로 주는지는 아직 논의된 적이 없다 — 아래는 AI팀과 확인되지 않은 가정이다.
 
 | `LiveErrorCode` | status | AI 원본(가정) | 왜 `CommonErrorCode`로 안 되나 |
 | --- | --- | --- | --- |

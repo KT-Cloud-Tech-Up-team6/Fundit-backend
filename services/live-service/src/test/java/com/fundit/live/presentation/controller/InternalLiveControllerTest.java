@@ -3,7 +3,6 @@ package com.fundit.live.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.live.application.chat.ChatIngestService;
-import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.highlight.HighlightService;
 import com.fundit.live.application.session.LiveStatusQueryService;
 import com.fundit.live.infrastructure.security.InternalEndpointConfig;
@@ -37,7 +36,6 @@ class InternalLiveControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private ChatIngestService chatIngestService;
-    @MockitoBean private CueSheetService cueSheetService;
     @MockitoBean private HighlightService highlightService;
     @MockitoBean private LiveStatusQueryService liveStatusQueryService;
 
@@ -89,18 +87,5 @@ class InternalLiveControllerTest {
                 .andExpect(jsonPath("$.status").value("LIVE"))
                 .andExpect(jsonPath("$.sellerId").value(sellerId.toString()));
     }
-
-    @Test
-    void AI가_큐시트_결과를_밀어주면_204다() throws Exception {
-        // given & when & then — 우리가 폴링하면 스케줄러와 job 식별자 컬럼이 따라붙는다
-        mockMvc.perform(post("/internal/v1/lives/{liveId}/cue-sheet", UUID.randomUUID())
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                { "status": "COMPLETED", "segments": [{"order":1}] }
-                                """))
-                .andExpect(status().isNoContent());
-    }
-
 
 }

@@ -31,7 +31,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/prepare"))
                 .andExpect(header("Authorization", "Bearer test-token"))
@@ -54,7 +54,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
                 .andRespond(withSuccess("""
@@ -90,7 +90,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/faq?top_n=10"))
                 .andRespond(withSuccess("""
@@ -120,7 +120,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
                 .andRespond(withSuccess("""
@@ -144,12 +144,64 @@ class HttpAiClientUnitTest {
     }
 
     @Test
-    void 큐시트_요청은_계약_미정이라_지원하지_않는다() {
-        // given & when & then — HttpAiClient가 다룰 대상이 아니다
-        HttpAiClient aiClient = new HttpAiClient(builder().build(), builder().build());
+    void 큐시트_요청이_성공하면_구간_JSON을_그대로_돌려준다() {
+        // given — liveId는 경로가 아니라 바디에 평평하게 실려 간다(큐시트 담당과 합의한 모양)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"live_id\":\"live-1\"")))
+                .andRespond(withSuccess("""
+                        {"segments":[{"id":"s1","title":"오프닝","duration":30,"outline":"...","script":"..."}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        // when
+        String segments = aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
+                "SCENARIO", 580, false, List.of(), null, List.of(), null, null));
+
+        // then
+        assertThat(segments).contains("\"id\":\"s1\"");
+    }
+
+    @Test
+    void 큐시트_요청이_상태FAILED로_오면_예외로_올린다() {
+        // given — AI가 200으로 실패를 알리는 경로(4xx/5xx 말고)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
+                .andRespond(withSuccess("""
+                        {"status":"FAILED","failure_reason":"상품정보 부족"}
+                        """, MediaType.APPLICATION_JSON));
+
+        // when & then — DependencyFailureException.getMessage()는 고정 문구라 원인(cause)에서 확인한다
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
                                 "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
-                .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
+                .cause().hasMessageContaining("상품정보 부족");
+    }
+
+    @Test
+    void 큐시트_요청_응답이_비어있으면_예외로_올린다() {
+        // given — 200인데 바디가 비면 RestClient.body()가 null을 돌려준다(RestClientException이 아님)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
+                .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        // when & then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
+                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
+                .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
+                .cause().hasMessageContaining("빈 응답");
     }
 }

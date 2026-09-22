@@ -45,6 +45,21 @@ public class AiClientConfig {
         return build(baseUrl, token, connectTimeoutMs, commentsReadTimeoutMs);
     }
 
+    /**
+     * 큐시트는 Q&A 코파일럿과 **다른 AI 서버**다(별도 레포·팀, 2026-09-22 협의 확정) — base-url·
+     * 토큰을 공유하면 안 된다. 읽기 타임아웃 기본 200초는 실측(평균 86.5초·최대 122.1초) +
+     * 여유분이다 — "3분 이상 잡아달라"는 합의를 넉넉히 충족한다.
+     */
+    @Bean
+    @Qualifier("cuesheetAiRestClient")
+    public RestClient cuesheetAiRestClient(
+            @Value("${live.cuesheet-ai.base-url}") String baseUrl,
+            @Value("${live.cuesheet-ai.token}") String token,
+            @Value("${live.cuesheet-ai.connect-timeout-ms:3000}") int connectTimeoutMs,
+            @Value("${live.cuesheet-ai.read-timeout-ms:200000}") int readTimeoutMs) {
+        return build(baseUrl, token, connectTimeoutMs, readTimeoutMs);
+    }
+
     private static RestClient build(String baseUrl, String token, int connectTimeoutMs, int readTimeoutMs) {
         var requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(connectTimeoutMs);
