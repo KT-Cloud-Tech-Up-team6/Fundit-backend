@@ -71,7 +71,7 @@ class OrderCreateServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 5, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.INSUFFICIENT_STOCK));
 
@@ -100,9 +100,32 @@ class OrderCreateServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE"), false))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE"), false, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(OrderErrorCode.COUPON_BUDGET_EXCEEDED));
+    }
+
+    @Test
+    void 같은_Idempotency_Key에_다른_요청_본문이_오면_CONFLICT_예외가_발생한다() {
+        // given — 같은 회원이 같은 키로 재요청했지만 이전과 다른 본문(다른 해시)을 보낸 경우.
+        Funding existing = Funding.builder().id(100L).publicId(UUID.randomUUID())
+                .memberId(MEMBER_ID).projectId(PROJECT_ID).projectTitle("프로젝트")
+                .status(com.fundit.order.domain.funding.FundingStatus.PENDING)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
+                .lineItems(List.of()).createdAt(Instant.now())
+                .idempotencyKey("retry-key-1").idempotencyRequestHash("hash-original").build();
+        when(fundingRepository.findByMemberIdAndIdempotencyKey(MEMBER_ID, "retry-key-1"))
+                .thenReturn(Optional.of(existing));
+
+        // when & then
+        assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false,
+                "retry-key-1", "hash-changed"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(com.fundit.common.error.CommonErrorCode.CONFLICT));
     }
 }

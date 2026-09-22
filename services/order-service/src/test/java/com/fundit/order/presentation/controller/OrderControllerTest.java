@@ -167,8 +167,8 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
-        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false)))
-                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L));
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false), any(), any()))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
 
         // when & then
         mockMvc.perform(post("/api/v1/orders")
@@ -179,6 +179,27 @@ class OrderControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void Idempotency_Key로_재요청하면_200과_기존_주문을_반환한다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
+                eq("retry-key-1"), any()))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, true));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .header("Idempotency-Key", "retry-key-1")
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(orderId.toString()));
     }
 
     @Test

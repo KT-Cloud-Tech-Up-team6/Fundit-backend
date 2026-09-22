@@ -31,6 +31,11 @@ public class FundingPersistenceAdapter implements FundingRepository {
     }
 
     @Override
+    public Optional<Funding> findByMemberIdAndIdempotencyKey(UUID memberId, String idempotencyKey) {
+        return fundingJpaRepository.findByMemberIdAndIdempotencyKey(memberId, idempotencyKey).map(this::hydrate);
+    }
+
+    @Override
     public List<Funding> findByPublicIdIn(List<UUID> publicIds) {
         return fundingJpaRepository.findByPublicIdIn(publicIds).stream().map(this::hydrate).toList();
     }

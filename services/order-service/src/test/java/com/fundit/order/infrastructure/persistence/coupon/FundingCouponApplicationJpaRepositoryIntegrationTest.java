@@ -62,7 +62,7 @@ class FundingCouponApplicationJpaRepositoryIntegrationTest {
     private Long seedFunding() {
         Funding funding = Funding.create(UUID.randomUUID(), UUID.randomUUID(), "테스트 프로젝트",
                 new ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 어딘가", null),
-                0L, List.of(), Instant.now().plusSeconds(3600));
+                0L, List.of(), Instant.now().plusSeconds(3600), null, null);
         return fundingRepository.save(funding).getId();
     }
 

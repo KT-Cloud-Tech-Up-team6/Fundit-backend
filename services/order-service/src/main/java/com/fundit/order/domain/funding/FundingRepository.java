@@ -12,6 +12,9 @@ public interface FundingRepository {
 
     Optional<Funding> findByPublicId(UUID publicId);
 
+    /** ORDER-003 멱등 키 조회 — 회원 범위로 유니크. */
+    Optional<Funding> findByMemberIdAndIdempotencyKey(UUID memberId, String idempotencyKey);
+
     /** payment-service 환불 목록(V04) 배치 조회용. */
     List<Funding> findByPublicIdIn(List<UUID> publicIds);
 

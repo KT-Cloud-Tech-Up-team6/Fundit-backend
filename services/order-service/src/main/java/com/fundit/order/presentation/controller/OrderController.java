@@ -27,10 +27,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -60,15 +65,33 @@ public class OrderController {
         return OrderPreviewResponse.from(result);
     }
 
-    /** ORDER-003 — 펀딩 주문 생성(재고 검증/차감). */
+    /**
+     * ORDER-003 — 펀딩 주문 생성(재고 검증/차감). {@code Idempotency-Key} 헤더는 선택값이다 — 보내면
+     * 같은 회원이 같은 키로 재요청했을 때 새 주문을 만들지 않고 기존 주문을 그대로 돌려준다(201 대신
+     * 200). 응답을 못 받은 클라이언트가 재시도할 때 중복 주문/중복 재고차감을 막기 위함이다.
+     */
     @PostMapping
     public ResponseEntity<OrderCreateResponse> create(@LoginUser CurrentUser user,
+                                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                         @Valid @RequestBody OrderPreviewRequest request) {
+        String idempotencyRequestHash = idempotencyKey == null ? null : hashRequest(request);
         OrderCreateService.OrderCreateResult result = orderCreateService.create(user.id(), request.projectId(),
                 toLineItems(request.lineItems()), request.shippingAddress().toDomain(), request.couponCodes(),
-                request.resolveAutoApplyBestCoupon());
-        return ResponseEntity.status(HttpStatus.CREATED)
+                request.resolveAutoApplyBestCoupon(), idempotencyKey, idempotencyRequestHash);
+        HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status)
                 .body(OrderCreateResponse.from(result.funding(), result.finalAmount()));
+    }
+
+    /** 같은 Idempotency-Key에 다른 본문이 오는 것을 구분하기 위한 요청 해시(SHA-256). */
+    private String hashRequest(OrderPreviewRequest request) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(request.toString().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
+        }
     }
 
     /** ORDER-004 — 내 펀딩 참여 목록 조회. */

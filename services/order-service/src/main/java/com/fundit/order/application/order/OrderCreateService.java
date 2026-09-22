@@ -1,6 +1,7 @@
 package com.fundit.order.application.order;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.order.application.catalog.ProjectSummaryClient;
 import com.fundit.order.domain.OrderErrorCode;
 import com.fundit.order.domain.coupon.CouponRepository;
@@ -13,12 +14,15 @@ import com.fundit.order.domain.inventory.InventoryRepository;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaEntity;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -53,9 +57,23 @@ public class OrderCreateService {
         this.paymentExpiryMinutes = paymentExpiryMinutes;
     }
 
+    /**
+     * ORDER-003. {@code idempotencyKey}는 {@code Idempotency-Key} 헤더(선택값) — 없으면 항상
+     * 새 주문을 만든다(기존 동작 유지). 있으면 회원 범위로 조회해 같은 키가 이미 있으면 새로
+     * 만들지 않고 기존 주문을 그대로 돌려준다(재고 차감/쿠폰 적용을 다시 하지 않음). 같은 키에
+     * 요청 본문(idempotencyRequestHash)이 다르면 CONFLICT로 거부한다.
+     */
     @Transactional
     public OrderCreateResult create(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
-                                     ShippingAddress shippingAddress, List<String> couponCodes, boolean autoApplyBestCoupon) {
+                                     ShippingAddress shippingAddress, List<String> couponCodes, boolean autoApplyBestCoupon,
+                                     String idempotencyKey, String idempotencyRequestHash) {
+        if (idempotencyKey != null) {
+            Optional<OrderCreateResult> replay = findReplay(memberId, idempotencyKey, idempotencyRequestHash);
+            if (replay.isPresent()) {
+                return replay.get();
+            }
+        }
+
         OrderPricingService.PricingResult pricing =
                 orderPricingService.calculate(memberId, projectId, lineItemRequests, couponCodes, autoApplyBestCoupon);
 
@@ -69,8 +87,17 @@ public class OrderCreateService {
         Instant paymentExpiresAt = Instant.now().plus(paymentExpiryMinutes, ChronoUnit.MINUTES);
 
         Funding funding = Funding.create(memberId, projectId, projectTitle, shippingAddress,
-                pricing.shippingFee(), fundingLineItems, paymentExpiresAt);
-        Funding saved = fundingRepository.save(funding);
+                pricing.shippingFee(), fundingLineItems, paymentExpiresAt, idempotencyKey, idempotencyRequestHash);
+        Funding saved;
+        try {
+            saved = fundingRepository.save(funding);
+        } catch (DataIntegrityViolationException e) {
+            // uq_fundings_member_idempotency_key 위반 — 동시에 같은 키로 들어온 다른 요청이 먼저
+            // 커밋됨. 이 트랜잭션은 이미 실패했으니(Postgres는 문장 실패 후 같은 트랜잭션 재사용 불가)
+            // CONFLICT로 응답하고, 클라이언트가 같은 키로 재시도하면 이번엔 위 findReplay가 잡는다.
+            throw new BusinessException(CommonErrorCode.CONFLICT,
+                    "동일한 Idempotency-Key로 처리 중인 요청이 있습니다. 잠시 후 다시 시도하세요.");
+        }
 
         // 쿠폰 사용확정(coupon_issuances.status 변경)은 아직 하지 않는다 — ORDER-015가 결제완료
         // 이벤트로 처리한다. 여기서는 "이 주문에 이 쿠폰이 적용됐다"는 사실을 기록하고,
@@ -92,10 +119,26 @@ public class OrderCreateService {
             }
         }
 
-        return new OrderCreateResult(saved, pricing.finalAmount());
+        return new OrderCreateResult(saved, pricing.finalAmount(), false);
     }
 
-    public record OrderCreateResult(Funding funding, long finalAmount) {
+    /** 같은 회원의 같은 키로 이미 만든 주문이 있으면 재고 차감/쿠폰 적용 없이 그대로 돌려준다. */
+    private Optional<OrderCreateResult> findReplay(UUID memberId, String idempotencyKey, String idempotencyRequestHash) {
+        return fundingRepository.findByMemberIdAndIdempotencyKey(memberId, idempotencyKey).map(existing -> {
+            if (!Objects.equals(existing.getIdempotencyRequestHash(), idempotencyRequestHash)) {
+                throw new BusinessException(CommonErrorCode.CONFLICT,
+                        "동일한 Idempotency-Key로 다른 내용의 요청이 감지되었습니다.");
+            }
+            long discountAmount = couponApplicationJpaRepository.findByFundingId(existing.getId()).stream()
+                    .mapToLong(FundingCouponApplicationJpaEntity::getDiscountAmount)
+                    .sum();
+            long finalAmount = existing.totalRewardAmount() + existing.getShippingFee() - discountAmount;
+            return new OrderCreateResult(existing, finalAmount, true);
+        });
+    }
+
+    /** {@code replay=true}면 이번 호출로 새로 만든 주문이 아니라 같은 키의 기존 주문을 그대로 반환한 것이다. */
+    public record OrderCreateResult(Funding funding, long finalAmount, boolean replay) {
     }
 
     private void decreaseStockOrThrow(List<OrderPricingService.ResolvedLineItem> lineItems) {
