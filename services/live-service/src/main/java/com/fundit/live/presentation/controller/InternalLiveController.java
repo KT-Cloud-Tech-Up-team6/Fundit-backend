@@ -1,7 +1,6 @@
 package com.fundit.live.presentation.controller;
 
 import com.fundit.live.application.chat.ChatIngestService;
-import com.fundit.live.application.cuesheet.CueSheetService;
 import com.fundit.live.application.highlight.HighlightService;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
@@ -11,10 +10,8 @@ import com.fundit.live.presentation.dto.ChatIngestRequest;
 import com.fundit.live.presentation.dto.InternalLiveStatusResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
-import tools.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +33,6 @@ import java.util.UUID;
 public class InternalLiveController {
 
     private final ChatIngestService chatIngestService;
-    private final CueSheetService cueSheetService;
     private final HighlightService highlightService;
     private final LiveStatusQueryService liveStatusQueryService;
 
@@ -56,39 +52,6 @@ public class InternalLiveController {
     public InternalLiveStatusResponse status(@PathVariable UUID liveId) {
         LiveStatusQueryService.LiveStatus s = liveStatusQueryService.find(liveId);
         return new InternalLiveStatusResponse(s.liveId(), s.sessionId(), s.status(), s.sellerId());
-    }
-
-    /**
-     * AI 큐시트 생성 결과 수신. AI가 완료되면 이 경로로 밀어준다 —
-     * 우리가 폴링하면 스케줄러와 job 식별자 컬럼이 따라붙는데 얻는 게 없다.
-     *
-     * <p>외부 응답을 그대로 신뢰하지 않고 필요한 값의 존재를 확인한 뒤 저장한다(S7).
-     */
-    @PostMapping("/internal/v1/lives/{liveId}/cue-sheet")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void applyCueSheet(@PathVariable UUID liveId, @Valid @RequestBody CueSheetCallback callback) {
-        cueSheetService.applyResult(liveId, callback.status(), callback.segmentsJson(),
-                callback.failureReason());
-    }
-
-    /**
-     * AI가 돌려주는 큐시트 결과. status는 COMPLETED 또는 FAILED다.
-     *
-     * <p>{@code segments}가 {@code String}이던 때는 AI가 JSON이 아닌 값을 보내면
-     * JSONB 컬럼이 거부해 <b>400이 아니라 500</b>이 났다. {@code JsonNode}로 받으면
-     * Jackson이 파싱 단계에서 걸러낸다({@code CueSheetUpdateRequest}와 같은 방식).
-     * FAILED일 때는 구간이 없으므로 null을 허용한다.
-     */
-    public record CueSheetCallback(@NotBlank String status, JsonNode segments, String failureReason) {
-
-        @AssertTrue(message = "구간은 비어 있지 않은 배열이어야 합니다.")
-        public boolean isSegmentsArrayWhenPresent() {
-            return segments == null || (segments.isArray() && !segments.isEmpty());
-        }
-
-        public String segmentsJson() {
-            return segments == null ? null : segments.toString();
-        }
     }
 
     /**
