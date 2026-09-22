@@ -1,10 +1,14 @@
 package com.fundit.notification.application.notification;
 
+import com.fundit.notification.infrastructure.persistence.livenotifyrequest.LiveNotifyRequestJpaRepository;
+import com.fundit.notification.infrastructure.persistence.notification.NotifType;
 import com.fundit.notification.infrastructure.persistence.notification.NotificationJpaRepository;
 import com.fundit.notification.infrastructure.persistence.notificationsetting.NotificationSettingJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * NOTI-006 적재. 수신설정을 확인하고 알림 행을 만든다.
@@ -23,6 +27,7 @@ public class NotificationAppendService implements NotificationEventListener {
 
     private final NotificationJpaRepository notificationJpaRepository;
     private final NotificationSettingJpaRepository notificationSettingJpaRepository;
+    private final LiveNotifyRequestJpaRepository liveNotifyRequestJpaRepository;
 
     @Override
     @Transactional
@@ -33,5 +38,22 @@ public class NotificationAppendService implements NotificationEventListener {
         }
         notificationJpaRepository.insertIgnoringConflict(
                 event.eventId(), event.memberId(), event.notifType().name(), event.title(), event.relatedUrl());
+    }
+
+    /**
+     * 신청자 수만큼 {@link #onNotificationRaised}를 재사용한다 — 새 적재 경로를 만들지 않는다.
+     * 같은 {@code eventId}를 N명에게 그대로 재사용해도 {@code (event_id, member_id)} UNIQUE라
+     * 안전하다(Kafka 재전송이 와도 이미 적재된 회원 것만 자연히 걸러진다).
+     */
+    @Override
+    @Transactional
+    public void onLiveStarted(LiveStartedEvent event) {
+        String title = event.projectTitle() == null
+                ? "신청하신 라이브 방송이 시작됐어요"
+                : "「" + event.projectTitle() + "」 LIVE가 시작됐어요";
+        for (UUID memberId : liveNotifyRequestJpaRepository.findMemberIdsByLiveId(event.liveId())) {
+            onNotificationRaised(new NotificationRaisedEvent(
+                    event.eventId(), memberId, NotifType.LIVE_START, title, "/live/" + event.liveId()));
+        }
     }
 }

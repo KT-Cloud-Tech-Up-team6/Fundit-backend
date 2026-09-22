@@ -5,10 +5,15 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface LiveNotifyRequestJpaRepository
         extends JpaRepository<LiveNotifyRequestJpaEntity, LiveNotifyRequestId> {
+
+    /** LIVE 시작 알림 팬아웃 대상. */
+    @Query("select r.memberId from LiveNotifyRequestJpaEntity r where r.liveId = :liveId")
+    List<UUID> findMemberIdsByLiveId(@Param("liveId") UUID liveId);
 
     /**
      * 신청은 idempotent해야 한다 — 중복 요청·네트워크 재시도를 실패로 처리하지 않는다(찜 등록과 동일 원칙).
