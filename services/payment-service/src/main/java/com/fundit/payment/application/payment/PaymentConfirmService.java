@@ -27,6 +27,7 @@ public class PaymentConfirmService {
     private final TossPaymentsClient tossPaymentsClient;
     private final PaymentEventPublisher paymentEventPublisher;
     private final SettlementHoldService settlementHoldService;
+    private final PaymentFailureRecorder paymentFailureRecorder;
 
     @Transactional
     public PaymentConfirmResult confirm(UUID accountId, String paymentKey, String orderId, long amount) {
@@ -69,9 +70,9 @@ public class PaymentConfirmService {
         try {
             return tossPaymentsClient.confirm(paymentKey, orderId, amount);
         } catch (TossApiException e) {
-            // ⑥ 실패: Payment(FAILED)만 기록하고 Funding.status는 손대지 않는다(order-service가 PENDING 유지)
-            payment.markFailed();
-            paymentRepository.save(payment);
+            // ⑥ 실패: Payment(FAILED)만 기록하고 Funding.status는 손대지 않는다(order-service가 PENDING 유지).
+            // 이 예외가 던져지면 confirm()의 트랜잭션 전체가 롤백되므로, FAILED 기록은 별도 트랜잭션에서 커밋한다.
+            paymentFailureRecorder.recordFailure(payment);
             if (e.isSessionExpired()) {
                 throw new BusinessException(PaymentErrorCode.PAYMENT_EXPIRED, e.getTossMessage());
             }

@@ -35,13 +35,15 @@ class PaymentConfirmServiceUnitTest {
     private PaymentEventPublisher paymentEventPublisher;
     @Mock
     private SettlementHoldService settlementHoldService;
+    @Mock
+    private PaymentFailureRecorder paymentFailureRecorder;
 
     private PaymentConfirmService paymentConfirmService;
 
     @BeforeEach
     void setUp() {
         paymentConfirmService = new PaymentConfirmService(paymentRepository, tossPaymentsClient,
-                paymentEventPublisher, settlementHoldService);
+                paymentEventPublisher, settlementHoldService, paymentFailureRecorder);
     }
 
     @Test
