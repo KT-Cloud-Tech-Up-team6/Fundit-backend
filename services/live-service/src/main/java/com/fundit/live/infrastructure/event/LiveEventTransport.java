@@ -34,6 +34,11 @@ public interface LiveEventTransport {
         }
     }
 
-    record LiveStartedEvent(String eventId, String liveId, String projectId, String startedAt) {
+    /**
+     * {@code projectTitle}은 notification-service가 "「프로젝트명」 LIVE가 시작됐어요" 문구를
+     * 조립하는 재료다 — 그쪽은 다른 서비스에 되묻지 않는다는 원칙이 있어 발행 측이 채워 보낸다.
+     * 조회 실패 시 null일 수 있다(그러면 일반 문구로 대체된다).
+     */
+    record LiveStartedEvent(String eventId, String liveId, String projectId, String startedAt, String projectTitle) {
     }
 }

@@ -70,16 +70,17 @@ public class LiveEventOutboxWorker {
                     new QuestionsSummarizedEvent(eventId, payload.liveId(), payload.projectId(),
                             payload.summaries()));
             case LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED -> transport.sendLiveStarted(
-                    new LiveStartedEvent(eventId, payload.liveId(), payload.projectId(), payload.occurredAt()));
+                    new LiveStartedEvent(eventId, payload.liveId(), payload.projectId(), payload.occurredAt(),
+                            payload.projectTitle()));
             default -> throw new IllegalStateException("알 수 없는 이벤트 타입: " + event.getEventType());
         }
     }
 
     /**
-     * 아웃박스 payload의 공통 형태. 질문요약만 summaries를 쓰고 나머지는 null이다 —
-     * 종류별 레코드를 3개 두면 역직렬화 분기가 타입마다 생긴다.
+     * 아웃박스 payload의 공통 형태. 질문요약만 summaries를, LIVE_STARTED만 projectTitle을 쓰고
+     * 나머지는 null이다 — 종류별 레코드를 3개 두면 역직렬화 분기가 타입마다 생긴다.
      */
     private record Payload(String liveId, String projectId, String occurredAt,
-                           List<QuestionsSummarizedEvent.SummaryItem> summaries) {
+                           List<QuestionsSummarizedEvent.SummaryItem> summaries, String projectTitle) {
     }
 }
