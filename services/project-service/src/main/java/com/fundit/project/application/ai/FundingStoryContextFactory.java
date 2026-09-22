@@ -121,7 +121,7 @@ public class FundingStoryContextFactory {
         MediaStorageClient.StoredObject stored = storageClient.headObject(key)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_PROJECT_DATA));
         if (stored.contentLength() <= 0 || stored.contentLength() > MAX_IMAGE_BYTES
-                || !IMAGE_TYPES.contains(stored.contentType())) {
+                || stored.contentType() == null || !IMAGE_TYPES.contains(stored.contentType())) {
             throw new BusinessException(ProjectErrorCode.INVALID_PROJECT_DATA);
         }
         target.add(new SourceImageRef(
