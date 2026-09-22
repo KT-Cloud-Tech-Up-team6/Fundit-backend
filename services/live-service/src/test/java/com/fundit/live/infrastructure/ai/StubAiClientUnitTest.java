@@ -31,6 +31,20 @@ class StubAiClientUnitTest {
     }
 
     @Test
+    void 큐시트_요청은_캔_구간을_즉시_돌려준다() {
+        // given — 콜백이 사라졌으니(동기 전환) 스텁도 완료 흐름을 실제로 타야 로컬에서
+        // GENERATING에 영원히 머물지 않는다
+        AiClient.CueSheetRequest request = new AiClient.CueSheetRequest(
+                "SCENARIO", 580, false, List.of(), null, List.of(), null, null);
+
+        // when
+        String segments = new StubAiClient().requestCueSheet("live", request);
+
+        // then
+        assertThat(segments).contains("\"id\":\"stub-0\"");
+    }
+
+    @Test
     void 댓글_배치는_전부_무시_처리로_흉내낸다() {
         // given — 답변이 있는 척하면 화면 검증이 어긋난다
         var comments = List.of(new AiClient.CommentInput("c1", "질문", 0, java.util.UUID.randomUUID()));

@@ -38,6 +38,11 @@ live:
     # AI 서버가 Authorization: Bearer 헤더를 요구한다. 값이 없으면 헤더를 안 붙이는데,
     # 그건 AI 서버가 "개발 모드"(API_TOKEN 미설정)일 때만 통과하므로 운영에서는 반드시 채운다.
     token: ${LIVE_AI_TOKEN}
+  cuesheet-ai:
+    # 큐시트는 Q&A 코파일럿과 다른 AI 서버다(별도 레포·팀, 2026-09-22 협의 확정) —
+    # base-url·토큰을 공유하면 안 된다. live.ai.mode(위)가 http면 이 서버도 같이 실연동된다.
+    base-url: ${LIVE_CUESHEET_AI_BASE_URL}
+    token: ${LIVE_CUESHEET_AI_TOKEN}
 
 # 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
 springdoc:

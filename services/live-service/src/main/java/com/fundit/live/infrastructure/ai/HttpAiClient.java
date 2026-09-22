@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Map;
@@ -17,9 +18,10 @@ import java.util.UUID;
 /**
  * AI 서버(`/api/v1/ai`) 실연동. {@code live.ai.mode=http}일 때만 뜬다.
  *
- * <p>큐시트·하이라이트는 지금도 계약 미정이라 이 구현체가 손대지 않는다 — 그 두 메서드는
- * 여전히 {@code StubAiClient}가 맡거나(스텁 모드), 별도 계약이 확정되면 그때 채운다.
- * <b>이 클래스에서 그 두 메서드를 호출하면 안 된다</b> — 미구현으로 두고
+ * <p>큐시트는 Q&A 코파일럿과 <b>다른 AI 서버</b>다(별도 base-url·토큰,
+ * {@code cuesheetRestClient} — {@link AiClientConfig} 참고). 하이라이트는 지금도 계약 미정이라
+ * 이 구현체가 손대지 않는다 — {@code StubAiClient}가 맡거나(스텁 모드), 계약이 확정되면 채운다.
+ * <b>이 클래스에서 하이라이트 메서드를 호출하면 안 된다</b> — 미구현으로 두고
  * {@code UnsupportedOperationException}을 던져 잘못 배선됐을 때 조용히 무시되지 않게 한다.
  *
  * <p>응답은 신뢰하지 않고 구조 확인 후 사용한다(security.md S7). 댓글 배치 응답에서 빠진
@@ -31,16 +33,57 @@ public class HttpAiClient implements AiClient {
 
     private final RestClient restClient;
     private final RestClient commentsRestClient;
+    private final RestClient cuesheetRestClient;
 
     public HttpAiClient(@Qualifier("aiRestClient") RestClient restClient,
-                        @Qualifier("aiCommentsRestClient") RestClient commentsRestClient) {
+                        @Qualifier("aiCommentsRestClient") RestClient commentsRestClient,
+                        @Qualifier("cuesheetAiRestClient") RestClient cuesheetRestClient) {
         this.restClient = restClient;
         this.commentsRestClient = commentsRestClient;
+        this.cuesheetRestClient = cuesheetRestClient;
     }
 
+    /**
+     * 동기 호출이다 — {@code cuesheetRestClient}의 읽기 타임아웃이 200초라 이 메서드를
+     * 요청 스레드에서 그대로 부르면 안 된다({@code CueSheetService}가 별도 스레드에서 부른다).
+     *
+     * <p>실패는 두 갈래다: HTTP 오류는 {@code call()}이 이미 {@code DependencyFailureException}으로
+     * 감싸고, 200인데 본문이 {@code status=FAILED}거나 구간이 비어 있으면 여기서 같은 예외로
+     * 통일한다 — 호출부가 실패 경로 하나만 처리하면 되게.
+     */
     @Override
-    public void requestCueSheet(String liveId, CueSheetRequest request) {
-        throw new UnsupportedOperationException("큐시트 계약 미정 — HttpAiClient가 다룰 대상이 아니다.");
+    public String requestCueSheet(String liveId, CueSheetRequest request) {
+        CueSheetGenerationResponse response = call(() -> cuesheetRestClient.post()
+                .uri("/cue-sheets")
+                .body(CueSheetHttpRequest.of(liveId, request))
+                .retrieve()
+                .body(CueSheetGenerationResponse.class));
+        if ("FAILED".equals(response.status())) {
+            throw new DependencyFailureException(new IllegalStateException(
+                    response.failureReason() == null ? "AI가 큐시트 생성에 실패했습니다." : response.failureReason()));
+        }
+        if (response.segments() == null || !response.segments().isArray() || response.segments().isEmpty()) {
+            throw new DependencyFailureException(new IllegalStateException("AI가 구간을 비워 보냈습니다."));
+        }
+        return response.segments().toString();
+    }
+
+    /**
+     * {@code liveId}를 감싸지 않고 나머지 필드와 나란히(평평하게) 보낸다 — 합의된 바디 모양이
+     * {@code {"live_id": ..., "mode": ..., "product": {...}, ...}}라 {@code CueSheetRequest}를
+     * {@code "request"} 키로 감싸면 안 된다.
+     */
+    private record CueSheetHttpRequest(String liveId, String mode, int targetDurationSec, boolean demoAvailable,
+                                       List<String> emphasisPoints, String tone, List<String> mandatoryPhrases,
+                                       PrepareRequest product, FundingInfo funding) {
+        static CueSheetHttpRequest of(String liveId, CueSheetRequest r) {
+            return new CueSheetHttpRequest(liveId, r.mode(), r.targetDurationSec(), r.demoAvailable(),
+                    r.emphasisPoints(), r.tone(), r.mandatoryPhrases(), r.product(), r.funding());
+        }
+    }
+
+    /** {@code status}는 실패일 때만 온다(성공 예시는 {@code {"segments":[...]}} 뿐이라 null 허용). */
+    private record CueSheetGenerationResponse(String status, JsonNode segments, String failureReason) {
     }
 
     @Override

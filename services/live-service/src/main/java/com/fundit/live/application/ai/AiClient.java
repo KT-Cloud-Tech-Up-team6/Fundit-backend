@@ -22,8 +22,14 @@ import java.util.Map;
  */
 public interface AiClient {
 
-    /** 큐시트 생성 요청(요구사항정의서 6.2.4.2). 반환 없이 요청만 건다. */
-    void requestCueSheet(String liveId, CueSheetRequest request);
+    /**
+     * 큐시트 생성 요청(요구사항정의서 6.2.4.2). <b>동기</b>다 — AI가 최대 3분까지 걸릴 수 있어
+     * 호출부가 요청 스레드가 아니라 별도 스레드에서 불러야 한다(큐시트 담당과 합의, 2026-09-22).
+     *
+     * @return 생성된 구간(segments) JSON 배열 문자열
+     * @throws com.fundit.common.error.DependencyFailureException AI 호출 실패 또는 생성 실패
+     */
+    String requestCueSheet(String liveId, CueSheetRequest request);
 
     /**
      * 하이라이트 자동 생성 요청(요구사항정의서 6.6.4). 방송 종료 후 호출된다.
@@ -108,7 +114,13 @@ public interface AiClient {
     record BroadcastInfo(Instant endAt, boolean vodEnabled) {
     }
 
-    record FundingInfo(Instant deadline, int achievedRate) {
+    /**
+     * {@code remainingDays}는 {@code deadline}에서 다시 계산할 수 있지만 큐시트 담당이 세 값을
+     * 명시로 요청했다(2026-09-22 협의) — "15일 중 3일차" 같은 문구를 만들 때 남은 일수를 직접
+     * 쓰는 편이 AI 쪽 계산 부담이 없다. Q&A {@code context} PUT과 이 레코드를 공유하는데, 그쪽은
+     * 모르는 필드를 무시하도록 이미 설정돼 있어 필드 추가가 무해하다.
+     */
+    record FundingInfo(Instant deadline, int achievedRate, Integer remainingDays) {
     }
 
     // ── 댓글 배치(A-3) ─────────────────────────────────────────────

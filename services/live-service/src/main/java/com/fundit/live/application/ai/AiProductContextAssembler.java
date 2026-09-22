@@ -49,7 +49,8 @@ public class AiProductContextAssembler {
      */
     public static AiClient.FundingInfo fundingOf(ProjectContextClient.ProjectContext context) {
         int achievedRate = context == null || context.achievementRate() == null ? 0 : context.achievementRate();
-        return new AiClient.FundingInfo(deadlineOf(context), achievedRate);
+        Integer remainingDays = context == null ? null : context.remainingDays();
+        return new AiClient.FundingInfo(deadlineOf(context), achievedRate, remainingDays);
     }
 
     private static Instant deadlineOf(ProjectContextClient.ProjectContext context) {
