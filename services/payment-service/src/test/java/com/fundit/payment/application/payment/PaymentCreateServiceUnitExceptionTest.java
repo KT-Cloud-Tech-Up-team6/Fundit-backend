@@ -91,4 +91,18 @@ class PaymentCreateServiceUnitExceptionTest {
         org.mockito.Mockito.verifyNoInteractions(orderFundingClient);
         org.mockito.Mockito.verify(paymentRepository, org.mockito.Mockito.never()).findPendingByFundingId(FUNDING_ID);
     }
+
+    @Test
+    void 이미_완료된_결제가_타인_소유면_FORBIDDEN_예외가_발생한다() {
+        // given — 완료 여부를 CONFLICT로 노출하면 타인이 소유권 없이도 결제 완료 상태를 알아낼 수 있다
+        Payment completed = Payment.create(FUNDING_ID, UUID.randomUUID(), "fundit-completed", 89_000L, "완료된 주문", null,
+                "idem");
+        when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(completed));
+
+        // when & then
+        assertThatThrownBy(() -> paymentCreateService.create(MEMBER_ID, FUNDING_ID))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
+        org.mockito.Mockito.verifyNoInteractions(orderFundingClient);
+    }
 }

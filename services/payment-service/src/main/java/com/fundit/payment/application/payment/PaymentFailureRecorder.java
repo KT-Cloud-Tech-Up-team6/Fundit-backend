@@ -2,6 +2,7 @@ package com.fundit.payment.application.payment;
 
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentRepository;
+import com.fundit.payment.domain.payment.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -23,7 +24,13 @@ public class PaymentFailureRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(Payment payment) {
-        payment.markFailed();
-        paymentRepository.save(payment);
+        // REQUIRES_NEW라 여기서 다시 조회하면 confirm()의 오래된(PENDING) 스냅샷이 아니라
+        // 그사이 커밋됐을 수 있는 최신 상태를 본다 — 이미 COMPLETED로 확정된 결제를 덮어쓰지 않기 위함.
+        Payment current = paymentRepository.findById(payment.getId()).orElse(payment);
+        if (current.getStatus() != PaymentStatus.PENDING) {
+            return;
+        }
+        current.markFailed();
+        paymentRepository.save(current);
     }
 }

@@ -26,7 +26,11 @@ public class PaymentCreateService {
         // 이중 결제 방지 — order-service의 결제완료 반영(FundingStatus 전이)이 비동기라 그 짧은 창 동안
         // 재호출되면 이미 COMPLETED된 펀딩에도 새 PENDING 결제가 또 생성될 수 있다. 그 창을 없애기 위해
         // completed_funding_id 유니크 인덱스(최종 방어선)보다 앞서 여기서 먼저 막는다.
-        if (paymentRepository.findCompletedByFundingId(orderId).isPresent()) {
+        var completed = paymentRepository.findCompletedByFundingId(orderId);
+        if (completed.isPresent()) {
+            if (!completed.get().isOwnedBy(accountId)) {
+                throw new BusinessException(CommonErrorCode.FORBIDDEN);
+            }
             throw new BusinessException(CommonErrorCode.CONFLICT, "이미 결제가 완료된 주문입니다.");
         }
 

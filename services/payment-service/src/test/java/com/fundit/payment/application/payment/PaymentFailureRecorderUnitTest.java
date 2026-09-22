@@ -33,6 +33,7 @@ class PaymentFailureRecorderUnitTest {
         // given
         Payment payment = Payment.create(new UUID(0L, 1024L), UUID.randomUUID(), "fundit-order-1", 89_000L, "테스트 주문",
                 null, "idem");
+        when(paymentRepository.findById(payment.getId())).thenReturn(java.util.Optional.of(payment));
         when(paymentRepository.save(payment)).thenReturn(payment);
 
         // when
@@ -41,5 +42,20 @@ class PaymentFailureRecorderUnitTest {
         // then
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
         verify(paymentRepository).save(payment);
+    }
+
+    @Test
+    void 이미_COMPLETED로_커밋된_결제는_FAILED로_덮어쓰지_않는다() {
+        // given — confirm()이 들고 있던 오래된 PENDING 스냅샷 대신, 그사이 다른 트랜잭션이 커밋한 최신 상태를 봐야 한다
+        Payment stalePending = Payment.create(new UUID(0L, 1024L), UUID.randomUUID(), "fundit-order-1", 89_000L, "테스트 주문",
+                null, "idem");
+        Payment nowCompleted = stalePending.toBuilder().status(PaymentStatus.COMPLETED).build();
+        when(paymentRepository.findById(stalePending.getId())).thenReturn(java.util.Optional.of(nowCompleted));
+
+        // when
+        paymentFailureRecorder.recordFailure(stalePending);
+
+        // then
+        verify(paymentRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
     }
 }
