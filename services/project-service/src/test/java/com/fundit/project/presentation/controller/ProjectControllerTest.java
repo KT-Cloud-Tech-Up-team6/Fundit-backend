@@ -191,7 +191,7 @@ class ProjectControllerTest {
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
         var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L, null, List.of(),
-                new ProjectQueryService.FundingStatusView(0, 0, 0, null), false,
+                new ProjectQueryService.FundingStatusView(0, 0, 0, null, null), false,
                 new ProjectQueryService.SellerView(sellerId, null), "패션", "의류", "GENERAL");
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
 
@@ -209,7 +209,8 @@ class ProjectControllerTest {
                 "https://example.com/cover.png",
                 List.of(new com.fundit.project.domain.project.IntroContentBlock(
                         com.fundit.project.domain.project.IntroContentType.TEXT, "소개 본문")),
-                new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L), true,
+                new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L,
+                        java.time.Instant.parse("2026-09-15T14:59:00Z")), true,
                 new ProjectQueryService.SellerView(UUID.randomUUID(), null), "패션", "의류", "GENERAL");
         when(projectQueryService.getPublicDetail(publicId)).thenReturn(view);
 
@@ -217,6 +218,8 @@ class ProjectControllerTest {
         mockMvc.perform(get("/api/v1/projects/" + publicId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ONGOING"))
+                // AI 코파일럿이 "몇 시 마감?"에 답하려면 원본 타임스탬프가 필요하다 — 남은 일수만으론 못 만든다
+                .andExpect(jsonPath("$.fundingStatus.fundingDeadline").value("2026-09-15T14:59:00Z"))
                 .andExpect(jsonPath("$.hasLiveVerification").value(true))
                 .andExpect(jsonPath("$.coverImageUrl").value("https://example.com/cover.png"))
                 .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"))

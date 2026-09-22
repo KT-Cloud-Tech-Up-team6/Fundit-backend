@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -32,7 +31,7 @@ class LiveLikeServiceUnitTest {
     private final UUID liveId = UUID.randomUUID();
 
     private void givenSession() {
-        given(sessionRepository.findByPublicId(liveId)).willReturn(Optional.of(
+        given(sessionRepository.findPublicByPublicId(liveId)).willReturn(Optional.of(
                 LiveSessionJpaEntity.builder().id(1L).publicId(liveId).channelId(1L)
                         .projectId(UUID.randomUUID()).status(LiveStatus.LIVE).likeCount(0).build()));
     }

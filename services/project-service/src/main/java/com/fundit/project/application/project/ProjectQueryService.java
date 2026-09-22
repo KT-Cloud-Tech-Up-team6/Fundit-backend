@@ -83,7 +83,8 @@ public class ProjectQueryService {
 
         return new ProjectDetailView(project.getPublicId(), project.getTitle(), project.getStatus().name(),
                 project.getGoalAmount(), project.getCoverImageUrl(), project.getIntroContent(),
-                new FundingStatusView(currentAmount, achievementRate, participantCount, remainingDays),
+                new FundingStatusView(currentAmount, achievementRate, participantCount, remainingDays,
+                        project.getFundingDeadline()),
                 hasLiveVerification, new SellerView(project.getSellerId(), displayName),
                 project.getCategoryMajor(), project.getCategoryMinor(),
                 project.getBusinessType() == null ? null : project.getBusinessType().name());
@@ -95,7 +96,13 @@ public class ProjectQueryService {
         return remaining.isNegative() ? 0L : remaining.toDays() + 1;
     }
 
-    public record FundingStatusView(long currentAmount, int achievementRate, int participantCount, Long remainingDays) {
+    /**
+     * {@code fundingDeadline}은 {@code remainingDays}의 원본이다. 남은 일수만 주면 소비자가
+     * "지금 + N일"로 되짚어야 해서 시:분이 어긋난다 — live-service가 AI에 넘기는 마감 시각이
+     * 실제로 그렇게 어긋나 있었다.
+     */
+    public record FundingStatusView(long currentAmount, int achievementRate, int participantCount,
+                                    Long remainingDays, Instant fundingDeadline) {
     }
 
     public record SellerView(UUID sellerId, String displayName) {

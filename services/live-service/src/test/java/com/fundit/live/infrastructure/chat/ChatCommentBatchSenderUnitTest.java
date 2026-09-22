@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,9 +40,13 @@ class ChatCommentBatchSenderUnitTest {
     }
 
     private ChatMessageJpaEntity message(long id) {
+        return message(id, UUID.randomUUID(), "질문");
+    }
+
+    private ChatMessageJpaEntity message(long id, UUID senderId, String content) {
         return ChatMessageJpaEntity.builder()
-                .id(id).ivsMessageId("m" + id).sessionId(1L).senderId(UUID.randomUUID())
-                .content("질문").sentAt(Instant.parse("2026-09-20T10:05:00Z")).build();
+                .id(id).ivsMessageId("m" + id).sessionId(1L).senderId(senderId)
+                .content(content).sentAt(Instant.parse("2026-09-20T10:05:00Z")).build();
     }
 
     @Test
@@ -78,8 +83,8 @@ class ChatCommentBatchSenderUnitTest {
     }
 
     @Test
-    void errors에_실린_댓글은_전송_완료_표시에서_뺀다() {
-        // given — 임의 답변으로 대체하지 않고 재시도 대상으로 남긴다
+    void errors에_실린_댓글도_전송_완료로_표시해_큐가_막히지_않게_한다() {
+        // given — 조회가 sent_at 오름차순이라 실패건을 남겨두면 그게 계속 앞자리를 차지한다
         given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
                 .willReturn(List.of(message(10L), message(11L)));
         given(aiClient.submitComments(any(), any())).willReturn(
@@ -90,10 +95,58 @@ class ChatCommentBatchSenderUnitTest {
         // when
         sender.sendPendingFor(session());
 
-        // then — 10만 완료 처리, 11은 다음 배치에서 재시도
+        // then — 실패건도 완료로 찍어 다음 배치가 뒤 채팅으로 넘어간다
         ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
-        assertThat(idsCaptor.getValue()).containsExactly(10L);
+        assertThat(idsCaptor.getValue()).containsExactlyInAnyOrder(10L, 11L);
+    }
+
+    @Test
+    void 같은_사람이_같은_말을_반복하면_AI로_넘기지_않는다() {
+        // given — 채팅 1건이 곧 LLM 호출 1건이라 도배는 그대로 비용이 된다
+        UUID spammer = UUID.randomUUID();
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L, spammer, "사주세요"), message(11L, spammer, "사주세요"),
+                        message(12L, spammer, "언제 끝나요?")));
+        given(aiClient.submitComments(any(), any())).willReturn(new AiClient.CommentBatchResult(
+                List.of(), List.of(new AiClient.IgnoredComment("10", "SMALLTALK"),
+                        new AiClient.IgnoredComment("12", "SMALLTALK")), List.of()));
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then — 중복분(11)은 AI로 안 가지만, 다시 골라지지 않게 완료 표시는 된다
+        ArgumentCaptor<List<AiClient.CommentInput>> sentCaptor = ArgumentCaptor.forClass(List.class);
+        verify(aiClient).submitComments(any(), sentCaptor.capture());
+        assertThat(sentCaptor.getValue()).extracting(AiClient.CommentInput::commentId)
+                .containsExactly("10", "12");
+
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getValue()).containsExactlyInAnyOrder(10L, 11L, 12L);
+    }
+
+    @Test
+    void 중복_판정은_배치_경계를_넘어_기억한다() {
+        // given — 50건 배치의 마지막과 다음 틱 배치의 첫 건이 같은 발신자·내용이면
+        // 이번 호출만 보는 로컬 맵으로는 못 잡는다(50/51번째 경계).
+        UUID spammer = UUID.randomUUID();
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L, spammer, "사주세요")))
+                .willReturn(List.of(message(11L, spammer, "사주세요")));
+        given(aiClient.submitComments(any(), any())).willReturn(new AiClient.CommentBatchResult(
+                List.of(), List.of(new AiClient.IgnoredComment("10", "SMALLTALK")), List.of()));
+
+        // when — 같은 세션 인스턴스로 두 번(=두 스케줄러 틱) 호출한다
+        LiveSessionJpaEntity session = session();
+        sender.sendPendingFor(session);
+        sender.sendPendingFor(session);
+
+        // then — 두 번째 틱에선 AI를 다시 부르지 않는다(11이 10의 중복)
+        verify(aiClient, times(1)).submitComments(any(), any());
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository, times(2)).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getAllValues().get(1)).containsExactly(11L);
     }
 
     @Test

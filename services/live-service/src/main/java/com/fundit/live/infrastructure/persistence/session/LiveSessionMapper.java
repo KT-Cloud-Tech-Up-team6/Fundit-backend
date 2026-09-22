@@ -31,6 +31,7 @@ class LiveSessionMapper {
                 .ivsChatRoomArn(entity.getIvsChatRoomArn())
                 .errorDetail(entity.getErrorDetail())
                 .errorOccurredAt(entity.getErrorOccurredAt())
+                .aiPreparedAt(entity.getAiPreparedAt())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -59,6 +60,7 @@ class LiveSessionMapper {
                 .ivsChatRoomArn(session.getIvsChatRoomArn())
                 .errorDetail(session.getErrorDetail())
                 .errorOccurredAt(session.getErrorOccurredAt())
+                .aiPreparedAt(session.getAiPreparedAt())
                 .build();
     }
 }

@@ -66,8 +66,10 @@ public class ProjectStatsService {
     }
 
     /**
-     * order-service {@code project.funding-reward-stats-updated.v1} — reward_stats 전체 교체.
-     * order-service는 이 서비스의 내부 PK를 모르므로 publicId(UUID)로 보낸다 — 여기서 내부 id로
+     * order-service {@code project.funding-reward-stats-updated.v1} — reward_stats 전체 교체 +
+     * 그 금액 합으로 모금액·달성률 갱신.
+     *
+     * <p>order-service는 이 서비스의 내부 PK를 모르므로 publicId(UUID)로 보낸다 — 여기서 내부 id로
      * 변환한다. 알 수 없는 publicId(삭제/오탐)면 예외로 파티션을 막지 않고 이 메시지만 건너뛴다
      * (event-convention.md 7번, at-least-once라 재전송돼도 같은 스냅샷으로 수렴하므로 멱등).
      */
@@ -86,8 +88,32 @@ public class ProjectStatsService {
                         .achievementRate(0)
                         .participantCount(0)
                         .build());
+        long currentAmount = sumRewardAmount(rewardStats);
         snapshot.replaceRewardStats(rewardStats);
+        snapshot.applyFundingProgress(currentAmount, achievementRate(project.getGoalAmount(), currentAmount));
+        // ponytail: participantCount는 그대로 0이다. 이 이벤트에 참여 건수를 셀 필드가 없어
+        // order-service가 페이로드에 추가해줘야 채울 수 있다.
         fundingStatusSnapshotJpaRepository.save(snapshot);
+    }
+
+    /**
+     * 옵션 단위 행({@code optionValueId != null})은 리워드 단위 행과 같은 금액을 쪼개 담고 있어
+     * 같이 더하면 중복 계상된다. order-service의 목표 달성 판정({@code FundingGoalJudgmentService})도
+     * 리워드 단위 합을 쓰므로 판정 결과와 이 값이 어긋나지 않는다.
+     */
+    private long sumRewardAmount(List<RewardStat> rewardStats) {
+        return rewardStats.stream()
+                .filter(s -> s.optionValueId() == null)
+                .mapToLong(s -> s.purchasedAmount() == null ? 0L : s.purchasedAmount())
+                .sum();
+    }
+
+    /** 목표금액이 없는 단계(DRAFT)이거나 0이면 계산할 근거가 없어 0으로 둔다. */
+    private int achievementRate(Long goalAmount, long currentAmount) {
+        if (goalAmount == null || goalAmount <= 0) {
+            return 0;
+        }
+        return (int) (currentAmount * 100 / goalAmount);
     }
 
     @Transactional

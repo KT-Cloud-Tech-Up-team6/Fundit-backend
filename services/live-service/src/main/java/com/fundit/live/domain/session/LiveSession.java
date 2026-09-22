@@ -41,6 +41,9 @@ public class LiveSession {
     private String errorDetail;
     private Instant errorOccurredAt;
 
+    /** AI 상품정보 색인({@code prepare}) 성공 시각. NULL이면 아직 준비 중이다. */
+    private Instant aiPreparedAt;
+
     private final String vodUrl;
     private final Instant vodReadyAt;
     private final int likeCount;
@@ -93,6 +96,15 @@ public class LiveSession {
         this.actualStartAt = now;
         this.errorDetail = null;
         this.errorOccurredAt = null;
+    }
+
+    /**
+     * AI 상품정보 색인 완료 표시. 판매자 화면이 "AI 준비 중"과 "모인 질문 없음"을 다른 문구로
+     * 안내해야 하는데(요구사항정의서 6.4.4.4), 색인을 건 주체가 우리라 AI에 되묻지 않고
+     * 성공 시점을 여기 남긴다.
+     */
+    public void markAiPrepared(Instant now) {
+        this.aiPreparedAt = now;
     }
 
     /** 송출 종료. LIVE 상태에서만 가능하다. */

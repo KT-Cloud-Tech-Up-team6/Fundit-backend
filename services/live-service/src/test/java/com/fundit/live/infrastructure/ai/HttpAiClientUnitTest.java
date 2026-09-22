@@ -97,6 +97,7 @@ class HttpAiClientUnitTest {
                         { "window_sec": 180,
                           "qna": [ { "qid": "fq_0002", "representative_text": "타이머 기능 돼요?", "count": 4,
                                      "category": "앱·원격제어", "answered_by": "SELLER",
+                                     "answered_at": 1789968166.09,
                                      "answer": "네, 최대 12시간 예약 타이머가 있습니다.", "promoted": true } ] }
                         """, MediaType.APPLICATION_JSON));
 
@@ -108,6 +109,38 @@ class HttpAiClientUnitTest {
         assertThat(result.qna().getFirst().qid()).isEqualTo("fq_0002");
         assertThat(result.qna().getFirst().answeredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
         assertThat(result.qna().getFirst().promoted()).isTrue();
+        // AI는 answered_at을 소수점 epoch 초로 준다 — 밀리초까지 살아야 한다
+        assertThat(result.qna().getFirst().answeredAt())
+                .isEqualTo(java.time.Instant.ofEpochMilli(1789968166090L));
+    }
+
+    @Test
+    void 모르는_enum_값이_와도_그_필드만_null이_되고_배치는_살아남는다() {
+        // given — AI가 grounding/handled_by에 우리가 모르는 값을 하나 추가한 상황
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
+                .andRespond(withSuccess("""
+                        { "questions": [ { "question_id": "q_0001", "comment_id": "1041", "text": "언제 끝나요?",
+                                           "handled_by": "BRAND_NEW_KIND", "category": "펀딩", "at_ms": 331200,
+                                           "answer": { "text": "9월 15일 마감입니다", "grounding": "BRAND_NEW_LEVEL",
+                                                       "strict": false, "source": "kb_1" } } ],
+                          "ignored": [] }
+                        """, MediaType.APPLICATION_JSON));
+
+        // when
+        AiClient.CommentBatchResult result = aiClient.submitComments("live-1",
+                List.of(new AiClient.CommentInput("1041", "언제 끝나요?", 331200, null)));
+
+        // then — 모르는 값은 null로 떨어지고 나머지 필드는 그대로 온다
+        assertThat(result.questions()).hasSize(1);
+        assertThat(result.questions().getFirst().handledBy()).isNull();
+        assertThat(result.questions().getFirst().commentId()).isEqualTo("1041");
+        assertThat(result.questions().getFirst().answer().grounding()).isNull();
+        assertThat(result.questions().getFirst().answer().text()).isEqualTo("9월 15일 마감입니다");
     }
 
     @Test

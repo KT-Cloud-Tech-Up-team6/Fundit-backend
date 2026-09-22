@@ -14,9 +14,16 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 방송 중 채팅을 3초마다 모아 AI에 배치로 넘긴다(AI팀 실계약 A-3, 최대 50건/배치 권장).
@@ -38,10 +45,21 @@ public class ChatCommentBatchSender {
     private final ChatMessageJpaRepository chatMessageRepository;
     private final AiClient aiClient;
 
+    /**
+     * 세션별 "발신자가 직전에 보낸 내용" — 배치 경계(50건)를 넘어서도 기억해야 한다. 49번째까지
+     * 처리하고 50번째와 51번째가 같은 내용이면, 51번째는 다음 스케줄러 틱의 새 배치 1번째로 온다 —
+     * 그때 이 맵이 비어 있으면 중복을 놓친다. 방송이 끝나면 {@link #sendPending} 루프에서 정리한다.
+     */
+    private final Map<Long, Map<UUID, String>> lastContentBySession = new ConcurrentHashMap<>();
+
     @Scheduled(fixedDelayString = "${live.ai.comments-poll-interval-ms:3000}")
     public void sendPending() {
+        List<LiveSessionJpaEntity> liveSessions =
+                sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
+        lastContentBySession.keySet().retainAll(liveSessions.stream()
+                .map(LiveSessionJpaEntity::getId).collect(Collectors.toSet()));
         // ponytail: 세션을 순서대로 돈다. 동시 LIVE가 늘어 한 주기가 3초를 넘기면 bounded executor로 나눈다.
-        for (LiveSessionJpaEntity session : sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)) {
+        for (LiveSessionJpaEntity session : liveSessions) {
             sendPendingFor(session);
         }
     }
@@ -57,7 +75,20 @@ public class ChatCommentBatchSender {
             return;
         }
 
-        List<AiClient.CommentInput> comments = pending.stream()
+        List<ChatMessageJpaEntity> toSend = withoutRepeats(session.getId(), pending);
+        // 걸러낸 도배분도 완료로 찍는다 — 안 찍으면 다음 주기에 다시 골라져 영원히 남는다.
+        // 배치 경계를 넘어 기억하므로(lastContentBySession), 이번 배치 전체가 직전 틱의
+        // 마지막 내용과 겹치는 반복이면 toSend가 비어 있을 수 있다 — 그러면 AI를 부르지 않는다.
+        List<Long> skippedIds = pending.stream()
+                .filter(m -> !toSend.contains(m))
+                .map(ChatMessageJpaEntity::getId)
+                .toList();
+        if (toSend.isEmpty()) {
+            chatMessageRepository.markSentToAi(skippedIds, Instant.now());
+            return;
+        }
+
+        List<AiClient.CommentInput> comments = toSend.stream()
                 .map(m -> new AiClient.CommentInput(String.valueOf(m.getId()), m.getContent(),
                         elapsedMs(session, m.getSentAt()), m.getSenderId()))
                 .toList();
@@ -70,18 +101,53 @@ public class ChatCommentBatchSender {
             return;
         }
 
-        // AI가 처리했다고 응답한 건(질문이든 무시든)만 전송 완료 처리한다. errors[]에 실렸거나
-        // 응답에서 빠진 건은 다음 배치에서 다시 보낸다. 요청하지 않은 ID는 pending과의 교집합에서 걸러진다.
+        // AI가 응답에 실어 보낸 건(질문·무시·실패)은 전부 전송 완료로 찍는다. 요청하지 않은 ID는
+        // pending과의 교집합에서 걸러진다.
+        //
+        // errors[]까지 완료로 찍는 이유: 조회가 sent_at 오름차순이라 실패건을 남겨두면 그게 계속
+        // 배치 앞자리를 차지해 뒤 채팅이 방송 끝까지 AI에 도달하지 못한다. 개별 댓글 LLM 실패는
+        // 재시도해도 같은 결과일 가능성이 높고, 잦아지면 그건 AI 서버 장애라 재시도 횟수로 풀
+        // 문제가 아니다. 버린 건 로그로 남긴다.
         Set<String> handled = new HashSet<>();
         result.questions().forEach(q -> handled.add(q.commentId()));
         result.ignored().forEach(i -> handled.add(i.commentId()));
-        List<Long> sentIds = pending.stream()
+        result.errors().forEach(e -> {
+            handled.add(e.commentId());
+            log.warn("AI 댓글 분석 실패, 재전송하지 않고 버린다. sessionId={} commentId={} code={} message={}",
+                    session.getId(), e.commentId(), e.code(), e.message());
+        });
+        List<Long> sentIds = new ArrayList<>(skippedIds);
+        toSend.stream()
                 .map(ChatMessageJpaEntity::getId)
                 .filter(id -> handled.contains(String.valueOf(id)))
-                .toList();
+                .forEach(sentIds::add);
         if (!sentIds.isEmpty()) {
             chatMessageRepository.markSentToAi(sentIds, Instant.now());
         }
+    }
+
+    /**
+     * 같은 사람이 직전에 보낸 것과 똑같은 내용을 반복하면 AI로 넘기지 않는다(요청서 7절 "1차 필터는 BE").
+     * 채팅 1건이 곧 LLM 호출 1건이라 도배는 그대로 비용이 된다.
+     *
+     * <p>발신자별 "직전 내용"은 세션당 맵으로 배치 호출 사이에 유지한다({@link #lastContentBySession}) —
+     * 이 메서드 안에서만 기억하면 50건 배치 경계에 걸친 중복(50번째와 51번째가 같은 발신자·내용)을
+     * 다음 틱에서 놓친다.
+     *
+     * <p>ponytail: 발신자별 "직전과 동일"만 본다. 문구를 조금씩 바꾸는 도배나 여러 계정을 쓰는
+     * 도배는 그대로 통과한다 — 실제로 그런 패턴이 관측되면 그때 유사도·발신자별 한도를 붙인다.
+     */
+    private List<ChatMessageJpaEntity> withoutRepeats(Long sessionId, List<ChatMessageJpaEntity> pending) {
+        Map<UUID, String> lastBySender = lastContentBySession.computeIfAbsent(sessionId, id -> new HashMap<>());
+        List<ChatMessageJpaEntity> kept = new ArrayList<>(pending.size());
+        for (ChatMessageJpaEntity m : pending) {
+            if (m.getSenderId() != null
+                    && Objects.equals(lastBySender.put(m.getSenderId(), m.getContent()), m.getContent())) {
+                continue;
+            }
+            kept.add(m);
+        }
+        return kept;
     }
 
     /** AI의 {@code at_ms}는 방송 시작 기준 경과 ms다. */

@@ -47,7 +47,8 @@ GET /api/v1/home/feed
 {
   "content": [
     {
-      "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+      "projectId": 123,
+      "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
       "projectDisplayCode": "F0000123",
       "title": "세상에 없는 프라이팬",
       "thumbnailUrl": "https://cdn.example.com/p/123/thumb.jpg",
@@ -67,6 +68,9 @@ GET /api/v1/home/feed
 - 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). 현재 구현은 **인기순만** 지원한다(`participant_count DESC, wish_count DESC`). `personalized`/`sort` 쿼리는 받지 않는다.
 - `achievementRate`/`remainingDays`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다(SEARCH-013 동기화 주기에 종속, 미연동 동안 0).
 - 색인이 비어 있으면(콜드 스타트) `content: []` 반환 — 에러 아님.
+- **카드에서 상세로 이동할 때 쓰는 값은 `projectPublicId`(UUID)다.** `projectId`는 색인 내부 PK(숫자)이고
+  `projectDisplayCode` 생성 재료일 뿐이라, 상세 API(`GET /api/v1/projects/{projectId}`)에 넣으면 안 된다 —
+  그쪽 경로 변수는 project-service의 `public_id`(UUID)다. 이 카드 형태는 홈피드·카테고리·검색 상품탭이 공유한다.
 
 ---
 

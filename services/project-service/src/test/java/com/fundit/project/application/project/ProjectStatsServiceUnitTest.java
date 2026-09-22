@@ -43,8 +43,13 @@ class ProjectStatsServiceUnitTest {
     private ProjectStatsService projectStatsService;
 
     private Project ownedProject(UUID sellerId, UUID publicId) {
+        return ownedProject(sellerId, publicId, 1_000_000L);
+    }
+
+    private Project ownedProject(UUID sellerId, UUID publicId, Long goalAmount) {
         return Project.builder()
                 .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.ONGOING)
+                .goalAmount(goalAmount)
                 .fundingDeadline(Instant.now().plusSeconds(5 * 24 * 3600))
                 .createdAt(Instant.now()).updatedAt(Instant.now()).build();
     }
@@ -179,6 +184,69 @@ class ProjectStatsServiceUnitTest {
         verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
         assertThat(captor.getValue().getRewardStats()).isEqualTo(stats);
         assertThat(captor.getValue().getLastSyncedAt()).isNotNull();
+    }
+
+    @Test
+    void 리워드_통계로_모금액과_달성률을_계산한다() {
+        // given — 목표 100만원, 리워드 단위 합 30만원
+        UUID publicId = UUID.randomUUID();
+        List<RewardStat> stats = List.of(
+                new RewardStat(1L, null, 2, 200_000L),
+                new RewardStat(2L, null, 1, 100_000L));
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId, 1_000_000L)));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(publicId, stats);
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentAmount()).isEqualTo(300_000L);
+        assertThat(captor.getValue().getAchievementRate()).isEqualTo(30);
+    }
+
+    @Test
+    void 옵션_단위_행은_모금액에서_제외한다() {
+        // given — 옵션 행은 리워드 행의 금액을 쪼갠 것이라 같이 더하면 중복 계상된다
+        UUID publicId = UUID.randomUUID();
+        List<RewardStat> stats = List.of(
+                new RewardStat(1L, null, 2, 200_000L),
+                new RewardStat(1L, 100L, 1, 100_000L),
+                new RewardStat(1L, 101L, 1, 100_000L));
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId, 1_000_000L)));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(publicId, stats);
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentAmount()).isEqualTo(200_000L);
+    }
+
+    @Test
+    void 목표금액이_없으면_달성률은_0이다() {
+        // given — DRAFT 단계는 goal_amount가 NULL이다
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId, null)));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, null, 2, 200_000L)));
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentAmount()).isEqualTo(200_000L);
+        assertThat(captor.getValue().getAchievementRate()).isZero();
     }
 
     @Test

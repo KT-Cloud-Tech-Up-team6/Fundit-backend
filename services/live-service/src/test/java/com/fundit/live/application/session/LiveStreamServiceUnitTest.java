@@ -30,11 +30,31 @@ class LiveStreamServiceUnitTest {
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private LiveEventOutboxJpaRepository outboxRepository;
     @Mock private IvsClient ivsClient;
+    @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @InjectMocks private LiveStreamService liveStreamService;
 
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
+
+    @Test
+    void 색인_완료_표시는_새_트랜잭션에서_저장한다() {
+        // given — afterCommit 안의 쓰기는 이미 커밋된 트랜잭션에 합류해 조용히 버려진다.
+        // REQUIRES_NEW가 빠지면 ai_prepared_at이 영영 안 남아 화면이 계속 PREPARING이 된다.
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+
+        // when
+        liveStreamService.markAiPrepared(session);
+
+        // then
+        ArgumentCaptor<org.springframework.transaction.TransactionDefinition> defCaptor =
+                ArgumentCaptor.forClass(org.springframework.transaction.TransactionDefinition.class);
+        verify(transactionManager).getTransaction(defCaptor.capture());
+        assertThat(defCaptor.getValue().getPropagationBehavior())
+                .isEqualTo(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThat(session.getAiPreparedAt()).isNotNull();
+        verify(sessionRepository).save(session);
+    }
 
     @Test
     void 시작하면_LIVE로_전이한다() {

@@ -58,7 +58,7 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 - **AI는 우리가 조립한 컨텍스트만 받는다**: 흐름은 `FE → BE → AI → BE → FE`이고 FE는 AI 서버를 직접 부르지 않는다(협의 확정). 호출 구현은 `auth-service`의 `PortOneRestClient` 패턴을 그대로 쓴다 — `RestClient` + connect/read 타임아웃 명시, 실패는 `DependencyFailureException`, 응답은 구조 검증 후 사용(S7). 기본 타임아웃을 그대로 두면 AI가 느려질 때 방송 화면이 같이 멈춘다.
 - **자동 생성물은 비공개로 시작한다**: 하이라이트는 `is_public=false`가 기본이고 판매자가 확정해야 소비자에게 보인다(`PRD` 6.6.3). 기본값을 TRUE로 바꾸면 검수 전 내용이 그대로 새어나간다.
 - **AI 추천답변은 자동 게시하지 않는다**: `GENERATE`로 초안만 만들고 판매자가 `SEND`해야 `registerSellerAnswer`에 등록되고 `live_question_summaries`가 갱신된다. **`SEND`가 지금 실제 채팅에 게시하지는 않는다** — `IvsClient`에 `SendMessage`류가 없어서다(위 "외부 연동 2개는 스텁이다" 참고). 채팅 게시는 `AwsIvsClient`가 생기는 별도 작업으로 미뤄졌다. 환불·결제·배송 등 **정책 항목은 요약·재구성하지 않고 등록된 원문 그대로** 내보낸다(`PRD` 6.4.3).
-- **근거 없는 답변을 만들지 않는다**: 상품 질문의 근거 범위는 리워드 기본 정보와 상세페이지뿐이다. AI가 근거를 못 찾으면(`Grounding.UNGROUNDED`) 초안에 `[판매자 확인 필요: ...]`로 표시하고 지어내지 않는다.
+- **근거 없는 답변을 만들지 않는다**: 상품 질문의 근거 범위는 리워드 기본 정보와 상세페이지뿐이다. AI가 근거를 못 찾으면 답변을 생성하지 않고 미답변으로 분류해 판매자에게 넘긴다 — 판매자 화면은 `referenceChunks`가 빈 것으로 이 상태를 안다.
 - **AI 컨텍스트는 값이 실제로 바뀌는 지점에서만 갱신한다**: `prepare`는 방송 시작 시 1회(상품이 바뀌면 재호출), `updateContext`는 방송 설정 저장 시. 둘 다 트랜잭션 커밋 후에 호출해 AI 실패·지연이 방송 시작/설정 저장 자체를 막지 않는다. 폴링은 두지 않는다(YAGNI).
 - **쿠폰 재고는 원자적 UPDATE로 차감한다**: `UPDATE ... SET remaining_quantity = remaining_quantity - 1 WHERE id = ? AND remaining_quantity > 0`. 조회 후 차감하면 방송 중 동시 요청에서 초과 발급이 난다.
 - **쿠폰은 order-service 소관이다. live는 상태만 답한다**: order `coupons`가 생애주기 전체를 갖고 있고 `issue_channel='LIVE'`·`live_session_id`·`drop_type`·낙관적 락까지 이미 있다. live는 `GET /internal/v1/lives/{liveId}/status`로 "이 방송이 진행 중인가"만 답한다. **호출 방향이 order → live다** — 쿠폰의 주인이 order이므로 판정 정보를 그쪽이 가져간다.
@@ -75,10 +75,10 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 
 **Q&A/FAQ(실계약 v1, 확정)**: AI의 `409 NOT_PREPARED`(`submitComments`) → `CommonErrorCode.CONFLICT`,
 AI의 `404`(`unansweredDetail`/`registerSellerAnswer`) → `CommonErrorCode.NOT_FOUND`, 그 외
-전부(`401` 등) → `DependencyFailureException`(503). `EVIDENCE_UNAVAILABLE`에 대응하는
-`Grounding.UNGROUNDED`는 **에러가 아니라 정상 응답의 한 상태**다 — `200` + `draftAnswer`에
-`[판매자 확인 필요: ...]`로 표시한다. 근거 없음을 에러로 올리면 `PRD` 6.4.4.5가 요구하는 Empty
-State를 그릴 수 없다.
+전부(`401` 등) → `DependencyFailureException`(503). `EVIDENCE_UNAVAILABLE`(근거 없음)은
+**에러가 아니라 정상 응답의 한 상태**다 — `200`으로 내리고, 판매자 화면은 `referenceChunks`가
+비어 있는 것으로 그 상태를 판단한다(AI의 `GET /unanswered/{qid}` 응답에 grounded 플래그가 없다).
+근거 없음을 에러로 올리면 `PRD` 6.4.4.5가 요구하는 Empty State를 그릴 수 없다.
 
 **큐시트·하이라이트(미확정 초안, 아직 실계약 없음)**: 아래는 AI팀과 확인되지 않은 가정이다.
 
