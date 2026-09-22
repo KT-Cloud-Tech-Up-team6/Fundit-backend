@@ -185,4 +185,23 @@ class HttpAiClientUnitTest {
                 .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
                 .cause().hasMessageContaining("상품정보 부족");
     }
+
+    @Test
+    void 큐시트_요청_응답이_비어있으면_예외로_올린다() {
+        // given — 200인데 바디가 비면 RestClient.body()가 null을 돌려준다(RestClientException이 아님)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
+                .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        // when & then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
+                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
+                .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
+                .cause().hasMessageContaining("빈 응답");
+    }
 }

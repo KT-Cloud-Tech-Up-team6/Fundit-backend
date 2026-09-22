@@ -58,6 +58,9 @@ public class HttpAiClient implements AiClient {
                 .body(CueSheetHttpRequest.of(liveId, request))
                 .retrieve()
                 .body(CueSheetGenerationResponse.class));
+        if (response == null) {
+            throw new DependencyFailureException(new IllegalStateException("AI가 빈 응답을 보냈습니다."));
+        }
         if ("FAILED".equals(response.status())) {
             throw new DependencyFailureException(new IllegalStateException(
                     response.failureReason() == null ? "AI가 큐시트 생성에 실패했습니다." : response.failureReason()));
