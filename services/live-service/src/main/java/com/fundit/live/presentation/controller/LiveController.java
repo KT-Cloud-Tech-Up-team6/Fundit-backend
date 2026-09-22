@@ -15,6 +15,8 @@ import com.fundit.live.presentation.dto.ChatTokenResponse;
 import com.fundit.live.presentation.dto.LiveCreateRequest;
 import com.fundit.live.presentation.dto.PlaybackResponse;
 import com.fundit.live.presentation.dto.VodChatMessageResponse;
+import com.fundit.live.presentation.dto.LikeResponse;
+import com.fundit.live.presentation.dto.LikedResponse;
 import com.fundit.live.presentation.dto.LiveCreateResponse;
 import com.fundit.live.presentation.dto.LiveSettingsRequest;
 import com.fundit.live.presentation.dto.LiveStatusResponse;
@@ -147,16 +149,20 @@ public class LiveController {
 
     /** LIVE 좋아요(요구사항정의서 11.2.4). idempotent — 두 번 눌러도 카운트는 1이다. */
     @PutMapping("/{liveId}/like")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void like(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
-        liveLikeService.like(user.id(), liveId);
+    public LikeResponse like(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return new LikeResponse(true, liveLikeService.like(user.id(), liveId));
     }
 
-    /** 좋아요 취소. 누른 적 없어도 204다 — 취소도 idempotent해야 한다. */
+    /** 좋아요 취소. 누른 적 없어도 정상이다 — 취소도 idempotent해야 한다. */
     @DeleteMapping("/{liveId}/like")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void unlike(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
-        liveLikeService.unlike(user.id(), liveId);
+    public LikeResponse unlike(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return new LikeResponse(false, liveLikeService.unlike(user.id(), liveId));
+    }
+
+    /** 내 좋아요 여부(FE #269). 목록·재생 화면은 비인증이라 별도 경로로 뺐다. */
+    @GetMapping("/{liveId}/like")
+    public LikedResponse liked(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return new LikedResponse(liveLikeService.isLiked(user.id(), liveId));
     }
 
     /**

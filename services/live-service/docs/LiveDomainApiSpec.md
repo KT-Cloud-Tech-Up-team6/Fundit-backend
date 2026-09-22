@@ -37,10 +37,11 @@
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/lives/banner` | X | 진행중 LIVE 배너 조회 |
-| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별) |
+| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별·실시간 순위·팔로우 필터) |
 | GET | `/api/v1/lives/{liveId}/playback` | X | LIVE 시청 정보 조회 |
 | PUT | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요(idempotent) |
 | DELETE | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요 취소(idempotent) |
+| GET | `/api/v1/lives/{liveId}/like` | O | 내 좋아요 여부 조회 |
 | GET | `/api/v1/lives/{liveId}/share-link` | X | LIVE 공유 링크 생성 — **미구현**(아래 참고) |
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
@@ -812,6 +813,8 @@ Response Body
 
 ```
 GET /api/v1/lives?status=LIVE&page=0&size=20
+GET /api/v1/lives?sort=viewerCount&page=0&size=20
+GET /api/v1/lives?sellerId=0198...&sellerId=0197...&page=0&size=20
 ```
 
 Response Body
@@ -819,8 +822,9 @@ Response Body
 ```json
 {
   "content": [
-    { "liveId": "0199...", "introText": "...", "status": "LIVE", "viewerCount": 234, "thumbnailUrl": "...",
-      "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128 }
+    { "liveId": "0199...", "introText": "...", "status": "LIVE", "thumbnailUrl": "...",
+      "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128,
+      "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234 }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
 }
@@ -833,8 +837,14 @@ Validation / Business Rules
 - `status`: `SCHEDULED`(오픈 예정) / `LIVE`(진행 중) / `ENDED`(다시보기). 생략 시 전체.
 - **`DRAFT` 상태는 소비자 목록에 절대 나오지 않는다** — 설정이 끝나지 않은 방송이다.
 - 인증 불필요. 조회 조건은 바인딩 변수로 처리한다(S1).
-- **`viewerCount`는 DB 컬럼이 아니라 IVS 지표 조회 결과다.** 실시간 카운터를 DB에 두면 방송 중 매 초 UPDATE가 들어오고 그만큼 정확해지지도 않는다. 지표 조회가 실패하면 이 필드를 생략한다(목록 자체는 정상 응답).
-- **정렬은 생성 최신순 단일 기준이다**(`createdAt desc, id desc`). 상태별로 기준이 갈리면
+- **`sort=viewerCount`(실시간 순위)**: `viewerCount`는 DB 컬럼이 아니라 IVS 실시간 조회 결과라
+  이 정렬일 때만 채워진다(그 외에는 `null`). `status=LIVE`로 결과가 한정된다 — `status`
+  파라미터를 같이 줘도 무시된다(다른 상태엔 시청자 수 개념이 없다). 방송이 막 끊겨 IVS가
+  "방송 중 아님"을 돌려주면 0으로 처리한다(순위 목록 전체 조회가 막히면 안 된다).
+- **`sellerId`(팔로우한 창작자 필터)**: 다중 지정 가능. 팔로우 관계는 member-service 소관이라
+  FE가 `GET /api/v1/follows`로 받은 목록을 그대로 넘겨준다 — live-service는 member-service를
+  동기 호출하지 않는다. `sort=viewerCount`와 동시 지정은 지원하지 않는다(`sort`가 우선).
+- **정렬 기본값은 생성 최신순**(`createdAt desc, id desc`)이다. 상태별로 기준이 갈리면
   `status`를 생략한 전체 조회에서 어느 쪽을 쓸지 정할 수 없다. `id` 보조 정렬은 `createdAt`이
   동률일 때 페이지 간 중복·누락을 막는다.
 
@@ -890,6 +900,22 @@ Response Body
 ```json
 { "liked": true, "likeCount": 128 }
 ```
+
+```
+GET /api/v1/lives/{liveId}/like
+```
+
+Auth Required: **O**
+
+Response Body
+
+```json
+{ "liked": true }
+```
+
+- **왜 `playback`에 안 넣었나**: `/playback`은 방송 자체가 공개라 의도적으로 완전 비인증이다.
+  `@LoginUser`는 헤더가 없으면 무조건 401을 던지는 전부-아니면-전무 방식이라 "로그인 시에만
+  채움"을 지원하지 않는다 — 비로그인 시청자가 전부 막히지 않도록 별도 경로로 뺐다.
 
 ```
 GET /api/v1/lives/{liveId}/share-link
