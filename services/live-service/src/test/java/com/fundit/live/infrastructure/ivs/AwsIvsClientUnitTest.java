@@ -4,8 +4,12 @@ import com.fundit.live.application.ivs.IvsClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
+import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.GetStreamResponse;
+import software.amazon.awssdk.services.ivs.model.Stream;
 import software.amazon.awssdk.services.ivs.model.StreamKey;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
@@ -86,5 +90,34 @@ class AwsIvsClientUnitTest {
         assertThat(room.getValue().loggingConfigurationIdentifiers()).containsExactly("arn:logging");
         assertThat(roomArn).isEqualTo("arn:room");
         assertThat(token).isEqualTo("chat-token");
+    }
+
+    @Test
+    void 시청자_수를_조회한다() {
+        // given
+        given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
+                .stream(Stream.builder().viewerCount(42L).build())
+                .build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        int viewerCount = client.getViewerCount("arn:channel");
+
+        // then
+        assertThat(viewerCount).isEqualTo(42);
+    }
+
+    @Test
+    void 방송_중이_아니면_시청자수는_0이다() {
+        // given — 순위 목록 조회 자체를 막으면 안 된다(전체 요청 실패보다 0이 낫다)
+        given(ivs.getStream(any(GetStreamRequest.class)))
+                .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        int viewerCount = client.getViewerCount("arn:channel");
+
+        // then
+        assertThat(viewerCount).isZero();
     }
 }

@@ -11,16 +11,20 @@ import java.util.UUID;
  * <p>{@code title}이 없다 — 요구사항정의서 6.2.4.1의 LIVE 입력 항목은 카테고리·소개 문구·
  * 방송 예정일뿐이고 제목 입력이 없다. 카드에 노출할 문구는 {@code introText}다.
  *
- * <p>{@code viewerCount}도 없다 — DB 컬럼이 아니라 IVS 지표 조회 결과다. IVS 연동이 붙을 때
- * 채운다(지표 조회가 실패하면 필드를 생략하고 목록 자체는 정상 응답한다).
+ * <p>{@code viewerCount}는 {@code sort=viewerCount}(실시간 순위)일 때만 채워진다 — DB 컬럼이
+ * 아니라 IVS 실시간 조회 결과라 다른 정렬에서는 세션마다 IVS를 부를 이유가 없다.
  */
 public record LiveSummaryResponse(UUID liveId, String introText, String status, UUID projectId,
                                   String thumbnailUrl, Instant scheduledStartAt, int likeCount,
-                                  Instant createdAt) {
+                                  Instant createdAt, Integer viewerCount) {
 
     public static LiveSummaryResponse from(LiveSessionJpaEntity e) {
+        return from(e, null);
+    }
+
+    public static LiveSummaryResponse from(LiveSessionJpaEntity e, Integer viewerCount) {
         return new LiveSummaryResponse(e.getPublicId(), e.getIntroText(), e.getStatus().name(),
                 e.getProjectId(), e.getThumbnailUrl(), e.getScheduledStartAt(),
-                e.getLikeCount(), e.getCreatedAt());
+                e.getLikeCount(), e.getCreatedAt(), viewerCount);
     }
 }

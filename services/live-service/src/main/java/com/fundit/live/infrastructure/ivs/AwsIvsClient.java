@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
@@ -71,6 +73,21 @@ public class AwsIvsClient implements IvsClient {
                 .userId(userId)
                 .capabilitiesWithStrings(capabilities)
                 .build())).token();
+    }
+
+    @Override
+    public int getViewerCount(String channelArn) {
+        try {
+            return call(() -> ivs.getStream(GetStreamRequest.builder().channelArn(channelArn).build()))
+                    .stream().viewerCount().intValue();
+        } catch (DependencyFailureException e) {
+            // ChannelNotBroadcastingException도 SdkException이라 call()이 감싸서 던진다 —
+            // 방송이 막 끊긴 세션은 순위에서 0으로 취급하면 충분하다(전체 목록 조회를 막지 않는다).
+            if (e.getCause() instanceof ChannelNotBroadcastingException) {
+                return 0;
+            }
+            throw e;
+        }
     }
 
     private static <T> T call(Supplier<T> request) {

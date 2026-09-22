@@ -41,6 +41,13 @@ class StubIvsClientUnitTest {
     }
 
     @Test
+    void 시청자_수는_채널마다_다른_값을_돌려준다() {
+        // given & when & then — 로컬에서 실제 정렬이 바뀌는지 확인할 수 있어야 한다
+        assertThat(client.getViewerCount("arn-a")).isNotEqualTo(client.getViewerCount("arn-b"));
+        assertThat(client.getViewerCount("arn-a")).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
     void 테스트_영상_URL을_설정하면_재생_URL로_쓴다() {
         // given — IVS 없이 FE 플레이어를 검증할 S3 테스트 영상
         StubIvsClient configured = new StubIvsClient("https://infrastudy.store/media/test/master.m3u8");
