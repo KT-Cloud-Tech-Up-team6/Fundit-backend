@@ -11,6 +11,10 @@ import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
 import com.fundit.project.domain.reward.RewardRepository;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
+import com.fundit.project.infrastructure.persistence.reward.RewardOptionGroupJpaEntity;
+import com.fundit.project.infrastructure.persistence.reward.RewardOptionGroupJpaRepository;
+import com.fundit.project.infrastructure.persistence.reward.RewardOptionValueJpaEntity;
+import com.fundit.project.infrastructure.persistence.reward.RewardOptionValueJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +49,10 @@ class ProjectRewardPersistenceIntegrationTest {
     private RewardRepository rewardRepository;
     @Autowired
     private CategoryJpaRepository categoryJpaRepository;
+    @Autowired
+    private RewardOptionGroupJpaRepository optionGroupJpaRepository;
+    @Autowired
+    private RewardOptionValueJpaRepository optionValueJpaRepository;
 
     @Test
     void 프로젝트를_저장하면_public_id와_project_display_code가_채워진다() {
@@ -124,9 +132,71 @@ class ProjectRewardPersistenceIntegrationTest {
         // when
         rewardRepository.replaceOptions(reward.getId(), options);
 
-        // then — replaceOptions 자체가 예외 없이 완료되면 정상(옵션은 응답에 되읽지 않는 설계).
+        // then — replaceOptions 자체가 예외 없이 완료되면 정상(영속화된 그룹은 반환값으로 되읽는다).
         Reward reloaded = rewardRepository.findById(reward.getId()).orElseThrow();
         assertThat(reloaded.getId()).isEqualTo(reward.getId());
+    }
+
+    @Test
+    void 기존_그룹_ID를_포함해_치환하면_그룹_ID가_유지된채_이름과_값만_바뀐다() {
+        // given
+        Long projectId = persistProjectId();
+        Reward reward = rewardRepository.save(Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null));
+        rewardRepository.replaceOptions(reward.getId(), List.of(new RewardOptionGroup("색상", List.of("화이트", "블랙"))));
+        Long groupId = optionGroupJpaRepository.findByRewardId(reward.getId()).get(0).getId();
+
+        // when — 같은 그룹 ID로 이름/값만 바꿔서 재치환
+        rewardRepository.replaceOptions(reward.getId(), List.of(new RewardOptionGroup(groupId, "색깔", List.of("레드"))));
+
+        // then
+        List<RewardOptionGroupJpaEntity> groups = optionGroupJpaRepository.findByRewardId(reward.getId());
+        assertThat(groups).hasSize(1);
+        assertThat(groups.get(0).getId()).isEqualTo(groupId);
+        assertThat(groups.get(0).getName()).isEqualTo("색깔");
+        assertThat(optionValueJpaRepository.findByOptionGroupIdOrderBySortOrderAsc(groupId))
+                .extracting(RewardOptionValueJpaEntity::getValue)
+                .containsExactly("레드");
+    }
+
+    @Test
+    void 재치환_요청에_없는_기존_그룹은_삭제된다() {
+        // given
+        Long projectId = persistProjectId();
+        Reward reward = rewardRepository.save(Reward.create(projectId, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null));
+        rewardRepository.replaceOptions(reward.getId(), List.of(
+                new RewardOptionGroup("색상", List.of("화이트")),
+                new RewardOptionGroup("사이즈", List.of("M"))));
+        Long colorGroupId = optionGroupJpaRepository.findByRewardId(reward.getId()).stream()
+                .filter(g -> g.getName().equals("색상")).findFirst().orElseThrow().getId();
+
+        // when — 색상 그룹만 ID로 유지하고, 사이즈 그룹은 요청에서 뺀다
+        rewardRepository.replaceOptions(reward.getId(), List.of(new RewardOptionGroup(colorGroupId, "색상", List.of("화이트"))));
+
+        // then
+        assertThat(optionGroupJpaRepository.findByRewardId(reward.getId()))
+                .extracting(RewardOptionGroupJpaEntity::getName)
+                .containsExactly("색상");
+    }
+
+    @Test
+    void 다른_리워드_소속_그룹_ID를_보내면_해당_그룹을_건드리지_않고_신규_그룹으로_취급한다() {
+        // given
+        Long projectId = persistProjectId();
+        Reward rewardA = rewardRepository.save(Reward.create(projectId, "A", "설명", null, 1000L, false, null, false, null, null, null, null, null));
+        Reward rewardB = rewardRepository.save(Reward.create(projectId, "B", "설명", null, 1000L, false, null, false, null, null, null, null, null));
+        rewardRepository.replaceOptions(rewardA.getId(), List.of(new RewardOptionGroup("색상", List.of("화이트"))));
+        Long groupIdOfA = optionGroupJpaRepository.findByRewardId(rewardA.getId()).get(0).getId();
+
+        // when — B 리워드 수정 요청에 A 소유 그룹 ID를 실어 보낸다
+        rewardRepository.replaceOptions(rewardB.getId(), List.of(new RewardOptionGroup(groupIdOfA, "탈취시도", List.of("x"))));
+
+        // then — A의 그룹은 그대로고, B에는 별도의 새 그룹이 생긴다(A 그룹을 가로채지 않는다)
+        assertThat(optionGroupJpaRepository.findByRewardId(rewardA.getId()))
+                .extracting(RewardOptionGroupJpaEntity::getName)
+                .containsExactly("색상");
+        List<RewardOptionGroupJpaEntity> bGroups = optionGroupJpaRepository.findByRewardId(rewardB.getId());
+        assertThat(bGroups).hasSize(1);
+        assertThat(bGroups.get(0).getId()).isNotEqualTo(groupIdOfA);
     }
 
     private Long persistProjectId() {

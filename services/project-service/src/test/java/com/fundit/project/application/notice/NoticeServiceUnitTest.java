@@ -78,6 +78,24 @@ class NoticeServiceUnitTest {
     }
 
     @Test
+    void 소유_판매자가_제목만_수정하면_본문은_유지된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
+                .id(1L).projectId(1L).noticeType("FAQ").title("기존제목").content("기존내용").build();
+        when(noticeJpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(notice));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(publicProject(sellerId, UUID.randomUUID())));
+        when(noticeJpaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        ProjectNoticeJpaEntity result = noticeService.update(sellerId, 1L, "새제목", null);
+
+        // then
+        assertThat(result.getTitle()).isEqualTo("새제목");
+        assertThat(result.getContent()).isEqualTo("기존내용");
+    }
+
+    @Test
     void 공개_프로젝트_새소식에_댓글을_등록한다() {
         // given
         UUID memberId = UUID.randomUUID();

@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,6 +68,23 @@ class NoticeControllerTest {
         mockMvc.perform(get("/api/v1/projects/" + projectId + "/notices"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].title").value("제목"));
+    }
+
+    @Test
+    void 새소식을_수정하면_200을_반환한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
+                .id(1L).projectId(1L).noticeType("FAQ").title("새제목").content("내용").createdAt(Instant.now()).build();
+        when(noticeService.update(eq(sellerId), eq(1L), eq("새제목"), any())).thenReturn(notice);
+
+        // when & then
+        mockMvc.perform(patch("/api/v1/notices/1")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("{\"title\":\"새제목\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("새제목"));
     }
 
     @Test

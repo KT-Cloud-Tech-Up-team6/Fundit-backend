@@ -15,7 +15,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-/** 단순 애그리거트(persistence-convention.md §2) — 새소식은 등록/조회만 있고 수정·삭제 API가 없다. */
+/**
+ * 단순 애그리거트(persistence-convention.md §2). title/content는 PATCH(재편집)로 수정 가능 —
+ * updated_at은 trg_project_notices_updated_at DB 트리거가 갱신한다(reward_option_groups와 동일 패턴).
+ */
 @Getter
 @Entity
 @Builder
@@ -43,8 +46,13 @@ public class ProjectNoticeJpaEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
     @PrePersist
     protected void onCreate() {
-        if (this.createdAt == null) this.createdAt = Instant.now();
+        Instant now = Instant.now();
+        if (this.createdAt == null) this.createdAt = now;
+        if (this.updatedAt == null) this.updatedAt = now;
     }
 }
