@@ -1,7 +1,5 @@
 package com.fundit.project.infrastructure.ai;
 
-import com.fundit.common.error.BusinessException;
-import com.fundit.common.error.DependencyFailureException;
 import com.fundit.project.application.ai.FundingStoryAiClient.ChatEventStream;
 import com.fundit.project.application.ai.FundingStoryAiContracts.CategoryFact;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAcceptedResponse;
@@ -10,12 +8,8 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryCon
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectFact;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
-import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -29,23 +23,21 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class HttpFundingStoryAiClientUnitTest {
 
-    private static final String BASE_URL = "http://localhost:8000";
-    private static final String PROJECT_HEADER = "X-Project-Id";
-    private static final String TOKEN = "Bearer test-token";
+    static final String BASE_URL = "http://localhost:8000";
+    static final String PROJECT_HEADER = "X-Project-Id";
+    static final String TOKEN = "Bearer test-token";
 
-    private MockRestServiceServer server;
-    private HttpFundingStoryAiClient client;
+    MockRestServiceServer server;
+    HttpFundingStoryAiClient client;
 
     @BeforeEach
     void setUp() {
@@ -56,6 +48,7 @@ class HttpFundingStoryAiClientUnitTest {
 
     @Test
     void 모든_동기_AI_호출은_api_v1_ai와_프로젝트_헤더를_사용한다() {
+        // given
         UUID projectId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
         UUID chatId = UUID.randomUUID();
@@ -87,6 +80,7 @@ class HttpFundingStoryAiClientUnitTest {
                 .andExpect(method(POST)).andRespond(withSuccess(
                         "{\"run_id\":\"%s\",\"status\":\"queued\"}".formatted(runId), MediaType.APPLICATION_JSON));
 
+        // when & then
         assertThat(client.createSession(projectId, context).session_id()).isEqualTo(sessionId);
         assertThat(client.getLatestSession(projectId).session()).isNull();
         assertThat(client.getSession(projectId, sessionId).session_id()).isEqualTo(sessionId);
@@ -99,34 +93,9 @@ class HttpFundingStoryAiClientUnitTest {
         server.verify();
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {400, 401, 403, 404, 409, 410, 422, 429, 500})
-    void AI_HTTP_상태를_BE_오류계약으로_변환한다(int status) {
-        UUID projectId = UUID.randomUUID();
-        server.expect(requestTo(BASE_URL + "/api/v1/ai/sessions/latest"))
-                .andRespond(withStatus(HttpStatus.valueOf(status)));
-
-        if (status == 500) {
-            assertThatThrownBy(() -> client.getLatestSession(projectId))
-                    .isInstanceOf(DependencyFailureException.class);
-        } else {
-            assertThatThrownBy(() -> client.getLatestSession(projectId))
-                    .isInstanceOf(BusinessException.class);
-        }
-        server.verify();
-    }
-
-    @Test
-    void 응답_본문이_비어있으면_의존성_실패로_처리한다() {
-        server.expect(requestTo(BASE_URL + "/api/v1/ai/sessions/latest"))
-                .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> client.getLatestSession(UUID.randomUUID()))
-                .isInstanceOf(DependencyFailureException.class);
-    }
-
     @Test
     void 채팅_SSE는_스트림을_반환하고_close_callback을_호출한다() throws Exception {
+        // given
         UUID projectId = UUID.randomUUID();
         UUID chatId = UUID.randomUUID();
         byte[] body = "data: ready\n\n".getBytes(StandardCharsets.UTF_8);
@@ -135,7 +104,11 @@ class HttpFundingStoryAiClientUnitTest {
             String baseUrl = "http://localhost:" + httpServer.getAddress().getPort();
             HttpFundingStoryAiClient sseClient = new HttpFundingStoryAiClient(
                     RestClient.builder().baseUrl(baseUrl).build(), baseUrl, "test-token", 1000, 1000);
+
+            // when
             ChatEventStream stream = sseClient.openChatEvents(projectId, chatId);
+
+            // then
             assertThat(stream.body().readAllBytes()).containsExactly(body);
             stream.close();
         } finally {
@@ -143,23 +116,7 @@ class HttpFundingStoryAiClientUnitTest {
         }
     }
 
-    @Test
-    void 채팅_SSE의_비정상_응답은_BE_오류로_변환한다() {
-        UUID projectId = UUID.randomUUID();
-        UUID chatId = UUID.randomUUID();
-        HttpServer httpServer = sseServer(409, new byte[0]);
-        try {
-            String baseUrl = "http://localhost:" + httpServer.getAddress().getPort();
-            HttpFundingStoryAiClient sseClient = new HttpFundingStoryAiClient(
-                    RestClient.builder().baseUrl(baseUrl).build(), baseUrl, "test-token", 1000, 1000);
-            assertThatThrownBy(() -> sseClient.openChatEvents(projectId, chatId))
-                    .isInstanceOf(BusinessException.class);
-        } finally {
-            httpServer.stop(0);
-        }
-    }
-
-    private HttpServer sseServer(int status, byte[] body) {
+    static HttpServer sseServer(int status, byte[] body) {
         try {
             HttpServer httpServer = HttpServer.create(new InetSocketAddress(0), 0);
             httpServer.createContext("/api/v1/ai/chats", exchange -> {
