@@ -6,10 +6,13 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
@@ -53,6 +56,20 @@ public class S3MediaStorageClient implements MediaStorageClient {
     }
 
     @Override
+    public String presignGet(String key, Duration ttl) {
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(ttl)
+                .getObjectRequest(getObjectRequest)
+                .build();
+        PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+        return presigned.url().toString();
+    }
+
+    @Override
     public Optional<String> extractKey(String fileUrl) {
         if (fileUrl == null || !fileUrl.startsWith(publicBaseUrl)) {
             return Optional.empty();
@@ -67,7 +84,7 @@ public class S3MediaStorageClient implements MediaStorageClient {
                     .bucket(bucket)
                     .key(key)
                     .build());
-            return Optional.of(new StoredObject(response.contentLength()));
+            return Optional.of(new StoredObject(response.contentLength(), response.contentType()));
         } catch (S3Exception e) {
             // HeadObject 404는 본문이 없어 SDK가 NoSuchKeyException이 아닌 일반 S3Exception으로
             // 던지는 경우가 있다 — statusCode로 판별한다. 그 외 오류(권한 등)는 그대로 전파한다.

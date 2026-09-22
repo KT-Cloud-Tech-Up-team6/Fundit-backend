@@ -17,6 +17,12 @@ media:
 internal-api:
   key: ${INTERNAL_API_KEY}
 
+funding-story:
+  ai:
+    base-url: ${FUNDING_STORY_AI_BASE_URL}
+    service-token: ${FUNDING_STORY_AI_SERVICE_TOKEN}
+    require-https: true
+
 order:
   integration:
     inventory-client:
