@@ -55,10 +55,10 @@ class QuestionInsightServiceUnitTest {
         var result = questionInsightService.faq(sellerId, liveId, 10);
 
         // then
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().getSummaryText()).isEqualTo("타이머 기능 돼요?");
-        assertThat(result.getFirst().getRelatedQuestionCount()).isEqualTo(4);
-        assertThat(result.getFirst().isPromoted()).isTrue();
+        assertThat(result.summaries()).hasSize(1);
+        assertThat(result.summaries().getFirst().getSummaryText()).isEqualTo("타이머 기능 돼요?");
+        assertThat(result.summaries().getFirst().getRelatedQuestionCount()).isEqualTo(4);
+        assertThat(result.summaries().getFirst().isPromoted()).isTrue();
     }
 
     @Test
@@ -77,7 +77,7 @@ class QuestionInsightServiceUnitTest {
         var result = questionInsightService.faq(sellerId, liveId, 10);
 
         // then — 새로 만들지 않고 같은 인스턴스가 갱신된다
-        assertThat(result).containsExactly(existing);
+        assertThat(result.summaries()).containsExactly(existing);
         assertThat(existing.getRelatedQuestionCount()).isEqualTo(5);
     }
 

@@ -84,6 +84,10 @@ public class LiveStreamService {
     /**
      * AI 상품정보 색인({@code prepare})은 트랜잭션 커밋 후에 호출한다 — AI가 느리거나 실패해도
      * 방송 시작 자체가 지연되거나 롤백되면 안 된다(요구사항정의서 6.4.4.2와 같은 원칙).
+     *
+     * <p>성공하면 {@code ai_prepared_at}을 남겨 판매자 화면의 {@code aiStatus} 판단 근거로 쓴다.
+     * 그 저장은 <b>{@code REQUIRES_NEW}로 새 트랜잭션을 열어야 한다</b> — {@code afterCommit} 안의
+     * 쓰기는 이미 커밋된 트랜잭션에 합류해 조용히 버려진다({@code scheduleQuestionsSummarized}와 같은 이유).
      */
     private void schedulePrepare(LiveSession session) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -94,7 +98,10 @@ public class LiveStreamService {
             public void afterCommit() {
                 try {
                     productContextAssembler.assemble(session).ifPresentOrElse(
-                            request -> aiClient.prepare(session.getPublicId().toString(), request),
+                            request -> {
+                                aiClient.prepare(session.getPublicId().toString(), request);
+                                markAiPrepared(session);
+                            },
                             () -> log.warn("프로젝트 조회 실패로 AI 상품정보 색인을 건너뛴다, liveId={} projectId={}",
                                     session.getPublicId(), session.getProjectId()));
                 } catch (RuntimeException e) {
@@ -102,6 +109,16 @@ public class LiveStreamService {
                     log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);
                 }
             }
+        });
+    }
+
+    /** package-private — afterCommit 바깥에서 이 저장만 따로 검증하기 위해 접근 제한을 풀어둔다. */
+    void markAiPrepared(LiveSession session) {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.executeWithoutResult(status -> {
+            session.markAiPrepared(Instant.now());
+            sessionRepository.save(session);
         });
     }
 
@@ -140,7 +157,8 @@ public class LiveStreamService {
                     TransactionTemplate tx = new TransactionTemplate(transactionManager);
                     tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
                     tx.executeWithoutResult(status -> appendQuestionsSummarizedOutbox(session,
-                            questionInsightService.faq(sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N)));
+                            questionInsightService.faq(sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N)
+                                    .summaries()));
                 } catch (RuntimeException e) {
                     log.warn("AI 질문요약 발행 실패, liveId={}", session.getPublicId(), e);
                 }

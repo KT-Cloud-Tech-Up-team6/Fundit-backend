@@ -488,6 +488,7 @@ Response Body
 
 ```json
 {
+  "aiStatus": "READY",
   "qna": [
     { "questionId": "0199d1...", "summaryText": "타이머 기능 돼요?", "count": 4,
       "category": "앱·원격제어", "answeredBy": "SELLER", "answeredAt": "2026-09-20T20:06:00Z",
@@ -502,9 +503,13 @@ Validation / Business Rules
 - 집계 데이터가 없으면 `qna: []`다. 클라이언트가 Empty State를 표시한다.
 - **이 API가 실패해도 LIVE 방송·채팅은 정상 동작해야 한다**(요구사항정의서 6.4.4.2) — AI 실패는
   `DependencyFailureException`(503)으로 뜨고, 호출 실패를 방송 화면 전체의 오류로 처리하지 않는다.
-- `aiStatus: PREPARING` 같은 별도 상태 필드는 **없다.** `prepare` 미호출 상태에서 채팅 배치를
-  보내면 `409`가 나지만, 조회 계열(`faq`/`unanswered`)은 AI가 빈 결과로 응답하는 것으로 확인됐다
-  (2026-09-17 E2E 검증).
+- `aiStatus`는 `READY` / `PREPARING` 두 값이다. **AI의 `GET /ready`를 부르지 않고 `live_sessions.ai_prepared_at`
+  으로 판단한다** — 색인(`prepare`)을 건 주체가 우리라 성공 시점을 이미 알고 있고, 화면 조회마다 AI를
+  한 번 더 왕복할 이유가 없다.
+  - 조회 계열(`faq`/`unanswered`)은 색인 전에도 AI가 빈 결과로 응답하므로(2026-09-17 E2E 검증)
+    응답만으로는 "준비 중"과 "질문 0건"이 구분되지 않는다. 요구사항정의서 6.4.4.4가 두 상태를
+    **다른 문구**로 요구해서 이 필드가 필요하다.
+  - `PREPARING`은 "AI 준비 중", `READY` + `qna: []`는 "모인 질문 없음"이다.
 
 ---
 

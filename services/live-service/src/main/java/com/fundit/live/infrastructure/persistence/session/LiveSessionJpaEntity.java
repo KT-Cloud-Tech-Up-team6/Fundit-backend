@@ -86,6 +86,9 @@ public class LiveSessionJpaEntity {
     @Column(name = "error_occurred_at")
     private Instant errorOccurredAt;
 
+    @Column(name = "ai_prepared_at")
+    private Instant aiPreparedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -116,5 +119,6 @@ public class LiveSessionJpaEntity {
         this.ivsChatRoomArn = session.getIvsChatRoomArn();
         this.errorDetail = session.getErrorDetail();
         this.errorOccurredAt = session.getErrorOccurredAt();
+        this.aiPreparedAt = session.getAiPreparedAt();
     }
 }

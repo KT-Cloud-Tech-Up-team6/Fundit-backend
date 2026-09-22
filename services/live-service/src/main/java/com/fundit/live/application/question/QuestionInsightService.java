@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,14 +33,24 @@ public class QuestionInsightService {
     private final LiveSessionRepository sessionRepository;
     private final AiClient aiClient;
 
-    /** 판매자 화면 — 집계된 Q&A(요구사항정의서 6.4.4.2). */
+    /**
+     * 판매자 화면 — 집계된 Q&A(요구사항정의서 6.4.4.2).
+     *
+     * <p>{@code aiPreparedAt}을 같이 돌려주는 이유: 목록이 비었을 때 "AI 준비 중"과 "모인 질문 없음"을
+     * 다른 문구로 안내해야 하는데(6.4.4.4), 세션은 여기서 이미 읽고 있어 추가 조회가 없다.
+     */
     @Transactional
-    public List<LiveQuestionSummaryJpaEntity> faq(UUID sellerId, UUID liveId, int topN) {
+    public InsightsView faq(UUID sellerId, UUID liveId, int topN) {
         LiveSession session = loadOwned(sellerId, liveId);
         AiClient.FaqResult result = aiClient.faq(liveId.toString(), topN);
-        return result.qna().stream()
+        List<LiveQuestionSummaryJpaEntity> summaries = result.qna().stream()
                 .map(item -> upsert(session.getId(), item))
                 .toList();
+        return new InsightsView(summaries, session.getAiPreparedAt());
+    }
+
+    /** {@code aiPreparedAt}이 null이면 아직 상품정보 색인 전이다(PREPARING). */
+    public record InsightsView(List<LiveQuestionSummaryJpaEntity> summaries, Instant aiPreparedAt) {
     }
 
     /** 대표질문(FAQ 클러스터) 원본 채팅(요구사항정의서 6.4.4.3). AI가 직접 갖고 있어 위임한다. */
