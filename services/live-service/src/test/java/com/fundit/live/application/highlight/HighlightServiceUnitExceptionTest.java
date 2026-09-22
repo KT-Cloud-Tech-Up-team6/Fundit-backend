@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -111,7 +112,7 @@ class HighlightServiceUnitExceptionTest {
     @Test
     void 다른_방송의_하이라이트는_클릭도_셀_수_없다() {
         // given
-        given(sessionRepository.findOwnedAny(liveId))
+        given(sessionRepository.findPublic(liveId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(highlightRepository.findByPublicId(highlightId))
                 .willReturn(Optional.of(clip(GenerationStatus.COMPLETED, 999L)));
@@ -185,5 +186,31 @@ class HighlightServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void 설정_중인_방송의_하이라이트는_공개_조회가_안_된다() {
+        // given — DRAFT는 findPublic 쿼리에서 걸러진다. 조회수 카운터도 올라가면 안 된다
+        given(sessionRepository.findPublic(liveId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.findPublic(liveId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+        verify(highlightRepository, never()).increaseViewCount(anyLong());
+    }
+
+    @Test
+    void 설정_중인_방송은_클릭도_셀_수_없다() {
+        // given
+        given(sessionRepository.findPublic(liveId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> highlightService.recordClick(liveId, highlightId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+        verify(highlightRepository, never()).increaseClickCount(any());
     }
 }

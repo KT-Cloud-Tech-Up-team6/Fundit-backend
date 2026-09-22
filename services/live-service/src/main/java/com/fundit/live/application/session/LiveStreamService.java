@@ -6,6 +6,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.application.ai.AiProductContextAssembler;
 import com.fundit.live.application.ivs.IvsClient;
+import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.application.question.QuestionInsightService;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -46,6 +47,7 @@ public class LiveStreamService {
     private final AiClient aiClient;
     private final AiProductContextAssembler productContextAssembler;
     private final QuestionInsightService questionInsightService;
+    private final ProjectContextClient projectContextClient;
     private final PlatformTransactionManager transactionManager;
 
     private static final int FINAL_SUMMARY_TOP_N = 100;
@@ -76,7 +78,11 @@ public class LiveStreamService {
         session.start(now, chatRoomArn);
         LiveSession saved = sessionRepository.save(session);
         // 도메인 변경과 같은 트랜잭션에 적재한다 — 방송은 시작됐는데 이벤트만 사라지는 경우가 없다.
-        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED, now);
+        // liveId뿐 아니라 프로젝트명도 여기서 같이 실어 보낸다 — notification-service가
+        // "「프로젝트명」 LIVE가 시작됐어요" 문구를 만들려면 이 값이 필요한데, 그쪽은
+        // 다른 서비스 데이터를 되묻지 않는다는 원칙이 있어(발행 측이 완성된 문장을 보낸다) 여기서 채운다.
+        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_STARTED, now,
+                fetchProjectTitleOrNull(saved.getProjectId()));
         schedulePrepare(saved);
         return saved;
     }
@@ -84,6 +90,10 @@ public class LiveStreamService {
     /**
      * AI 상품정보 색인({@code prepare})은 트랜잭션 커밋 후에 호출한다 — AI가 느리거나 실패해도
      * 방송 시작 자체가 지연되거나 롤백되면 안 된다(요구사항정의서 6.4.4.2와 같은 원칙).
+     *
+     * <p>성공하면 {@code ai_prepared_at}을 남겨 판매자 화면의 {@code aiStatus} 판단 근거로 쓴다.
+     * 그 저장은 <b>{@code REQUIRES_NEW}로 새 트랜잭션을 열어야 한다</b> — {@code afterCommit} 안의
+     * 쓰기는 이미 커밋된 트랜잭션에 합류해 조용히 버려진다({@code scheduleQuestionsSummarized}와 같은 이유).
      */
     private void schedulePrepare(LiveSession session) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -93,12 +103,28 @@ public class LiveStreamService {
             @Override
             public void afterCommit() {
                 try {
-                    aiClient.prepare(session.getPublicId().toString(), productContextAssembler.assemble(session));
+                    productContextAssembler.assemble(session).ifPresentOrElse(
+                            request -> {
+                                aiClient.prepare(session.getPublicId().toString(), request);
+                                markAiPrepared(session);
+                            },
+                            () -> log.warn("프로젝트 조회 실패로 AI 상품정보 색인을 건너뛴다, liveId={} projectId={}",
+                                    session.getPublicId(), session.getProjectId()));
                 } catch (RuntimeException e) {
                     // ponytail: 실패 시 재시도 없이 로그만 남긴다. 운영에서 누락이 보이면 재시도 작업 테이블로 옮긴다.
                     log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);
                 }
             }
+        });
+    }
+
+    /** package-private — afterCommit 바깥에서 이 저장만 따로 검증하기 위해 접근 제한을 풀어둔다. */
+    void markAiPrepared(LiveSession session) {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.executeWithoutResult(status -> {
+            session.markAiPrepared(Instant.now());
+            sessionRepository.save(session);
         });
     }
 
@@ -110,7 +136,7 @@ public class LiveStreamService {
         LiveSession saved = sessionRepository.save(session);
         // live.ended.v1은 방송 후 자산(질문요약·하이라이트) 두 종류의 유일한 트리거다.
         // 유실되면 방송이 이미 끝나서 재생성할 방법이 없다.
-        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED, now);
+        appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED, now, null);
         scheduleQuestionsSummarized(sellerId, saved);
         return saved;
     }
@@ -137,7 +163,8 @@ public class LiveStreamService {
                     TransactionTemplate tx = new TransactionTemplate(transactionManager);
                     tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
                     tx.executeWithoutResult(status -> appendQuestionsSummarizedOutbox(session,
-                            questionInsightService.faq(sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N)));
+                            questionInsightService.faq(sellerId, session.getPublicId(), FINAL_SUMMARY_TOP_N)
+                                    .summaries()));
                 } catch (RuntimeException e) {
                     log.warn("AI 질문요약 발행 실패, liveId={}", session.getPublicId(), e);
                 }
@@ -162,15 +189,36 @@ public class LiveStreamService {
                 .build());
     }
 
-    private void appendOutbox(LiveSession session, String eventType, Instant occurredAt) {
-        String payload = """
-                {"liveId":"%s","projectId":"%s","occurredAt":"%s"}"""
-                .formatted(session.getPublicId(), session.getProjectId(), occurredAt);
+    /**
+     * project-service 조회 실패가 방송 시작을 막으면 안 된다 — 문구가 일반 문구로 대체될 뿐이다.
+     * {@code start()}가 이미 IVS 호출로 외부 의존 하나를 동기로 안고 있어, 같은 자리에 project-service
+     * 조회를 하나 더 두는 게 새 선례는 아니다(둘 다 타임아웃이 짧게 잡혀 있다).
+     */
+    private String fetchProjectTitleOrNull(UUID projectId) {
+        try {
+            return projectContextClient.find(projectId).map(ProjectContextClient.ProjectContext::title).orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("프로젝트 제목 조회 실패, 알림 문구를 일반 문구로 대체, projectId={}", projectId, e);
+            return null;
+        }
+    }
+
+    private void appendOutbox(LiveSession session, String eventType, Instant occurredAt, String projectTitle) {
+        String payload = jsonMapper.writeValueAsString(new OutboxPayload(
+                session.getPublicId().toString(), session.getProjectId().toString(),
+                occurredAt.toString(), projectTitle));
         outboxRepository.save(LiveEventOutboxJpaEntity.builder()
                 .eventType(eventType)
                 .liveSessionId(session.getId())
                 .payload(payload)
                 .build());
+    }
+
+    /**
+     * LIVE_STARTED/LIVE_ENDED 공통 페이로드. {@code projectTitle}은 LIVE_STARTED에서만 채워진다
+     * (제목에 따옴표가 섞일 수 있어 문자열 템플릿 대신 매퍼로 이스케이프한다).
+     */
+    private record OutboxPayload(String liveId, String projectId, String occurredAt, String projectTitle) {
     }
 
     /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */

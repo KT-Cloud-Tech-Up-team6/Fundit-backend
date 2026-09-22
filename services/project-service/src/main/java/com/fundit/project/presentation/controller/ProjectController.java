@@ -218,7 +218,8 @@ public class ProjectController {
         return new ProjectDetailResponse(view.projectId(), view.title(), view.status(), view.goalAmount(),
                 view.coverImageUrl(), toIntroContentResponse(view.introContent()),
                 new FundingStatusSummaryResponse(fundingStatus.currentAmount(), fundingStatus.achievementRate(),
-                        fundingStatus.participantCount(), fundingStatus.remainingDays()),
+                        fundingStatus.participantCount(), fundingStatus.remainingDays(),
+                        fundingStatus.fundingDeadline()),
                 view.hasLiveVerification(),
                 new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()),
                 view.categoryMajor(), view.categoryMinor(), view.businessType());

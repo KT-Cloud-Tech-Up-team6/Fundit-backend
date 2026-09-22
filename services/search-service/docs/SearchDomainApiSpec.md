@@ -47,7 +47,8 @@ GET /api/v1/home/feed
 {
   "content": [
     {
-      "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+      "projectId": 123,
+      "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
       "projectDisplayCode": "F0000123",
       "title": "세상에 없는 프라이팬",
       "thumbnailUrl": "https://cdn.example.com/p/123/thumb.jpg",
@@ -67,6 +68,9 @@ GET /api/v1/home/feed
 - 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). 현재 구현은 **인기순만** 지원한다(`participant_count DESC, wish_count DESC`). `personalized`/`sort` 쿼리는 받지 않는다.
 - `achievementRate`/`remainingDays`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다(SEARCH-013 동기화 주기에 종속, 미연동 동안 0).
 - 색인이 비어 있으면(콜드 스타트) `content: []` 반환 — 에러 아님.
+- **카드에서 상세로 이동할 때 쓰는 값은 `projectPublicId`(UUID)다.** `projectId`는 색인 내부 PK(숫자)이고
+  `projectDisplayCode` 생성 재료일 뿐이라, 상세 API(`GET /api/v1/projects/{projectId}`)에 넣으면 안 된다 —
+  그쪽 경로 변수는 project-service의 `public_id`(UUID)다. 이 카드 형태는 홈피드·카테고리·검색 상품탭이 공유한다.
 
 ---
 
@@ -88,8 +92,8 @@ GET /api/v1/home/lives
 
 **Validation / Business Rules**
 
-- **현재는 항상 `content: []`을 반환하는 스텁이다.** live-service 미착수로 `live_documents`를 채울 수 없다(`SearchDomainFunctionalSpec.md` SEARCH-002 참고). 프론트는 빈 배열을 "LIVE 없음"으로 처리해 영역을 자연스럽게 숨기면 되므로 API 계약 자체는 지금 확정해도 무방하다.
-- live-service 착수 후 실제 데이터가 채워지면 응답 스키마는 `{ liveId, projectId, title, thumbnailUrl, viewerCount }[]` 형태가 될 예정이다.
+- **현재는 항상 `content: []`을 반환하는 스텁이다.** live-service는 이미 끝났지만 `live_documents`를 채울 컨슈머가 아직 없다(`SearchDomainFunctionalSpec.md` SEARCH-002 참고). 프론트는 빈 배열을 "LIVE 없음"으로 처리해 영역을 자연스럽게 숨기면 되므로 API 계약 자체는 지금 확정해도 무방하다.
+- **홈 배너는 이 색인 없이 이미 해결된다** — live-service `GET /api/v1/lives/banner`가 진행중 LIVE를 바로 내려준다. 이 엔드포인트는 검색 LIVE 탭(SEARCH-006)이 실제 필요해질 때 컨슈머와 함께 교체한다(YAGNI). 그때 응답 스키마는 `{ liveId, projectId, title, thumbnailUrl, viewerCount }[]` 형태가 될 예정이다.
 
 ---
 
@@ -216,8 +220,8 @@ GET /api/v1/search/lives
 
 **Validation / Business Rules**
 
-- 2번 엔드포인트와 동일하게 **현재는 항상 빈 결과를 반환하는 스텁**(live-service 미착수).
-- 상품 탭(#5)과 달리 `keyword` 검증·`search_query_logs` 적재·최근검색어 저장을 하지 않는다. live-service 착수 후 실제 검색으로 교체할 때 #5와 맞출 것.
+- 2번 엔드포인트와 동일하게 **현재는 항상 빈 결과를 반환하는 스텁**(live_documents 컨슈머 미연결).
+- 상품 탭(#5)과 달리 `keyword` 검증·`search_query_logs` 적재·최근검색어 저장을 하지 않는다. 실제 검색으로 교체할 때 #5와 맞출 것.
 
 ---
 

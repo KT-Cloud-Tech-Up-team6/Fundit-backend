@@ -55,8 +55,9 @@ public class SearchController {
     }
 
     /**
-     * SEARCH-006. live-service가 아직 개발에 착수하지 않아 항상 빈 결과를 반환하는 스텁이다
-     * (SearchDomainFunctionalSpec.md SEARCH-006 검토의견) — SEARCH-005와 동일한 키워드/로그 검증은 하지 않는다.
+     * SEARCH-006. live-service는 이미 끝났지만 {@code live_documents}를 채울 컨슈머가 아직 없어
+     * 항상 빈 결과를 반환하는 스텁이다(SearchERD.md 5-③) — 실제 필요해질 때 컨슈머를 붙인다(YAGNI).
+     * SEARCH-005와 동일한 키워드/로그 검증은 하지 않는다.
      */
     @GetMapping("/lives")
     public PageResponse<Object> searchLives(

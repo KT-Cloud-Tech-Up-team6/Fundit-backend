@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,8 +41,9 @@ public class ProjectServiceProjectContextClient implements ProjectContextClient 
                             .toList();
             Integer achievementRate = detail.fundingStatus() == null ? null : detail.fundingStatus().achievementRate();
             Integer remainingDays = detail.fundingStatus() == null ? null : detail.fundingStatus().remainingDays();
+            Instant fundingDeadline = detail.fundingStatus() == null ? null : detail.fundingStatus().fundingDeadline();
             return Optional.of(new ProjectContext(detail.title(), detail.categoryMajor(), detail.categoryMinor(),
-                    introTexts, achievementRate, remainingDays));
+                    introTexts, achievementRate, remainingDays, fundingDeadline));
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
@@ -54,6 +56,6 @@ public class ProjectServiceProjectContextClient implements ProjectContextClient 
     private record IntroBlock(String type, String value) {
     }
 
-    private record FundingStatus(Integer achievementRate, Integer remainingDays) {
+    private record FundingStatus(Integer achievementRate, Integer remainingDays, Instant fundingDeadline) {
     }
 }

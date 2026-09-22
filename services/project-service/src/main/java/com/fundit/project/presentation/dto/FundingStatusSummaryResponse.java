@@ -1,4 +1,7 @@
 package com.fundit.project.presentation.dto;
 
-public record FundingStatusSummaryResponse(long currentAmount, int achievementRate, int participantCount, Long remainingDays) {
+import java.time.Instant;
+
+public record FundingStatusSummaryResponse(long currentAmount, int achievementRate, int participantCount,
+                                           Long remainingDays, Instant fundingDeadline) {
 }

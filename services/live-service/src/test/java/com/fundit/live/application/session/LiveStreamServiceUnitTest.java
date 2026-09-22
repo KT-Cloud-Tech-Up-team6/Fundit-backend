@@ -1,6 +1,7 @@
 package com.fundit.live.application.session;
 
 import com.fundit.live.application.ivs.IvsClient;
+import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaEntity;
@@ -30,11 +31,32 @@ class LiveStreamServiceUnitTest {
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private LiveEventOutboxJpaRepository outboxRepository;
     @Mock private IvsClient ivsClient;
+    @Mock private ProjectContextClient projectContextClient;
+    @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @InjectMocks private LiveStreamService liveStreamService;
 
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
+
+    @Test
+    void 색인_완료_표시는_새_트랜잭션에서_저장한다() {
+        // given — afterCommit 안의 쓰기는 이미 커밋된 트랜잭션에 합류해 조용히 버려진다.
+        // REQUIRES_NEW가 빠지면 ai_prepared_at이 영영 안 남아 화면이 계속 PREPARING이 된다.
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+
+        // when
+        liveStreamService.markAiPrepared(session);
+
+        // then
+        ArgumentCaptor<org.springframework.transaction.TransactionDefinition> defCaptor =
+                ArgumentCaptor.forClass(org.springframework.transaction.TransactionDefinition.class);
+        verify(transactionManager).getTransaction(defCaptor.capture());
+        assertThat(defCaptor.getValue().getPropagationBehavior())
+                .isEqualTo(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThat(session.getAiPreparedAt()).isNotNull();
+        verify(sessionRepository).save(session);
+    }
 
     @Test
     void 시작하면_LIVE로_전이한다() {
@@ -49,6 +71,43 @@ class LiveStreamServiceUnitTest {
         // then
         assertThat(started.getStatus()).isEqualTo(LiveStatus.LIVE);
         assertThat(started.getActualStartAt()).isNotNull();
+    }
+
+    @Test
+    void 시작하면_아웃박스에_프로젝트명을_같이_싣는다() {
+        // given — notification-service가 "「프로젝트명」 LIVE가 시작됐어요" 문구를 만들 재료다
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        given(projectContextClient.find(session.getProjectId())).willReturn(Optional.of(
+                new ProjectContextClient.ProjectContext("무선 이어폰", "가전", "음향", List.of(), 0, null, null)));
+
+        // when
+        liveStreamService.start(sellerId, liveId);
+
+        // then
+        ArgumentCaptor<LiveEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(LiveEventOutboxJpaEntity.class);
+        verify(outboxRepository).save(captor.capture());
+        assertThat(captor.getValue().getPayload()).contains("\"projectTitle\":\"무선 이어폰\"");
+    }
+
+    @Test
+    void 프로젝트_조회가_실패해도_방송_시작은_성공한다() {
+        // given — 알림 문구가 일반 문구로 대체될 뿐, 방송 시작 자체를 막으면 안 된다
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        given(projectContextClient.find(session.getProjectId()))
+                .willThrow(new com.fundit.common.error.DependencyFailureException(new RuntimeException("boom")));
+
+        // when
+        LiveSession started = liveStreamService.start(sellerId, liveId);
+
+        // then
+        assertThat(started.getStatus()).isEqualTo(LiveStatus.LIVE);
+        ArgumentCaptor<LiveEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(LiveEventOutboxJpaEntity.class);
+        verify(outboxRepository).save(captor.capture());
+        assertThat(captor.getValue().getPayload()).contains("\"projectTitle\":null");
     }
 
     @Test

@@ -17,7 +17,7 @@ DB-per-service 원칙(CLAUDE.md)에 따라 물리적으로 분리된 자체 Post
 | --- | --- | --- |
 | `categories` | 카테고리 대/중분류 마스터(트리 탐색용) | project-service `categories`와 동일한 시드를 별도 관리(이벤트 없음 — 3번 참고) |
 | `project_documents` | 홈피드·카테고리·검색의 "상품(프로젝트)" 색인 | project-service 프로젝트 이벤트 구독(**신설 필요**, 5-①) + order-service 펀딩 집계 동기화(5-②) + member-service 찜 이벤트 구독 |
-| `live_documents` | 검색의 "LIVE" 탭·홈 LIVE 배너 색인 | **채울 방법 없음** — live-service 미착수(5-③). 스키마만 선반영 |
+| `live_documents` | 검색의 "LIVE" 탭 색인(홈 배너는 `/lives/banner`로 별도 해결됨) | 컨슈머 미연결(5-③) — `live.started.v1`/`live.ended.v1`은 이미 발행 중. 스키마만 선반영 |
 | `search_query_logs` | 실행된 모든 검색 원본 로그 | 검색 API 호출 시마다 자체 기록 |
 | `recent_search_keywords` | 회원별 최근 검색어 | 검색 API 호출 시마다 자체 upsert |
 | `popular_search_keywords` | 전역 인기 검색어 상위 N (스냅샷) | `search_query_logs` 집계 배치(주기 정책 확인 필요) |
@@ -100,9 +100,10 @@ CREATE INDEX idx_project_documents_title_trgm ON project_documents USING GIN (ti
 CREATE INDEX idx_project_documents_seller_name_trgm ON project_documents USING GIN (seller_display_name gin_trgm_ops) WHERE deleted_at IS NULL;
 
 -- ------------------------------------------------------------
--- 3. live_documents — 검색 "LIVE" 탭 + 홈 진행중 LIVE 배너 색인
---    ⚠️ live-service가 아직 개발에 착수하지 않아(settings.gradle 서비스 배열 미포함, 담당자도 미정 —
---    notification-service NOTI-002 검토의견과 동일한 근거) 이 테이블을 채울 이벤트 자체가 없다.
+-- 3. live_documents — 검색 "LIVE" 탭 색인 (홈 진행중 LIVE 배너는 live-service
+--    GET /api/v1/lives/banner로 별도 해결됨, 이 테이블 불필요)
+--    ⚠️ live-service는 이미 끝났고 live.started.v1/live.ended.v1도 발행 중이지만,
+--    이 테이블을 채울 컨슈머가 아직 없다. 검색 LIVE 탭이 실제 필요해질 때 붙인다(YAGNI).
 --    스키마는 PRD 10.1/10.3/11.1 요구사항을 기준으로 선반영만 해둔다 — 5-③ 참고.
 -- ------------------------------------------------------------
 CREATE TABLE live_documents (
@@ -208,7 +209,7 @@ GROUP BY seller_id;
 | `project_documents.seller_display_name` | member-service (경유: project-service 스냅샷) | `members.nickname` | project-service 이벤트 페이로드에 얹혀 전달(신설) |
 | `project_documents.current_amount/achievement_rate/participant_count` | order-service | 펀딩 집계 | project-service의 `funding_status_snapshots`와 동일한 문제 — 5-② |
 | `project_documents.wish_count` | member-service | `wishes` 카운트 | 기존 `project.wished.v1`/`project.unwished.v1` 재구독(신규 컨슈머 그룹) |
-| `live_documents.*` | live-service(미착수) | — | 없음 — 5-③ |
+| `live_documents.*` | live-service | `live.started.v1`/`live.ended.v1`(이미 발행 중) | 컨슈머 미연결 — 5-③ |
 
 ---
 
@@ -219,7 +220,7 @@ GROUP BY seller_id;
   - `project.updated.v1` — 공개 후 제목/썸네일/카테고리 등이 바뀔 수 있다면 필요(정책 확인 필요 — 승인 후 수정 자체가 허용되는지부터 project-service 쪽 확인 필요).
   - 프로젝트 종료(성립/미달) 자체는 order-service가 이미 발행하는 `funding.succeeded.v1`/`funding.goal-failed.v1`을 그대로 재사용해 `status`를 `SUCCEEDED`/`FAILED`로 전이하면 된다(신규 이벤트 불필요).
 - **② [신규 발견] `current_amount`/`achievement_rate`/`participant_count`를 채울 이벤트도 없다.** project-service조차 자기 몫(PROJECT-015 펀딩 현황 조회)을 위해 이 문제를 풀어야 했고, 그 문서는 "order-service가 발행하는 펀딩 집계 이벤트를 구독(갱신 주기 1일)"이라고만 적혀 있을 뿐 `event-convention.md` 토픽 목록엔 해당 이벤트가 없다 — **즉 project-service도 아직 이 이벤트의 정확한 스펙을 확정하지 못한 상태로 보인다.** search-service는 이 값 없이는 "인기순" 정렬도, 카드에 달성률을 보여주는 것도 불가능하다. project-service 담당자가 이 이벤트를 확정하는 시점에 **search-service도 같은 이벤트를 구독하도록(팬아웃 컨슈머 그룹 추가) 함께 챙겨야 한다** — 새로 별도 이벤트를 만들 필요 없이 project-service가 만들 이벤트에 얹혀가면 된다.
-- **③ [알려진 차단 요인] LIVE 관련 기능(`live_documents` 전체, 홈 "진행 중 LIVE" 배너, 검색 LIVE 탭)은 live-service가 아직 코드조차 없어(`settings.gradle` 미포함) 구현이 불가능하다.** notification-service NOTI-002가 같은 이유로 막힌 전례가 있다. 이 문서는 스키마·API 계약만 선반영해두고, live-service 착수 시점에 이벤트 스키마를 협의해야 한다.
+- **③ [해소, 부분] live-service는 이미 끝났다 — 남은 건 `live_documents`를 채울 컨슈머뿐이다.** 홈 "진행 중 LIVE" 배너는 색인 없이 이미 해결됐다 — live-service `GET /api/v1/lives/banner`가 진행중 LIVE를 바로 내려주므로 프론트가 이 경로를 쓰면 된다. `live_documents`·검색 LIVE 탭은 여전히 스키마만 선반영된 상태이고, 그 탭이 실제 필요해질 때 `live.started.v1`/`live.ended.v1`(이미 발행 중, `event-convention.md` 참고)을 구독하는 컨슈머를 붙이면 된다(YAGNI로 미루는 중이지 차단된 게 아니다).
 - **④ `categories` 전체 체계가 미확정이다.** project-service의 실제 시드(`V3__seed_categories.sql`)는 "테크·가전/패션·잡화/푸드/뷰티/홈리빙" 5개 대분류의 최소 테스트 세트이며, PRD 4.2.4가 정의한 7개 대분류(테크·가전/홈·리빙/뷰티/패션/푸드/스포츠/캐릭터·굿즈) 및 세부 상세 카테고리와 표기가 다르다(예: "홈리빙" vs "홈·리빙"). **search-service의 카테고리 탐색(SEARCH-003/004)은 project-service가 실제로 쓰는 카테고리 표기와 정확히 일치해야 필터링이 맞는다** — 전체 카테고리 체계 확정 및 project-service·search-service 간 시드 동기화 방법(수동 복사 vs 공용 시드 파일)을 PM/project-service 담당자와 확인해야 한다.
 - **⑤ `seller_display_name`/`wish_count` 갱신 지연 허용 범위 확인 필요.** 3번 설계 결정 참고 — 회원이 닉네임을 바꾼 뒤 검색 결과에 반영되기까지 걸리는 시간에 대한 별도 SLA 요구가 없다는 전제다.
 - **⑥ 인기순 정렬 산출식 PM 확인 필요.** 설계 결정 7번의 `participant_count DESC, wish_count DESC`는 가정값이다. 조회수(클릭)를 반영할지, 가중치를 둘지는 미정.

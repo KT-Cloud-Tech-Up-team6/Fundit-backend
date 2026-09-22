@@ -39,8 +39,9 @@ public class LiveLikeService {
         }
     }
 
+    /** 소비자 경로라 DRAFT는 404다 — 설정 중인 방송에 좋아요가 적립되면 안 된다. */
     private Long sessionId(UUID liveId) {
-        return sessionRepository.findByPublicId(liveId)
+        return sessionRepository.findPublicByPublicId(liveId)
                 .map(LiveSessionJpaEntity::getId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }

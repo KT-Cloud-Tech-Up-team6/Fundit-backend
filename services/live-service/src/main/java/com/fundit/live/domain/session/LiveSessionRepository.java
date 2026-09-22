@@ -27,8 +27,17 @@ public interface LiveSessionRepository {
      * 소유권 없이 조회한다. <b>내부 전용 경로(AI 결과 수신)에서만 쓴다</b> —
      * 호출자가 사용자가 아니라 AI 서버라 대조할 sellerId가 없다.
      * 사용자 요청 경로에서 이걸 쓰면 인가가 사라진다.
+     *
+     * <p>소비자에게 열린 경로는 {@link #findPublic}을 쓴다.
      */
     Optional<LiveSession> findOwnedAny(UUID publicId);
+
+    /**
+     * 소비자 공개 경로 전용. 소유권은 안 보지만 <b>DRAFT는 쿼리에서 걸러</b> 404가 되게 한다 —
+     * 설정 중인 방송은 존재 자체가 드러나면 안 된다(security.md S10).
+     * 호출부마다 {@code if (DRAFT)}를 붙이면 네 번째 호출부에서 빠진다.
+     */
+    Optional<LiveSession> findPublic(UUID publicId);
 
     /**
      * 내부 전용 경로 중 <b>상태를 바꾸는 것</b>(AI 결과 수신) 전용 잠금 조회.

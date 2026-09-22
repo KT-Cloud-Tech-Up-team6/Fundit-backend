@@ -44,10 +44,10 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **소분류**: 홈 진행 중 LIVE 영역
 - **예외 처리**: 진행 중 LIVE 없음 → 빈 배열(영역 자체 미노출은 프론트 처리)
 - **요구사항**: 현재 방송 중인 LIVE의 썸네일·진입 배너를 홈 상단에 노출한다
-- **우선순위**: MVP(PRD 기준) — **live-service 미착수로 스텁**
+- **우선순위**: MVP(PRD 기준) — **`live_documents` 컨슈머 미연결로 스텁** (live-service 자체는 이미 끝남)
 - **입력값**: 없음
 - **중분류**: 홈
-- **처리 내용(기술)**: `GET /api/v1/home/lives`는 항상 빈 배열을 반환한다. live-service가 생기면 `live_documents`에서 `status='LIVE'`인 행을 조회하도록 교체
+- **처리 내용(기술)**: `GET /api/v1/home/lives`는 항상 빈 배열을 반환한다. **대안으로 live-service `GET /api/v1/lives/banner`가 이미 진행중 LIVE를 내려주므로 프론트는 지금 이 경로를 쓰면 된다.** 검색 LIVE 탭(SEARCH-006)이 실제 필요해질 때 `live_documents`에서 `status='LIVE'`인 행을 조회하도록 교체(YAGNI)
 - **출력값**: LIVE 카드 목록(liveId, title, projectId, thumbnailUrl, viewerCount) — 현재는 항상 빈 배열
 - **트리거 방식**: API 호출
 - **검토의견(변경사항)**: **`SearchERD.md` 5-③과 동일한 이유로 데이터 소스가 없다.** live-service가 아직 코드조차 없어(`settings.gradle` 미포함) `live_documents`를 채울 이벤트가 없다. API 계약은 선반영했고, 실제 배포 전까지는 **항상 빈 배열을 반환하는 스텁**이다. live-service 착수 시점에 재검토 필요.
@@ -124,7 +124,7 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **소분류**: 키워드 검색 — LIVE 탭
 - **예외 처리**: 결과 0건 → SEARCH-005와 동일 안내
 - **요구사항**: 입력 키워드로 LIVE를 검색하고, 진행 중/진행예정 하위 탭을 제공한다
-- **우선순위**: MVP(PRD 기준) — **live-service 미착수로 스텁**
+- **우선순위**: MVP(PRD 기준) — **`live_documents` 컨슈머 미연결로 스텁** (live-service 자체는 이미 끝남, YAGNI로 미룸)
 - **입력값**: `page`, `size`(스텁 단계에서는 `keyword`/`subTab`을 받지 않음)
 - **중분류**: 검색
 - **처리 내용(기술)**: 항상 빈 페이지를 반환한다. 상품 탭과 달리 키워드 검증·검색 로그·최근검색어 저장을 하지 않는다

@@ -24,8 +24,10 @@ public class HomeController {
     }
 
     /**
-     * SEARCH-002. live-service가 아직 개발에 착수하지 않아 항상 빈 배열을 반환하는 스텁이다
-     * (SearchDomainFunctionalSpec.md SEARCH-002 검토의견). live-service 착수 후 실제 조회로 교체할 것.
+     * SEARCH-002. live-service는 이미 끝났지만 {@code live_documents}를 채울 컨슈머가 아직 없어
+     * 항상 빈 배열을 반환하는 스텁이다(SearchERD.md 5-③). 홈 배너는 색인이 없어도
+     * live-service {@code GET /api/v1/lives/banner}로 이미 해결되므로, 검색 LIVE 탭이 실제
+     * 필요해질 때(SEARCH-006) 컨슈머를 붙이면서 같이 교체한다(YAGNI).
      */
     @GetMapping("/lives")
     public ContentResponse<Object> getLives() {

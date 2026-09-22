@@ -988,7 +988,7 @@ GET /api/v1/projects/{projectId}/preview
   "goalAmount": 5000000,
   "coverImageUrl": "https://.../cover.png",
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
-  "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null },
+  "fundingStatus": { "currentAmount": 0, "achievementRate": 0, "participantCount": 0, "remainingDays": null, "fundingDeadline": null },
   "hasLiveVerification": false,
   "seller": { "sellerId": "018e9a10-....", "displayName": null },
   "categoryMajor": "패션", "categoryMinor": "의류"
@@ -1026,7 +1026,7 @@ GET /api/v1/projects/{projectId}
   "goalAmount": 5000000,
   "coverImageUrl": "https://.../cover.png",
   "introContent": [ { "type": "TEXT", "value": "본문 텍스트" }, { "type": "IMAGE", "value": "https://.../body.png" } ],
-  "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5 },
+  "fundingStatus": { "currentAmount": 3200000, "achievementRate": 64, "participantCount": 128, "remainingDays": 5, "fundingDeadline": "2026-09-15T14:59:00Z" },
   "hasLiveVerification": true,
   "seller": { "sellerId": "...", "displayName": null },
   "categoryMajor": "패션", "categoryMinor": "의류",

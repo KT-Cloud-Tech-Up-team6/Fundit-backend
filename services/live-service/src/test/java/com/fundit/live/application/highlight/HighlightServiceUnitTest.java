@@ -43,8 +43,9 @@ class HighlightServiceUnitTest {
                 LiveSession.builder().id(1L).publicId(liveId).vodUrl(vodUrl).build()));
     }
 
-    private void givenSessionByPublicId() {
-        given(sessionRepository.findOwnedAny(liveId))
+    /** 소비자 공개 경로는 DRAFT를 거르는 findPublic을 쓴다. */
+    private void givenPublicSession() {
+        given(sessionRepository.findPublic(liveId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
     }
 
@@ -162,7 +163,7 @@ class HighlightServiceUnitTest {
     @Test
     void 소비자_공개_조회가_조회수를_올린다() {
         // given — 소비자 화면이 하이라이트를 보려면 어차피 이 API를 부른다
-        givenSessionByPublicId();
+        givenPublicSession();
         given(highlightRepository.findPublicBySessionId(1L)).willReturn(List.of());
 
         // when
@@ -175,7 +176,7 @@ class HighlightServiceUnitTest {
     @Test
     void 클릭은_소속을_확인한_뒤_센다() {
         // given
-        givenSessionByPublicId();
+        givenPublicSession();
         given(highlightRepository.findByPublicId(highlightId))
                 .willReturn(Optional.of(clip(GenerationStatus.COMPLETED, true)));
 

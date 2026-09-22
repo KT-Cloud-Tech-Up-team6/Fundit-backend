@@ -1,6 +1,8 @@
 package com.fundit.notification.infrastructure.event;
 
 import com.fundit.common.event.KafkaTopics;
+import com.fundit.notification.infrastructure.persistence.livenotifyrequest.LiveNotifyRequestJpaEntity;
+import com.fundit.notification.infrastructure.persistence.livenotifyrequest.LiveNotifyRequestJpaRepository;
 import com.fundit.notification.infrastructure.persistence.notification.NotifType;
 import com.fundit.notification.infrastructure.persistence.notification.NotificationJpaRepository;
 import com.fundit.notification.infrastructure.persistence.notificationsetting.NotificationSettingJpaEntity;
@@ -57,6 +59,8 @@ class NotificationKafkaListenerIntegrationTest {
     private NotificationJpaRepository notificationJpaRepository;
     @Autowired
     private NotificationSettingJpaRepository notificationSettingJpaRepository;
+    @Autowired
+    private LiveNotifyRequestJpaRepository liveNotifyRequestJpaRepository;
 
     private static String payload(String eventId, UUID memberId, String notifType) {
         return """
@@ -66,8 +70,19 @@ class NotificationKafkaListenerIntegrationTest {
                 """.formatted(eventId, memberId, notifType);
     }
 
+    private static String liveStartedPayload(String eventId, UUID liveId, String projectTitle) {
+        return """
+                {"eventId":"%s","liveId":"%s","projectId":"%s","startedAt":"2026-09-22T10:00:00Z",
+                 "projectTitle":"%s"}
+                """.formatted(eventId, liveId, UUID.randomUUID(), projectTitle);
+    }
+
     private void send(String body) {
         kafkaTemplate.send(KafkaTopics.NOTIFICATION_RAISED, body);
+    }
+
+    private void sendLiveStarted(String body) {
+        kafkaTemplate.send(KafkaTopics.LIVE_STARTED, body);
     }
 
     private void awaitUnreadCount(UUID memberId, long expected) {
@@ -156,5 +171,36 @@ class NotificationKafkaListenerIntegrationTest {
 
         // then — 앞의 두 건은 건너뛰고 정상 메시지는 처리된다
         awaitUnreadCount(memberId, 1);
+    }
+
+    /** NOTI-002 — live.started.v1을 받아 신청자 목록을 직접 조회해 팬아웃하는지 실제 브로커로 확인한다. */
+    @Test
+    void 라이브가_시작되면_신청자에게_알림이_적재된다() {
+        // given
+        UUID liveId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        liveNotifyRequestJpaRepository.save(
+                LiveNotifyRequestJpaEntity.builder().liveId(liveId).memberId(memberId).build());
+
+        // when
+        sendLiveStarted(liveStartedPayload("live:1", liveId, "무선 이어폰"));
+
+        // then
+        awaitUnreadCount(memberId, 1);
+    }
+
+    @Test
+    void 신청하지_않은_회원은_라이브_시작_알림을_받지_않는다() {
+        // given — 신청 행이 없는 liveId
+        UUID liveId = UUID.randomUUID();
+        UUID unrelatedMember = UUID.randomUUID();
+
+        // when
+        sendLiveStarted(liveStartedPayload("live:2", liveId, "무선 이어폰"));
+
+        // then — 아무도 신청 안 했으니 적재도 없다(예외 없이 정상 종료했는지가 핵심)
+        Awaitility.await().pollDelay(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(20))
+                .untilAsserted(() -> assertThat(
+                        notificationJpaRepository.countByMemberIdAndReadAtIsNull(unrelatedMember)).isZero());
     }
 }

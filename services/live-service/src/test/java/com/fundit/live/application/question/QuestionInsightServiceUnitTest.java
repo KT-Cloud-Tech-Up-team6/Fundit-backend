@@ -55,10 +55,10 @@ class QuestionInsightServiceUnitTest {
         var result = questionInsightService.faq(sellerId, liveId, 10);
 
         // then
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().getSummaryText()).isEqualTo("타이머 기능 돼요?");
-        assertThat(result.getFirst().getRelatedQuestionCount()).isEqualTo(4);
-        assertThat(result.getFirst().isPromoted()).isTrue();
+        assertThat(result.summaries()).hasSize(1);
+        assertThat(result.summaries().getFirst().getSummaryText()).isEqualTo("타이머 기능 돼요?");
+        assertThat(result.summaries().getFirst().getRelatedQuestionCount()).isEqualTo(4);
+        assertThat(result.summaries().getFirst().isPromoted()).isTrue();
     }
 
     @Test
@@ -77,7 +77,7 @@ class QuestionInsightServiceUnitTest {
         var result = questionInsightService.faq(sellerId, liveId, 10);
 
         // then — 새로 만들지 않고 같은 인스턴스가 갱신된다
-        assertThat(result).containsExactly(existing);
+        assertThat(result.summaries()).containsExactly(existing);
         assertThat(existing.getRelatedQuestionCount()).isEqualTo(5);
     }
 
@@ -104,6 +104,26 @@ class QuestionInsightServiceUnitTest {
         assertThat(view.pending()).hasSize(1);
         assertThat(view.answered()).containsExactly(sellerAnswered);
         assertThat(sellerAnswered.getAnsweredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
+    }
+
+    @Test
+    void unanswered_조회가_승격_표시를_지우지_않는다() {
+        // given — 이미 TOP3로 승격된 행. UnansweredItem에는 promoted가 없어 기존 값을 살려야 한다
+        LiveQuestionSummaryJpaEntity promoted = q("fq_0002", 3);
+        promoted.applyFromAi(new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 3, "앱·원격제어",
+                AiClient.AnsweredBy.NONE, null, null, true));
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(promoted));
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.unanswered(anyString(), anyInt())).willReturn(new AiClient.UnansweredList(
+                List.of(new AiClient.UnansweredItem("fq_0002", "타이머 기능 돼요?", 4)), List.of()));
+
+        // when
+        questionInsightService.unanswered(sellerId, liveId, 10);
+
+        // then
+        assertThat(promoted.isPromoted()).isTrue();
     }
 
     @Test
@@ -151,7 +171,7 @@ class QuestionInsightServiceUnitTest {
     @Test
     void 답변된_질문_모아보기는_인증_없이_조회된다() {
         // given
-        given(sessionRepository.findOwnedAny(liveId))
+        given(sessionRepository.findPublic(liveId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(summaryRepository.findBySessionIdAndAnsweredTrueOrderByRelatedQuestionCountDesc(1L))
                 .willReturn(List.of(q("fq_0002", 12)));

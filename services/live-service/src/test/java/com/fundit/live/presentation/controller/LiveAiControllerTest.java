@@ -83,18 +83,36 @@ class LiveAiControllerTest {
     @Test
     void insights는_AI가_집계한_결과를_그대로_내려준다() throws Exception {
         // given — 집계는 AI가 한다. 여기서 topic으로 다시 묶지 않는다
-        when(questionInsightService.faq(any(), any(), anyInt())).thenReturn(List.of(
-                LiveQuestionSummaryJpaEntity.builder()
-                        .id(1L).publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0002")
-                        .summaryText("타이머 기능 돼요?").relatedQuestionCount(4).answered(true)
-                        .answerText("네, 최대 12시간입니다").build()));
+        when(questionInsightService.faq(any(), any(), anyInt())).thenReturn(
+                new QuestionInsightService.InsightsView(List.of(
+                        LiveQuestionSummaryJpaEntity.builder()
+                                .id(1L).publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0002")
+                                .summaryText("타이머 기능 돼요?").relatedQuestionCount(4).answered(true)
+                                .answerText("네, 최대 12시간입니다").build()),
+                        java.time.Instant.now()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/{liveId}/chat/insights", liveId)
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiStatus").value("READY"))
                 .andExpect(jsonPath("$.qna[0].summaryText").value("타이머 기능 돼요?"));
+    }
+
+    @Test
+    void 색인_전이면_목록이_비어도_PREPARING으로_구분된다() throws Exception {
+        // given — "AI 준비 중"과 "모인 질문 없음"은 다른 문구여야 한다(요구사항정의서 6.4.4.4)
+        when(questionInsightService.faq(any(), any(), anyInt())).thenReturn(
+                new QuestionInsightService.InsightsView(List.of(), null));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/chat/insights", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aiStatus").value("PREPARING"))
+                .andExpect(jsonPath("$.qna").isEmpty());
     }
 
     @Test
