@@ -24,28 +24,27 @@ public class LiveLikeService {
     private final LiveSessionJpaRepository sessionRepository;
 
     /**
-     * 갱신된 likeCount를 돌려준다 — {@code addLikeCount}는 네이티브 벌크 UPDATE라 영향 행수만
-     * 알려주고 새 값을 못 준다. 그래서 갱신 <b>전에</b> 읽어둔 값에 델타를 더해 계산한다
-     * (RETURNING·재조회 없이 — 좋아요 수는 강한 일관성이 필요한 값이 아니다).
+     * 갱신된 likeCount를 돌려준다 — {@code addLikeCount}(네이티브 벌크 UPDATE) 직후
+     * {@code findLikeCount}로 다시 읽는다. 갱신 전 값에 델타만 더해 계산하면 동시 요청 사이에
+     * 서로의 반영분을 못 보고 <b>DB는 맞는데 응답값만 틀린다</b>(리뷰 지적으로 발견) — A·B가
+     * 동시에 누르면 둘 다 상대방 반영 전 숫자를 돌려받는다.
      */
     @Transactional
     public int like(UUID memberId, UUID liveId) {
         LiveSessionJpaEntity session = loadPublic(liveId);
-        boolean applied = likeRepository.insertIgnoringConflict(session.getId(), memberId) > 0;
-        if (applied) {
+        if (likeRepository.insertIgnoringConflict(session.getId(), memberId) > 0) {
             sessionRepository.addLikeCount(session.getId(), 1);
         }
-        return session.getLikeCount() + (applied ? 1 : 0);
+        return sessionRepository.findLikeCount(session.getId());
     }
 
     @Transactional
     public int unlike(UUID memberId, UUID liveId) {
         LiveSessionJpaEntity session = loadPublic(liveId);
-        boolean applied = likeRepository.deleteByIds(session.getId(), memberId) > 0;
-        if (applied) {
+        if (likeRepository.deleteByIds(session.getId(), memberId) > 0) {
             sessionRepository.addLikeCount(session.getId(), -1);
         }
-        return session.getLikeCount() - (applied ? 1 : 0);
+        return sessionRepository.findLikeCount(session.getId());
     }
 
     /** 내가 이 LIVE에 좋아요를 눌렀는지. 로그인 사용자 전용이라 인증이 필수다. */

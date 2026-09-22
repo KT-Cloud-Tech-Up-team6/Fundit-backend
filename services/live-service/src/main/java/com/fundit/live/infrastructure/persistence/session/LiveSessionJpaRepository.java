@@ -112,4 +112,12 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     @Query(value = "UPDATE live_sessions SET like_count = like_count + :delta "
             + "WHERE id = :sessionId AND like_count + :delta >= 0", nativeQuery = true)
     int addLikeCount(@Param("sessionId") Long sessionId, @Param("delta") int delta);
+
+    /**
+     * {@code addLikeCount} 직후 실제 값을 다시 읽는다 — 영속성 컨텍스트에 이미 로드된
+     * 엔티티의 {@code likeCount} 필드는 벌크 UPDATE를 반영하지 못해 stale하다. 스칼라 조회라
+     * 1차 캐시를 안 거치므로 항상 최신값이다.
+     */
+    @Query(value = "SELECT like_count FROM live_sessions WHERE id = :sessionId", nativeQuery = true)
+    int findLikeCount(@Param("sessionId") Long sessionId);
 }
