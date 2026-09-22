@@ -21,6 +21,7 @@
 | 15 | POST | `/api/v1/projects/{projectId}/notices` | 새소식 등록(판매자) | O (판매자) | PROJECT-010 |
 | 16 | GET | `/api/v1/projects/{projectId}/notices` | 새소식 목록 조회(소비자) | X (공통) | PROJECT-022 |
 | 16-1 | GET | `/api/v1/notices/{noticeId}` | 새소식 본문 조회(열람·재편집용) | X (공통) | PROJECT-022 |
+| 16-2 | PATCH | `/api/v1/notices/{noticeId}` | 새소식 재편집 저장 | O (판매자) | PROJECT-010 |
 | 17 | POST | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 등록 | O (로그인 회원, 구매이력 미검증) | PROJECT-023 |
 | 18 | GET | `/api/v1/notices/{noticeId}/comments` | 새소식 댓글 목록 조회 | X (공통) | PROJECT-023 |
 | 19 | POST | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 질문/응원 등록(소비자) | O (로그인 회원, 구매이력 미검증) | PROJECT-024 |
@@ -368,7 +369,7 @@ POST /api/v1/projects/{projectId}/rewards
 "earlyBirdDiscountType": "RATE",
 "earlyBirdDiscountValue": 10,
 "options": [
-{ "groupName": "색상", "values": ["화이트", "블랙"] }
+{ "optionGroupId": null, "groupName": "색상", "values": ["화이트", "블랙"] }
 ],
 "shippingFee": 3000,
 "estimatedDeliveryDays": 7
@@ -407,10 +408,10 @@ POST /api/v1/projects/{projectId}/rewards
   `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
   할인 적용가로, 얼리버드가 아니면 `null`이다.
 - `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).
-- `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성.
+- `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성. 등록 시 `optionGroupId`는 항상 `null`(또는 생략)이다 — 아직 존재하지 않는 그룹이라 재사용할 ID가 없다.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).
-- 응답에도 `simpleRefundDisabled`/`options`가 포함되지만, 생성/수정 직후 응답이라 `options`의 `groupId`/`valueId`는 `null`이다(방금 요청한 값을 그대로 반영할 뿐 DB 조회를 다시 하지 않음) — 재편집 화면처럼 실제 ID가 필요하면 #14-1로 다시 조회한다.
+- 응답에도 `simpleRefundDisabled`/`options`가 포함되지만, 생성/수정 직후 응답의 `options[].groupId`는 **요청에 실려온 값을 그대로 되돌려줄 뿐**이다(등록 응답은 항상 `null`, 수정 응답은 PATCH에서 재사용한 기존 ID). `valueId`는 그룹의 값 목록이 항상 통째로 교체되므로 애초에 없다(`null` 고정). 신규 그룹이 실제로 부여받은 ID까지 포함한 전체 목록이 필요하면(재편집 화면 초기 로딩 등) #14-1로 다시 조회한다.
 
 ---
 
@@ -439,6 +440,24 @@ PATCH /api/v1/rewards/{rewardId}
 - `shippingFee`/`estimatedDeliveryDays`는 각각 전달된 필드만 갱신하고, 전달하지 않은 필드는 기존 값을 유지한다(단순 필드별 병합, `quantity`처럼 다른 필드에 연동해 자동으로 `null`이 되는 규칙은 없음).
 - 수정 시 `reward.updated.v1`을 발행한다(ORDER-012). payload는 생성 이벤트와 동일 계약이며 `projectId`는 내부 Long PK. 삭제·환불정책 변경은 이 토픽을 발행하지 않는다.
 - 이미 판매(주문)가 발생한 리워드의 `price` 인하/인상 등 정책은 [정책 확인 필요].
+
+**옵션(`options`) 수정 시 ID 유지·교체 규칙**
+
+`options`를 전달하면(필드가 있으면) 항상 그 배열이 최종 옵션 목록이 된다 — 응답에 없는 기존 그룹은 삭제된다.
+재편집 화면은 #14-1(`GET .../rewards/mine`)에서 받은 `groupId`를 그대로 되돌려 보내는 방식으로 그룹을 유지한다.
+
+```json
+"options": [
+  { "optionGroupId": 12, "groupName": "색상", "values": ["레드", "블루"] },
+  { "groupName": "사이즈", "values": ["S", "M"] }
+]
+```
+
+- `optionGroupId`가 이 리워드의 기존 그룹 ID와 일치 → **그 그룹 ID를 유지**한 채 이름/값만 갱신한다(위 예시의 그룹 12).
+- `optionGroupId`가 없거나(`null`), 이 리워드 소속이 아닌 ID(다른 리워드/다른 판매자 그룹 ID 등) → **새 그룹으로 취급**한다(위 예시의 "사이즈"). 다른 리워드의 그룹을 훔쳐오거나 덮어쓰지 않는다.
+- 요청 배열에 없는 기존 그룹 ID → 삭제된다.
+- **그룹 안의 값(`values`) 목록은 항상 통째로 교체된다** — 개별 값에는 ID가 없다. "화이트"를 "아이보리"로 이름만 바꿔도 내부적으로는 삭제 후 재생성과 동일하다. 이래도 되는 이유: 이미 발생한 주문(`funding_line_items`)의 옵션명은 주문 시점 스냅샷이라 이후 이름 변경의 영향을 받지 않고, 재고(`inventories`)도 리워드 단위로만 관리되어 옵션 값 자체를 참조하지 않는다 — 그룹 ID만 안정적이면 충분하다.
+- `options` 필드 자체를 생략하면(요청 JSON에 `options` 키가 없으면) 기존 옵션을 그대로 둔다(다른 필드와 동일한 부분 수정 규칙). 옵션을 전부 비우고 싶으면 빈 배열(`"options": []`)을 보낸다.
 
 ---
 
@@ -711,7 +730,37 @@ GET /api/v1/notices/{noticeId}
 
 - #16(목록)과 동일 — 새소식 없음 또는 소속 프로젝트 비공개는 존재 여부를 구분하지 않고 `404 NOT_FOUND`.
 - 열람·재편집(판매자)용으로 본문(`content`)을 포함한다. 목록(#16)은 피드 노출용이라 본문을 담지 않는다.
-- 이 API는 조회 전용이다 — 새소식 수정(PATCH)은 아직 없다(등록만 #15로 가능).
+- 재편집 저장은 #16-2(PATCH)로 한다.
+
+---
+
+### 16-2. 새소식 재편집 저장
+
+```
+PATCH /api/v1/notices/{noticeId}
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: 등록(#15)과 동일한 필드 중 변경할 필드만 부분 전달(둘 다 선택값, `title`은 100자 제한). `noticeType`은 수정 대상이 아니다 — 새소식 유형을 바꾸고 싶으면 삭제 후 재등록한다(수정 API 없음, 삭제 API도 없음).
+
+```json
+{ "title": "생산 진행 상황 안내(수정)", "content": "..." }
+```
+
+**Response Body**
+
+```json
+16-1(본문 조회)과 동일 구조
+```
+
+**Validation / Business Rules**
+
+- 소유권 검증: 새소식이 속한 프로젝트의 `seller_id`가 본인인지 확인(S4) — 타인 소유면 `403 FORBIDDEN`.
+- 존재하지 않는 `noticeId`는 `404 NOT_FOUND`.
+- 등록(#15)과 동일하게 프로젝트 공개 여부는 따지지 않는다(소유권만 검증) — DRAFT 프로젝트의 새소식도 수정 가능.
+- `title`/`content` 중 요청 JSON에 없는(생략된) 필드는 기존 값을 유지한다. 저장 즉시 반영되며, 이후 #16-1(GET)로 재조회하면 변경된 값이 보인다.
+- 다른 서비스가 새소식을 참조·색인하지 않으므로(검색 색인(SEARCH-011)은 프로젝트 title/status만 대상) 이 API는 project-service 내부에서 닫힌 변경이다.
 
 ---
 

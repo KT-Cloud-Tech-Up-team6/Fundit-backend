@@ -16,6 +16,7 @@
 | GET | `/api/v1/notifications` | O (구매자) | 알림 목록 조회 (NOTI-003) |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | O (구매자) | 알림 읽음 처리 (NOTI-005) |
 | GET | `/api/v1/notifications/unread-count` | O (구매자) | 안읽음 개수 조회 (NOTI-007) |
+| GET | `/api/v1/notification-settings` | O | 알림 유형별 현재 수신 설정 조회 (NOTI-004) |
 | PUT | `/api/v1/notification-settings` | O (구매자) | 알림 유형별 수신 설정 변경 (NOTI-004) |
 | PUT | `/api/v1/lives/{liveId}/notify` | O (구매자) | LIVE 시작 알림 신청 (idempotent, NOTI-002) |
 | DELETE | `/api/v1/lives/{liveId}/notify` | O (구매자) | LIVE 시작 알림 해제 (idempotent, NOTI-002) |
@@ -123,6 +124,31 @@ Validation / Business Rules
 - 알림함 아이콘 뱃지용이며 **알림함 밖(홈 등)에서도 호출**되므로 NOTI-003 목록 응답에 얹지 않고 별도 엔드포인트로 둔다.
 - `(member_id) WHERE read_at IS NULL` partial 인덱스로 처리한다 — 전체 행이 아니라 안읽음만 인덱싱해 알림이 쌓여도 크기가 늘지 않는다.
 - 조회 실패는 뱃지 미표시로 처리하고 알림함 진입 자체를 막지 않는다.
+
+---
+
+### 알림 수신설정 조회 (NOTI-004)
+
+```
+GET /api/v1/notification-settings
+```
+
+Auth Required: **O**
+
+Response Body
+
+```json
+[
+  { "notifType": "LIVE_START", "enabled": true },
+  { "notifType": "SHIPPING_UPDATE", "enabled": false }
+]
+```
+
+Validation / Business Rules
+
+- 본인 설정만 조회한다. 재접속 시 설정 화면 복원용.
+- **알림 유형 전체**를 아래 "알림 유형" 표 순서로 돌려준다. 수신 거부 행이 없는 유형은 기본값인 `enabled=true`로 채운다 — 신규 회원도 초기 데이터 없이 전체 목록이 나온다.
+- 판매자 전용 유형(`SELLER_UPDATE_DUE`)도 포함한다(`PUT`이 모든 유형을 받으므로 맞춘다). 화면별 노출 여부는 FE가 거른다.
 
 ---
 

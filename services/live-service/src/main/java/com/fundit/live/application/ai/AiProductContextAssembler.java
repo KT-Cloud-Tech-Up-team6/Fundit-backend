@@ -6,6 +6,7 @@ import com.fundit.live.domain.session.LiveSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,8 +25,27 @@ public class AiProductContextAssembler {
 
     /** 프로젝트가 없으면(404) 상품 필드는 null, knowledge는 빈 리스트로 보낸다. */
     public AiClient.PrepareRequest assemble(LiveSession session) {
-        ProjectContextClient.ProjectContext context = projectContextClient
-                .find(session.getProjectId()).orElse(null);
+        return productOf(session, projectContextClient.find(session.getProjectId()).orElse(null));
+    }
+
+    /** 큐시트 요청용 — 상품정보와 캠페인 현황을 project-service 한 번 조회로 만든다. */
+    public CueSheetInput forCueSheet(LiveSession session) {
+        ProjectContextClient.ProjectContext context = projectContextClient.find(session.getProjectId()).orElse(null);
+        return new CueSheetInput(productOf(session, context), fundingOf(context));
+    }
+
+    /**
+     * 펀딩 실시간 값. project-service는 마감 시각이 아니라 남은 일수만 주므로 지금 시각 기준으로
+     * 마감일을 환산한다(일 단위 정밀도). 남은 일수는 이 마감일에서 다시 계산할 수 있어 따로 싣지 않는다.
+     */
+    public static AiClient.FundingInfo fundingOf(ProjectContextClient.ProjectContext context) {
+        int achievedRate = context == null || context.achievementRate() == null ? 0 : context.achievementRate();
+        Instant deadline = context == null || context.remainingDays() == null
+                ? null : Instant.now().plusSeconds(context.remainingDays() * 86400L);
+        return new AiClient.FundingInfo(deadline, achievedRate);
+    }
+
+    private AiClient.PrepareRequest productOf(LiveSession session, ProjectContextClient.ProjectContext context) {
         List<AiClient.RewardInfo> rewards = projectRewardClient.findRewards(session.getProjectId());
         List<AiClient.KnowledgeChunk> knowledge = context == null ? List.of() : knowledgeOf(context.introTexts());
         return new AiClient.PrepareRequest(
@@ -41,5 +61,8 @@ public class AiProductContextAssembler {
             chunks.add(new AiClient.KnowledgeChunk("intro-" + i, "상세설명", introTexts.get(i), false, "project-intro"));
         }
         return chunks;
+    }
+
+    public record CueSheetInput(AiClient.PrepareRequest product, AiClient.FundingInfo funding) {
     }
 }

@@ -1,6 +1,7 @@
 package com.fundit.live.infrastructure.ivs;
 
 import com.fundit.live.application.ivs.IvsClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -18,12 +19,24 @@ public class StubIvsClient implements IvsClient {
 
     private static final String ARN_PREFIX = "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-";
 
+    /**
+     * 재생 QA용 테스트 영상 URL. 비어 있으면 존재하지 않는 스텁 도메인을 돌려준다 —
+     * IVS 없이 FE 플레이어를 검증하려면 S3 테스트 m3u8 주소를 넣는다.
+     */
+    private final String playbackUrlOverride;
+
+    public StubIvsClient(@Value("${live.ivs.stub-playback-url:}") String playbackUrlOverride) {
+        this.playbackUrlOverride = playbackUrlOverride;
+    }
+
     @Override
     public Channel createChannel(String sellerId) {
         return new Channel(
                 ARN_PREFIX + sellerId,
                 "rtmps://stub.ingest.live.local:443/app/",
-                "https://stub.playback.live.local/" + sellerId + "/master.m3u8",
+                playbackUrlOverride.isBlank()
+                        ? "https://stub.playback.live.local/" + sellerId + "/master.m3u8"
+                        : playbackUrlOverride,
                 // 스트림 키 "값"이 아니라 참조 식별자다. 실제 구현에서도 값을 DB에 넣지 않는다(S9).
                 "stub-stream-key-ref/" + sellerId);
     }

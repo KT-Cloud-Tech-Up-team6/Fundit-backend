@@ -8,8 +8,12 @@ public interface RewardRepository {
     /** 리워드 기본 컬럼만 저장한다(옵션 그룹/값 테이블은 건드리지 않음). */
     Reward save(Reward reward);
 
-    /** 옵션 그룹/값을 통째로 치환한다(삭제 후 재삽입). 옵션을 등록/수정할 때만 호출한다. */
-    void replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups);
+    /**
+     * 옵션 그룹/값을 통째로 치환한다(삭제 후 재삽입). 옵션을 등록/수정할 때만 호출한다.
+     * 반환값은 실제로 영속화된 그룹 목록(신규/타 리워드 소속 그룹도 새로 부여된 ID 포함)이다 —
+     * 응답 DTO가 요청값이 아닌 저장된 ID를 그대로 쓸 수 있도록 호출자가 사용한다.
+     */
+    List<RewardOptionGroup> replaceOptions(Long rewardId, List<RewardOptionGroup> optionGroups);
 
     /** 소프트 삭제된 리워드는 제외한다. */
     Optional<Reward> findById(Long id);

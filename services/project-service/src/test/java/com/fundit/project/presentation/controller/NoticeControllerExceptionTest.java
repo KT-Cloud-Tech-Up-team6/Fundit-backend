@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +50,28 @@ class NoticeControllerExceptionTest {
     @Test
     void sort값이_올바르지_않으면_400을_반환한다() throws Exception {
         mockMvc.perform(get("/api/v1/projects/" + UUID.randomUUID() + "/notices").param("sort", "WRONG"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 인증헤더_없이_새소식_수정시_401을_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(patch("/api/v1/notices/1")
+                        .contentType("application/json")
+                        .content("{\"title\":\"새제목\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 새소식_제목이_100자를_초과하면_400을_반환한다() throws Exception {
+        // given
+        String tooLong = "a".repeat(101);
+
+        // when & then
+        mockMvc.perform(patch("/api/v1/notices/1")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("{\"title\":\"" + tooLong + "\"}"))
                 .andExpect(status().isBadRequest());
     }
 

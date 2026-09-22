@@ -27,6 +27,9 @@ live:
     # stub으로 흘러가면 가짜 ARN으로 방송이 "성공"하고 아무도 눈치채지 못한다.
     # AWS 구현이 붙으면 LIVE_IVS_MODE=aws를 주입한다.
     mode: ${LIVE_IVS_MODE}
+    # 선택 — 녹화(S3, 다시보기·하이라이트 입력)·채팅 로깅(Firehose → 채팅 적재) 설정 ARN.
+    recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
+    chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
   ai:
     # IVS와 같은 이유로 기본값을 두지 않는다. 미설정이면 기동이 실패한다 —
     # 스텁으로 흘러가면 큐시트·추천답변이 "[stub] ..." 문자열로 "성공"한다.

@@ -2,6 +2,7 @@ package com.fundit.auth.infrastructure.mail;
 
 import com.fundit.auth.application.mail.MailSender;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -17,14 +18,28 @@ import org.springframework.stereotype.Component;
  * 그대로 들어 있어, 로그로 새면 토큰을 탈취한 것과 같다(security.md S10). {@code mail.mode=log}는
  * 운영에서 실제 발송기가 붙기 전 임시값일 수 있어, "지금은 스텁이니 로그에 남겨도 된다"고
  * 가정하지 않는다.
+ *
+ * <p>예외는 {@code mail.log-body=true}뿐이다 — QA가 메일 없이 재설정 링크를 확인하는 용도로
+ * <b>dev 프로필에서만</b> 켠다(application-dev.yml). 기본값은 false라 prod에서 {@code mail.mode=log}가
+ * 쓰이더라도 본문은 남지 않는다.
  */
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "mail.mode", havingValue = "log", matchIfMissing = false)
 public class LoggingMailSender implements MailSender {
 
+    private final boolean logBody;
+
+    public LoggingMailSender(@Value("${mail.log-body:false}") boolean logBody) {
+        this.logBody = logBody;
+    }
+
     @Override
     public void send(String to, String subject, String body) {
+        if (logBody) {
+            log.info("[stub] 메일 발송 subject={} body={}", subject, body);
+            return;
+        }
         log.info("[stub] 메일 발송 subject={}", subject);
     }
 }

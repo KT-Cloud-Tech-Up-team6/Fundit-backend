@@ -9,6 +9,4 @@ public interface RewardOptionGroupJpaRepository extends JpaRepository<RewardOpti
     List<RewardOptionGroupJpaEntity> findByRewardId(Long rewardId);
 
     List<RewardOptionGroupJpaEntity> findByRewardIdAndDeletedAtIsNullOrderBySortOrderAsc(Long rewardId);
-
-    void deleteByRewardId(Long rewardId);
 }

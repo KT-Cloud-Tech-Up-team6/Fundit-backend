@@ -24,6 +24,9 @@
 | GET | `/api/v1/follows` | O | 내 팔로우 **판매자** 목록 조회 |
 | GET | `/api/v1/addresses` | O | 배송지 목록 조회 |
 | POST | `/api/v1/addresses` | O | 배송지 등록 |
+| PUT | `/api/v1/addresses/{addressId}` | O | 배송지 수정 |
+| PATCH | `/api/v1/addresses/{addressId}/default` | O | 기본 배송지 지정 |
+| DELETE | `/api/v1/addresses/{addressId}` | O | 배송지 삭제 |
 
 ---
 
@@ -201,6 +204,7 @@ Response Body
   "content": [
     {
       "projectId": 123,
+      "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
       "projectTitle": "무선 이어폰 프로젝트",
       "projectThumbnailUrl": "https://cdn.fundit.com/projects/123/thumb.jpg",
       "createdAt": "2026-08-20T10:00:00"
@@ -218,7 +222,9 @@ Validation / Business Rules
 
 - 본인 찜 목록만 조회 가능.
 - 이 응답은 **프로젝트만** 담는다. 마이페이지의 "찜한 판매자" 목록은 `GET /api/v1/follows`(MEMBER-007)다 — 응답 아이템 모양이 달라 한 엔드포인트에 섞으면 페이지네이션이 하나로 묶여 탭 전환마다 커서가 꼬인다.
-- `projectTitle`/`projectThumbnailUrl`은 `wishes` 테이블에 저장된 스냅샷 컬럼을 그대로 반환한다(catalog-service를 실시간 호출하지 않음). catalog-service가 발행하는 프로젝트 변경 이벤트를 구독해 동기화하므로, 프로젝트 정보가 바뀐 직후 아주 짧은 시간(최종적 일관성) 동안은 옛 값이 보일 수 있다.
+- `projectId`(숫자)는 찜 등록·해제(`PUT`/`DELETE /api/v1/wishes/{projectId}`)용, `projectPublicId`(UUID)는 프로젝트 상세 조회용이다.
+- `projectPublicId`/`projectTitle`/`projectThumbnailUrl`은 member-service의 `project_snapshots` 테이블에서 가져온다(project-service를 실시간 호출하지 않음). project-service가 발행하는 `project.approved.v1`/`project.updated.v1`을 구독해 동기화하므로, 프로젝트 정보가 바뀐 직후 아주 짧은 시간(최종적 일관성) 동안은 옛 값이 보일 수 있다.
+- 스냅샷이 아직 없는 프로젝트(구독 시작 전에 승인돼 이벤트가 보존 기간을 넘긴 경우 등)도 목록에서 빠지지 않고, 세 필드만 `null`로 온다.
 
 ---
 
@@ -374,6 +380,29 @@ Validation / Business Rules
 - `addressLine1`은 프론트엔드가 도로명주소 API로 직접 검색해 채운 값을 그대로 받는다.
 - 필수값 누락 시 400.
 - 개인정보(주소)는 저장·전송 시 암호화.
+- `isDefault=true`로 등록하면 기존 기본 배송지가 해제된다. **회원당 기본 배송지는 최대 1개**다(DB 부분 유니크 인덱스로 보장).
+
+---
+
+### 배송지 수정 / 기본 지정 / 삭제
+
+```
+PUT    /api/v1/addresses/{addressId}
+PATCH  /api/v1/addresses/{addressId}/default
+DELETE /api/v1/addresses/{addressId}
+```
+
+Auth Required: **O**
+
+- `PUT`: 요청 본문은 배송지 등록과 같다(전체 수정, 같은 검증). 응답은 배송지 목록 항목과 같은 모양(`id`, `recipientName`, `phoneNumber`, `zipcode`, `addressLine1`, `addressLine2`, `isDefault`).
+- `PATCH .../default`: 본문 없음. 이 배송지를 기본으로 지정하고 기존 기본을 해제한다. 응답은 `PUT`과 같다.
+- `DELETE`: `204 No Content`.
+
+Validation / Business Rules
+
+- **본인 배송지만** 수정·지정·삭제할 수 있다. 남의 `addressId`면 `404`(존재 여부를 드러내지 않는다, S4).
+- `PUT`에서 `isDefault=true`면 기존 기본이 해제되고, `false`(또는 생략)면 이 배송지의 기본 지정이 해제된다.
+- **기본 배송지를 삭제하면 기본 배송지가 없는 상태가 된다.** 다른 배송지를 자동으로 기본으로 올리지 않는다 — 다음 주문 때 사용자가 고른다.
 
 ---
 
@@ -390,6 +419,10 @@ Validation / Business Rules
 - **[확정, 2026-09-16 #58] MEMBER-007 팔로우 복귀**: PM이 MEMBER-006을 "찜한 프로젝트 목록과 찜한 판매자 목록"으로 변경 — 판매자 목록이 필요해져 팔로우를 구현하고 `PUT`/`DELETE`/`GET /api/v1/follows`를 이 문서로 되가져왔다(위 `[확정, 2026-09-03]` 항목 중 007 부분 무효). 목록은 `GET /api/v1/wishes`에 합치지 않는다 — 응답 아이템 모양이 달라 페이지네이션이 하나로 묶인다.
 - **[구현 메모, 2026-09-16 #58] 찜 이벤트 발행**: 찜 등록/해제가 `member_event_outbox`에 같은 트랜잭션으로 적재되고, 워커가 `project.wished.v1`/`project.unwished.v1`로 발행한다(파티션 키 `memberId`). 발행 측은 끝났고, **찜 통계가 실제로 오르려면 project-service에 구독 어댑터가 필요하다** — 그쪽 `ProjectWishStatsEventSubscriber`는 인프로세스 `@EventListener`라 토픽을 직접 받지 못한다.
 - **[구현 메모, 2026-09-16 #58] 회원가입 이벤트 발행**: `POST /api/v1/members`가 성공하면 같은 트랜잭션에서 `member_event_outbox`에 적재되고 워커가 `member.signed-up.v1`로 발행한다(파티션 키 `memberId`). order-service가 이 토픽으로 웰컴 쿠폰(ORDER-007)을 발급한다. 발행 실패는 워커가 재시도하며 **가입 API를 깨지 않는다** — 여기서 예외가 나가면 auth-service가 보상 트랜잭션으로 계정을 지운다.
+
+- **[확정, 2026-09-21 #101] 배송지 수정·삭제·기본 지정**: QA 요청으로 추가. 기본 배송지가 여러 개 저장될 수 있던 문제를 V5 부분 유니크 인덱스로 막았다(기존 중복은 회원별 최신 1개만 남기고 정리). 기본을 삭제하면 기본 없음으로 둔다(자동 승계 안 함, 사용자 결정).
+
+- **[확정, 2026-09-22 #109] 찜 목록 프로젝트 정보**: 찜 등록 시 `project_id`만 저장하고 스냅샷을 채우는 코드가 없어 제목·썸네일이 항상 null이었다. `project.approved.v1`/`project.updated.v1`을 구독해 `project_snapshots`(V6)에 upsert하고 목록 조회에서 조인한다. `projectPublicId`를 응답에 추가했다. `wishes`의 옛 스냅샷 컬럼 3개는 더 이상 쓰지 않으며 후속 정리 대상이다.
 
 ## ⚠️ 남은 확인 필요 사항
 

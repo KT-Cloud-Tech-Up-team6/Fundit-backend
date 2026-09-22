@@ -48,13 +48,15 @@ class CueSheetServiceUnitTest {
     }
 
     @Test
-    void 생성을_요청하면_GENERATING으로_저장하고_상품정보를_실어_AI를_부른다() {
+    void 생성을_요청하면_GENERATING으로_저장하고_상품정보와_캠페인_현황을_실어_AI를_부른다() {
         // given
         givenOwnedSessionForUpdate();
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.empty());
         AiClient.PrepareRequest product = new AiClient.PrepareRequest("에어쿡 프로", "가전", "주방가전",
                 null, UUID.randomUUID().toString(), List.of(), List.of());
-        given(productContextAssembler.assemble(any())).willReturn(product);
+        AiClient.FundingInfo funding = new AiClient.FundingInfo(null, 42);
+        given(productContextAssembler.forCueSheet(any()))
+                .willReturn(new AiProductContextAssembler.CueSheetInput(product, funding));
 
         // when
         cueSheetService.requestGeneration(sellerId, liveId, "SCENARIO", 580, true,
@@ -67,6 +69,7 @@ class CueSheetServiceUnitTest {
         ArgumentCaptor<AiClient.CueSheetRequest> requestCaptor = ArgumentCaptor.forClass(AiClient.CueSheetRequest.class);
         verify(aiClient).requestCueSheet(anyString(), requestCaptor.capture());
         assertThat(requestCaptor.getValue().product()).isEqualTo(product);
+        assertThat(requestCaptor.getValue().funding()).isEqualTo(funding);
     }
 
     @Test

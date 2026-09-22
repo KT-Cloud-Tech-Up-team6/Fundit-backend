@@ -1,0 +1,90 @@
+package com.fundit.live.infrastructure.ivs;
+
+import com.fundit.live.application.ivs.IvsClient;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.services.ivs.model.Channel;
+import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
+import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.StreamKey;
+import software.amazon.awssdk.services.ivschat.IvschatClient;
+import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
+import software.amazon.awssdk.services.ivschat.model.CreateChatTokenResponse;
+import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
+import software.amazon.awssdk.services.ivschat.model.CreateRoomResponse;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+class AwsIvsClientUnitTest {
+
+    private final software.amazon.awssdk.services.ivs.IvsClient ivs =
+            mock(software.amazon.awssdk.services.ivs.IvsClient.class);
+    private final IvschatClient ivschat = mock(IvschatClient.class);
+
+    private void givenChannelCreated() {
+        given(ivs.createChannel(any(CreateChannelRequest.class))).willReturn(CreateChannelResponse.builder()
+                .channel(Channel.builder().arn("arn:channel").ingestEndpoint("abc.global-contribute.live-video.net")
+                        .playbackUrl("https://play/abc.m3u8").build())
+                .streamKey(StreamKey.builder().arn("arn:stream-key").value("sk_secret").build())
+                .build());
+    }
+
+    @Test
+    void 채널을_만들면_스트림_키는_값이_아니라_ARN만_담는다() {
+        // given
+        givenChannelCreated();
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        IvsClient.Channel channel = client.createChannel("seller-1");
+
+        // then
+        assertThat(channel.arn()).isEqualTo("arn:channel");
+        assertThat(channel.ingestEndpoint()).isEqualTo("rtmps://abc.global-contribute.live-video.net:443/app/");
+        assertThat(channel.playbackUrl()).isEqualTo("https://play/abc.m3u8");
+        assertThat(channel.streamKeyRef()).isEqualTo("arn:stream-key");
+    }
+
+    @Test
+    void 녹화_설정이_있으면_채널에_연결하고_없으면_뺀다() {
+        // given
+        givenChannelCreated();
+        ArgumentCaptor<CreateChannelRequest> captor = ArgumentCaptor.forClass(CreateChannelRequest.class);
+
+        // when
+        new AwsIvsClient(ivs, ivschat, "arn:recording", "").createChannel("s1");
+        new AwsIvsClient(ivs, ivschat, "", "").createChannel("s2");
+
+        // then
+        verify(ivs, org.mockito.Mockito.times(2)).createChannel(captor.capture());
+        assertThat(captor.getAllValues().get(0).recordingConfigurationArn()).isEqualTo("arn:recording");
+        assertThat(captor.getAllValues().get(1).recordingConfigurationArn()).isNull();
+    }
+
+    @Test
+    void 채팅방과_채팅_토큰을_발급한다() {
+        // given
+        given(ivschat.createRoom(any(CreateRoomRequest.class)))
+                .willReturn(CreateRoomResponse.builder().arn("arn:room").build());
+        given(ivschat.createChatToken(any(CreateChatTokenRequest.class)))
+                .willReturn(CreateChatTokenResponse.builder().token("chat-token").build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "arn:logging");
+
+        // when
+        String roomArn = client.createChatRoom("live-1");
+        String token = client.createChatToken(roomArn, "user-1", List.of("SEND_MESSAGE"));
+
+        // then
+        ArgumentCaptor<CreateRoomRequest> room = ArgumentCaptor.forClass(CreateRoomRequest.class);
+        verify(ivschat).createRoom(room.capture());
+        assertThat(room.getValue().loggingConfigurationIdentifiers()).containsExactly("arn:logging");
+        assertThat(roomArn).isEqualTo("arn:room");
+        assertThat(token).isEqualTo("chat-token");
+    }
+}

@@ -12,3 +12,13 @@ spring:
 
 internal-api:
   key: ${INTERNAL_API_KEY}
+
+live:
+  ivs:
+    # 자격증명을 받았으면 LIVE_IVS_MODE=aws로 실연동한다. 미설정이면 stub.
+    mode: ${LIVE_IVS_MODE:stub}
+    # 스텁 모드 재생 QA용 테스트 영상(m3u8). 비어 있으면 스텁 기본 URL.
+    stub-playback-url: ${LIVE_IVS_STUB_PLAYBACK_URL:}
+    # 선택 — 녹화(S3)·채팅 로깅 설정. 비어 있으면 요청에서 뺀다.
+    recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
+    chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
