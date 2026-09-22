@@ -80,13 +80,6 @@ public interface AiClient {
                            PrepareRequest product, FundingInfo funding) {
     }
 
-    /**
-     * {@code grounded=false}는 상품정보에서 근거를 찾지 못했다는 뜻이며 <b>에러가 아니다</b> —
-     * 503으로 올리면 화면에 보여줄 게 없어지는데 요구사항정의서 6.4.4.5는 Empty State를 요구한다.
-     */
-    record AnswerDraft(String draftAnswer, boolean grounded) {
-    }
-
     // ── 상품정보 색인 ──────────────────────────────────────────────
 
     record PrepareRequest(String productName, String productCategory, String categoryMinor,

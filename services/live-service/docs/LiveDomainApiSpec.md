@@ -169,7 +169,7 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 **`EVIDENCE_UNAVAILABLE`(근거 없음)은 에러가 아니다.**
 코파일럿은 판매자가 초안을 보고 판단하는 화면이다.
 503을 던지면 화면에 보여줄 게 없어지는데, 요구사항정의서 6.4.4.5는 *"관련 상품정보가 없습니다"* Empty State를 요구한다. **근거 없음은 정상 응답의 한 상태다.**
-실계약에선 `AiClient.Grounding`(`GROUNDED`/`UNGROUNDED`)으로 표현되고, `UNGROUNDED`면 `AiAnswerResponse.draftAnswer`가 `[판매자 확인 필요: ...]`로 비워진다.
+실계약의 `GET /unanswered/{qid}`(추천답변 초안 경로)에는 grounded 플래그가 없다 — 근거를 못 찾으면 `reference.chunks`가 빈 배열로 온다. 그래서 `AiAnswerResponse.referenceChunks`가 비어 있는 것이 곧 Empty State 신호다. (`AiClient.Grounding`은 채팅 배치 응답 `submitComments` 쪽에만 있는 값이고, 값은 `GROUNDED`/`PARTIAL_GROUNDED`/`SELLER_CONFIRMED`다.)
 
 #### 비동기 생성 — 폴링 대상은 우리다 (큐시트·하이라이트만 해당)
 
