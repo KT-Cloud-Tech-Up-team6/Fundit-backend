@@ -910,7 +910,10 @@ POST /api/v1/community/posts/{postId}/answer
 
 **상태·저장 규칙**
 
-- 공개 run 상태: `queued` · `running` · `succeeded` · `partially_succeeded` · `failed`.
+- 공개 run 상태: `queued` · `succeeded` · `partially_succeeded` · `failed`. AI가 처리를 실제로
+  시작했다는 별도 신호가 없어 `running`은 두지 않는다 — 대기~처리 중은 전부 `queued`로 묶인다.
+  FE가 이 둘을 화면에서 구분해야 하면 AI 쪽에 "처리 시작" 통지가 새로 필요한 별도 작업이다
+  (2026-09-22 확인, 필요성 확인 전까지 보류).
 - 전체 재생성만 지원한다. 부분/슬롯 재생성과 별도 export/apply API는 없다.
 - 객체 검증 실패가 일부이면 `partially_succeeded`, 사용 가능한 결과가 없으면 `failed`로 낮춘다.
 - 완료 callback을 제한 시간 안에 받지 못하면 조회 시 `failed/RUN_CALLBACK_TIMEOUT`으로 종료한다.
