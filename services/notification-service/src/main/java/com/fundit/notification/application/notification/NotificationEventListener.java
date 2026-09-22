@@ -12,17 +12,28 @@ import java.util.UUID;
  * 되물으면 알림 도메인이 주문·회원 도메인에 동기 의존하게 되고, 그 도메인이 바뀔 때마다 알림이 함께 흔들린다.
  * 이벤트에 memberId가 채워져 오지 않으면 그건 발행 측이 고칠 일이다.
  *
- * <p>메시지 브로커 어댑터는 아직 없다 — order-service의 RewardEventListener와 같은 상태다.
- * Kafka로 확정(2026-09-11)됐지만 레포에 spring-kafka 의존성도, 발행자도, 토픽명 규약도 아직 없고
- * (docs/ci-workflow-guide.md: "확정 전까지는 넣지 않습니다"), 무엇보다 발행 측 이벤트 레코드에
+ * <p>order/payment 등 일부 발행 측은 아직 연동 전이다 — 이벤트 레코드에
  * <b>memberId와 eventId가 둘 다 빠져 있다</b>(FundingSucceededEvent(fundingId, projectId) 등).
- * notifications.event_id가 NOT NULL이라 이게 합의되기 전엔 알림이 한 건도 쌓이지 않는다
- * (NotificationFunctionalSpec.md "미확정/보류 사항" 🔴 2건, 협의처: order·payment 담당자).
- * 계약이 정해지면 infrastructure/event에 @KafkaListener 어댑터만 추가해 이 포트를 호출하면 된다.
+ * notifications.event_id가 NOT NULL이라 이게 합의되기 전엔 그쪽 이벤트로는 알림이 한 건도 쌓이지
+ * 않는다(NotificationFunctionalSpec.md "미확정/보류 사항" 🔴 2건, 협의처: order·payment 담당자).
+ * 계약이 정해지면 infrastructure/event에 @KafkaListener 어댑터만 추가해 이 포트를 호출하면 된다
+ * — {@link #onLiveStarted}가 그 패턴의 예시다.
  */
 public interface NotificationEventListener {
 
     void onNotificationRaised(NotificationRaisedEvent event);
+
+    /**
+     * NOTI-002 — LIVE 시작 알림. live-service는 "이 LIVE가 시작됐다"는 사실 하나만 이벤트로
+     * 발행하고(memberId 없음), 신청자 목록({@code live_notify_requests})은 이 서비스가 갖고
+     * 있으므로 여기서 직접 조회해 팬아웃한다. 새 적재 경로를 만들지 않고
+     * {@link #onNotificationRaised}를 신청자 수만큼 재사용한다.
+     */
+    void onLiveStarted(LiveStartedEvent event);
+
+    /** @param projectTitle 발행 측 조회 실패 시 null일 수 있다 — 그러면 일반 문구로 대체한다. */
+    record LiveStartedEvent(String eventId, UUID liveId, String projectTitle) {
+    }
 
     /**
      * @param eventId    발행 측이 싣는 이벤트 고유 ID. 멱등의 유일한 근거이므로 비어 있으면 안 된다.

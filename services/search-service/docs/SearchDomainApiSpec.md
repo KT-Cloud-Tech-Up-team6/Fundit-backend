@@ -92,8 +92,8 @@ GET /api/v1/home/lives
 
 **Validation / Business Rules**
 
-- **현재는 항상 `content: []`을 반환하는 스텁이다.** live-service 미착수로 `live_documents`를 채울 수 없다(`SearchDomainFunctionalSpec.md` SEARCH-002 참고). 프론트는 빈 배열을 "LIVE 없음"으로 처리해 영역을 자연스럽게 숨기면 되므로 API 계약 자체는 지금 확정해도 무방하다.
-- live-service 착수 후 실제 데이터가 채워지면 응답 스키마는 `{ liveId, projectId, title, thumbnailUrl, viewerCount }[]` 형태가 될 예정이다.
+- **현재는 항상 `content: []`을 반환하는 스텁이다.** live-service는 이미 끝났지만 `live_documents`를 채울 컨슈머가 아직 없다(`SearchDomainFunctionalSpec.md` SEARCH-002 참고). 프론트는 빈 배열을 "LIVE 없음"으로 처리해 영역을 자연스럽게 숨기면 되므로 API 계약 자체는 지금 확정해도 무방하다.
+- **홈 배너는 이 색인 없이 이미 해결된다** — live-service `GET /api/v1/lives/banner`가 진행중 LIVE를 바로 내려준다. 이 엔드포인트는 검색 LIVE 탭(SEARCH-006)이 실제 필요해질 때 컨슈머와 함께 교체한다(YAGNI). 그때 응답 스키마는 `{ liveId, projectId, title, thumbnailUrl, viewerCount }[]` 형태가 될 예정이다.
 
 ---
 
@@ -220,8 +220,8 @@ GET /api/v1/search/lives
 
 **Validation / Business Rules**
 
-- 2번 엔드포인트와 동일하게 **현재는 항상 빈 결과를 반환하는 스텁**(live-service 미착수).
-- 상품 탭(#5)과 달리 `keyword` 검증·`search_query_logs` 적재·최근검색어 저장을 하지 않는다. live-service 착수 후 실제 검색으로 교체할 때 #5와 맞출 것.
+- 2번 엔드포인트와 동일하게 **현재는 항상 빈 결과를 반환하는 스텁**(live_documents 컨슈머 미연결).
+- 상품 탭(#5)과 달리 `keyword` 검증·`search_query_logs` 적재·최근검색어 저장을 하지 않는다. 실제 검색으로 교체할 때 #5와 맞출 것.
 
 ---
 

@@ -51,7 +51,7 @@ cd services/search-service && docker compose up -d
 ## 도메인 테이블 (스키마 확정 — `V1__init_schema.sql`)
 - `categories` — project-service `categories`의 읽기 전용 미러. 이벤트 동기화 대상이 아니다(마스터 데이터, Flyway 시드로만 관리). **전체 체계가 project-service와 아직 완전히 일치하지 않는다** — `SearchERD.md` 5-④ 참고.
 - `project_documents` — 홈피드·카테고리·검색의 "상품" 색인. PK는 project-service `projects.id`를 그대로 쓴다(별도 서로게이트 키 없음). `status`는 `ONGOING`/`SUCCEEDED`/`FAILED`만 존재 — DRAFT/PENDING_REVIEW는 비공개라 애초에 색인 대상이 아니다.
-- `live_documents` — **채울 방법이 없다.** live-service 미착수. 스키마만 선반영, live-service 착수 전까지 컨슈머를 만들 수 없다.
+- `live_documents` — 검색 LIVE 탭 색인용. live-service는 끝났고 `live.started.v1`/`live.ended.v1`도 발행 중이지만 컨슈머가 아직 없다. 홈 진행중 LIVE 배너는 이 테이블 없이 live-service `GET /api/v1/lives/banner`로 이미 해결됨. 검색 LIVE 탭이 실제 필요해질 때 컨슈머를 붙인다(YAGNI).
 - `search_query_logs` — 실행된 모든 검색 원본 로그. `popular_search_keywords` 배치 집계의 소스.
 - `recent_search_keywords` — 회원별 최근 검색어. `(member_id, keyword)` PK, upsert로 멱등 처리(member-service `wishes`와 동일 패턴).
 - `popular_search_keywords` — 전역 인기 검색어 "현재 스냅샷"(이력 없음). 배치가 매 주기 TRUNCATE 후 재적재.
