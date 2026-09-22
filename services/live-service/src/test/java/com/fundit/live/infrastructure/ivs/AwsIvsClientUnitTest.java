@@ -6,6 +6,9 @@ import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.GetStreamResponse;
+import software.amazon.awssdk.services.ivs.model.Stream;
 import software.amazon.awssdk.services.ivs.model.StreamKey;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
@@ -87,4 +90,20 @@ class AwsIvsClientUnitTest {
         assertThat(roomArn).isEqualTo("arn:room");
         assertThat(token).isEqualTo("chat-token");
     }
+
+    @Test
+    void 시청자_수를_조회한다() {
+        // given
+        given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
+                .stream(Stream.builder().viewerCount(42L).build())
+                .build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        int viewerCount = client.getViewerCount("arn:channel");
+
+        // then
+        assertThat(viewerCount).isEqualTo(42);
+    }
+
 }

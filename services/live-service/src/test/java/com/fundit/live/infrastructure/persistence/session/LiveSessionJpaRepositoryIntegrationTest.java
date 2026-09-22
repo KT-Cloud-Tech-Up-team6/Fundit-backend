@@ -15,6 +15,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -159,5 +160,19 @@ class LiveSessionJpaRepositoryIntegrationTest {
         // when & then
         assertThat(sessionRepository.findPublicByPublicId(draft.getPublicId())).isEmpty();
         assertThat(sessionRepository.findPublicByPublicId(live.getPublicId())).isPresent();
+    }
+
+    @Test
+    void 팔로우_필터는_지정한_판매자의_방송만_돌려준다() {
+        // given — "팔로우한 창작자" 필터(FE #257). 채널→판매자 조인이 실제로 맞는지 DB로 확인한다.
+        Long otherChannel = seedChannel(otherSellerId).getId();
+        seedSession(channelId, LiveStatus.LIVE);
+        seedSession(otherChannel, LiveStatus.LIVE);
+
+        // when
+        var page = sessionRepository.findPublicBySellerIds(null, List.of(sellerId), PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1).allMatch(s -> s.getChannelId().equals(channelId));
     }
 }

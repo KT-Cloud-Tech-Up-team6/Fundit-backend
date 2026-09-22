@@ -76,7 +76,7 @@ class LiveControllerTest {
     @Test
     void 소비자_목록은_인증_없이_조회된다() throws Exception {
         // given — 방송 자체가 공개다
-        when(liveQueryService.findPublic(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(liveQueryService.findPublic(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives"))
@@ -217,19 +217,42 @@ class LiveControllerTest {
     }
 
     @Test
-    void 좋아요와_취소는_둘_다_204다() throws Exception {
-        // given & when & then — idempotent라 몇 번을 보내도 결과가 같다
+    void 좋아요와_취소는_갱신된_상태를_바디로_돌려준다() throws Exception {
+        // given — idempotent라 몇 번을 보내도 결과가 같다. 204 대신 liked/likeCount를 돌려줘
+        // FE가 낙관적 업데이트 후 재조회하지 않아도 된다.
         UUID liveId = UUID.randomUUID();
+        when(liveLikeService.like(any(), any())).thenReturn(5);
+        when(liveLikeService.unlike(any(), any())).thenReturn(4);
+
+        // when & then
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .put("/api/v1/lives/{liveId}/like", liveId)
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liked").value(true))
+                .andExpect(jsonPath("$.likeCount").value(5));
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .delete("/api/v1/lives/{liveId}/like", liveId)
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liked").value(false))
+                .andExpect(jsonPath("$.likeCount").value(4));
+    }
+
+    @Test
+    void 내_좋아요_여부를_조회한다() throws Exception {
+        // given
+        UUID liveId = UUID.randomUUID();
+        when(liveLikeService.isLiked(any(), any())).thenReturn(true);
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/like", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liked").value(true));
     }
 
     @Test

@@ -52,4 +52,10 @@ public class StubIvsClient implements IvsClient {
         // 프론트가 IVS에 붙는 실패를 늦게 발견한다.
         return "stub-chat-token:" + userId + ":" + String.join(",", capabilities);
     }
+
+    /** ARN 문자열 해시로 채널마다 다른 값을 줘 로컬에서 정렬이 실제로 바뀌는지 확인할 수 있게 한다. */
+    @Override
+    public int getViewerCount(String channelArn) {
+        return Math.abs(channelArn.hashCode() % 1000);
+    }
 }
