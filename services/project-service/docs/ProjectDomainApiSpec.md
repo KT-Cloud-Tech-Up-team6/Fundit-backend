@@ -840,6 +840,8 @@ POST /api/v1/community/posts/{postId}/answer
 
 ### 22~24. Funding Story AI
 
+로컬 개발/QA: [Funding Story AI 스텁 실행 안내](FundingStoryAiStub.md).
+
 | 구간 | 공개 요청 | BE 처리 |
 |---|---|---|
 | 프로젝트 범위 | 모든 `/api/v1/ai/**` | `X-Project-Id`와 로그인 판매자 소유권 확인 |
