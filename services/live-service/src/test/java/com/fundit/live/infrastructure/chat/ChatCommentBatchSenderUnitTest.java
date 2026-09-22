@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -123,6 +124,29 @@ class ChatCommentBatchSenderUnitTest {
         ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
         assertThat(idsCaptor.getValue()).containsExactlyInAnyOrder(10L, 11L, 12L);
+    }
+
+    @Test
+    void 중복_판정은_배치_경계를_넘어_기억한다() {
+        // given — 50건 배치의 마지막과 다음 틱 배치의 첫 건이 같은 발신자·내용이면
+        // 이번 호출만 보는 로컬 맵으로는 못 잡는다(50/51번째 경계).
+        UUID spammer = UUID.randomUUID();
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L, spammer, "사주세요")))
+                .willReturn(List.of(message(11L, spammer, "사주세요")));
+        given(aiClient.submitComments(any(), any())).willReturn(new AiClient.CommentBatchResult(
+                List.of(), List.of(new AiClient.IgnoredComment("10", "SMALLTALK")), List.of()));
+
+        // when — 같은 세션 인스턴스로 두 번(=두 스케줄러 틱) 호출한다
+        LiveSessionJpaEntity session = session();
+        sender.sendPendingFor(session);
+        sender.sendPendingFor(session);
+
+        // then — 두 번째 틱에선 AI를 다시 부르지 않는다(11이 10의 중복)
+        verify(aiClient, times(1)).submitComments(any(), any());
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(chatMessageRepository, times(2)).markSentToAi(idsCaptor.capture(), any());
+        assertThat(idsCaptor.getAllValues().get(1)).containsExactly(11L);
     }
 
     @Test
