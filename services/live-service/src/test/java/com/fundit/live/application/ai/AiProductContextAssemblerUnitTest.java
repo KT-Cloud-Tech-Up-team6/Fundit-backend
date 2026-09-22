@@ -36,7 +36,7 @@ class AiProductContextAssemblerUnitTest {
         given(projectRewardClient.findRewards(projectId)).willReturn(List.of());
 
         // when
-        AiClient.PrepareRequest product = assembler.assemble(session);
+        AiClient.PrepareRequest product = assembler.assemble(session).orElseThrow();
 
         // then
         assertThat(product.productName()).isEqualTo("에어쿡 프로");
@@ -46,17 +46,13 @@ class AiProductContextAssemblerUnitTest {
     }
 
     @Test
-    void 프로젝트가_없으면_상품_필드는_비워서_보낸다() {
-        // given — 404는 예외가 아니라 빈 값이다. 리워드만으로라도 요청은 나간다
+    void 프로젝트가_없으면_색인_요청_자체를_만들지_않는다() {
+        // given — product_category가 AI 계약상 필수라 빈 값으로 보내면 422이고,
+        // 통과하더라도 빈 KB로 색인돼 모든 상품 질문이 "확인이 어렵습니다"가 된다
         given(projectContextClient.find(projectId)).willReturn(Optional.empty());
-        given(projectRewardClient.findRewards(projectId)).willReturn(List.of());
 
-        // when
-        AiClient.PrepareRequest product = assembler.assemble(session);
-
-        // then
-        assertThat(product.productName()).isNull();
-        assertThat(product.knowledge()).isEmpty();
+        // when & then
+        assertThat(assembler.assemble(session)).isEmpty();
     }
 
     @Test

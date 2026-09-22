@@ -14,9 +14,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 방송 중 채팅을 3초마다 모아 AI에 배치로 넘긴다(AI팀 실계약 A-3, 최대 50건/배치 권장).
@@ -57,7 +62,15 @@ public class ChatCommentBatchSender {
             return;
         }
 
-        List<AiClient.CommentInput> comments = pending.stream()
+        List<ChatMessageJpaEntity> toSend = withoutRepeats(pending);
+        // 걸러낸 도배분도 완료로 찍는다 — 안 찍으면 다음 주기에 다시 골라져 영원히 남는다.
+        // 발신자별 첫 건은 항상 남으므로 toSend가 비는 경우는 없다.
+        List<Long> skippedIds = pending.stream()
+                .filter(m -> !toSend.contains(m))
+                .map(ChatMessageJpaEntity::getId)
+                .toList();
+
+        List<AiClient.CommentInput> comments = toSend.stream()
                 .map(m -> new AiClient.CommentInput(String.valueOf(m.getId()), m.getContent(),
                         elapsedMs(session, m.getSentAt()), m.getSenderId()))
                 .toList();
@@ -85,13 +98,34 @@ public class ChatCommentBatchSender {
             log.warn("AI 댓글 분석 실패, 재전송하지 않고 버린다. sessionId={} commentId={} code={} message={}",
                     session.getId(), e.commentId(), e.code(), e.message());
         });
-        List<Long> sentIds = pending.stream()
+        List<Long> sentIds = new ArrayList<>(skippedIds);
+        toSend.stream()
                 .map(ChatMessageJpaEntity::getId)
                 .filter(id -> handled.contains(String.valueOf(id)))
-                .toList();
+                .forEach(sentIds::add);
         if (!sentIds.isEmpty()) {
             chatMessageRepository.markSentToAi(sentIds, Instant.now());
         }
+    }
+
+    /**
+     * 같은 사람이 직전에 보낸 것과 똑같은 내용을 반복하면 AI로 넘기지 않는다(요청서 7절 "1차 필터는 BE").
+     * 채팅 1건이 곧 LLM 호출 1건이라 도배는 그대로 비용이 된다.
+     *
+     * <p>ponytail: 발신자별 "직전과 동일"만 본다. 문구를 조금씩 바꾸는 도배나 여러 계정을 쓰는
+     * 도배는 그대로 통과한다 — 실제로 그런 패턴이 관측되면 그때 유사도·발신자별 한도를 붙인다.
+     */
+    private List<ChatMessageJpaEntity> withoutRepeats(List<ChatMessageJpaEntity> pending) {
+        Map<UUID, String> lastBySender = new HashMap<>();
+        List<ChatMessageJpaEntity> kept = new ArrayList<>(pending.size());
+        for (ChatMessageJpaEntity m : pending) {
+            if (m.getSenderId() != null
+                    && Objects.equals(lastBySender.put(m.getSenderId(), m.getContent()), m.getContent())) {
+                continue;
+            }
+            kept.add(m);
+        }
+        return kept;
     }
 
     /** AI의 {@code at_ms}는 방송 시작 기준 경과 ms다. */

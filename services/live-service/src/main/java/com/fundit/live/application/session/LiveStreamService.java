@@ -93,7 +93,10 @@ public class LiveStreamService {
             @Override
             public void afterCommit() {
                 try {
-                    aiClient.prepare(session.getPublicId().toString(), productContextAssembler.assemble(session));
+                    productContextAssembler.assemble(session).ifPresentOrElse(
+                            request -> aiClient.prepare(session.getPublicId().toString(), request),
+                            () -> log.warn("프로젝트 조회 실패로 AI 상품정보 색인을 건너뛴다, liveId={} projectId={}",
+                                    session.getPublicId(), session.getProjectId()));
                 } catch (RuntimeException e) {
                     // ponytail: 실패 시 재시도 없이 로그만 남긴다. 운영에서 누락이 보이면 재시도 작업 테이블로 옮긴다.
                     log.warn("AI prepare 실패, liveId={}", session.getPublicId(), e);

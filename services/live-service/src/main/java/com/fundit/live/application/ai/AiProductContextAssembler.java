@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * AI에 보낼 상품정보(스토리·리워드)를 project-service에서 모아 한 모양으로 만든다.
@@ -23,9 +24,14 @@ public class AiProductContextAssembler {
     private final ProjectContextClient projectContextClient;
     private final ProjectRewardClient projectRewardClient;
 
-    /** 프로젝트가 없으면(404) 상품 필드는 null, knowledge는 빈 리스트로 보낸다. */
-    public AiClient.PrepareRequest assemble(LiveSession session) {
-        return productOf(session, projectContextClient.find(session.getProjectId()).orElse(null));
+    /**
+     * 프로젝트를 못 찾으면(404) 빈 값을 채워 보내지 않고 <b>비워서 돌려준다.</b>
+     * {@code product_category}는 AI 계약상 필수라 null로 보내면 422가 나고, 통과하더라도 빈 KB로
+     * 색인돼 모든 상품 질문이 "확인이 어렵습니다"가 된다 — 색인을 안 한 상태로 두면 다음 채팅
+     * 배치가 409(NOT_PREPARED)로 드러내 준다.
+     */
+    public Optional<AiClient.PrepareRequest> assemble(LiveSession session) {
+        return projectContextClient.find(session.getProjectId()).map(context -> productOf(session, context));
     }
 
     /** 큐시트 요청용 — 상품정보와 캠페인 현황을 project-service 한 번 조회로 만든다. */
