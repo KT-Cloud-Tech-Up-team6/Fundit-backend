@@ -1,5 +1,6 @@
 package com.fundit.live.application.project;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,6 +14,7 @@ public interface ProjectContextClient {
     Optional<ProjectContext> find(UUID projectId);
 
     record ProjectContext(String title, String categoryMajor, String categoryMinor,
-                          List<String> introTexts, Integer achievementRate, Integer remainingDays) {
+                          List<String> introTexts, Integer achievementRate, Integer remainingDays,
+                          Instant fundingDeadline) {
     }
 }

@@ -41,14 +41,26 @@ public class AiProductContextAssembler {
     }
 
     /**
-     * 펀딩 실시간 값. project-service는 마감 시각이 아니라 남은 일수만 주므로 지금 시각 기준으로
-     * 마감일을 환산한다(일 단위 정밀도). 남은 일수는 이 마감일에서 다시 계산할 수 있어 따로 싣지 않는다.
+     * 펀딩 실시간 값. 마감 시각은 project-service가 내려주는 원본을 그대로 쓴다 — "9월 15일
+     * 23시 59분 마감"처럼 시:분까지 묻는 질문이 실제로 들어온다.
+     *
+     * <p>ponytail: {@code fundingDeadline}이 비면 남은 일수로 환산하는 fallback이 남아 있다.
+     * project-service가 이 필드를 항상 채우는 게 확인되면 지운다 — 환산값은 하루 안쪽으로 어긋난다.
      */
     public static AiClient.FundingInfo fundingOf(ProjectContextClient.ProjectContext context) {
         int achievedRate = context == null || context.achievementRate() == null ? 0 : context.achievementRate();
-        Instant deadline = context == null || context.remainingDays() == null
+        return new AiClient.FundingInfo(deadlineOf(context), achievedRate);
+    }
+
+    private static Instant deadlineOf(ProjectContextClient.ProjectContext context) {
+        if (context == null) {
+            return null;
+        }
+        if (context.fundingDeadline() != null) {
+            return context.fundingDeadline();
+        }
+        return context.remainingDays() == null
                 ? null : Instant.now().plusSeconds(context.remainingDays() * 86400L);
-        return new AiClient.FundingInfo(deadline, achievedRate);
     }
 
     private AiClient.PrepareRequest productOf(LiveSession session, ProjectContextClient.ProjectContext context) {
