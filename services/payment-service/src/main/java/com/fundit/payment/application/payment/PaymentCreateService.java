@@ -23,6 +23,17 @@ public class PaymentCreateService {
 
     @Transactional
     public PaymentCreateResult create(UUID accountId, UUID orderId) {
+        // 이중 결제 방지 — order-service의 결제완료 반영(FundingStatus 전이)이 비동기라 그 짧은 창 동안
+        // 재호출되면 이미 COMPLETED된 펀딩에도 새 PENDING 결제가 또 생성될 수 있다. 그 창을 없애기 위해
+        // completed_funding_id 유니크 인덱스(최종 방어선)보다 앞서 여기서 먼저 막는다.
+        var completed = paymentRepository.findCompletedByFundingId(orderId);
+        if (completed.isPresent()) {
+            if (!completed.get().isOwnedBy(accountId)) {
+                throw new BusinessException(CommonErrorCode.FORBIDDEN);
+            }
+            throw new BusinessException(CommonErrorCode.CONFLICT, "이미 결제가 완료된 주문입니다.");
+        }
+
         // 예외 처리 — 이미 pg_order_id가 발급된 결제 시도가 있으면 재사용(중복 생성 방지, PAYMENT-001 예외 처리 항목)
         var existing = paymentRepository.findPendingByFundingId(orderId);
         if (existing.isPresent()) {

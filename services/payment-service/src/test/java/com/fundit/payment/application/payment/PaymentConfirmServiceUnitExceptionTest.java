@@ -7,7 +7,6 @@ import com.fundit.payment.application.settlement.SettlementHoldService;
 import com.fundit.payment.domain.PaymentErrorCode;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentRepository;
-import com.fundit.payment.domain.payment.PaymentStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,13 +34,15 @@ class PaymentConfirmServiceUnitExceptionTest {
     private PaymentEventPublisher paymentEventPublisher;
     @Mock
     private SettlementHoldService settlementHoldService;
+    @Mock
+    private PaymentFailureRecorder paymentFailureRecorder;
 
     private PaymentConfirmService paymentConfirmService;
 
     @BeforeEach
     void setUp() {
         paymentConfirmService = new PaymentConfirmService(paymentRepository, tossPaymentsClient,
-                paymentEventPublisher, settlementHoldService);
+                paymentEventPublisher, settlementHoldService, paymentFailureRecorder);
     }
 
     @Test
@@ -71,36 +72,34 @@ class PaymentConfirmServiceUnitExceptionTest {
     }
 
     @Test
-    void 토스_세션만료_응답이면_결제가_FAILED_처리되고_PAYMENT_EXPIRED_예외가_발생한다() {
+    void 토스_세션만료_응답이면_별도_트랜잭션으로_FAILED_기록을_위임하고_PAYMENT_EXPIRED_예외가_발생한다() {
         // given
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
         when(paymentRepository.findByPgOrderId("fundit-order-1")).thenReturn(Optional.of(payment));
         when(tossPaymentsClient.confirm("pay_key_1", "fundit-order-1", 89_000L))
                 .thenThrow(new TossApiException(TossApiException.NOT_FOUND_PAYMENT_SESSION, "만료"));
-        when(paymentRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when & then
         assertThatThrownBy(() -> paymentConfirmService.confirm(MEMBER_ID, "pay_key_1", "fundit-order-1", 89_000L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.PAYMENT_EXPIRED));
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        org.mockito.Mockito.verify(paymentFailureRecorder).recordFailure(payment);
     }
 
     @Test
-    void 토스_승인_실패면_결제가_FAILED_처리되고_PG_CONFIRM_FAILED_예외가_발생한다() {
+    void 토스_승인_실패면_별도_트랜잭션으로_FAILED_기록을_위임하고_PG_CONFIRM_FAILED_예외가_발생한다() {
         // given
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
         when(paymentRepository.findByPgOrderId("fundit-order-1")).thenReturn(Optional.of(payment));
         when(tossPaymentsClient.confirm("pay_key_1", "fundit-order-1", 89_000L))
                 .thenThrow(new TossApiException("EXCEED_MAX_AUTH_COUNT", "인증 횟수 초과"));
-        when(paymentRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when & then
         assertThatThrownBy(() -> paymentConfirmService.confirm(MEMBER_ID, "pay_key_1", "fundit-order-1", 89_000L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.PG_CONFIRM_FAILED));
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        org.mockito.Mockito.verify(paymentFailureRecorder).recordFailure(payment);
     }
 }
