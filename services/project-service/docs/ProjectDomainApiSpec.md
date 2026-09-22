@@ -403,7 +403,7 @@ POST /api/v1/projects/{projectId}/rewards
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성. 등록 시 `optionGroupId`는 항상 `null`(또는 생략)이다 — 아직 존재하지 않는 그룹이라 재사용할 ID가 없다.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).
-- 응답에도 `simpleRefundDisabled`/`options`가 포함되지만, 생성/수정 직후 응답의 `options[].groupId`는 **요청에 실려온 값을 그대로 되돌려줄 뿐**이다(등록 응답은 항상 `null`, 수정 응답은 PATCH에서 재사용한 기존 ID). `valueId`는 그룹의 값 목록이 항상 통째로 교체되므로 애초에 없다(`null` 고정). 신규 그룹이 실제로 부여받은 ID까지 포함한 전체 목록이 필요하면(재편집 화면 초기 로딩 등) #14-1로 다시 조회한다.
+- 응답에도 `simpleRefundDisabled`/`options`가 포함되며, 생성/수정 직후 응답의 `options[].groupId`는 **실제로 영속화된 그룹 ID**다 — 신규 그룹도 새로 부여받은 ID가 채워져서 온다(요청에 `optionGroupId: null`로 보낸 그룹이라도 응답은 실제 ID를 담는다). `valueId`는 그룹의 값 목록이 항상 통째로 교체되므로 애초에 없다(`null` 고정). 이 응답의 `groupId`를 그대로 다음 PATCH의 `optionGroupId`로 재사용하면 된다(재편집 화면 초기 로딩 시 별도로 #14-1을 다시 조회할 필요 없음).
 
 ---
 
