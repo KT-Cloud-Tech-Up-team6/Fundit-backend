@@ -90,7 +90,8 @@ public class QuestionInsightService {
     /** 소비자 Q&A 버튼 — 답변된 질문만, 질문 건수 내림차순(요구사항정의서 11.3.4). 인증 불필요. */
     @Transactional(readOnly = true)
     public List<LiveQuestionSummaryJpaEntity> answeredQuestions(UUID liveId) {
-        LiveSession session = sessionRepository.findOwnedAny(liveId)
+        // 소비자에게 열린 경로라 DRAFT를 거르는 findPublic을 쓴다 — findOwnedAny는 내부 전용이다.
+        LiveSession session = sessionRepository.findPublic(liveId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         return summaryRepository.findBySessionIdAndAnsweredTrueOrderByRelatedQuestionCountDesc(
                 session.getId());

@@ -54,7 +54,7 @@ public class HighlightService {
      */
     @Transactional
     public List<LiveHighlight> findPublic(UUID liveId) {
-        LiveSession session = loadAny(liveId);
+        LiveSession session = loadPublic(liveId);
         highlightRepository.increaseViewCount(session.getId());
         return highlightRepository.findPublicBySessionId(session.getId());
     }
@@ -62,7 +62,7 @@ public class HighlightService {
     /** 소속을 확인하고 증가시킨다 — 남의 하이라이트 id로 카운터를 올릴 수 없어야 한다(S4). */
     @Transactional
     public void recordClick(UUID liveId, UUID highlightId) {
-        requireBelongsTo(loadAny(liveId).getId(), highlightId);
+        requireBelongsTo(loadPublic(liveId).getId(), highlightId);
         highlightRepository.increaseClickCount(highlightId);
     }
 
@@ -161,8 +161,9 @@ public class HighlightService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 
-    private LiveSession loadAny(UUID liveId) {
-        return sessionRepository.findOwnedAny(liveId)
+    /** 소비자 공개 경로 전용 — DRAFT는 404다. 내부 콜백은 {@code findOwnedAnyForUpdate}를 따로 쓴다. */
+    private LiveSession loadPublic(UUID liveId) {
+        return sessionRepository.findPublic(liveId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 

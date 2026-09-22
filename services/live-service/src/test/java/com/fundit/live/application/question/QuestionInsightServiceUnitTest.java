@@ -1,5 +1,6 @@
 package com.fundit.live.application.question;
 
+import com.fundit.common.error.BusinessException;
 import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -17,6 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -171,7 +173,7 @@ class QuestionInsightServiceUnitTest {
     @Test
     void 답변된_질문_모아보기는_인증_없이_조회된다() {
         // given
-        given(sessionRepository.findOwnedAny(liveId))
+        given(sessionRepository.findPublic(liveId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(summaryRepository.findBySessionIdAndAnsweredTrueOrderByRelatedQuestionCountDesc(1L))
                 .willReturn(List.of(q("fq_0002", 12)));
@@ -181,5 +183,15 @@ class QuestionInsightServiceUnitTest {
 
         // then
         assertThat(answered).hasSize(1);
+    }
+
+    @Test
+    void 설정_중인_방송의_답변_모아보기는_404다() {
+        // given — 소비자에게 열린 경로라 DRAFT는 존재 자체를 숨긴다(S10)
+        given(sessionRepository.findPublic(liveId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> questionInsightService.answeredQuestions(liveId))
+                .isInstanceOf(BusinessException.class);
     }
 }

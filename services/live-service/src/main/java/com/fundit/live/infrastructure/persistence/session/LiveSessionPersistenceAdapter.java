@@ -51,4 +51,9 @@ public class LiveSessionPersistenceAdapter implements LiveSessionRepository {
     public Optional<LiveSession> findOwnedAnyForUpdate(UUID publicId) {
         return jpaRepository.findByPublicIdForUpdate(publicId).map(LiveSessionMapper::toDomain);
     }
+
+    @Override
+    public Optional<LiveSession> findPublic(UUID publicId) {
+        return jpaRepository.findPublicByPublicId(publicId).map(LiveSessionMapper::toDomain);
+    }
 }

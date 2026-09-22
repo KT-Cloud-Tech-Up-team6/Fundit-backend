@@ -1,5 +1,6 @@
 package com.fundit.live.application.like;
 
+import com.fundit.common.error.BusinessException;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.like.LiveLikeJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
@@ -13,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -32,7 +34,7 @@ class LiveLikeServiceUnitTest {
     private final UUID liveId = UUID.randomUUID();
 
     private void givenSession() {
-        given(sessionRepository.findByPublicId(liveId)).willReturn(Optional.of(
+        given(sessionRepository.findPublicByPublicId(liveId)).willReturn(Optional.of(
                 LiveSessionJpaEntity.builder().id(1L).publicId(liveId).channelId(1L)
                         .projectId(UUID.randomUUID()).status(LiveStatus.LIVE).likeCount(0).build()));
     }
@@ -86,6 +88,17 @@ class LiveLikeServiceUnitTest {
         liveLikeService.unlike(memberId, liveId);
 
         // then
+        verify(sessionRepository, never()).addLikeCount(anyLong(), anyInt());
+    }
+
+    @Test
+    void 설정_중인_방송에는_좋아요가_적립되지_않는다() {
+        // given — DRAFT는 쿼리에서 걸러져 빈 결과로 온다(존재 자체를 숨긴다, S10)
+        given(sessionRepository.findPublicByPublicId(liveId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> liveLikeService.like(memberId, liveId))
+                .isInstanceOf(BusinessException.class);
         verify(sessionRepository, never()).addLikeCount(anyLong(), anyInt());
     }
 }
