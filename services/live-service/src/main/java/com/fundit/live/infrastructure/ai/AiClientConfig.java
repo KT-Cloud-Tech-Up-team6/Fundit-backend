@@ -11,6 +11,7 @@ import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.cfg.EnumFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -68,6 +69,11 @@ public class AiClientConfig {
                                 // 소비자는 모르는 필드를 무시해야 한다(event-convention.md 6번과 같은
                                 // 원칙) — AI가 필드를 추가해도 우리가 매번 배포하지 않는다.
                                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                                // 위 플래그는 모르는 "필드"만 막아준다. 모르는 enum "값"은 그대로
+                                // 예외라, AI가 Grounding/HandledBy/AnsweredBy에 값을 하나 추가하면
+                                // 배치 응답 전체가 깨져 그 세션 채팅이 AI로 못 간다. 해당 필드만
+                                // null로 떨어뜨리고 나머지는 살린다.
+                                .enable(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
                                 .build())));
         // 서버 env API_TOKEN 미설정(개발 모드)이면 인증을 안 본다지만, 우리 쪽 값이 비어 있는
         // 채로 배포하는 실수를 막으려면 여기서 걸러야 한다 — 빈 문자열이면 헤더 자체를 안 붙인다.

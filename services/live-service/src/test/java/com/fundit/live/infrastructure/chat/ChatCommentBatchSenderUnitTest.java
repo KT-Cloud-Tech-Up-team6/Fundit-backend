@@ -78,8 +78,8 @@ class ChatCommentBatchSenderUnitTest {
     }
 
     @Test
-    void errors에_실린_댓글은_전송_완료_표시에서_뺀다() {
-        // given — 임의 답변으로 대체하지 않고 재시도 대상으로 남긴다
+    void errors에_실린_댓글도_전송_완료로_표시해_큐가_막히지_않게_한다() {
+        // given — 조회가 sent_at 오름차순이라 실패건을 남겨두면 그게 계속 앞자리를 차지한다
         given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
                 .willReturn(List.of(message(10L), message(11L)));
         given(aiClient.submitComments(any(), any())).willReturn(
@@ -90,10 +90,10 @@ class ChatCommentBatchSenderUnitTest {
         // when
         sender.sendPendingFor(session());
 
-        // then — 10만 완료 처리, 11은 다음 배치에서 재시도
+        // then — 실패건도 완료로 찍어 다음 배치가 뒤 채팅으로 넘어간다
         ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
-        assertThat(idsCaptor.getValue()).containsExactly(10L);
+        assertThat(idsCaptor.getValue()).containsExactlyInAnyOrder(10L, 11L);
     }
 
     @Test

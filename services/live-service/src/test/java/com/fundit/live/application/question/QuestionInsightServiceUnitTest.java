@@ -107,6 +107,26 @@ class QuestionInsightServiceUnitTest {
     }
 
     @Test
+    void unanswered_조회가_승격_표시를_지우지_않는다() {
+        // given — 이미 TOP3로 승격된 행. UnansweredItem에는 promoted가 없어 기존 값을 살려야 한다
+        LiveQuestionSummaryJpaEntity promoted = q("fq_0002", 3);
+        promoted.applyFromAi(new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 3, "앱·원격제어",
+                AiClient.AnsweredBy.NONE, null, null, true));
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(promoted));
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.unanswered(anyString(), anyInt())).willReturn(new AiClient.UnansweredList(
+                List.of(new AiClient.UnansweredItem("fq_0002", "타이머 기능 돼요?", 4)), List.of()));
+
+        // when
+        questionInsightService.unanswered(sellerId, liveId, 10);
+
+        // then
+        assertThat(promoted.isPromoted()).isTrue();
+    }
+
+    @Test
     void AI가_NONE으로_와도_판매자_답변을_지우지_않는다() {
         // given — 판매자가 먼저 답변했고, AI 쪽 집계는 아직 반영 전이라 NONE으로 온다
         LiveQuestionSummaryJpaEntity existing = q("fq_0002", 1);

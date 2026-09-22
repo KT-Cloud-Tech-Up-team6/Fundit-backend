@@ -70,11 +70,21 @@ public class ChatCommentBatchSender {
             return;
         }
 
-        // AI가 처리했다고 응답한 건(질문이든 무시든)만 전송 완료 처리한다. errors[]에 실렸거나
-        // 응답에서 빠진 건은 다음 배치에서 다시 보낸다. 요청하지 않은 ID는 pending과의 교집합에서 걸러진다.
+        // AI가 응답에 실어 보낸 건(질문·무시·실패)은 전부 전송 완료로 찍는다. 요청하지 않은 ID는
+        // pending과의 교집합에서 걸러진다.
+        //
+        // errors[]까지 완료로 찍는 이유: 조회가 sent_at 오름차순이라 실패건을 남겨두면 그게 계속
+        // 배치 앞자리를 차지해 뒤 채팅이 방송 끝까지 AI에 도달하지 못한다. 개별 댓글 LLM 실패는
+        // 재시도해도 같은 결과일 가능성이 높고, 잦아지면 그건 AI 서버 장애라 재시도 횟수로 풀
+        // 문제가 아니다. 버린 건 로그로 남긴다.
         Set<String> handled = new HashSet<>();
         result.questions().forEach(q -> handled.add(q.commentId()));
         result.ignored().forEach(i -> handled.add(i.commentId()));
+        result.errors().forEach(e -> {
+            handled.add(e.commentId());
+            log.warn("AI 댓글 분석 실패, 재전송하지 않고 버린다. sessionId={} commentId={} code={} message={}",
+                    session.getId(), e.commentId(), e.code(), e.message());
+        });
         List<Long> sentIds = pending.stream()
                 .map(ChatMessageJpaEntity::getId)
                 .filter(id -> handled.contains(String.valueOf(id)))
