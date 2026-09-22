@@ -23,4 +23,16 @@ public class InternalEndpointConfig {
     public InternalEndpoint projectSummariesInternalEndpoint() {
         return new InternalEndpoint("GET", "/internal/projects/summaries");
     }
+
+    /** Funding Story AI가 최종 PNG를 올릴 BE 소유 경로를 발급받는다. */
+    @Bean
+    public InternalEndpoint fundingStoryUploadTargetsInternalEndpoint() {
+        return new InternalEndpoint("POST", "/internal/ai/media/upload-targets");
+    }
+
+    /** Funding Story AI가 비동기 생성 종료 결과를 한 번만 전달한다. */
+    @Bean
+    public InternalEndpoint fundingStoryCompletionInternalEndpoint() {
+        return new InternalEndpoint("POST", "/internal/ai/runs/{runId}/completion");
+    }
 }

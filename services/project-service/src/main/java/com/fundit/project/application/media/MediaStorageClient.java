@@ -12,6 +12,9 @@ public interface MediaStorageClient {
     /** 업로드 주소 발급. presigned PUT URL과 업로드 완료 후 접근할 fileUrl을 함께 반환한다. */
     PresignedUpload presignPut(String key, String contentType, Duration ttl);
 
+    /** AI 입력 이미지용 단기 읽기 URL. */
+    String presignGet(String key, Duration ttl);
+
     /**
      * fileUrl이 이 저장소의 주소 체계로 발급된 것이면 S3 키를, 아니면(다른 호스트·형식 불일치)
      * 빈 값을 반환한다 — URL 포맷(가상 호스팅 스타일 등)은 구현체(infrastructure)만 알아야 한다.
@@ -24,6 +27,10 @@ public interface MediaStorageClient {
     record PresignedUpload(String uploadUrl, String fileUrl) {
     }
 
-    record StoredObject(long contentLength) {
+    record StoredObject(long contentLength, String contentType) {
+
+        public StoredObject(long contentLength) {
+            this(contentLength, null);
+        }
     }
 }

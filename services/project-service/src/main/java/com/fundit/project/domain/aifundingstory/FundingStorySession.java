@@ -7,6 +7,7 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -16,6 +17,9 @@ import java.util.UUID;
 @Getter
 @Builder(toBuilder = true)
 public class FundingStorySession {
+
+    private static final String SESSION_PREFIX = "SESSION:";
+    private static final String RUN_PREFIX = "RUN:";
 
     private final UUID id;
     private final Long projectId;
@@ -43,6 +47,35 @@ public class FundingStorySession {
                 .build();
     }
 
+    public static FundingStorySession trackSession(
+            UUID id, Long projectId, UUID sellerId, String coreFingerprint) {
+        return create(id, projectId, sellerId, SESSION_PREFIX + coreFingerprint, List.of(), List.of());
+    }
+
+    public static FundingStorySession trackRun(
+            UUID runId, Long projectId, UUID sellerId, UUID sessionId) {
+        return create(runId, projectId, sellerId, RUN_PREFIX + sessionId, List.of(), List.of());
+    }
+
+    public boolean isSessionTracker() {
+        return productDescription != null && productDescription.startsWith(SESSION_PREFIX);
+    }
+
+    public boolean isRunTracker() {
+        return productDescription != null && productDescription.startsWith(RUN_PREFIX);
+    }
+
+    public String getCoreFingerprint() {
+        return isSessionTracker() ? productDescription.substring(SESSION_PREFIX.length()) : null;
+    }
+
+    public void confirmCoreFingerprint(String coreFingerprint) {
+        if (!isSessionTracker()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        this.productDescription = SESSION_PREFIX + coreFingerprint;
+    }
+
     public boolean isOwnedBy(UUID accountId) {
         return sellerId != null && sellerId.equals(accountId);
     }
@@ -56,6 +89,25 @@ public class FundingStorySession {
         this.result = result;
         this.additionalQuestions = additionalQuestions;
         this.status = FundingStorySessionStatus.COMPLETED;
+    }
+
+    /** Returns false for an identical terminal callback and rejects a conflicting replay. */
+    public boolean finishRun(FundingStoryResult terminalResult) {
+        if (!isRunTracker()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        if (status != FundingStorySessionStatus.GENERATING) {
+            if (Objects.equals(result, terminalResult)) {
+                return false;
+            }
+            throw new BusinessException(CommonErrorCode.CONFLICT, "이미 다른 완료 결과가 확정되었습니다.");
+        }
+        this.result = terminalResult;
+        this.additionalQuestions = List.of();
+        this.status = "failed".equals(terminalResult.status())
+                ? FundingStorySessionStatus.FAILED
+                : FundingStorySessionStatus.COMPLETED;
+        return true;
     }
 
     public void fail() {

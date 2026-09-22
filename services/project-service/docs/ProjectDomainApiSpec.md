@@ -27,9 +27,17 @@
 | 19 | POST | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 질문/응원 등록(소비자) | O (로그인 회원, 구매이력 미검증) | PROJECT-024 |
 | 20 | GET | `/api/v1/projects/{projectId}/community/posts` | 커뮤니티 게시글 목록 조회(판매자/소비자 공용) | 선택 (미로그인도 조회 가능, 미답변 필터는 판매자 전용) | PROJECT-017, PROJECT-025 |
 | 21 | POST | `/api/v1/community/posts/{postId}/answer` | 커뮤니티 답변 등록/수정 | O (판매자) | PROJECT-018 |
-| 22 | POST | `/api/v1/projects/{projectId}/ai/funding-story/sessions` | 펀딩스토리 AI — 정보입력/생성요청 | O (판매자) | PROJECT-011 |
-| 23 | GET | `/api/v1/ai/funding-story/sessions/{sessionId}` | 펀딩스토리 AI — 결과 조회 | O (판매자) | PROJECT-012 |
-| 24 | PATCH | `/api/v1/ai/funding-story/sessions/{sessionId}/apply` | 펀딩스토리 AI — 결과 반영 | O (판매자) | PROJECT-012 |
+| 22 | POST | `/api/v1/ai/sessions` | 정보 수집 세션 생성 | O (판매자) | PROJECT-011 |
+| 22-1 | GET | `/api/v1/ai/sessions/latest` | 유효한 최신 세션 복구 | O (판매자) | PROJECT-011 |
+| 22-2 | GET | `/api/v1/ai/sessions/{sessionId}` | 정보 수집 세션 조회 | O (판매자) | PROJECT-011 |
+| 22-3 | POST | `/api/v1/ai/sessions/{sessionId}/start` | 첫 질문 생성 시작 | O (판매자) | PROJECT-011 |
+| 22-4 | POST | `/api/v1/ai/sessions/{sessionId}/messages` | 사용자 메시지 전달 | O (판매자) | PROJECT-011 |
+| 22-5 | GET | `/api/v1/ai/chats/{chatId}/events` | 채팅 SSE 중계 | O (판매자) | PROJECT-011 |
+| 22-6 | POST | `/api/v1/ai/sessions/{sessionId}/confirm` | 요약 revision 확인 | O (판매자) | PROJECT-011 |
+| 23 | POST | `/api/v1/ai/runs` | 전체 상세페이지 생성 | O (판매자) | PROJECT-012 |
+| 24 | GET | `/api/v1/ai/runs/{runId}` | BE 소유 생성 상태·결과 조회 | O (판매자) | PROJECT-012 |
+| 24-1 | POST | `/internal/ai/media/upload-targets` | AI 최종 PNG 업로드 대상 발급 | 내부 키 | PROJECT-012 |
+| 24-2 | POST | `/internal/ai/runs/{runId}/completion` | AI 생성 완료 callback | 내부 키 | PROJECT-012 |
 | 25 | GET | `/api/v1/projects/{projectId}/preview` | 프로젝트 미리보기 조회(판매자) | O (판매자) | PROJECT-013 |
 | 26 | GET | `/api/v1/projects/{projectId}` | 프로젝트 상세정보 조회(공개) | X (공통) | PROJECT-020 |
 | 27 | GET | `/api/v1/sellers/{sellerId}` | 판매자 정보/이력 조회 | X (공통) | PROJECT-021 |
@@ -879,92 +887,37 @@ POST /api/v1/community/posts/{postId}/answer
 
 ---
 
-### 22. 펀딩스토리 AI — 정보입력/생성요청
+### 22~24. Funding Story AI
 
-```
-POST /api/v1/projects/{projectId}/ai/funding-story/sessions
-```
+로컬 개발/QA: [Funding Story AI 스텁 실행 안내](FundingStoryAiStub.md).
 
-**Auth Required**: O (판매자)
+| 구간 | 공개 요청 | BE 처리 |
+|---|---|---|
+| 프로젝트 범위 | 모든 `/api/v1/ai/**` | `X-Project-Id`와 로그인 판매자 소유권 확인 |
+| 정보 수집 | sessions · messages · SSE · confirm | 같은 경로로 AI에 전달, Core DTO는 BE가 구성 |
+| 전체 생성 | `POST /api/v1/ai/runs` | 확인 시점과 최신 Core fingerprint가 다르면 `409`, `detail.action=reconfirm_summary` |
+| 결과 조회 | `GET /api/v1/ai/runs/{runId}` | AI로 전달하지 않고 BE 저장 결과 반환 |
+| 이미지 전달 | AI → `/internal/ai/media/upload-targets` | `projects/{projectId}/ai/` 아래 presigned PUT 발급 |
+| 완료 통지 | AI → `/internal/ai/runs/{runId}/completion` | 경로·존재·크기·MIME 검증 후 결과 확정 |
 
-**Request**: {
-"productDescription": "...",
-"productImageUrls": ["https://cdn.example.com/tmp/1.jpg"],
-"answers": [
-{ "questionId": "Q1", "answer": "타깃은 캠핑 초보자입니다." }
-]
-}
+**공통 헤더**
 
-**Response Body** (`202 Accepted`)
+| 방향 | 인증 | 프로젝트 범위 |
+|---|---|---|
+| FE → BE | 사용자 인증 | `X-Project-Id: <public UUID>` |
+| BE → AI | `Authorization: Bearer <service-token>` | 동일 헤더·동일 `/api/v1/ai` 경로 |
+| AI → BE | `X-Internal-Api-Key` | 동일 헤더 |
 
-```json
-{ "sessionId": "018f2c9a-....", "status": "COMPLETED" }
-```
+**상태·저장 규칙**
 
-**Validation / Business Rules**
-
-- HTTP 상태는 `202 Accepted`. 현재 `MockFundingStoryAiClient`가 **같은 요청 안에서 동기 완료**하므로 응답 `status`는 `COMPLETED`다. 도메인 enum에 `GENERATING`/`FAILED`가 있으나 Mock 경로에서는 생성 직후 `COMPLETED`로 저장되어 API에 `GENERATING`이 나가지 않는다.
-- 세션마다 새 UUID를 발급하고 생성이 즉시 끝나므로 **동일 세션 재요청 409 / `AI_GENERATION_IN_PROGRESS`는 구현되어 있지 않다**(`ProjectErrorCode`에도 해당 코드 없음).
-- 외부 AI 서비스 연동 API Key는 코드와 분리 보관, 요청/응답 검증(S7). 실제 연동 전이라 Mock만 존재한다.
-- `productImageUrls`는 #9로 발급받아 업로드한 `fileUrl`이어야 한다 — `MediaUrlValidator`가 경로·S3 실존·크기(이미지 10MB)를 검증하고, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`.
-
----
-
-### 23. 펀딩스토리 AI — 결과 조회
-
-```
-GET /api/v1/ai/funding-story/sessions/{sessionId}
-```
-
-**Auth Required**: O (판매자)
-
-**Request**: Path Parameter: `sessionId`
-
-**Response Body**
-
-```json
-{
-  "sessionId": "018f2c9a-....",
-  "status": "COMPLETED",
-  "additionalQuestions": [],
-  "result": {
-    "sections": [ { "type": "INTRO", "title": "...", "body": "...", "images": ["..."] } ],
-    "imagesSource": [ { "url": "...", "source": "GENERATED" } ],
-    "warnings": [ { "field": "body", "reason": "근거 없는 주장으로 식별됨" } ]
-  }
-}
-```
-
-**Validation / Business Rules**
-
-- 현재 Mock은 생성 요청이 끝나기 전에 `COMPLETED`가 되므로, 결과 조회는 곧바로 `result`를 포함한다. `GENERATING` 폴링 경로는 실제 비동기 연동이 붙기 전까지 사용되지 않는다.
-- 생성 실패 시 도메인은 `status=FAILED`를 가질 수 있으나, Mock은 실패를 내지 않는다. 외부 연동 실패 시 포트 계약은 `503 DEPENDENCY_FAILURE`.
-- Mock의 `warnings`는 항상 빈 배열이다(근거 없는 주장 탐지 미구현). `imagesSource.source`는 업로드 이미지를 `UPLOADED`로 표시한다.
-
----
-
-### 24. 펀딩스토리 AI — 결과 반영
-
-```
-PATCH /api/v1/ai/funding-story/sessions/{sessionId}/apply
-```
-
-**Auth Required**: O (판매자)
-
-**Request**: { "mode": "OVERWRITE", "edits": [ { "sectionType": "INTRO", "body": "수정된 본문" } ] }
-
-**Response Body**
-
-```json
-{ "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f", "appliedAt": "2026-09-05T10:30:00" }
-```
-
-**Validation / Business Rules**
-
-- `mode`는 `OVERWRITE`(전체 덮어쓰기) 또는 `COPY`(복사하기) 중 선택(PRD 5.1.4).
-- 반영된 내용은 프로젝트 스토리(`PATCH .../story`)에 임시저장되며 이후 이어서 작성 가능. IMAGE 블록은 `updateStory`와 동일하게 `MediaUrlValidator` S3 검증을 거친다(검증 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`).
-- 세션이 `COMPLETED`가 아니면 `422 BUSINESS_RULE_VIOLATION`.
-- 생성 결과는 최종적으로 소비자 화면에 노출되므로 반영 시 출력 인코딩 적용(S2).
+- 공개 run 상태: `queued` · `running` · `succeeded` · `partially_succeeded` · `failed`.
+- 전체 재생성만 지원한다. 부분/슬롯 재생성과 별도 export/apply API는 없다.
+- 객체 검증 실패가 일부이면 `partially_succeeded`, 사용 가능한 결과가 없으면 `failed`로 낮춘다.
+- 완료 callback을 제한 시간 안에 받지 못하면 조회 시 `failed/RUN_CALLBACK_TIMEOUT`으로 종료한다.
+- 성공·부분 성공의 본문과 검증된 URL은 기존 `projects.cover_image_url`, `projects.intro_content`에 반영한다.
+- `ai_funding_story_sessions`는 세션/run 식별·상태·Core fingerprint 추적에 재사용한다.
+- 별도 Funding Story 테이블·자산 테이블·DB migration·ERD 변경은 없다.
+- DTO 필드와 SSE/callback 형식은 DTO 계약, 호출 순서는 통합 인터페이스 명세를 따른다.
 
 ---
 

@@ -16,3 +16,15 @@ dependencies {
     // 스토리 TEXT 블록의 굵게/색상/정렬 서식을 HTML로 저장하기 전 XSS 방지용 화이트리스트 정제(security.md S2)
     implementation 'org.jsoup:jsoup:1.18.1'
 }
+
+// 로컬 QA 전용. test 소스이므로 운영 bootJar에는 포함되지 않는다.
+tasks.register('fundingStoryAiStub', JavaExec) {
+    group = 'application'
+    description = 'Run the loopback-only Funding Story AI stub (no model calls)'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.fundit.project.infrastructure.ai.stub.FundingStoryAiStubServer'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}

@@ -21,7 +21,9 @@ public enum ProjectErrorCode implements ErrorCode {
     PROJECT_NOT_SUBMITTABLE(422, "필수 작성 항목이 완료되지 않아 공개할 수 없습니다."),
     UNSUPPORTED_MEDIA_TYPE(400, "지원하지 않는 파일 형식입니다."),
     MEDIA_TOO_LARGE(400, "파일 용량이 허용 범위를 초과했습니다."),
-    INVALID_MEDIA_URL(400, "업로드가 확인되지 않았거나 올바르지 않은 파일 주소입니다.");
+    INVALID_MEDIA_URL(400, "업로드가 확인되지 않았거나 올바르지 않은 파일 주소입니다."),
+    INVALID_PROJECT_DATA(422, "Funding Story 생성에 필요한 프로젝트 정보가 올바르지 않습니다."),
+    NOT_READY_TO_GENERATE(422, "Funding Story 요약 확인이 필요합니다.");
 
     private final int httpStatus;
     private final String message;

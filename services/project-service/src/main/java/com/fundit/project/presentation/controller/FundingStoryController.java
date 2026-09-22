@@ -2,97 +2,134 @@ package com.fundit.project.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.project.application.ai.FundingStoryAiClient.ChatEventStream;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAcceptedResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicSessionCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import com.fundit.project.application.ai.FundingStoryService;
-import com.fundit.project.domain.aifundingstory.FundingStoryAnswer;
-import com.fundit.project.domain.aifundingstory.FundingStoryResult;
-import com.fundit.project.domain.aifundingstory.FundingStorySession;
-import com.fundit.project.domain.project.Project;
-import com.fundit.project.presentation.dto.FundingStoryAdditionalQuestionResponse;
-import com.fundit.project.presentation.dto.FundingStoryApplyRequest;
-import com.fundit.project.presentation.dto.FundingStoryApplyResponse;
-import com.fundit.project.presentation.dto.FundingStoryImageSourceResponse;
-import com.fundit.project.presentation.dto.FundingStoryResultResponse;
-import com.fundit.project.presentation.dto.FundingStorySectionResponse;
-import com.fundit.project.presentation.dto.FundingStorySessionCreateRequest;
-import com.fundit.project.presentation.dto.FundingStorySessionCreateResponse;
-import com.fundit.project.presentation.dto.FundingStorySessionResponse;
-import com.fundit.project.presentation.dto.FundingStoryWarningResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-/** PROJECT-011, PROJECT-012 — 펀딩스토리 AI 정보입력/생성요청, 결과조회, 결과반영. */
-@Tag(name = "funding-story")
+/** FE → BE 공개 Funding Story AI 계약. BE가 같은 경로로 AI를 호출한다. */
+@Tag(name = "funding-story-ai")
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
 public class FundingStoryController {
 
+    private static final String PROJECT_HEADER = "X-Project-Id";
+
     private final FundingStoryService fundingStoryService;
 
-    @Operation(summary = "펀딩스토리 AI 초안 생성 요청",
-            description = "상품 설명/이미지를 제출해 AI 생성을 시작한다. 결과는 비동기로 준비되며 세션 조회로 폴링한다.")
-    @ApiResponse(responseCode = "202", description = "생성 요청 접수됨")
-    @PostMapping("/projects/{projectId}/ai/funding-story/sessions")
-    public ResponseEntity<FundingStorySessionCreateResponse> createSession(
-            @LoginUser CurrentUser user, @PathVariable UUID projectId,
-            @Valid @RequestBody FundingStorySessionCreateRequest request) {
-        List<FundingStoryAnswer> answers = request.answers() == null ? null : request.answers().stream()
-                .map(a -> new FundingStoryAnswer(a.questionId(), a.answer()))
-                .toList();
-        FundingStorySession session = fundingStoryService.createSession(
-                user.id(), projectId, request.productDescription(), request.productImageUrls(), answers);
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(new FundingStorySessionCreateResponse(session.getId(), session.getStatus().name()));
+    @Operation(summary = "Funding Story 정보 수집 세션 생성")
+    @PostMapping("/sessions")
+    public ResponseEntity<SessionResponse> createSession(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @RequestBody(required = false) PublicSessionCreateRequest ignored) {
+        return ResponseEntity.status(201).body(fundingStoryService.createSession(user.id(), projectId));
     }
 
-    @Operation(summary = "펀딩스토리 세션 조회",
-            description = "생성 상태, 추가 질문, 완료 시 결과(섹션/이미지출처/경고)를 조회한다.")
-    @GetMapping("/ai/funding-story/sessions/{sessionId}")
-    public FundingStorySessionResponse getSession(@LoginUser CurrentUser user, @PathVariable UUID sessionId) {
-        FundingStorySession session = fundingStoryService.getSession(user.id(), sessionId);
-        return toResponse(session);
+    @Operation(summary = "프로젝트의 유효한 최신 세션 복구")
+    @GetMapping("/sessions/latest")
+    public LatestSessionResponse getLatestSession(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId) {
+        return fundingStoryService.getLatestSession(user.id(), projectId);
     }
 
-    @Operation(summary = "펀딩스토리 결과를 프로젝트에 반영", description = "AI 결과(또는 수정본)를 프로젝트 스토리에 적용한다.")
-    @PatchMapping("/ai/funding-story/sessions/{sessionId}/apply")
-    public FundingStoryApplyResponse apply(
-            @LoginUser CurrentUser user, @PathVariable UUID sessionId,
-            @Valid @RequestBody FundingStoryApplyRequest request) {
-        Map<String, String> editsBySectionType = request.edits() == null ? Map.of() : request.edits().stream()
-                .collect(Collectors.toMap(e -> e.sectionType(), e -> e.body(), (a, b) -> b));
-        Project project = fundingStoryService.applyToProject(user.id(), sessionId, request.mode(), editsBySectionType);
-        return new FundingStoryApplyResponse(project.getPublicId(), project.getUpdatedAt());
+    @Operation(summary = "Funding Story 세션 조회")
+    @GetMapping("/sessions/{sessionId}")
+    public SessionResponse getSession(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID sessionId) {
+        return fundingStoryService.getSession(user.id(), projectId, sessionId);
     }
 
-    private FundingStorySessionResponse toResponse(FundingStorySession session) {
-        List<FundingStoryAdditionalQuestionResponse> additionalQuestions = session.getAdditionalQuestions() == null
-                ? List.of()
-                : session.getAdditionalQuestions().stream()
-                        .map(q -> new FundingStoryAdditionalQuestionResponse(q.questionId(), q.question()))
-                        .toList();
-        FundingStoryResult result = session.getResult();
-        FundingStoryResultResponse resultResponse = result == null ? null : new FundingStoryResultResponse(
-                result.sections().stream().map(s -> new FundingStorySectionResponse(s.type(), s.title(), s.body(), s.images())).toList(),
-                result.imagesSource().stream().map(i -> new FundingStoryImageSourceResponse(i.url(), i.source())).toList(),
-                result.warnings().stream().map(w -> new FundingStoryWarningResponse(w.field(), w.reason())).toList());
+    @Operation(summary = "첫 AI 질문 생성 시작")
+    @PostMapping("/sessions/{sessionId}/start")
+    public ResponseEntity<ChatAcceptedResponse> startSession(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID sessionId) {
+        return ResponseEntity.accepted()
+                .body(fundingStoryService.startSession(user.id(), projectId, sessionId));
+    }
 
-        return new FundingStorySessionResponse(session.getId(), session.getStatus().name(), additionalQuestions, resultResponse);
+    @Operation(summary = "사용자 메시지 전달")
+    @PostMapping("/sessions/{sessionId}/messages")
+    public ResponseEntity<ChatAcceptedResponse> addMessage(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID sessionId,
+            @RequestBody MessageRequest request) {
+        return ResponseEntity.accepted()
+                .body(fundingStoryService.addMessage(user.id(), projectId, sessionId, request));
+    }
+
+    @Operation(summary = "AI 채팅 SSE 중계")
+    @GetMapping(value = "/chats/{chatId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<StreamingResponseBody> chatEvents(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID chatId) {
+        ChatEventStream stream = fundingStoryService.openChatEvents(user.id(), projectId, chatId);
+        StreamingResponseBody body = output -> {
+            try (stream) {
+                stream.body().transferTo(output);
+                output.flush();
+            }
+        };
+        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(body);
+    }
+
+    @Operation(summary = "요약 revision 확인")
+    @PostMapping("/sessions/{sessionId}/confirm")
+    public ConfirmResponse confirmSession(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID sessionId,
+            @RequestBody ConfirmRequest request) {
+        return fundingStoryService.confirmSession(user.id(), projectId, sessionId, request);
+    }
+
+    @Operation(summary = "Funding Story 전체 생성")
+    @PostMapping("/runs")
+    public ResponseEntity<RunAcceptedResponse> createRun(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @RequestBody PublicRunCreateRequest request) {
+        return ResponseEntity.accepted()
+                .body(fundingStoryService.createRun(user.id(), projectId, request));
+    }
+
+    @Operation(summary = "BE가 소유한 생성 상태·결과 조회")
+    @GetMapping("/runs/{runId}")
+    public PublicRunResponse getRun(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @PathVariable UUID runId) {
+        return fundingStoryService.getRun(user.id(), projectId, runId);
     }
 }
