@@ -204,6 +204,7 @@ Response Body
   "content": [
     {
       "projectId": 123,
+      "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
       "projectTitle": "무선 이어폰 프로젝트",
       "projectThumbnailUrl": "https://cdn.fundit.com/projects/123/thumb.jpg",
       "createdAt": "2026-08-20T10:00:00"
@@ -221,7 +222,9 @@ Validation / Business Rules
 
 - 본인 찜 목록만 조회 가능.
 - 이 응답은 **프로젝트만** 담는다. 마이페이지의 "찜한 판매자" 목록은 `GET /api/v1/follows`(MEMBER-007)다 — 응답 아이템 모양이 달라 한 엔드포인트에 섞으면 페이지네이션이 하나로 묶여 탭 전환마다 커서가 꼬인다.
-- `projectTitle`/`projectThumbnailUrl`은 `wishes` 테이블에 저장된 스냅샷 컬럼을 그대로 반환한다(catalog-service를 실시간 호출하지 않음). catalog-service가 발행하는 프로젝트 변경 이벤트를 구독해 동기화하므로, 프로젝트 정보가 바뀐 직후 아주 짧은 시간(최종적 일관성) 동안은 옛 값이 보일 수 있다.
+- `projectId`(숫자)는 찜 등록·해제(`PUT`/`DELETE /api/v1/wishes/{projectId}`)용, `projectPublicId`(UUID)는 프로젝트 상세 조회용이다.
+- `projectPublicId`/`projectTitle`/`projectThumbnailUrl`은 member-service의 `project_snapshots` 테이블에서 가져온다(project-service를 실시간 호출하지 않음). project-service가 발행하는 `project.approved.v1`/`project.updated.v1`을 구독해 동기화하므로, 프로젝트 정보가 바뀐 직후 아주 짧은 시간(최종적 일관성) 동안은 옛 값이 보일 수 있다.
+- 스냅샷이 아직 없는 프로젝트(구독 시작 전에 승인돼 이벤트가 보존 기간을 넘긴 경우 등)도 목록에서 빠지지 않고, 세 필드만 `null`로 온다.
 
 ---
 
@@ -418,6 +421,8 @@ Validation / Business Rules
 - **[구현 메모, 2026-09-16 #58] 회원가입 이벤트 발행**: `POST /api/v1/members`가 성공하면 같은 트랜잭션에서 `member_event_outbox`에 적재되고 워커가 `member.signed-up.v1`로 발행한다(파티션 키 `memberId`). order-service가 이 토픽으로 웰컴 쿠폰(ORDER-007)을 발급한다. 발행 실패는 워커가 재시도하며 **가입 API를 깨지 않는다** — 여기서 예외가 나가면 auth-service가 보상 트랜잭션으로 계정을 지운다.
 
 - **[확정, 2026-09-21 #101] 배송지 수정·삭제·기본 지정**: QA 요청으로 추가. 기본 배송지가 여러 개 저장될 수 있던 문제를 V5 부분 유니크 인덱스로 막았다(기존 중복은 회원별 최신 1개만 남기고 정리). 기본을 삭제하면 기본 없음으로 둔다(자동 승계 안 함, 사용자 결정).
+
+- **[확정, 2026-09-22 #109] 찜 목록 프로젝트 정보**: 찜 등록 시 `project_id`만 저장하고 스냅샷을 채우는 코드가 없어 제목·썸네일이 항상 null이었다. `project.approved.v1`/`project.updated.v1`을 구독해 `project_snapshots`(V6)에 upsert하고 목록 조회에서 조인한다. `projectPublicId`를 응답에 추가했다. `wishes`의 옛 스냅샷 컬럼 3개는 더 이상 쓰지 않으며 후속 정리 대상이다.
 
 ## ⚠️ 남은 확인 필요 사항
 

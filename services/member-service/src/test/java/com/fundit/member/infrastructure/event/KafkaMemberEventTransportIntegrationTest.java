@@ -77,6 +77,8 @@ class KafkaMemberEventTransportIntegrationTest {
     private MemberEventOutboxWorker worker;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
+    @Autowired
+    private com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaRepository projectSnapshotJpaRepository;
 
     private UUID createMember() {
         return memberJpaRepository.save(MemberJpaEntity.builder()
@@ -177,5 +179,37 @@ class KafkaMemberEventTransportIntegrationTest {
                 .containsPattern("\"eventId\":\"member:\\d+\"")
                 // 가입 이벤트에는 projectId가 없다 — 있으면 계약에 없는 필드가 나간다
                 .doesNotContain("projectId");
+    }
+
+    @Test
+    void 프로젝트_승인_이벤트를_받으면_찜_목록용_스냅샷이_저장된다() throws Exception {
+        // given — project-service가 보내는 JSON 그대로(모르는 필드는 무시돼야 한다)
+        UUID publicId = UUID.randomUUID();
+        String payload = """
+                {"projectId":777,"publicId":"%s","sellerId":"%s","title":"에어쿡 프로",
+                 "thumbnailUrl":"https://img/777.png","categoryMajor":"가전","sourceVersion":3}
+                """.formatted(publicId, UUID.randomUUID());
+        java.util.Map<String, Object> props = java.util.Map.of(
+                org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        try (var producer = new org.apache.kafka.clients.producer.KafkaProducer<String, String>(props,
+                new org.apache.kafka.common.serialization.StringSerializer(),
+                new org.apache.kafka.common.serialization.StringSerializer())) {
+            producer.send(new org.apache.kafka.clients.producer.ProducerRecord<>(
+                    com.fundit.common.event.KafkaTopics.PROJECT_APPROVED, "777", payload)).get();
+        }
+
+        // when & then — 리스너가 비동기로 반영하므로 잠깐 기다린다
+        long deadline = System.currentTimeMillis() + 30_000;
+        java.util.Optional<com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaEntity> saved =
+                java.util.Optional.empty();
+        while (saved.isEmpty() && System.currentTimeMillis() < deadline) {
+            saved = projectSnapshotJpaRepository.findById(777L);
+            if (saved.isEmpty()) {
+                Thread.sleep(500);
+            }
+        }
+        assertThat(saved).isPresent();
+        assertThat(saved.get().getProjectPublicId()).isEqualTo(publicId);
+        assertThat(saved.get().getTitle()).isEqualTo("에어쿡 프로");
     }
 }

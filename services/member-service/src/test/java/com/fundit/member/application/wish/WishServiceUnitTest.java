@@ -2,7 +2,6 @@ package com.fundit.member.application.wish;
 
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
-import com.fundit.member.infrastructure.persistence.wish.WishJpaEntity;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -122,11 +121,11 @@ class WishServiceUnitTest {
         // given
         UUID memberId = UUID.randomUUID();
         Instant now = Instant.now();
-        WishJpaEntity entity = WishJpaEntity.builder()
-                .id(1L).memberId(memberId).projectId(10L)
-                .projectTitle("프로젝트A").projectThumbnailUrl("http://img").createdAt(now).build();
-        Page<WishJpaEntity> page = new PageImpl<>(List.of(entity));
-        when(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20))).thenReturn(page);
+        UUID publicId = UUID.randomUUID();
+        Page<com.fundit.member.infrastructure.persistence.wish.WishView> page = new PageImpl<>(List.of(
+                new com.fundit.member.infrastructure.persistence.wish.WishView(
+                        10L, publicId, "프로젝트A", "http://img", now)));
+        when(wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20))).thenReturn(page);
 
         // when
         Page<WishService.WishItem> result = wishService.getWishes(memberId, PageRequest.of(0, 20));
@@ -134,5 +133,6 @@ class WishServiceUnitTest {
         // then
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).projectTitle()).isEqualTo("프로젝트A");
+        assertThat(result.getContent().get(0).projectPublicId()).isEqualTo(publicId);
     }
 }

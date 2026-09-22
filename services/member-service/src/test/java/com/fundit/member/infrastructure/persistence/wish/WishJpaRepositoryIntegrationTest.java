@@ -45,6 +45,8 @@ class WishJpaRepositoryIntegrationTest {
     private WishJpaRepository wishJpaRepository;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
+    @Autowired
+    private com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaRepository projectSnapshotJpaRepository;
 
     private UUID createMember() {
         return memberJpaRepository.save(MemberJpaEntity.builder()
@@ -61,7 +63,7 @@ class WishJpaRepositoryIntegrationTest {
         wishJpaRepository.insertIgnoringConflict(memberId, 1L);
 
         // then
-        assertThat(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
+        assertThat(wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
     }
 
     @Test
@@ -83,6 +85,60 @@ class WishJpaRepositoryIntegrationTest {
         wishJpaRepository.deleteByMemberIdAndProjectId(memberId, 2L);
 
         // then
-        assertThat(wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(0);
+        assertThat(wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(0);
+    }
+
+    @Test
+    void 찜_목록은_프로젝트_스냅샷의_UUID_제목_썸네일을_채우고_없으면_null이다() {
+        // given — 10번은 스냅샷이 있고 11번은 아직 이벤트가 오지 않았다
+        UUID memberId = createMember();
+        UUID publicId = UUID.randomUUID();
+        projectSnapshotJpaRepository.upsert(10L, publicId, "에어쿡 프로", "https://img/10.png", 5L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 10L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 11L);
+
+        // when
+        var wishes = wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent();
+
+        // then — 스냅샷이 없어도 찜 목록에서 빠지지 않는다
+        assertThat(wishes).hasSize(2);
+        var withSnapshot = wishes.stream().filter(w -> w.projectId().equals(10L)).findFirst().orElseThrow();
+        assertThat(withSnapshot.projectPublicId()).isEqualTo(publicId);
+        assertThat(withSnapshot.projectTitle()).isEqualTo("에어쿡 프로");
+        var withoutSnapshot = wishes.stream().filter(w -> w.projectId().equals(11L)).findFirst().orElseThrow();
+        assertThat(withoutSnapshot.projectPublicId()).isNull();
+    }
+
+    @Test
+    void 스냅샷은_더_최신_버전으로만_갱신된다() {
+        // given
+        UUID memberId = createMember();
+        UUID publicId = UUID.randomUUID();
+        projectSnapshotJpaRepository.upsert(20L, publicId, "새 제목", "https://img/new.png", 7L);
+
+        // when — 재전송된 옛 이벤트
+        projectSnapshotJpaRepository.upsert(20L, publicId, "옛 제목", "https://img/old.png", 3L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 20L);
+
+        // then
+        var wish = wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent().getFirst();
+        assertThat(wish.projectTitle()).isEqualTo("새 제목");
+    }
+
+    @Test
+    void 버전이_있는_스냅샷은_버전_없는_이벤트로_덮이지_않는다() {
+        // given — 버전 7이 반영된 뒤 버전 없는(구버전 발행) 이벤트가 온다
+        UUID memberId = createMember();
+        UUID publicId = UUID.randomUUID();
+        projectSnapshotJpaRepository.upsert(30L, publicId, "버전7 제목", "https://img/v7.png", 7L);
+
+        // when
+        projectSnapshotJpaRepository.upsert(30L, publicId, "버전없는 제목", "https://img/none.png", null);
+        wishJpaRepository.insertIgnoringConflict(memberId, 30L);
+
+        // then — 제목도 버전도 그대로다(버전이 null로 바뀌면 이후 옛 이벤트가 다시 덮을 수 있다)
+        var wish = wishJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent().getFirst();
+        assertThat(wish.projectTitle()).isEqualTo("버전7 제목");
+        assertThat(projectSnapshotJpaRepository.findById(30L).orElseThrow().getSourceVersion()).isEqualTo(7L);
     }
 }

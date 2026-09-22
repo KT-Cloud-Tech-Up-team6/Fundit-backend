@@ -42,8 +42,9 @@ public class WishService {
 
     @Transactional(readOnly = true)
     public Page<WishItem> getWishes(UUID memberId, Pageable pageable) {
-        return wishJpaRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId, pageable)
-                .map(w -> new WishItem(w.getProjectId(), w.getProjectTitle(), w.getProjectThumbnailUrl(), w.getCreatedAt()));
+        return wishJpaRepository.findViewsByMemberId(memberId, pageable)
+                .map(w -> new WishItem(w.projectId(), w.projectPublicId(), w.projectTitle(),
+                        w.projectThumbnailUrl(), w.createdAt()));
     }
 
     private void enqueue(String eventType, UUID memberId, Long projectId) {
@@ -54,6 +55,8 @@ public class WishService {
                 .build());
     }
 
-    public record WishItem(Long projectId, String projectTitle, String projectThumbnailUrl, Instant createdAt) {
+    /** {@code projectId}(숫자)는 찜 등록·해제용, {@code projectPublicId}는 상세 조회용이다. */
+    public record WishItem(Long projectId, UUID projectPublicId, String projectTitle, String projectThumbnailUrl,
+                           Instant createdAt) {
     }
 }

@@ -51,7 +51,8 @@ public class WishController {
                     "page는 0 이상, size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         var result = wishService.getWishes(user.id(), PageRequest.of(page, size))
-                .map(w -> new WishListItemResponse(w.projectId(), w.projectTitle(), w.projectThumbnailUrl(), w.createdAt()));
+                .map(w -> new WishListItemResponse(w.projectId(), w.projectPublicId(), w.projectTitle(),
+                        w.projectThumbnailUrl(), w.createdAt()));
         return PageResponse.from(result);
     }
 }
