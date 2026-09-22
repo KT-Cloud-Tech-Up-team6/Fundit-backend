@@ -61,7 +61,8 @@ public class RefundController {
     @GetMapping
     public PageResponse<RefundSummaryResponse> list(@LoginUser CurrentUser user,
                                                       @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(refundQueryService.listMyRefunds(user.id(), pageable).map(RefundSummaryResponse::from));
+        return PageResponse.from(refundQueryService.listMyRefunds(user.id(), null, null, pageable)
+                .map(RefundSummaryResponse::from));
     }
 
     /** PAYMENT-003 seller 변형 — 판매자 환불 목록. DEFECT 신청만 대상(그 외 유형은 판매자 검토 대상이 아님). */

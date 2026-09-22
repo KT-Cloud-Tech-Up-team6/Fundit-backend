@@ -204,13 +204,14 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"), null));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.projectTitle").value("프로젝트"))
                 .andExpect(jsonPath("$.paymentExpiresAt").value(funding.getPaymentExpiresAt().toString()));
     }
 
@@ -223,13 +224,16 @@ class OrderControllerTest {
         FundingLineItem lineItem = new FundingLineItem(1L, 1L, "얼리버드 패키지", 2, 10_000L, List.of(option));
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING).toBuilder()
                 .lineItems(List.of(lineItem)).build();
+        var projectSummary = new com.fundit.order.application.catalog.ProjectSummaryClient.ProjectSummary(
+                "프로젝트", "https://cdn/x.png", "메이커");
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL")));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"), projectSummary));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.thumbnailUrl").value("https://cdn/x.png"))
                 .andExpect(jsonPath("$.lineItems[0].rewardName").value("얼리버드 패키지"))
                 .andExpect(jsonPath("$.lineItems[0].options[0].optionValueId").value(100))
                 .andExpect(jsonPath("$.lineItems[0].options[0].optionGroupName").value("색상"))

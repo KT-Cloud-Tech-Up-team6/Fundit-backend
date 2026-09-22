@@ -50,6 +50,23 @@ public class RefundRequest {
                 .build();
     }
 
+    /** 교환 신청 — 판매자 검토 대기(REQUESTED)로만 접수한다. 승인/완료(재발송)는 별도 설계 필요. */
+    public static RefundRequest requestExchange(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
+                                                 List<String> evidenceUrls) {
+        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
+            throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
+        }
+        return RefundRequest.builder()
+                .fundingId(fundingId)
+                .paymentId(paymentId)
+                .sellerId(sellerId)
+                .triggerType(RefundTriggerType.EXCHANGE)
+                .status(RefundRequestStatus.REQUESTED)
+                .reasonDetail(reasonDetail)
+                .evidenceUrls(evidenceUrls)
+                .build();
+    }
+
     /**
      * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 처리되는 유형(단순변심/미달자동/
      * 발송지연/시스템 재조정). 토스 취소가 이미 성공했다는 전제로 곧바로 COMPLETED로 기록한다.

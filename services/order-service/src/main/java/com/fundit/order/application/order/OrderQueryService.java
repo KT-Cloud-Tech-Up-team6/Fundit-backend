@@ -85,7 +85,9 @@ public class OrderQueryService {
                 .mapToLong(FundingCouponApplicationJpaEntity::getDiscountAmount)
                 .sum();
         List<String> availableActions = resolveAvailableActions(funding);
-        return new FundingDetail(funding, discountAmount, availableActions);
+        ProjectSummaryClient.ProjectSummary projectSummary = projectSummaryClient
+                .getSummaries(List.of(funding.getProjectId())).get(funding.getProjectId());
+        return new FundingDetail(funding, discountAmount, availableActions, projectSummary);
     }
 
     /** GOAL_ACHIEVED가 아니면 배송 상태와 무관하게 결과가 같아 fulfillment-service 조회를 생략한다. */
@@ -97,7 +99,9 @@ public class OrderQueryService {
         return funding.availableActions(status.isAlreadyShipped(), status.isDelivered());
     }
 
-    public record FundingDetail(Funding funding, long discountAmount, List<String> availableActions) {
+    /** {@code projectSummary}는 project-service 조회 실패 시 null일 수 있다(부가 정보, degrade). */
+    public record FundingDetail(Funding funding, long discountAmount, List<String> availableActions,
+                                 ProjectSummaryClient.ProjectSummary projectSummary) {
 
         public long finalAmount() {
             return funding.totalRewardAmount() + funding.getShippingFee() - discountAmount;

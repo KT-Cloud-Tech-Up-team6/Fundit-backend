@@ -41,13 +41,16 @@ class HttpOrderSummaryClientUnitTest {
                 .andExpect(header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andRespond(withSuccess("""
                         [{"orderId": "%s", "projectTitle": "프로젝트",
-                          "lineItems": [{"rewardId": 1, "rewardName": "리워드", "quantity": 2, "unitPrice": 10000}]}]
+                          "lineItems": [{"rewardId": 1, "rewardName": "리워드", "quantity": 2, "unitPrice": 10000,
+                              "options": [{"optionValueId": 100, "optionGroupName": "색상", "optionValue": "블랙"}]}]}]
                         """.formatted(orderId), MediaType.APPLICATION_JSON));
 
         Map<UUID, OrderSummaryClient.OrderSummary> result = client.fetchBatch(List.of(orderId));
 
         assertThat(result.get(orderId).projectTitle()).isEqualTo("프로젝트");
         assertThat(result.get(orderId).lineItems()).hasSize(1);
+        assertThat(result.get(orderId).lineItems().get(0).options())
+                .containsExactly(new OrderSummaryClient.LineItemOption("색상", "블랙"));
         server.verify();
     }
 
