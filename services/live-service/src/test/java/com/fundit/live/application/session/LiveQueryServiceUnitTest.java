@@ -112,4 +112,25 @@ class LiveQueryServiceUnitTest {
         assertThat(page.getContent()).extracting(LiveSummaryResponse::viewerCount).containsExactly(30, 3);
         assertThat(page.getTotalElements()).isEqualTo(2);
     }
+
+    @Test
+    void sort가_viewerCount이고_offset이_int_범위를_넘으면_빈_페이지를_돌려준다() {
+        // given — page*size가 Integer.MAX_VALUE를 넘는 극단값. (int) 캐스팅을 먼저 하면
+        // 음수로 랩어라운드돼 subList가 IndexOutOfBoundsException을 던진다(리뷰 지적).
+        LiveSessionJpaEntity live = LiveSessionJpaEntity.builder()
+                .id(1L).channelId(10L).status(LiveStatus.LIVE).build();
+        given(sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE))
+                .willReturn(List.of(live));
+        given(channelRepository.findAllById(any())).willReturn(List.of(
+                LiveChannelJpaEntity.builder().id(10L).ivsChannelArn("arn").build()));
+        given(ivsClient.getViewerCount("arn")).willReturn(1);
+
+        // when
+        Page<LiveSummaryResponse> page = liveQueryService.findPublic(
+                null, "viewerCount", null, PageRequest.of(2_000_000, 2000));
+
+        // then
+        assertThat(page.getContent()).isEmpty();
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
 }

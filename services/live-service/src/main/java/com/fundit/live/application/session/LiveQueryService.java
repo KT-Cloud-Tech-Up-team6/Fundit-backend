@@ -73,7 +73,14 @@ public class LiveQueryService {
                 .map(entry -> LiveSummaryResponse.from(entry.getKey(), entry.getValue()))
                 .toList();
 
-        int start = Math.min((int) pageable.getOffset(), ranked.size());
+        // offset(long)을 ranked.size()(int)와 먼저 비교한 뒤에만 int로 좁힌다 — 순서를
+        // 바꾸면 offset이 Integer.MAX_VALUE를 넘는 극단적인 page*size 조합에서 캐스팅이
+        // 음수로 랩어라운드돼 subList가 IndexOutOfBoundsException을 던진다(리뷰 지적).
+        long offset = pageable.getOffset();
+        if (offset >= ranked.size()) {
+            return new PageImpl<>(List.of(), pageable, ranked.size());
+        }
+        int start = (int) offset;
         int end = Math.min(start + pageable.getPageSize(), ranked.size());
         return new PageImpl<>(ranked.subList(start, end), pageable, ranked.size());
     }
