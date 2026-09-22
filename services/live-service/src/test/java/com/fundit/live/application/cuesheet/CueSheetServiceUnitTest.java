@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,7 @@ class CueSheetServiceUnitTest {
     @Mock private AiClient aiClient;
     @Mock private AiProductContextAssembler productContextAssembler;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private PlatformTransactionManager transactionManager;
 
     @InjectMocks private CueSheetService cueSheetService;
 

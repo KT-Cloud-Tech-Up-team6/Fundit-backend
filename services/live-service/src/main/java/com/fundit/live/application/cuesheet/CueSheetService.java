@@ -14,9 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +46,7 @@ public class CueSheetService {
     private final AiClient aiClient;
     private final AiProductContextAssembler productContextAssembler;
     private final ApplicationEventPublisher eventPublisher;
+    private final PlatformTransactionManager transactionManager;
 
     @Transactional
     public void requestGeneration(UUID sellerId, UUID liveId, String mode, int targetDurationSec,
@@ -83,21 +86,32 @@ public class CueSheetService {
      * package-private — 테스트에서 Spring 이벤트 시스템 없이 직접 호출하기 위해 접근 제한을 풀어둔다
      * ({@code LiveStreamService.markAiPrepared}와 같은 이유).
      *
-     * <p>{@code @Async}라 별도 스레드에서 돈다 — 활성 트랜잭션이 없는 채로 시작하므로
-     * {@code applyResult}의 {@code @Transactional}이 정상적으로 새 트랜잭션을 연다
-     * ({@code REQUIRES_NEW}가 필요 없다 — 그건 같은 스레드에서 이미 트랜잭션이 진행 중일 때만
-     * 쓰는 처방이다).
+     * <p>{@code applyResult}를 {@code this.applyResult(...)}로 직접 부르면 프록시를 거치지 않아
+     * {@code @Transactional}이 적용되지 않는다(Spring AOP 셀프 호출 함정, 리뷰 지적으로 발견) —
+     * {@link #applyResultInNewTransaction}이 {@code TransactionTemplate}으로 직접 경계를 연다.
      */
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void onCueSheetGenerationRequested(CueSheetGenerationRequested event) {
         try {
             String segments = aiClient.requestCueSheet(event.liveId().toString(), event.request());
-            applyResult(event.liveId(), GenerationStatus.COMPLETED.name(), segments, null);
+            applyResultInNewTransaction(event.liveId(), GenerationStatus.COMPLETED.name(), segments, null);
         } catch (RuntimeException e) {
             log.warn("큐시트 생성 실패, liveId={}", event.liveId(), e);
-            applyResult(event.liveId(), GenerationStatus.FAILED.name(), null, failureReasonOf(e));
+            applyResultInNewTransaction(event.liveId(), GenerationStatus.FAILED.name(), null, failureReasonOf(e));
         }
+    }
+
+    /**
+     * {@code applyResult}의 {@code @Transactional}은 self-invocation 경로에서 무시되므로
+     * (같은 이유로 {@code LiveStreamService.markAiPrepared}도 {@code TransactionTemplate}을 쓴다)
+     * 여기서 직접 트랜잭션을 연다. {@code @Async} 스레드에는 활성 트랜잭션이 없어 기본 전파
+     * (REQUIRED)로도 새 트랜잭션이 열린다 — REQUIRES_NEW는 이미 진행 중인 트랜잭션에 합류하지
+     * 않으려 할 때만 필요하다.
+     */
+    private void applyResultInNewTransaction(UUID liveId, String status, String segmentsJson, String failureReason) {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(txStatus -> applyResult(liveId, status, segmentsJson, failureReason));
     }
 
     /**
@@ -126,7 +140,7 @@ public class CueSheetService {
     }
 
     /**
-     * AI 호출 결과를 적용한다 — {@link #onCueSheetGenerationRequested}가 내부에서만 부른다
+     * AI 호출 결과를 적용한다 — {@link #applyResultInNewTransaction}을 통해서만 내부에서 불린다
      * (더 이상 외부 콜백 경로가 아니다). 구조·길이를 검증한 뒤 저장한다(security.md S7).
      *
      * <p>모르는 status를 FAILED로 굳히지 않는다 — AI가 {@code "PROCESSING"}을 보내면
