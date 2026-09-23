@@ -8,6 +8,7 @@ import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import java.util.UUID;
  * <p><b>생성과 등록이 분리돼 있다.</b> {@code draft}는 AI가 만든 초안 미리보기일 뿐 아무것도
  * 기록하지 않는다 — 판매자가 확인·수정한 최종 문구만 {@link #send}로 등록된다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiAnswerService {
@@ -53,7 +55,14 @@ public class AiAnswerService {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "답변 내용이 비어 있습니다.");
         }
         LiveQuestionSummaryJpaEntity summary = loadSummaryOf(loadOwned(sellerId, liveId), questionId);
-        aiClient.registerSellerAnswer(liveId.toString(), summary.getAiQuestionId(), finalAnswer);
+        AiClient.SellerAnswerResult result = aiClient.registerSellerAnswer(
+                liveId.toString(), summary.getAiQuestionId(), finalAnswer);
+        if (!result.liveKnowledgeRegistered()) {
+            // ponytail: 재시도 없이 로그만 남긴다. 판매자 답변 자체는 아래 recordAnswer로 저장되니
+            // 재현 이후 조회는 정상이다 — 다음 유사 질문에 AI가 이 답변을 재사용하지 못할
+            // 가능성만 남는다. 운영에서 반복되면 재시도 큐로 옮긴다.
+            log.warn("AI Live Knowledge 등록 실패, liveId={}, questionId={}", liveId, questionId);
+        }
         summary.recordAnswer(finalAnswer, Instant.now());
         return summary;
     }
