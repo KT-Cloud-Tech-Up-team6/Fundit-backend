@@ -3,6 +3,7 @@ package com.fundit.live.application.session;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ivs.IvsClient;
+import com.fundit.live.application.member.MemberNicknameClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
@@ -13,6 +14,7 @@ import com.fundit.live.presentation.dto.LiveDetailResponse;
 import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
  * 목록 조회 전용. 읽기라 도메인 모델로 되돌리지 않고 JpaEntity를 그대로 읽는다 —
  * 상태 전이가 없는 경로에 Mapper를 한 번 더 태울 이유가 없다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -41,6 +44,7 @@ public class LiveQueryService {
     private final LiveSessionJpaRepository sessionRepository;
     private final LiveChannelJpaRepository channelRepository;
     private final IvsClient ivsClient;
+    private final MemberNicknameClient memberNicknameClient;
 
     /**
      * 판매자 본인 LIVE 목록(요구사항정의서 6.1.3). 임시저장(DRAFT)으로 돌아가는 유일한 경로다.
@@ -101,7 +105,8 @@ public class LiveQueryService {
         Page<LiveSessionJpaEntity> page = (sellerIds == null || sellerIds.isEmpty())
                 ? sessionRepository.findPublic(status, pageable)
                 : sessionRepository.findPublicBySellerIds(status, sellerIds, pageable);
-        return page.map(LiveSummaryResponse::from);
+        Map<Long, String> nicknames = sellerNicknameByChannelId(page.getContent());
+        return page.map(e -> LiveSummaryResponse.from(e, null, nicknames.get(e.getChannelId())));
     }
 
     /**
@@ -114,10 +119,9 @@ public class LiveQueryService {
                         liveSessions.stream().map(LiveSessionJpaEntity::getChannelId).distinct().toList())
                 .stream().collect(Collectors.toMap(LiveChannelJpaEntity::getId, LiveChannelJpaEntity::getIvsChannelArn));
 
-        List<LiveSummaryResponse> ranked = liveSessions.stream()
+        List<Map.Entry<LiveSessionJpaEntity, Integer>> ranked = liveSessions.stream()
                 .map(session -> Map.entry(session, ivsClient.getViewerCount(channelArnById.get(session.getChannelId()))))
                 .sorted(Map.Entry.<LiveSessionJpaEntity, Integer>comparingByValue().reversed())
-                .map(entry -> LiveSummaryResponse.from(entry.getKey(), entry.getValue()))
                 .toList();
 
         // offset(long)을 ranked.size()(int)와 먼저 비교한 뒤에만 int로 좁힌다 — 순서를
@@ -129,11 +133,47 @@ public class LiveQueryService {
         }
         int start = (int) offset;
         int end = Math.min(start + pageable.getPageSize(), ranked.size());
-        return new PageImpl<>(ranked.subList(start, end), pageable, ranked.size());
+        // 닉네임은 잘라낸 페이지분만 조회한다 — 전체 LIVE 수만큼 member를 부를 이유가 없다.
+        List<Map.Entry<LiveSessionJpaEntity, Integer>> pageEntries = ranked.subList(start, end);
+        Map<Long, String> nicknames = sellerNicknameByChannelId(pageEntries.stream().map(Map.Entry::getKey).toList());
+        List<LiveSummaryResponse> content = pageEntries.stream()
+                .map(entry -> LiveSummaryResponse.from(entry.getKey(), entry.getValue(),
+                        nicknames.get(entry.getKey().getChannelId())))
+                .toList();
+        return new PageImpl<>(content, pageable, ranked.size());
     }
 
     /** 홈 배너(요구사항정의서 10.1.4) — 현재 방송 중인 것만. */
-    public List<LiveSessionJpaEntity> findLiveBanner() {
-        return sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
+    public List<LiveSummaryResponse> findLiveBanner() {
+        List<LiveSessionJpaEntity> sessions = sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
+        Map<Long, String> nicknames = sellerNicknameByChannelId(sessions);
+        return sessions.stream()
+                .map(e -> LiveSummaryResponse.from(e, null, nicknames.get(e.getChannelId())))
+                .toList();
+    }
+
+    /**
+     * 카드에 붙일 판매자 닉네임(channelId → nickname). 세션 → 채널 → sellerId를 모아 member를 한 번에 부른다.
+     *
+     * <p>member 조회 실패는 삼킨다 — 판매자명은 카드 부가 정보라 그것 때문에 목록 전체가 503이 되면 안 된다
+     * ({@code LiveStreamService.fetchProjectTitleOrNull}과 같은 판단).
+     */
+    private Map<Long, String> sellerNicknameByChannelId(List<LiveSessionJpaEntity> sessions) {
+        if (sessions.isEmpty()) {
+            return Map.of();
+        }
+        List<LiveChannelJpaEntity> channels = channelRepository.findAllById(
+                sessions.stream().map(LiveSessionJpaEntity::getChannelId).distinct().toList());
+        Map<UUID, String> nicknameBySellerId;
+        try {
+            nicknameBySellerId = memberNicknameClient.findNicknames(
+                    channels.stream().map(LiveChannelJpaEntity::getSellerId).toList());
+        } catch (RuntimeException e) {
+            log.warn("판매자 닉네임 조회 실패, 닉네임 없이 목록 반환, channels={}", channels.size(), e);
+            return Map.of();
+        }
+        return channels.stream()
+                .filter(c -> nicknameBySellerId.containsKey(c.getSellerId()))
+                .collect(Collectors.toMap(LiveChannelJpaEntity::getId, c -> nicknameBySellerId.get(c.getSellerId())));
     }
 }

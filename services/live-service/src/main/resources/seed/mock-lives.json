@@ -1,0 +1,952 @@
+[
+  {
+    "sellerId": "b56c3e90-c807-341f-b9de-a2e480095fc0",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-001",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/001/master.m3u8"
+    },
+    "session": {
+      "publicId": "2595a991-d9ef-5016-b41b-726d114f543c",
+      "projectId": "80f88d7e-089a-5226-b306-9e7168853e60",
+      "status": "SCHEDULED",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "생활가전",
+      "introText": "아이보리 무선청소기, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-24T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "d29f5df1-5126-35d7-b982-9cc6bb39d44f",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-002",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/002/master.m3u8"
+    },
+    "session": {
+      "publicId": "b2ebc6aa-21cd-58e1-b0cf-e9e445e813c1",
+      "projectId": "4c97c1d1-5cf6-5cbf-93d3-abb734c3bca6",
+      "status": "LIVE",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "생활가전",
+      "introText": "접이식 무선 선풍기, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:50:00Z",
+      "actualStartAt": "2026-09-23T08:53:00Z",
+      "likeCount": 187
+    }
+  },
+  {
+    "sellerId": "f370c5ed-1512-3e20-ad12-7ac3bc165a80",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-003",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/003/master.m3u8"
+    },
+    "session": {
+      "publicId": "8948b1ce-3cf7-5f67-8683-fb2db36ef6eb",
+      "projectId": "b0503518-030d-5196-871b-92cf1d053ce4",
+      "status": "SCHEDULED",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "생활가전",
+      "introText": "미니 전기포트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-25T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "3d3ad839-c24d-3651-8709-e1308df550f8",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-004",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/004/master.m3u8"
+    },
+    "session": {
+      "publicId": "466803d4-dfa5-5909-8cc1-4a6f099521c0",
+      "projectId": "48d338ac-f631-570b-a894-ea837fc900e9",
+      "status": "LIVE",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "생활가전",
+      "introText": "미니 가습기, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:48:00Z",
+      "actualStartAt": "2026-09-23T08:51:00Z",
+      "likeCount": 281
+    }
+  },
+  {
+    "sellerId": "0f1db408-bd57-3f98-9d36-32c091e7c5a0",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-005",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/005/master.m3u8"
+    },
+    "session": {
+      "publicId": "b0cd2a41-e59a-5b77-9b8c-3219d22853f0",
+      "projectId": "63704a25-eb39-5099-8d8f-7cce568f47b1",
+      "status": "SCHEDULED",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "로봇",
+      "introText": "슬림 로봇청소기, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-26T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "797e1e90-29cc-30f7-b532-af9273e98d76",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-006",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/006/master.m3u8"
+    },
+    "session": {
+      "publicId": "94a7560d-5fba-5e40-9e0a-dddc2887be91",
+      "projectId": "f6c724fa-cee3-5773-aa56-6e2755c2e878",
+      "status": "LIVE",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "로봇",
+      "introText": "창문청소 로봇, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:46:00Z",
+      "actualStartAt": "2026-09-23T08:49:00Z",
+      "likeCount": 375
+    }
+  },
+  {
+    "sellerId": "f82177fe-3329-36cc-8a4a-06690f5c275e",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-007",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/007/master.m3u8"
+    },
+    "session": {
+      "publicId": "fdc7b83c-d4c7-5122-87cd-b56cf9ddf8b4",
+      "projectId": "9da6338c-ab50-5abb-a13f-c777faa75542",
+      "status": "SCHEDULED",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "엔터테인먼트가전",
+      "introText": "포터블 빔프로젝터, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-27T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "1661d7da-eaf9-33f5-8e3f-1c76685171fc",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-008",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/008/master.m3u8"
+    },
+    "session": {
+      "publicId": "29d65e59-e637-51f2-985b-38d900ab3761",
+      "projectId": "b2f0d2f8-1ad9-5de4-8cb4-54bc982d93e6",
+      "status": "LIVE",
+      "categoryMajor": "테크·가전",
+      "categoryMinor": "엔터테인먼트가전",
+      "introText": "우드 블루투스 스피커, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:44:00Z",
+      "actualStartAt": "2026-09-23T08:47:00Z",
+      "likeCount": 469
+    }
+  },
+  {
+    "sellerId": "dce4b0f2-f6c0-3c7b-9665-7ddbd7eb2966",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-009",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/009/master.m3u8"
+    },
+    "session": {
+      "publicId": "a6187922-7422-58e4-90b8-644b71340fad",
+      "projectId": "2c636b31-3e3b-5b05-b939-f2376796b9f0",
+      "status": "SCHEDULED",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "침실",
+      "introText": "워싱 이불, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-28T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "78784ddc-641f-3dce-b329-044d84f44eaa",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-010",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/010/master.m3u8"
+    },
+    "session": {
+      "publicId": "b793f328-c3ff-55bb-937b-908637e5c93d",
+      "projectId": "c831dc03-662d-52d7-aaf6-ab92e0e24167",
+      "status": "LIVE",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "침실",
+      "introText": "곡선 베개, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:42:00Z",
+      "actualStartAt": "2026-09-23T08:45:00Z",
+      "likeCount": 563
+    }
+  },
+  {
+    "sellerId": "c35ea88c-6409-3e58-99d6-76c5f4ab0685",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-011",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/011/master.m3u8"
+    },
+    "session": {
+      "publicId": "ccf68393-db03-5e95-bf3d-591cb76a3d4e",
+      "projectId": "42871d23-5810-5979-9a68-0105b84e7b45",
+      "status": "SCHEDULED",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "욕실",
+      "introText": "규조토 발매트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-29T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "4175094e-af00-3159-918d-46f4cc86562d",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-012",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/012/master.m3u8"
+    },
+    "session": {
+      "publicId": "a1e9855c-9e9a-57d6-89c9-4b3840e7f86b",
+      "projectId": "be389f7b-7627-577d-9401-88327ea20e59",
+      "status": "LIVE",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "욕실",
+      "introText": "욕실 수납 선반, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:40:00Z",
+      "actualStartAt": "2026-09-23T08:43:00Z",
+      "likeCount": 657
+    }
+  },
+  {
+    "sellerId": "8fb8ece9-e22c-36c7-b287-5b298d83d2f3",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-013",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/013/master.m3u8"
+    },
+    "session": {
+      "publicId": "9f4649c2-2591-5cdc-ac37-c5a63f84cf22",
+      "projectId": "534df539-8aff-569e-bf87-d105afa462d5",
+      "status": "SCHEDULED",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "주방",
+      "introText": "깊은 프라이팬, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-09-30T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "1efacbc4-9d0e-3397-b79e-45b47c214884",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-014",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/014/master.m3u8"
+    },
+    "session": {
+      "publicId": "7a08cd3f-9243-5332-8c52-1257fc81476b",
+      "projectId": "1fd6d31d-4211-5b63-bf9a-ea8c3026b119",
+      "status": "LIVE",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "주방",
+      "introText": "유리 밀폐용기, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:38:00Z",
+      "actualStartAt": "2026-09-23T08:41:00Z",
+      "likeCount": 751
+    }
+  },
+  {
+    "sellerId": "99425f0b-6441-36eb-821e-7796fb809e7f",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-015",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/015/master.m3u8"
+    },
+    "session": {
+      "publicId": "73b14b20-7be7-590b-987c-7e6bf69f7336",
+      "projectId": "bf16ad81-7919-5785-88fc-19386d6fa250",
+      "status": "SCHEDULED",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "청소",
+      "introText": "재사용 먼지롤러, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-01T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "9ba7cfa9-07d9-382a-b4a1-0e32202639f5",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-016",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/016/master.m3u8"
+    },
+    "session": {
+      "publicId": "917932be-c847-59dd-ac2a-2c6769a1e3db",
+      "projectId": "42296abf-13ba-5be8-90f4-5081bc399c3a",
+      "status": "LIVE",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "인테리어",
+      "introText": "충전식 테이블 조명, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:36:00Z",
+      "actualStartAt": "2026-09-23T08:39:00Z",
+      "likeCount": 845
+    }
+  },
+  {
+    "sellerId": "45d39771-e2d4-3851-bb70-7f364b6f0fe1",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-017",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/017/master.m3u8"
+    },
+    "session": {
+      "publicId": "0dde4441-36ac-564d-9d28-e8196cab444e",
+      "projectId": "9caa4c90-4b98-549c-a61c-3544b5b75b5c",
+      "status": "SCHEDULED",
+      "categoryMajor": "홈·리빙",
+      "categoryMinor": "방향제",
+      "introText": "우디 디퓨저, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-02T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "903f328c-c3a7-3b2a-ae95-ada199edd25d",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-018",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/018/master.m3u8"
+    },
+    "session": {
+      "publicId": "6b190d4f-f922-5969-a866-c279bb0fe365",
+      "projectId": "da7db870-bdeb-546d-8b82-5fc5ce346552",
+      "status": "LIVE",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "스킨케어",
+      "introText": "보습 세럼, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:34:00Z",
+      "actualStartAt": "2026-09-23T08:37:00Z",
+      "likeCount": 939
+    }
+  },
+  {
+    "sellerId": "6d91d24b-ff39-3c6e-a24a-e5ac0a3efbd3",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-019",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/019/master.m3u8"
+    },
+    "session": {
+      "publicId": "e1a89385-dd3d-591b-aac9-ba648d5b0a3e",
+      "projectId": "8f0e72ee-2ae2-5584-bdae-dae3c7ba3627",
+      "status": "SCHEDULED",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "스킨케어",
+      "introText": "수분 크림, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-03T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "a0cc31e8-3a39-31a6-a289-9131b1dcba25",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-020",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/020/master.m3u8"
+    },
+    "session": {
+      "publicId": "885e3c92-290d-5737-a99d-59113e52049e",
+      "projectId": "380f9228-37a5-58c7-9a78-8dedb01f27d2",
+      "status": "LIVE",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "메이크업",
+      "introText": "컬러 립밤, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:32:00Z",
+      "actualStartAt": "2026-09-23T08:35:00Z",
+      "likeCount": 1033
+    }
+  },
+  {
+    "sellerId": "58642850-e448-3282-83f0-e47f2e8ef116",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-021",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/021/master.m3u8"
+    },
+    "session": {
+      "publicId": "926ea374-a105-5790-9c1f-786058356cd9",
+      "projectId": "e3014b41-334c-5ef1-b2e5-975ddc7a6932",
+      "status": "SCHEDULED",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "메이크업",
+      "introText": "데일리 아이 팔레트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-04T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "19ee288a-a491-33a4-b7f5-d9db8cb97b84",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-022",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/022/master.m3u8"
+    },
+    "session": {
+      "publicId": "c0d71ffc-4063-5113-9a42-8b121d7eeb4f",
+      "projectId": "070577ee-7281-5ae4-a3c3-afcd05d86c3f",
+      "status": "LIVE",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "헤어케어",
+      "introText": "헤어 에센스, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:30:00Z",
+      "actualStartAt": "2026-09-23T08:33:00Z",
+      "likeCount": 1127
+    }
+  },
+  {
+    "sellerId": "955af80b-3c3a-3f40-a086-5d97332f4bcb",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-023",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/023/master.m3u8"
+    },
+    "session": {
+      "publicId": "0f49a1ae-afe3-549c-9622-68ddd7bac7dd",
+      "projectId": "9ef3a4a3-b6bb-5ccd-870a-d550673431f7",
+      "status": "SCHEDULED",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "네일",
+      "introText": "젤 네일 팁, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-05T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "1037b2c1-1a41-353c-855f-c888b81e667e",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-024",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/024/master.m3u8"
+    },
+    "session": {
+      "publicId": "e64b693f-8b61-584c-b940-ad213a55a2d6",
+      "projectId": "0bf08ff2-855e-5900-8978-1db0c393e4be",
+      "status": "LIVE",
+      "categoryMajor": "뷰티",
+      "categoryMinor": "향수",
+      "introText": "우디 향수, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:28:00Z",
+      "actualStartAt": "2026-09-23T08:31:00Z",
+      "likeCount": 1221
+    }
+  },
+  {
+    "sellerId": "180a9dd5-5ae3-30a9-8c52-f1e536c8a8a6",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-025",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/025/master.m3u8"
+    },
+    "session": {
+      "publicId": "30ae0819-47dd-5ce5-b7f5-457d449b537d",
+      "projectId": "0ab3c070-6ece-5c5f-9a35-3d813392d338",
+      "status": "SCHEDULED",
+      "categoryMajor": "패션",
+      "categoryMinor": "의류",
+      "introText": "경량 바람막이, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-06T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "a8c355e8-08de-389c-bca2-b9c958640ae8",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-026",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/026/master.m3u8"
+    },
+    "session": {
+      "publicId": "a3a7a161-a5fe-5193-812f-b00ab99b5050",
+      "projectId": "415b218b-7da8-5396-a6ec-53517b739dc4",
+      "status": "LIVE",
+      "categoryMajor": "패션",
+      "categoryMinor": "의류",
+      "introText": "코튼 셔츠, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:26:00Z",
+      "actualStartAt": "2026-09-23T08:29:00Z",
+      "likeCount": 1315
+    }
+  },
+  {
+    "sellerId": "1c6d34c7-1ac8-3b6c-92c1-2ea3601302f8",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-027",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/027/master.m3u8"
+    },
+    "session": {
+      "publicId": "45e8cfc2-7570-5ce3-96fc-2ae432e7254e",
+      "projectId": "6a9e1229-2540-5dd9-a5a3-94d8c794bf13",
+      "status": "SCHEDULED",
+      "categoryMajor": "패션",
+      "categoryMinor": "패션소품",
+      "introText": "데일리 선글라스, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-07T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "a3f4f10c-cbc4-38eb-bed9-70b3a4ff675e",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-028",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/028/master.m3u8"
+    },
+    "session": {
+      "publicId": "59612967-642a-563f-a32f-2e90f9872663",
+      "projectId": "69c0071f-972e-56be-8e99-280d9fcefcd9",
+      "status": "LIVE",
+      "categoryMajor": "패션",
+      "categoryMinor": "패션소품",
+      "introText": "슬림 카드지갑, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:24:00Z",
+      "actualStartAt": "2026-09-23T08:27:00Z",
+      "likeCount": 1409
+    }
+  },
+  {
+    "sellerId": "f7b25e87-cb0e-3d9c-8f26-207001da6d6e",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-029",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/029/master.m3u8"
+    },
+    "session": {
+      "publicId": "7cbb507a-d65c-5d70-b9ee-17ec022dd952",
+      "projectId": "5b2591e8-9807-5499-b45e-63a2e2a0e29a",
+      "status": "SCHEDULED",
+      "categoryMajor": "패션",
+      "categoryMinor": "가방",
+      "introText": "수납형 백팩, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-08T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "5fd05875-e17a-3938-8abd-a6a02e7c6ffe",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-030",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/030/master.m3u8"
+    },
+    "session": {
+      "publicId": "917af3e7-0d8e-5841-b560-b117e089e9df",
+      "projectId": "f8874fe1-75cd-59e2-872c-47a9d7749ff7",
+      "status": "LIVE",
+      "categoryMajor": "패션",
+      "categoryMinor": "가방",
+      "introText": "확장형 여행 가방, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:22:00Z",
+      "actualStartAt": "2026-09-23T08:25:00Z",
+      "likeCount": 1503
+    }
+  },
+  {
+    "sellerId": "7c581901-d944-3e39-a61d-882da32d142d",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-031",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/031/master.m3u8"
+    },
+    "session": {
+      "publicId": "d88a3478-28b7-5ffb-b182-5657b82c123e",
+      "projectId": "89dfd6ad-6117-5d5b-aa63-e6305e845658",
+      "status": "SCHEDULED",
+      "categoryMajor": "패션",
+      "categoryMinor": "신발",
+      "introText": "니트 스니커즈, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-09T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "c6a4dab2-bb31-32f5-a04d-ff64e5786c67",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-032",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/032/master.m3u8"
+    },
+    "session": {
+      "publicId": "5f770c45-bfb3-5c3d-9dd6-326ce0f21740",
+      "projectId": "31f9deb9-d4a7-5980-8294-4c909e1c4ed7",
+      "status": "LIVE",
+      "categoryMajor": "패션",
+      "categoryMinor": "키즈",
+      "introText": "키즈 상하복, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:20:00Z",
+      "actualStartAt": "2026-09-23T08:23:00Z",
+      "likeCount": 1597
+    }
+  },
+  {
+    "sellerId": "5c60597b-0ca4-3fcc-b7a9-dbf36dcf6c6c",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-033",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/033/master.m3u8"
+    },
+    "session": {
+      "publicId": "04f85f9f-d27e-5431-81d0-80ce3c08fcda",
+      "projectId": "8cf5cacc-2827-5d76-91bc-ce3f00894780",
+      "status": "SCHEDULED",
+      "categoryMajor": "푸드",
+      "categoryMinor": "산지직송",
+      "introText": "사과 꾸러미, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-10T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "4548ef5c-751d-3905-9b84-f93ce1ea434a",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-034",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/034/master.m3u8"
+    },
+    "session": {
+      "publicId": "601ebccf-222d-5bdd-8713-1c69dfcd945d",
+      "projectId": "d3500abf-309d-5b5c-9bae-beb25a080615",
+      "status": "LIVE",
+      "categoryMajor": "푸드",
+      "categoryMinor": "로컬맛집",
+      "introText": "들깨칼국수, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:18:00Z",
+      "actualStartAt": "2026-09-23T08:21:00Z",
+      "likeCount": 1691
+    }
+  },
+  {
+    "sellerId": "a7e9fd0d-a263-396f-92df-746ba0cde9ab",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-035",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/035/master.m3u8"
+    },
+    "session": {
+      "publicId": "4e9ae3d0-1196-5b00-b874-916f0c3aa686",
+      "projectId": "95313b17-b4ab-5815-9e54-1b873347cace",
+      "status": "SCHEDULED",
+      "categoryMajor": "푸드",
+      "categoryMinor": "헬스",
+      "introText": "오트 곡물 쉐이크, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-11T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "ebb6fe32-918d-3cf7-a3ff-2e85d3c32a92",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-036",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/036/master.m3u8"
+    },
+    "session": {
+      "publicId": "0c8cb4d0-4ea1-54d5-96bc-85697bd482f8",
+      "projectId": "c43c38c5-ca1a-5843-84dd-704d134cacc3",
+      "status": "LIVE",
+      "categoryMajor": "푸드",
+      "categoryMinor": "소스",
+      "introText": "버섯 만능소스, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:16:00Z",
+      "actualStartAt": "2026-09-23T08:19:00Z",
+      "likeCount": 1785
+    }
+  },
+  {
+    "sellerId": "5e289d90-1ca1-3127-9411-4e76c4636768",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-037",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/037/master.m3u8"
+    },
+    "session": {
+      "publicId": "4df68489-4a34-5aa3-90df-b5328bbde083",
+      "projectId": "dfe1e649-5bc1-5ba1-bb62-08c08d2bcf5f",
+      "status": "SCHEDULED",
+      "categoryMajor": "푸드",
+      "categoryMinor": "디저트",
+      "introText": "버터 휘낭시에, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-12T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "0ce429a3-becf-309d-a1a2-74fe86d64604",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-038",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/038/master.m3u8"
+    },
+    "session": {
+      "publicId": "acdb6f4b-d5f5-57c5-aca7-99c3093cb5c2",
+      "projectId": "c6103f3d-44c1-5153-9147-138ba3a53f3c",
+      "status": "LIVE",
+      "categoryMajor": "푸드",
+      "categoryMinor": "음료",
+      "introText": "콜드브루 티, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:14:00Z",
+      "actualStartAt": "2026-09-23T08:17:00Z",
+      "likeCount": 1879
+    }
+  },
+  {
+    "sellerId": "014eb1af-b17f-3e22-9da7-54c52fe2681a",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-039",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/039/master.m3u8"
+    },
+    "session": {
+      "publicId": "c3244be3-d552-590e-a268-ec052c3095ed",
+      "projectId": "6fd89dcb-4e47-5401-a30d-2264469e767d",
+      "status": "SCHEDULED",
+      "categoryMajor": "푸드",
+      "categoryMinor": "주류",
+      "introText": "쌀 발효주, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-13T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "af2f315c-8c6d-3f13-ab46-7dd066a670b4",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-040",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/040/master.m3u8"
+    },
+    "session": {
+      "publicId": "937db869-de6e-521c-86f4-f252923c0f95",
+      "projectId": "3b3a99dd-29d9-5a4b-950c-70e624d95157",
+      "status": "LIVE",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "캠핑",
+      "introText": "접이식 캠핑 체어, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:12:00Z",
+      "actualStartAt": "2026-09-23T08:15:00Z",
+      "likeCount": 1973
+    }
+  },
+  {
+    "sellerId": "974b3529-5994-3f8c-9630-93f945c1a3b9",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-041",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/041/master.m3u8"
+    },
+    "session": {
+      "publicId": "f1432735-a5b8-5e51-a7cd-19d3dd941225",
+      "projectId": "6f814b8a-7a14-5bf4-941d-f308c2f19eae",
+      "status": "SCHEDULED",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "골프",
+      "introText": "골프 하프백, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-14T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "026d2b95-ae94-334b-be4a-a0a0609e670a",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-042",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/042/master.m3u8"
+    },
+    "session": {
+      "publicId": "6315592b-c769-5abe-ad33-fd014c352c11",
+      "projectId": "70f8b764-7f7c-51f5-9dfb-0b4186089547",
+      "status": "LIVE",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "러닝",
+      "introText": "러닝 벨트, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:10:00Z",
+      "actualStartAt": "2026-09-23T08:13:00Z",
+      "likeCount": 2067
+    }
+  },
+  {
+    "sellerId": "3c4b0ae1-63d0-37bc-a399-a61ba18baadf",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-043",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/043/master.m3u8"
+    },
+    "session": {
+      "publicId": "57d1d3bd-0cf7-53d4-a635-48b1eab65176",
+      "projectId": "85b6f9f9-af6c-5a4d-ab16-6c0683b7e506",
+      "status": "SCHEDULED",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "자전거",
+      "introText": "자전거 라이트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-15T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "bca32d80-e64c-344b-bbdd-ec29402ae5ce",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-044",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/044/master.m3u8"
+    },
+    "session": {
+      "publicId": "63366ce7-9ce4-5b17-a664-bee49911fa3a",
+      "projectId": "dd9f7340-21d7-5e86-a8da-e99b96c31bd1",
+      "status": "LIVE",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "테니스",
+      "introText": "테니스 백, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:08:00Z",
+      "actualStartAt": "2026-09-23T08:11:00Z",
+      "likeCount": 2161
+    }
+  },
+  {
+    "sellerId": "ce7ea6d0-227f-325e-9518-5e9d8cb289a9",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-045",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/045/master.m3u8"
+    },
+    "session": {
+      "publicId": "2efc4931-8099-51fd-8970-1fb7ec14733b",
+      "projectId": "ff9b06c0-81a2-5263-ae9e-abd668a77bd7",
+      "status": "SCHEDULED",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "헬스",
+      "introText": "운동 밴드 세트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-16T09:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "6336a969-e4a4-37ce-9ac3-8b631654850e",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-046",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/046/master.m3u8"
+    },
+    "session": {
+      "publicId": "676ecaa4-c7db-5549-b975-e2e3e1bd0c8f",
+      "projectId": "62cc4be5-d751-5176-88c1-b6b8fe82fa6f",
+      "status": "LIVE",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "등산",
+      "introText": "트레킹 폴, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:06:00Z",
+      "actualStartAt": "2026-09-23T08:09:00Z",
+      "likeCount": 2255
+    }
+  },
+  {
+    "sellerId": "313e0e13-0d53-32c4-aeef-e1d5911d1476",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-047",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/047/master.m3u8"
+    },
+    "session": {
+      "publicId": "83317f0a-f243-5f45-b0aa-826d3f4ee765",
+      "projectId": "9bbe0497-c679-5d92-94d2-8ab8425555d2",
+      "status": "SCHEDULED",
+      "categoryMajor": "스포츠",
+      "categoryMinor": "기타",
+      "introText": "코르크 마사지볼, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-17T11:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "e6ea550d-1046-3c56-bb49-3eeb5c8053af",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-048",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/048/master.m3u8"
+    },
+    "session": {
+      "publicId": "02450a59-bd88-5283-a3c4-1ba7c3b3953a",
+      "projectId": "ad6fa516-3d53-577e-956d-c4ac5ba957fd",
+      "status": "LIVE",
+      "categoryMajor": "캐릭터·굿즈",
+      "categoryMinor": "애니메이션",
+      "introText": "구름냥 피규어, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:04:00Z",
+      "actualStartAt": "2026-09-23T08:07:00Z",
+      "likeCount": 2349
+    }
+  },
+  {
+    "sellerId": "e033a126-a95a-3a03-8c2e-c2c149bdc0da",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-049",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/049/master.m3u8"
+    },
+    "session": {
+      "publicId": "52948771-e522-583f-9fad-f9e0fad46077",
+      "projectId": "fc859f53-399d-57cb-a4a7-0767d8e0a87f",
+      "status": "SCHEDULED",
+      "categoryMajor": "캐릭터·굿즈",
+      "categoryMinor": "게임",
+      "introText": "버섯 키캡 세트, 라이브에서 구성과 사용법을 소개해요.",
+      "scheduledStartAt": "2026-10-18T10:00:00Z",
+      "actualStartAt": null,
+      "likeCount": 0
+    }
+  },
+  {
+    "sellerId": "8108566c-dcdd-35f7-bc1a-f5d4dc8db940",
+    "channel": {
+      "ivsChannelArn": "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-050",
+      "ivsIngestEndpoint": "rtmps://stub.ingest.live.local:443/app/",
+      "ivsPlaybackUrl": "https://stub.playback.live.local/050/master.m3u8"
+    },
+    "session": {
+      "publicId": "0c1df5ed-04bb-55df-8b8d-61c178cadd7d",
+      "projectId": "9236e579-d129-59f9-9212-d1b1dde12bf6",
+      "status": "LIVE",
+      "categoryMajor": "캐릭터·굿즈",
+      "categoryMinor": "크리에이터",
+      "introText": "달토끼 문구 세트, 지금 라이브에서 자세히 만나보세요.",
+      "scheduledStartAt": "2026-09-23T08:02:00Z",
+      "actualStartAt": "2026-09-23T08:05:00Z",
+      "likeCount": 2443
+    }
+  }
+]

@@ -14,6 +14,10 @@ internal-api:
   key: ${INTERNAL_API_KEY}
 
 live:
+  integration:
+    member-service:
+      # 라이브 카드 판매자명 조회(내부 API). 실패해도 목록은 판매자명 없이 나간다.
+      base-url: ${MEMBER_SERVICE_BASE_URL:http://member-service:8080}
   ivs:
     # 자격증명을 받았으면 LIVE_IVS_MODE=aws로 실연동한다. 미설정이면 stub.
     mode: ${LIVE_IVS_MODE:stub}
