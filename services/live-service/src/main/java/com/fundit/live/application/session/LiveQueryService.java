@@ -1,11 +1,16 @@
 package com.fundit.live.application.session;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
+import com.fundit.live.infrastructure.persistence.session.query.LiveStatusCountProjection;
+import com.fundit.live.presentation.dto.LiveDetailResponse;
+import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,14 +36,54 @@ import java.util.stream.Collectors;
 public class LiveQueryService {
 
     private static final String SORT_VIEWER_COUNT = "viewerCount";
+    private static final List<LiveStatus> ALL_STATUSES = List.of(LiveStatus.values());
 
     private final LiveSessionJpaRepository sessionRepository;
     private final LiveChannelJpaRepository channelRepository;
     private final IvsClient ivsClient;
 
-    /** 판매자 본인 LIVE 목록(요구사항정의서 6.1.3). 임시저장(DRAFT)으로 돌아가는 유일한 경로다. */
-    public Page<LiveSessionJpaEntity> findMine(UUID sellerId, LiveStatus status, Pageable pageable) {
-        return sessionRepository.findMine(sellerId, status, pageable);
+    /**
+     * 판매자 본인 LIVE 목록(요구사항정의서 6.1.3). 임시저장(DRAFT)으로 돌아가는 유일한 경로다.
+     *
+     * <p>{@code statuses}가 비었으면 전체 상태로 채워 넘긴다 — JPQL {@code in}은 컬렉션
+     * 파라미터가 null이면 바인딩이 실패해서, "필터 없음"을 null 대신 "전체 목록"으로 표현한다.
+     */
+    public Page<LiveSessionJpaEntity> findMine(UUID sellerId, List<LiveStatus> statuses, UUID projectId,
+                                               String q, Pageable pageable) {
+        List<LiveStatus> effectiveStatuses = (statuses == null || statuses.isEmpty()) ? ALL_STATUSES : statuses;
+        return sessionRepository.findMine(sellerId, effectiveStatuses, projectId, q, pageable);
+    }
+
+    /** 판매자 본인 LIVE 단건 상세 — 임시저장 불러오기·설정 재진입·방송 중 화면(FE 요청). */
+    public LiveDetailResponse findOwnedDetail(UUID sellerId, UUID liveId) {
+        LiveSessionJpaEntity session = sessionRepository.findOwned(liveId, sellerId)
+                // 타인 소유와 없는 LIVE를 같은 404로 응답한다(security.md S10, LiveSettingsService와 동일 이유).
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+
+        if (session.getStatus() != LiveStatus.LIVE) {
+            return LiveDetailResponse.from(session, null, null);
+        }
+        Integer viewerCount = channelRepository.findById(session.getChannelId())
+                .map(LiveChannelJpaEntity::getIvsChannelArn)
+                .map(ivsClient::getViewerCount)
+                .orElse(null);
+        long elapsedSeconds = Duration.between(session.getActualStartAt(), Instant.now()).getSeconds();
+        return LiveDetailResponse.from(session, viewerCount, elapsedSeconds);
+    }
+
+    /** 스튜디오 상태 탭 배지용 건수(FE 요청). */
+    public LiveStatusCountsResponse countMineByStatus(UUID sellerId) {
+        long draft = 0, scheduled = 0, live = 0, ended = 0, error = 0;
+        for (LiveStatusCountProjection row : sessionRepository.countBySellerIdGroupByStatus(sellerId)) {
+            switch (LiveStatus.valueOf(row.getStatus())) {
+                case DRAFT -> draft = row.getCount();
+                case SCHEDULED -> scheduled = row.getCount();
+                case LIVE -> live = row.getCount();
+                case ENDED -> ended = row.getCount();
+                case ERROR -> error = row.getCount();
+            }
+        }
+        return new LiveStatusCountsResponse(draft, scheduled, live, ended, error);
     }
 
     /**

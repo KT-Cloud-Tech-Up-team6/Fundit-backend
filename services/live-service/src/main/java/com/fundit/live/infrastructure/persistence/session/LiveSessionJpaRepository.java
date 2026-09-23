@@ -1,6 +1,7 @@
 package com.fundit.live.infrastructure.persistence.session;
 
 import com.fundit.live.domain.session.LiveStatus;
+import com.fundit.live.infrastructure.persistence.session.query.LiveStatusCountProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import jakarta.persistence.LockModeType;
@@ -46,15 +47,33 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     @Query("select s from LiveSessionJpaEntity s where s.publicId = :publicId")
     Optional<LiveSessionJpaEntity> findByPublicIdForUpdate(@Param("publicId") UUID publicId);
 
+    /**
+     * {@code statuses}는 항상 non-null·non-empty로 넘겨야 한다({@link com.fundit.live.application.session.LiveQueryService}가
+     * 필터 미지정 시 전체 상태 목록으로 채워 넘긴다) — JPQL {@code in}은 컬렉션 파라미터가
+     * null이면 바인딩 자체가 실패한다({@link #findPublicBySellerIds} 주석과 같은 함정).
+     */
     @Query("""
             select s from LiveSessionJpaEntity s
             where s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId = :sellerId)
-              and (:status is null or s.status = :status)
+              and s.status in :statuses
+              and (:projectId is null or s.projectId = :projectId)
+              and (:q is null or lower(s.introText) like lower(concat('%', cast(:q as string), '%')))
             order by s.createdAt desc, s.id desc
             """)
     Page<LiveSessionJpaEntity> findMine(@Param("sellerId") UUID sellerId,
-                                        @Param("status") LiveStatus status,
+                                        @Param("statuses") List<LiveStatus> statuses,
+                                        @Param("projectId") UUID projectId,
+                                        @Param("q") String q,
                                         Pageable pageable);
+
+    /** 스튜디오 상태 탭 배지용 건수 집계(FE 요청). 그룹핑 없이 {@link LiveStatus} 5종 그대로 낸다. */
+    @Query("""
+            select s.status as status, count(s) as count
+            from LiveSessionJpaEntity s
+            where s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId = :sellerId)
+            group by s.status
+            """)
+    List<LiveStatusCountProjection> countBySellerIdGroupByStatus(@Param("sellerId") UUID sellerId);
 
     /**
      * 소비자 목록. <b>DRAFT는 절대 포함하지 않는다</b> — 설정이 끝나지 않은 방송이다.

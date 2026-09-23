@@ -1,11 +1,15 @@
 package com.fundit.live.application.session;
 
+import com.fundit.common.error.BusinessException;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaRepository;
+import com.fundit.live.infrastructure.persistence.session.query.LiveStatusCountProjection;
+import com.fundit.live.presentation.dto.LiveDetailResponse;
+import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,10 +20,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -37,14 +44,30 @@ class LiveQueryServiceUnitTest {
         // given
         UUID sellerId = UUID.randomUUID();
         var pageable = PageRequest.of(0, 20);
-        given(sessionRepository.findMine(sellerId, LiveStatus.DRAFT, pageable))
+        List<LiveStatus> statuses = List.of(LiveStatus.DRAFT);
+        given(sessionRepository.findMine(sellerId, statuses, null, null, pageable))
                 .willReturn(new PageImpl<>(List.of()));
 
         // when
-        liveQueryService.findMine(sellerId, LiveStatus.DRAFT, pageable);
+        liveQueryService.findMine(sellerId, statuses, null, null, pageable);
 
         // then — sellerId가 쿼리에 묶여 있어야 남의 방송이 섞이지 않는다(S4)
-        verify(sessionRepository).findMine(sellerId, LiveStatus.DRAFT, pageable);
+        verify(sessionRepository).findMine(sellerId, statuses, null, null, pageable);
+    }
+
+    @Test
+    void 내_목록에_상태_필터가_없으면_전체_상태로_채워_넘긴다() {
+        // given — JPQL in은 컬렉션 파라미터가 null이면 바인딩이 실패해서 전체 목록으로 대체한다
+        UUID sellerId = UUID.randomUUID();
+        var pageable = PageRequest.of(0, 20);
+        given(sessionRepository.findMine(any(), any(), any(), any(), any()))
+                .willReturn(new PageImpl<>(List.of()));
+
+        // when
+        liveQueryService.findMine(sellerId, null, null, null, pageable);
+
+        // then
+        verify(sessionRepository).findMine(sellerId, List.of(LiveStatus.values()), null, null, pageable);
     }
 
     @Test
@@ -132,5 +155,83 @@ class LiveQueryServiceUnitTest {
         // then
         assertThat(page.getContent()).isEmpty();
         assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void 단건_상세_조회는_없는_방송이면_예외를_던진다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
+
+        // when & then — 타인 소유와 없는 LIVE를 같은 404로 응답한다(S10)
+        assertThatThrownBy(() -> liveQueryService.findOwnedDetail(sellerId, liveId))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 단건_상세_조회는_LIVE_상태면_시청자수와_경과시간을_채운다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        Instant startedAt = Instant.now().minusSeconds(90);
+        LiveSessionJpaEntity session = LiveSessionJpaEntity.builder()
+                .publicId(liveId).channelId(10L).status(LiveStatus.LIVE).actualStartAt(startedAt).build();
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+        given(channelRepository.findById(10L)).willReturn(Optional.of(
+                LiveChannelJpaEntity.builder().id(10L).ivsChannelArn("arn").build()));
+        given(ivsClient.getViewerCount("arn")).willReturn(7);
+
+        // when
+        LiveDetailResponse detail = liveQueryService.findOwnedDetail(sellerId, liveId);
+
+        // then
+        assertThat(detail.viewerCount()).isEqualTo(7);
+        assertThat(detail.elapsedSeconds()).isGreaterThanOrEqualTo(90);
+    }
+
+    @Test
+    void 단건_상세_조회는_LIVE가_아니면_시청자수와_경과시간이_비어있다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        LiveSessionJpaEntity session = LiveSessionJpaEntity.builder()
+                .publicId(liveId).channelId(10L).status(LiveStatus.DRAFT).build();
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+
+        // when
+        LiveDetailResponse detail = liveQueryService.findOwnedDetail(sellerId, liveId);
+
+        // then
+        assertThat(detail.viewerCount()).isNull();
+        assertThat(detail.elapsedSeconds()).isNull();
+    }
+
+    @Test
+    void 상태별_건수는_그룹핑_없이_5종_그대로_집계한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        given(sessionRepository.countBySellerIdGroupByStatus(sellerId)).willReturn(List.of(
+                projectionOf("DRAFT", 2L), projectionOf("LIVE", 1L)));
+
+        // when
+        LiveStatusCountsResponse counts = liveQueryService.countMineByStatus(sellerId);
+
+        // then
+        assertThat(counts).isEqualTo(new LiveStatusCountsResponse(2, 0, 1, 0, 0));
+    }
+
+    private static LiveStatusCountProjection projectionOf(String status, Long count) {
+        return new LiveStatusCountProjection() {
+            @Override
+            public String getStatus() {
+                return status;
+            }
+
+            @Override
+            public Long getCount() {
+                return count;
+            }
+        };
     }
 }

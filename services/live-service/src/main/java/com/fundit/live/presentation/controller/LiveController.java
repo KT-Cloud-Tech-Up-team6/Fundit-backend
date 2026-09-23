@@ -18,7 +18,9 @@ import com.fundit.live.presentation.dto.VodChatMessageResponse;
 import com.fundit.live.presentation.dto.LikeResponse;
 import com.fundit.live.presentation.dto.LikedResponse;
 import com.fundit.live.presentation.dto.LiveCreateResponse;
+import com.fundit.live.presentation.dto.LiveDetailResponse;
 import com.fundit.live.presentation.dto.LiveSettingsRequest;
+import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import com.fundit.live.presentation.dto.LiveStatusResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import com.fundit.live.presentation.dto.PageResponse;
@@ -74,13 +76,30 @@ public class LiveController {
     /**
      * 내 LIVE 목록(요구사항정의서 6.1.3). 소비자 목록으로 대체할 수 없다 —
      * 그쪽은 비인증이고 DRAFT를 빼므로 임시저장한 LIVE로 돌아갈 경로가 사라진다.
+     *
+     * <p>{@code q}는 소개 문구({@code introText})만 검색한다 — LIVE 제목 입력 자체가 없고,
+     * 프로젝트명 검색은 서비스 간 조인이 필요해 이번 스코프에서는 지원하지 않는다(FE 요청).
      */
     @GetMapping("/mine")
     public PageResponse<LiveSummaryResponse> findMine(@LoginUser CurrentUser user,
-                                                      @RequestParam(required = false) LiveStatus status,
+                                                      @RequestParam(required = false) List<LiveStatus> status,
+                                                      @RequestParam(required = false) UUID projectId,
+                                                      @RequestParam(required = false) String q,
                                                       @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(liveQueryService.findMine(user.id(), status, pageable)
+        return PageResponse.from(liveQueryService.findMine(user.id(), status, projectId, q, pageable)
                 .map(LiveSummaryResponse::from));
+    }
+
+    /** 스튜디오 상태 탭 배지용 건수(FE 요청). {@link LiveStatus} 5종을 그대로 낸다(그룹핑은 미확정). */
+    @GetMapping("/status-counts")
+    public LiveStatusCountsResponse statusCounts(@LoginUser CurrentUser user) {
+        return liveQueryService.countMineByStatus(user.id());
+    }
+
+    /** 내 LIVE 단건 상세 — 임시저장 불러오기, 설정 화면 재진입, 방송 중 지표(FE 요청). */
+    @GetMapping("/{liveId}")
+    public LiveDetailResponse findOwned(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return liveQueryService.findOwnedDetail(user.id(), liveId);
     }
 
     /** LIVE 기본 설정 등록/수정(요구사항정의서 6.2.4.1). 부분 업데이트다. */
