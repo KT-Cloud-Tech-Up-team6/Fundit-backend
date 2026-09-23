@@ -92,7 +92,17 @@ public class FundingPersistenceAdapter implements FundingRepository {
 
     @Override
     public Page<Funding> findSellerOrders(UUID projectId, ShippingFilter shippingFilter, String q, Pageable pageable) {
-        return fundingJpaRepository.findSellerOrders(projectId, shippingFilter.name(), q, pageable).map(this::hydrate);
+        return fundingJpaRepository.findSellerOrders(projectId, shippingFilter.name(), escapeLikePattern(q), pageable)
+                .map(this::hydrate);
+    }
+
+    /**
+     * LIKE 와일드카드(`%`/`_`)를 리터럴로 이스케이프한다 — 검색어에 이 문자가 포함되면
+     * {@link FundingJpaRepository#findSellerOrders}의 {@code ESCAPE '\'}가 이 이스케이프를
+     * 해석해 리터럴 부분일치로 처리한다. `\`부터 먼저 이스케이프해야 뒤이어 추가하는 `\`와 섞이지 않는다.
+     */
+    private String escapeLikePattern(String q) {
+        return q == null ? null : q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     @Override

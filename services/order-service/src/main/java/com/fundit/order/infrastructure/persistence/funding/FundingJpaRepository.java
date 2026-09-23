@@ -78,6 +78,11 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
      *
      * <p>{@code shippingFilter}는 서비스 계층이 항상 "ALL"/"WAITING"/"SHIPPED" 중 하나로 채워
      * 넘긴다(null 없음) — 그래서 이 파라미터는 같은 함정을 겪지 않는다.
+     *
+     * <p>{@code q}는 호출부({@link FundingPersistenceAdapter})가 LIKE 와일드카드(`%`/`_`)를
+     * 리터럴로 이스케이프해서 넘긴다 — 그래서 `ESCAPE '\'`로 그 이스케이프를 해석하도록 명시한다.
+     * 이스케이프 없이 그대로 쓰면 검색어에 `%`/`_`가 포함될 때 의도한 부분일치 대신 와일드카드로
+     * 해석돼 엉뚱한 행까지 매칭된다.
      */
     @Query(value = """
             SELECT * FROM fundings f
@@ -87,8 +92,8 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
                    OR (:shippingFilter = 'WAITING' AND f.shipped_at IS NULL)
                    OR (:shippingFilter = 'SHIPPED' AND f.shipped_at IS NOT NULL))
               AND (CAST(:q AS text) IS NULL
-                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%'))
-                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%'))
+                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%') ESCAPE '\\')
             ORDER BY f.created_at DESC
             """,
             countQuery = """
@@ -99,8 +104,8 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
                    OR (:shippingFilter = 'WAITING' AND f.shipped_at IS NULL)
                    OR (:shippingFilter = 'SHIPPED' AND f.shipped_at IS NOT NULL))
               AND (CAST(:q AS text) IS NULL
-                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%'))
-                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%'))
+                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%') ESCAPE '\\')
             """,
             nativeQuery = true)
     Page<FundingJpaEntity> findSellerOrders(@Param("projectId") UUID projectId,

@@ -209,6 +209,41 @@ class FundingPersistenceAdapterIntegrationTest {
         assertThat(page.getContent().get(0).getPublicId()).isEqualTo(saved.getPublicId());
     }
 
+    /** 검색어의 `%`/`_`가 LIKE 와일드카드로 해석되면 안 되고 리터럴로 매칭돼야 한다(코드리뷰 지적). */
+    @Test
+    void q에_포함된_LIKE_와일드카드는_리터럴로만_매칭된다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.GOAL_ACHIEVED, Instant.now(), "50% 할인단"));
+        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.GOAL_ACHIEVED, Instant.now(), "홍길동"));
+
+        // when — "%"를 와일드카드로 해석하면 두 건 다 매칭된다
+        var page = fundingRepository.findSellerOrders(projectId, ShippingFilter.ALL, "50%", PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().get(0).getShippingAddress().recipientName()).isEqualTo("50% 할인단");
+    }
+
+    /**
+     * shippedAt은 markShipped(조건부 UPDATE)로만 채워지고, 이후 애그리거트를 다시
+     * hydrate→save해도(예: PaymentEventSyncService 등 다른 흐름) 지워지면 안 된다(코드리뷰 지적).
+     */
+    @Test
+    void 발송완료_후_다른_사유로_재저장해도_shippedAt이_유지된다() {
+        // given
+        Funding saved = fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.GOAL_ACHIEVED, Instant.now()));
+        fundingRepository.markShipped(saved.getPublicId(), Instant.now());
+
+        // when — 발송과 무관한 흐름이 같은 애그리거트를 다시 hydrate해서 저장
+        Funding reloaded = fundingRepository.findByPublicId(saved.getPublicId()).orElseThrow();
+        fundingRepository.save(reloaded);
+
+        // then
+        Instant persisted = fundingJpaRepository.findByPublicId(saved.getPublicId()).orElseThrow().getShippedAt();
+        assertThat(persisted).isNotNull();
+    }
+
     @Test
     void 발송상태_필터로_대기와_완료가_구분된다() {
         // given
