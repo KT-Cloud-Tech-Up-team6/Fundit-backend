@@ -82,4 +82,21 @@ class AiAnswerServiceUnitTest {
         assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
         assertThat(s.getAnsweredAt()).isNotNull();
     }
+
+    @Test
+    void AI_Live_Knowledge_등록에_실패해도_판매자_답변은_그대로_저장된다() {
+        // given — AI 재사용 등록이 실패해도 화면에 보여줄 판매자 답변 자체는 남아야 한다.
+        // 재사용 등록 실패 자체는 로그로만 남긴다(AI팀 요청 검토 중 발견한 갭).
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenOwnedAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(false));
+
+        // when
+        aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // then
+        assertThat(s.isAnswered()).isTrue();
+        assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
+    }
 }
