@@ -67,7 +67,8 @@ public class FulfillmentController {
                                                      @Valid @RequestBody StageDetailRequest request) {
         FulfillmentStageDetailJpaEntity saved = stageProgressService.registerStageDetail(
                 resolveProjectId(projectId), user.id(),
-                request.stage(), request.plannedStartAt(), request.plannedEndAt(), request.detailText());
+                request.stage(), request.plannedStartAt(), request.plannedEndAt(), request.detailText(),
+                request.photoUrls());
         return StageDetailResponse.from(saved);
     }
 

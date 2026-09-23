@@ -45,6 +45,8 @@ class FulfillmentQueryServiceUnitTest {
     void 현재_단계_기준으로_각_단계의_상태를_계산한다() {
         // given
         FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        tracker.advanceTo(FulfillmentStage.MANUFACTURING);
+        tracker.advanceTo(FulfillmentStage.INSPECTION);
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
         tracker.markProgressUpdated(Instant.now());
         when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
@@ -87,6 +89,9 @@ class FulfillmentQueryServiceUnitTest {
     void DELIVERY_단계면_미갱신이어도_updateOverdue는_false다() {
         // given
         FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123")).toBuilder().id(1L).build();
+        tracker.advanceTo(FulfillmentStage.MANUFACTURING);
+        tracker.advanceTo(FulfillmentStage.INSPECTION);
+        tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
         tracker.advanceTo(FulfillmentStage.DELIVERY);
         // last_updated_at을 갱신하지 않은 채로 둔다(null)
         when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
