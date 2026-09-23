@@ -26,6 +26,18 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/v1/lives/{liveId}/status");
     }
 
+    /** order-service가 주문 생성 시 프로젝트의 진행 중 방송을 찾는 경로. */
+    @Bean
+    public InternalEndpoint liveActiveStatusByProjectEndpoint() {
+        return new InternalEndpoint("GET", "/internal/v1/lives/by-project/{projectId}/active-status");
+    }
+
+    /** order-service가 라이브 쿠폰 클레임 시 세션 상태를 확인하는 경로(내부 세션 PK 기준). */
+    @Bean
+    public InternalEndpoint liveStatusBySessionEndpoint() {
+        return new InternalEndpoint("GET", "/internal/v1/lives/sessions/{sessionId}/status");
+    }
+
     /** AI가 하이라이트 생성 결과를 밀어주는 경로. */
     @Bean
     public InternalEndpoint highlightCallbackEndpoint() {

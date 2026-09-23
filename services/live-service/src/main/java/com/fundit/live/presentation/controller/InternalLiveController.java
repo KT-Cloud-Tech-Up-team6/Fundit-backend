@@ -47,11 +47,26 @@ public class InternalLiveController {
                 request.content(), request.sentAt());
     }
 
-    /** 방송 진행 상태 조회 — order-service의 라이브 쿠폰 검증용. */
+    /** 방송 진행 상태 조회 — order-service의 집계·쿠폰 생성용(공개 liveId 기준). 없으면 404. */
     @GetMapping("/internal/v1/lives/{liveId}/status")
     public InternalLiveStatusResponse status(@PathVariable UUID liveId) {
-        LiveStatusQueryService.LiveStatus s = liveStatusQueryService.find(liveId);
-        return new InternalLiveStatusResponse(s.liveId(), s.sessionId(), s.status(), s.sellerId());
+        return InternalLiveStatusResponse.from(liveStatusQueryService.find(liveId));
+    }
+
+    /** 주문 생성 시 "이 프로젝트가 지금 방송 중인가". 없으면 200 + 전부 null. */
+    @GetMapping("/internal/v1/lives/by-project/{projectId}/active-status")
+    public InternalLiveStatusResponse activeStatusByProject(@PathVariable UUID projectId) {
+        return liveStatusQueryService.findActiveByProject(projectId)
+                .map(InternalLiveStatusResponse::from)
+                .orElseGet(InternalLiveStatusResponse::empty);
+    }
+
+    /** 쿠폰 검증용(내부 세션 PK 기준). 세션이 있으면 실제 상태 그대로, 없을 때만 200 + 전부 null. */
+    @GetMapping("/internal/v1/lives/sessions/{sessionId}/status")
+    public InternalLiveStatusResponse statusBySession(@PathVariable Long sessionId) {
+        return liveStatusQueryService.findBySessionId(sessionId)
+                .map(InternalLiveStatusResponse::from)
+                .orElseGet(InternalLiveStatusResponse::empty);
     }
 
     /**

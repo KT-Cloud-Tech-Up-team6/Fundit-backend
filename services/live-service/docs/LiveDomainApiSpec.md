@@ -61,7 +61,9 @@
 | --- | --- | --- | --- |
 | POST | `/api/v1/lives/{liveId}/chat/token` | O | IVS Chat 접속 토큰 발급(판매자·소비자 공통) |
 | POST | `/internal/v1/lives/chat/messages` | 내부 전용 (Firehose) | 채팅 메시지 적재 — 게이트웨이 경유 아님 |
-| GET | `/internal/v1/lives/{liveId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 방송 진행 상태 조회 — order의 라이브 쿠폰 검증용 |
+| GET | `/internal/v1/lives/{liveId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 방송 상태 조회(공개 liveId 기준) — order 집계·LIVE 쿠폰 생성용 |
+| GET | `/internal/v1/lives/by-project/{projectId}/active-status` | 내부 전용 (`X-Internal-Api-Key`) | 프로젝트의 진행 중 방송 조회 — order 주문 생성 시 세션 꼬리표용 |
+| GET | `/internal/v1/lives/sessions/{sessionId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 세션 상태 조회(내부 세션 PK 기준) — order LIVE 쿠폰 검증용 |
 
 ---
 
@@ -814,9 +816,21 @@ Validation / Business Rules
 - **order가 라이브 쿠폰 발급·클레임 시 "방송 진행 중"을 확인하는 용도다**(요구사항정의서 16.6.3 — *"LIVE 방송 진행 중에만 발급 가능"*, *"미시청자에게는 노출·발급되지 않음"*). 이 검증이 없으면 방송을 안 본 사람도 라이브 쿠폰을 받는다.
 - **호출 방향이 order → live다.** 쿠폰의 주인이 order이므로 판정에 필요한 정보를 order가 가져간다. 반대로 live가 order 쿠폰 API를 감싸면 위임이 아니라 이중 관리가 된다.
 - 응답은 판정에 필요한 최소값만 담는다. 방송 제목·썸네일 같은 건 넣지 않는다 — 내부 API가 화면용 데이터를 실어 나르기 시작하면 공개 API와 구분이 사라진다.
-- `sellerId`를 함께 주는 이유: order가 "쿠폰을 발행한 메이커가 이 방송의 주인인가"를 확인할 수 있어야 한다.
+- `sellerId`를 함께 주는 이유: order가 "쿠폰을 발행한 메이커가 이 방송의 주인인가", "집계를 요청한 판매자가 이 방송의 주인인가"를 확인할 수 있어야 한다. `sellerId`는 게이트웨이 `X-User-Id`(member 회원 UUID)와 같은 식별자다.
+- 이 엔드포인트는 없는 `liveId`면 `404`다(기존 계약 유지). 아래 두 엔드포인트는 없으면 `200` + 전부 `null`이다.
 
-> ⚠️ **order 담당자 확인 필요**: 현재 `MakerCouponIssueService`가 `IssueChannel.GENERAL`을 하드코딩하고 있어, 그 API로는 LIVE 채널 쿠폰을 만들 수 없다. `issueChannel`·`liveSessionId`·`dropType`을 요청으로 받도록 확장이 필요하다.
+```
+GET /internal/v1/lives/by-project/{projectId}/active-status
+GET /internal/v1/lives/sessions/{sessionId}/status
+```
+
+응답은 위와 같은 모양(`liveId`, `sessionId`, `status`, `sellerId`)이다.
+
+- **`by-project`**: order가 주문 생성 시점에 아는 건 `projectId`(project `public_id`)뿐이라 이 경로로 "지금 방송 중인 세션"을 찾는다. 진행 중(`LIVE`) 세션이 없으면 **`200` + 전부 `null`** — 대부분의 주문이 이 경우고 에러가 아니다. 판매자당 채널이 1개라 프로젝트당 동시 LIVE는 최대 1개다.
+- **`sessions/{sessionId}`**: order `coupons.live_session_id`가 내부 BIGINT라 이 경로로 조회한다. **세션이 있으면 LIVE가 아니어도 실제 상태 그대로**(`ENDED`, `SCHEDULED` 등), **없을 때만 `200` + 전부 `null`**. order는 `status != "LIVE"`면 쿠폰을 거부하고, 전부 `null`(세션 없음)일 때만 정합성 경고를 남긴다 — 둘을 뭉치면 종료된 방송 쿠폰마다 경고가 찍힌다.
+- `404` 대신 `200` + `null`인 이유: order는 "없음(정상)"과 "호출 실패(타임아웃·5xx)"를 다르게 처리한다(주문은 실패해도 진행, 쿠폰은 실패하면 거부). 이 응답은 서비스 기본값(`non_null`)과 달리 `null` 필드를 명시적으로 내보낸다.
+
+> LIVE 채널 쿠폰 생성(`MakerCouponIssueService`의 `IssueChannel.GENERAL` 하드코딩 해소)은 order-service가 진행한다 — 요청은 `liveId`(UUID)로 받고 위 `/{liveId}/status`로 `sessionId`를 얻는다(live↔order 연동 진행안 O-5).
 >
 
 ---
