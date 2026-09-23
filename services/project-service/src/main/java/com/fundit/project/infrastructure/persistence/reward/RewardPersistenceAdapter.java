@@ -111,6 +111,12 @@ public class RewardPersistenceAdapter implements RewardRepository {
     }
 
     @Override
+    public Optional<Reward> findByProjectIdAndIdempotencyKey(Long projectId, String idempotencyKey) {
+        return rewardJpaRepository.findByProjectIdAndIdempotencyKeyAndDeletedAtIsNull(projectId, idempotencyKey)
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public Optional<Reward> findByIdForUpdate(Long id) {
         return rewardJpaRepository.findByIdForUpdate(id)
                 .filter(entity -> entity.getDeletedAt() == null)

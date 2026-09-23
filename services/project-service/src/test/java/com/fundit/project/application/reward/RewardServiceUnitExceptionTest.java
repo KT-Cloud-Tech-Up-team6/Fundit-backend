@@ -49,7 +49,8 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -66,7 +67,8 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
@@ -87,10 +89,33 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
+    }
+
+    @Test
+    void 같은_Idempotency_Key에_다른_본문이_오면_409_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)
+                .toBuilder().id(5L).idempotencyKey("key-1").idempotencyRequestHash("hash-a").build();
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.findByProjectIdAndIdempotencyKey(1L, "key-1")).thenReturn(Optional.of(existing));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-b"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
     }
 
     @Test

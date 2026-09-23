@@ -29,9 +29,14 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,19 +50,36 @@ public class RewardController {
     private final RewardService rewardService;
     private final RewardQueryService rewardQueryService;
 
-    @Operation(summary = "리워드 등록", description = "has_option=true면 옵션 그룹/값을 함께 등록한다.")
+    @Operation(summary = "리워드 등록", description = "has_option=true면 옵션 그룹/값을 함께 등록한다. "
+            + "{@code Idempotency-Key} 헤더는 선택값이다 — 보내면 같은 키로 재요청했을 때 새 리워드를 만들지 "
+            + "않고 기존 리워드를 그대로 돌려준다(201 대신 200).")
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping("/projects/{projectId}/rewards")
     public ResponseEntity<RewardResponse> create(
             @LoginUser CurrentUser user, @PathVariable UUID projectId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody RewardCreateRequest request) {
+        String idempotencyRequestHash = idempotencyKey == null ? null : hashRequest(request);
         NormalizedQuantity quantity = normalizeUnlimitedQuantity(request.isLimited(), request.quantity());
-        Reward reward = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
+        RewardService.RewardCreateResult result = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
                 request.name(), request.description(), request.imageUrl(), request.price(),
                 quantity.isLimited(), quantity.quantity(), Boolean.TRUE.equals(request.isEarlyBird()),
                 toDiscountType(request.earlyBirdDiscountType()), request.earlyBirdDiscountValue(),
-                toOptionGroups(request.options()), request.shippingFee(), request.estimatedDeliveryDays()));
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(reward));
+                toOptionGroups(request.options()), request.shippingFee(), request.estimatedDeliveryDays()),
+                idempotencyKey, idempotencyRequestHash);
+        HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(toResponse(result.reward()));
+    }
+
+    /** 같은 Idempotency-Key에 다른 본문이 오는 것을 구분하기 위한 요청 해시(SHA-256). OrderController와 동일 패턴. */
+    private String hashRequest(RewardCreateRequest request) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(request.toString().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
+        }
     }
 
     @Operation(summary = "리워드 수정")

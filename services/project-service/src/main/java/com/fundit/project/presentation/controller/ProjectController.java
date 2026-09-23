@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -110,12 +111,18 @@ public class ProjectController {
     }
 
     @Operation(summary = "프로젝트 생성(DRAFT)",
-            description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다.")
+            description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다. "
+                    + "{@code Idempotency-Key} 헤더는 선택값이다 — 보내면 같은 셀러가 같은 키로 재요청했을 때 "
+                    + "새 DRAFT를 만들지 않고 기존 프로젝트를 그대로 돌려준다(201 대신 200).")
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping
-    public ResponseEntity<ProjectCreateResponse> create(@LoginUser CurrentUser user) {
-        Project project = projectService.create(user.id());
-        return ResponseEntity.status(HttpStatus.CREATED)
+    public ResponseEntity<ProjectCreateResponse> create(
+            @LoginUser CurrentUser user,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        ProjectService.ProjectCreateResult result = projectService.create(user.id(), idempotencyKey);
+        Project project = result.project();
+        HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status)
                 .body(new ProjectCreateResponse(project.getPublicId(), project.getStatus().name()));
     }
 

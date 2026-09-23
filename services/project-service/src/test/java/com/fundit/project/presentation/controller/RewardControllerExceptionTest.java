@@ -49,7 +49,7 @@ class RewardControllerExceptionTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(org.mockito.ArgumentMatchers.eq(sellerId), org.mockito.ArgumentMatchers.eq(projectId), any()))
+        when(rewardService.create(org.mockito.ArgumentMatchers.eq(sellerId), org.mockito.ArgumentMatchers.eq(projectId), any(), any(), any()))
                 .thenThrow(new BusinessException(ProjectErrorCode.INVALID_REWARD_QUANTITY));
 
         // when & then
