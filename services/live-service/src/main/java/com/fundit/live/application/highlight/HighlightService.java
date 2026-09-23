@@ -18,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,6 +36,8 @@ public class HighlightService {
 
     /** 방송 1회당 클립은 최대 3개(요구사항정의서 6.6.3). 마커는 제한이 없다. */
     private static final int MAX_CLIPS_PER_LIVE = 3;
+    /** {@code VodChatQueryService.MAX_RANGE_SEC}와 같은 값 — 그 상한을 넘기면 예외가 난다. */
+    private static final int CHAT_QUERY_RANGE_SEC = 600;
 
     private final LiveHighlightRepository highlightRepository;
     private final LiveSessionRepository sessionRepository;
@@ -155,18 +159,27 @@ public class HighlightService {
 
     /**
      * 질문 집중 구간·채팅 활발 구간 판별용(AI팀 요청). 시작·종료 시각이 둘 다 있어야 구간을
-     * 계산할 수 있다 — 방송 길이 상한(10분, {@code VodChatQueryService.MAX_RANGE_SEC})을 넘지
-     * 않아 한 번에 조회 가능하다.
+     * 계산할 수 있다 — 방송 길이는 백엔드가 강제하지 않아({@code LiveSession}에 상한 없음)
+     * 10분을 넘는 방송이 흔하다. {@code VodChatQueryService.MAX_RANGE_SEC}(600초)를 한 번에
+     * 넘기면 예외가 나므로 600초씩 나눠 반복 조회하고, 구간 경계에 걸친 메시지는 id로 중복
+     * 제거한다.
      */
     private List<AiClient.CommentInput> chatsOf(LiveSession session) {
         if (session.getActualStartAt() == null || session.getActualEndAt() == null) {
             return List.of();
         }
         int endSec = (int) Duration.between(session.getActualStartAt(), session.getActualEndAt()).getSeconds();
-        return vodChatQueryService.findByRange(session.getPublicId(), 0, endSec).messages().stream()
-                .map(m -> new AiClient.CommentInput(m.getId().toString(), m.getContent(),
-                        Duration.between(session.getActualStartAt(), m.getSentAt()).toMillis(), m.getSenderId()))
-                .toList();
+        Map<Long, AiClient.CommentInput> byId = new LinkedHashMap<>();
+        for (int fromSec = 0; fromSec <= endSec; fromSec += CHAT_QUERY_RANGE_SEC) {
+            int toSec = Math.min(fromSec + CHAT_QUERY_RANGE_SEC, endSec);
+            vodChatQueryService.findByRange(session.getPublicId(), fromSec, toSec).messages().forEach(m ->
+                    byId.putIfAbsent(m.getId(), new AiClient.CommentInput(m.getId().toString(), m.getContent(),
+                            Duration.between(session.getActualStartAt(), m.getSentAt()).toMillis(), m.getSenderId())));
+            if (toSec == endSec) {
+                break;
+            }
+        }
+        return List.copyOf(byId.values());
     }
 
     /** 쇼츠 제목에 붙일 상품명(AI팀 요청) — 모델이 상품명을 지어내면 틀린 이름이 박히니 우리가 채운다. */

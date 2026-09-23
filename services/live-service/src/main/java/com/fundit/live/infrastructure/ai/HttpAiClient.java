@@ -6,6 +6,8 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -97,11 +99,15 @@ public class HttpAiClient implements AiClient {
     @Override
     public void requestHighlights(String liveId, String vodUrl, UUID highlightId,
                                   List<CommentInput> chats, String productName) {
-        call(() -> highlightsRestClient.post()
+        ResponseEntity<Void> response = call(() -> highlightsRestClient.post()
                 .uri("/lives/{liveId}/highlights", liveId)
                 .body(new HighlightsHttpRequest(vodUrl, highlightId, chats, productName))
                 .retrieve()
                 .toBodilessEntity());
+        if (response.getStatusCode() != HttpStatus.ACCEPTED) {
+            throw new DependencyFailureException(new IllegalStateException(
+                    "AI가 하이라이트 접수(202) 대신 " + response.getStatusCode() + "을 돌려줬습니다."));
+        }
     }
 
     private record HighlightsHttpRequest(String vodUrl, UUID highlightId, List<CommentInput> chats,

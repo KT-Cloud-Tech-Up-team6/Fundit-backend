@@ -2,6 +2,7 @@ package com.fundit.live.infrastructure.ai;
 
 import com.fundit.live.application.ai.AiClient;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -13,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
@@ -217,7 +219,9 @@ class HttpAiClientUnitTest {
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/highlights"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("\"product_name\":\"에어쿡 프로\"")))
-                .andRespond(withSuccess());
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"text\":\"언제 끝나요?\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"at_ms\":1000")))
+                .andRespond(withStatus(HttpStatus.ACCEPTED));
 
         // when & then — 예외 없이 끝나면 성공
         aiClient.requestHighlights("live-1", "https://vod.example/1.mp4", null,
@@ -225,5 +229,23 @@ class HttpAiClientUnitTest {
                 "에어쿡 프로");
 
         server.verify();
+    }
+
+    @Test
+    void 하이라이트_요청_응답이_202가_아니면_예외를_던진다() {
+        // given — 접수 계약은 202다. AI가 200을 주면 콜백 없이 조용히 유실될 수 있어 예외로 올린다.
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/lives/live-1/highlights"))
+                .andRespond(withSuccess());
+
+        // when & then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        aiClient.requestHighlights("live-1", "https://vod.example/1.mp4", null,
+                                List.of(), "에어쿡 프로"))
+                .isInstanceOf(com.fundit.common.error.DependencyFailureException.class);
     }
 }
