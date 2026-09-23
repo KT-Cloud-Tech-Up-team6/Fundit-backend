@@ -37,8 +37,13 @@ public interface AiClient {
      * <p>{@code highlightId}는 <b>재생성 대상</b>이며 최초 생성은 {@code null}이다. AI가 결과를
      * 밀어줄 때 이 값을 되돌려줘야 기존 행을 갱신한다 — 안 그러면 재생성이 새 행을 만들어
      * 원래 행이 {@code GENERATING}으로 영영 남고 클립 수가 상한에 걸려 재생성 자체가 막힌다.
+     *
+     * <p>{@code chats}는 질문 집중 구간·채팅 활발 구간 판별용, {@code productName}은 쇼츠 제목에
+     * {@code [상품명]}을 붙이는 용도다(AI팀 요청, 2026-09-23). AI 쪽에서 만들지 않는 이유는 모델이
+     * 상품명을 지어내면 틀린 이름이 영상에 그대로 박히기 때문이다.
      */
-    void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId);
+    void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId,
+                           List<CommentInput> chats, String productName);
 
     /**
      * 상품정보 색인. LIVE 시작 시 1회 필수 — 안 하면 {@link #submitComments}가 409(`NOT_PREPARED`)를
@@ -178,9 +183,13 @@ public interface AiClient {
      * {@code qid}는 집계된 클러스터 ID다({@code fq_0002} 형태). {@code answeredByLabel}은
      * AI가 만든 한글 라벨인데 쓰지 않는다 — 표시 문구를 우리가 {@code answeredBy}에서
      * 직접 만드는 쪽이 다른 화면 문구와 일관된다.
+     *
+     * <p>{@code handledBy}는 AI팀 확인(2026-09-23) — {@code /faq} 응답에도 FAQ 집계 시점 값이
+     * 그대로 유지돼 내려온다.
      */
     record FaqItem(String qid, String representativeText, int count, String category,
-                   AnsweredBy answeredBy, Instant answeredAt, String answer, boolean promoted) {
+                   AnsweredBy answeredBy, Instant answeredAt, String answer, boolean promoted,
+                   HandledBy handledBy) {
     }
 
     enum AnsweredBy {SELLER, AI, NONE}

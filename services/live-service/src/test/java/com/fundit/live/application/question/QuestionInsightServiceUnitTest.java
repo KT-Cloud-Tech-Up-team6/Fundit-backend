@@ -49,7 +49,8 @@ class QuestionInsightServiceUnitTest {
         given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(aiClient.faq(anyString(), anyInt())).willReturn(new AiClient.FaqResult(180, List.of(
                 new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 4, "앱·원격제어",
-                        AiClient.AnsweredBy.SELLER, Instant.now(), "네, 최대 12시간입니다.", true))));
+                        AiClient.AnsweredBy.SELLER, Instant.now(), "네, 최대 12시간입니다.", true,
+                        AiClient.HandledBy.PRODUCT))));
 
         // when
         var result = questionInsightService.faq(sellerId, liveId, 10);
@@ -59,6 +60,8 @@ class QuestionInsightServiceUnitTest {
         assertThat(result.summaries().getFirst().getSummaryText()).isEqualTo("타이머 기능 돼요?");
         assertThat(result.summaries().getFirst().getRelatedQuestionCount()).isEqualTo(4);
         assertThat(result.summaries().getFirst().isPromoted()).isTrue();
+        // handled_by가 FaqItem DTO에 빠져 있어 저장이 안 되던 것(AI팀 회신, 2026-09-23)
+        assertThat(result.summaries().getFirst().getHandledBy()).isEqualTo(AiClient.HandledBy.PRODUCT);
     }
 
     @Test
@@ -71,7 +74,8 @@ class QuestionInsightServiceUnitTest {
         given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(aiClient.faq(anyString(), anyInt())).willReturn(new AiClient.FaqResult(180, List.of(
                 new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 5, "앱·원격제어",
-                        AiClient.AnsweredBy.SELLER, Instant.now(), "네, 최대 12시간입니다.", true))));
+                        AiClient.AnsweredBy.SELLER, Instant.now(), "네, 최대 12시간입니다.", true,
+                        AiClient.HandledBy.PRODUCT))));
 
         // when
         var result = questionInsightService.faq(sellerId, liveId, 10);
@@ -111,7 +115,7 @@ class QuestionInsightServiceUnitTest {
         // given — 이미 TOP3로 승격된 행. UnansweredItem에는 promoted가 없어 기존 값을 살려야 한다
         LiveQuestionSummaryJpaEntity promoted = q("fq_0002", 3);
         promoted.applyFromAi(new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 3, "앱·원격제어",
-                AiClient.AnsweredBy.NONE, null, null, true));
+                AiClient.AnsweredBy.NONE, null, null, true, AiClient.HandledBy.PRODUCT));
         given(sessionRepository.findOwned(liveId, sellerId))
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(promoted));
@@ -137,7 +141,7 @@ class QuestionInsightServiceUnitTest {
         given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(aiClient.faq(anyString(), anyInt())).willReturn(new AiClient.FaqResult(180, List.of(
                 new AiClient.FaqItem("fq_0002", "타이머 기능 돼요?", 3, "앱·원격제어",
-                        AiClient.AnsweredBy.NONE, null, null, false))));
+                        AiClient.AnsweredBy.NONE, null, null, false, AiClient.HandledBy.UNANSWERABLE))));
 
         // when
         questionInsightService.faq(sellerId, liveId, 10);

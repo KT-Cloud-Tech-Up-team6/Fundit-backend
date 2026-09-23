@@ -19,10 +19,8 @@ import java.util.UUID;
  * AI 서버(`/api/v1/ai`) 실연동. {@code live.ai.mode=http}일 때만 뜬다.
  *
  * <p>큐시트는 Q&A 코파일럿과 <b>다른 AI 서버</b>다(별도 base-url·토큰,
- * {@code cuesheetRestClient} — {@link AiClientConfig} 참고). 하이라이트는 지금도 계약 미정이라
- * 이 구현체가 손대지 않는다 — {@code StubAiClient}가 맡거나(스텁 모드), 계약이 확정되면 채운다.
- * <b>이 클래스에서 하이라이트 메서드를 호출하면 안 된다</b> — 미구현으로 두고
- * {@code UnsupportedOperationException}을 던져 잘못 배선됐을 때 조용히 무시되지 않게 한다.
+ * {@code cuesheetRestClient} — {@link AiClientConfig} 참고). 하이라이트는 Q&A와 같은 서버를 쓰되
+ * 타임아웃만 분리했다({@code highlightsRestClient}) — 계약이 2026-09-23 확정됐다.
  *
  * <p>응답은 신뢰하지 않고 구조 확인 후 사용한다(security.md S7). 댓글 배치 응답에서 빠진
  * 컬렉션은 {@link AiClient.CommentBatchResult}가 빈 리스트로 바꾼다.
@@ -34,13 +32,16 @@ public class HttpAiClient implements AiClient {
     private final RestClient restClient;
     private final RestClient commentsRestClient;
     private final RestClient cuesheetRestClient;
+    private final RestClient highlightsRestClient;
 
     public HttpAiClient(@Qualifier("aiRestClient") RestClient restClient,
                         @Qualifier("aiCommentsRestClient") RestClient commentsRestClient,
-                        @Qualifier("cuesheetAiRestClient") RestClient cuesheetRestClient) {
+                        @Qualifier("cuesheetAiRestClient") RestClient cuesheetRestClient,
+                        @Qualifier("aiHighlightsRestClient") RestClient highlightsRestClient) {
         this.restClient = restClient;
         this.commentsRestClient = commentsRestClient;
         this.cuesheetRestClient = cuesheetRestClient;
+        this.highlightsRestClient = highlightsRestClient;
     }
 
     /**
@@ -89,9 +90,22 @@ public class HttpAiClient implements AiClient {
     private record CueSheetGenerationResponse(String status, JsonNode segments, String failureReason) {
     }
 
+    /**
+     * 결과는 콜백(push)으로 오므로 여기선 202 접수 응답만 확인한다 — 큐시트처럼 결과 자체를
+     * 기다리지 않는다({@code highlightsRestClient} 타임아웃이 10초로 짧은 이유).
+     */
     @Override
-    public void requestHighlights(String liveId, String vodUrl, UUID highlightId) {
-        throw new UnsupportedOperationException("하이라이트 계약 미정 — HttpAiClient가 다룰 대상이 아니다.");
+    public void requestHighlights(String liveId, String vodUrl, UUID highlightId,
+                                  List<CommentInput> chats, String productName) {
+        call(() -> highlightsRestClient.post()
+                .uri("/lives/{liveId}/highlights", liveId)
+                .body(new HighlightsHttpRequest(vodUrl, highlightId, chats, productName))
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    private record HighlightsHttpRequest(String vodUrl, UUID highlightId, List<CommentInput> chats,
+                                         String productName) {
     }
 
     @Override

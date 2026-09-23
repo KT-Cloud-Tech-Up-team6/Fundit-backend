@@ -40,7 +40,8 @@ public class StubAiClient implements AiClient {
     }
 
     @Override
-    public void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId) {
+    public void requestHighlights(String liveId, String vodUrl, java.util.UUID highlightId,
+                                  List<CommentInput> chats, String productName) {
         // 위와 같다.
     }
 

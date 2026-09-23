@@ -1,6 +1,8 @@
 package com.fundit.live.application.highlight;
 
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.chat.VodChatQueryService;
+import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
@@ -15,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +34,8 @@ class HighlightServiceUnitTest {
     @Mock private LiveHighlightRepository highlightRepository;
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private AiClient aiClient;
+    @Mock private ProjectContextClient projectContextClient;
+    @Mock private VodChatQueryService vodChatQueryService;
 
     @InjectMocks private HighlightService highlightService;
 
@@ -145,6 +150,35 @@ class HighlightServiceUnitTest {
     }
 
     @Test
+    void 생성_요청은_채팅과_상품명을_같이_보낸다() {
+        // given — 방송 시작·종료·프로젝트가 다 있으면 chats·productName을 채워 보낸다(AI팀 요청)
+        Instant startedAt = Instant.parse("2026-09-23T10:00:00Z");
+        Instant endedAt = startedAt.plusSeconds(120);
+        UUID projectId = UUID.randomUUID();
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(
+                LiveSession.builder().id(1L).publicId(liveId).projectId(projectId).vodUrl("https://vod")
+                        .actualStartAt(startedAt).actualEndAt(endedAt).build()));
+        var chat = com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity.builder()
+                .id(9L).senderId(UUID.randomUUID()).content("언제 끝나요?").sentAt(startedAt.plusSeconds(60)).build();
+        given(vodChatQueryService.findByRange(liveId, 0, 120)).willReturn(
+                new VodChatQueryService.VodChat(startedAt, List.of(chat)));
+        given(projectContextClient.find(projectId)).willReturn(Optional.of(
+                new ProjectContextClient.ProjectContext("에어쿡 프로", "가전", "주방가전", List.of(), 50, 5, null)));
+
+        // when
+        highlightService.requestGeneration(sellerId, liveId);
+
+        // then
+        ArgumentCaptor<List<AiClient.CommentInput>> chatsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(aiClient).requestHighlights(org.mockito.ArgumentMatchers.eq(liveId.toString()),
+                org.mockito.ArgumentMatchers.eq("https://vod"), org.mockito.ArgumentMatchers.isNull(),
+                chatsCaptor.capture(), org.mockito.ArgumentMatchers.eq("에어쿡 프로"));
+        assertThat(chatsCaptor.getValue()).hasSize(1);
+        assertThat(chatsCaptor.getValue().getFirst().commentId()).isEqualTo("9");
+        assertThat(chatsCaptor.getValue().getFirst().atMs()).isEqualTo(60_000L);
+    }
+
+    @Test
     void 재생성하면_공개가_해제된다() {
         // given — 재생성 중인 항목이 공개된 채면 소비자가 옛 클립을 본다
         givenOwned("https://vod");
@@ -157,7 +191,7 @@ class HighlightServiceUnitTest {
         // then
         assertThat(published.isPublic()).isFalse();
         assertThat(published.getGenerationStatus()).isEqualTo(GenerationStatus.GENERATING);
-        verify(aiClient).requestHighlights(liveId.toString(), "https://vod", highlightId);
+        verify(aiClient).requestHighlights(liveId.toString(), "https://vod", highlightId, List.of(), null);
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.fundit.live.application.highlight;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.chat.VodChatQueryService;
+import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
@@ -15,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,12 +38,15 @@ public class HighlightService {
     private final LiveHighlightRepository highlightRepository;
     private final LiveSessionRepository sessionRepository;
     private final AiClient aiClient;
+    private final ProjectContextClient projectContextClient;
+    private final VodChatQueryService vodChatQueryService;
 
     /** 방송 종료 후 자동 생성 요청. 다시보기가 없으면 판별할 영상이 없다. */
     @Transactional
     public void requestGeneration(UUID sellerId, UUID liveId) {
         LiveSession session = loadOwnedWithVod(sellerId, liveId);
-        aiClient.requestHighlights(liveId.toString(), session.getVodUrl(), null);
+        aiClient.requestHighlights(liveId.toString(), session.getVodUrl(), null,
+                chatsOf(session), productNameOf(session));
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +90,8 @@ public class HighlightService {
         highlightRepository.save(highlight);
         // 대상 id를 같이 넘긴다 — 결과가 새 행으로 들어오면 원래 행이 GENERATING으로 영영 남고
         // 클립 수가 늘어 상한에 걸린다(재생성 자체가 막힌다).
-        aiClient.requestHighlights(liveId.toString(), session.getVodUrl(), highlightId);
+        aiClient.requestHighlights(liveId.toString(), session.getVodUrl(), highlightId,
+                chatsOf(session), productNameOf(session));
     }
 
     @Transactional
@@ -144,6 +151,29 @@ public class HighlightService {
         if (skipped > 0) {
             log.warn("클립 상한({})을 넘겨 {}건을 건너뛰었다. liveId={}", MAX_CLIPS_PER_LIVE, skipped, liveId);
         }
+    }
+
+    /**
+     * 질문 집중 구간·채팅 활발 구간 판별용(AI팀 요청). 시작·종료 시각이 둘 다 있어야 구간을
+     * 계산할 수 있다 — 방송 길이 상한(10분, {@code VodChatQueryService.MAX_RANGE_SEC})을 넘지
+     * 않아 한 번에 조회 가능하다.
+     */
+    private List<AiClient.CommentInput> chatsOf(LiveSession session) {
+        if (session.getActualStartAt() == null || session.getActualEndAt() == null) {
+            return List.of();
+        }
+        int endSec = (int) Duration.between(session.getActualStartAt(), session.getActualEndAt()).getSeconds();
+        return vodChatQueryService.findByRange(session.getPublicId(), 0, endSec).messages().stream()
+                .map(m -> new AiClient.CommentInput(m.getId().toString(), m.getContent(),
+                        Duration.between(session.getActualStartAt(), m.getSentAt()).toMillis(), m.getSenderId()))
+                .toList();
+    }
+
+    /** 쇼츠 제목에 붙일 상품명(AI팀 요청) — 모델이 상품명을 지어내면 틀린 이름이 박히니 우리가 채운다. */
+    private String productNameOf(LiveSession session) {
+        return projectContextClient.find(session.getProjectId())
+                .map(ProjectContextClient.ProjectContext::title)
+                .orElse(null);
     }
 
     /** AI에 영상을 넘기는 경로가 전부 지나는 지점. 다시보기가 없으면 판별할 대상이 없다. */

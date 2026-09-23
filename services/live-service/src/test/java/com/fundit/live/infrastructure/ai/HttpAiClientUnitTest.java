@@ -31,7 +31,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/prepare"))
                 .andExpect(header("Authorization", "Bearer test-token"))
@@ -54,7 +54,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
                 .andRespond(withSuccess("""
@@ -90,14 +90,14 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/faq?top_n=10"))
                 .andRespond(withSuccess("""
                         { "window_sec": 180,
                           "qna": [ { "qid": "fq_0002", "representative_text": "타이머 기능 돼요?", "count": 4,
                                      "category": "앱·원격제어", "answered_by": "SELLER",
-                                     "answered_at": 1789968166.09,
+                                     "answered_at": 1789968166.09, "handled_by": "PRODUCT",
                                      "answer": "네, 최대 12시간 예약 타이머가 있습니다.", "promoted": true } ] }
                         """, MediaType.APPLICATION_JSON));
 
@@ -109,6 +109,8 @@ class HttpAiClientUnitTest {
         assertThat(result.qna().getFirst().qid()).isEqualTo("fq_0002");
         assertThat(result.qna().getFirst().answeredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
         assertThat(result.qna().getFirst().promoted()).isTrue();
+        // handled_by가 FaqItem DTO에 빠져 있어 저장이 안 되던 것(AI팀 회신, 2026-09-23)
+        assertThat(result.qna().getFirst().handledBy()).isEqualTo(AiClient.HandledBy.PRODUCT);
         // AI는 answered_at을 소수점 epoch 초로 준다 — 밀리초까지 살아야 한다
         assertThat(result.qna().getFirst().answeredAt())
                 .isEqualTo(java.time.Instant.ofEpochMilli(1789968166090L));
@@ -120,7 +122,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
                 .andRespond(withSuccess("""
@@ -149,7 +151,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("\"live_id\":\"live-1\"")))
@@ -171,7 +173,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
                 .andRespond(withSuccess("""
@@ -192,7 +194,7 @@ class HttpAiClientUnitTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
                 .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
@@ -203,5 +205,25 @@ class HttpAiClientUnitTest {
                                 "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
                 .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
                 .cause().hasMessageContaining("빈 응답");
+    }
+
+    @Test
+    void 하이라이트_요청은_채팅과_상품명을_같이_보내고_202만_확인한다() {
+        // given — 결과는 콜백으로 오므로 여기선 접수 응답만 확인한다(큐시트와 달리 본문을 안 읽음)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/lives/live-1/highlights"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"product_name\":\"에어쿡 프로\"")))
+                .andRespond(withSuccess());
+
+        // when & then — 예외 없이 끝나면 성공
+        aiClient.requestHighlights("live-1", "https://vod.example/1.mp4", null,
+                List.of(new AiClient.CommentInput("c1", "언제 끝나요?", 1000, UUID.randomUUID())),
+                "에어쿡 프로");
+
+        server.verify();
     }
 }
