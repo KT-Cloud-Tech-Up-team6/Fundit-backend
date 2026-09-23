@@ -24,6 +24,11 @@ public class ShipmentPersistenceAdapter implements ShipmentRepository {
     }
 
     @Override
+    public Optional<Shipment> findByFundingIdForUpdate(UUID fundingId) {
+        return jpaRepository.findForUpdateByFundingOrderId(fundingId).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Shipment> findByFundingIdIn(List<UUID> fundingIds) {
         return jpaRepository.findByFundingOrderIdIn(fundingIds).stream().map(mapper::toDomain).toList();
     }

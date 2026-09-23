@@ -55,7 +55,7 @@ class ShipmentServiceUnitTest {
         // given
         when(projectOwnershipClient.getSellerId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(sellerId);
         when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
         when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -89,7 +89,7 @@ class ShipmentServiceUnitTest {
         Shipment delivered = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         delivered.registerShipment("CJ대한통운", "123456789012");
         delivered.markDelivered(Instant.now());
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(delivered));
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(delivered));
         when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -105,7 +105,7 @@ class ShipmentServiceUnitTest {
         // given
         when(projectOwnershipClient.getSellerId(PROJECT_ID)).thenReturn(sellerId);
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(new FundingSnapshot(PROJECT_ID, buyerId, UUID.randomUUID()));
-        when(shipmentRepository.findByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(shipmentRepository.findByFundingIdForUpdate(FUNDING_ID)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when

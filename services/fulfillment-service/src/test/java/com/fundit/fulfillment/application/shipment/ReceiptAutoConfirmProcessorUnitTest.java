@@ -41,7 +41,7 @@ class ReceiptAutoConfirmProcessorUnitTest {
         Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
         shipment.markDelivered(Instant.now());
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipment));
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipment));
         when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -59,7 +59,7 @@ class ReceiptAutoConfirmProcessorUnitTest {
         // given
         Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipment.registerShipment("CJ대한통운", "123456789012");
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipment));
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipment));
 
         // when
         boolean result = processor.autoConfirmOne(UUID.fromString("00000000-0000-0000-0000-000000001024"));

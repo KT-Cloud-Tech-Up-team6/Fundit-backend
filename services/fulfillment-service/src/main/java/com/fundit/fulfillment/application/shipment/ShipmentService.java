@@ -45,7 +45,7 @@ public class ShipmentService {
         verifyProjectOwnership(projectId, sellerId);
         verifyFundingBelongsToProject(fundingId, projectId);
 
-        Shipment shipment = shipmentRepository.findByFundingId(fundingId)
+        Shipment shipment = shipmentRepository.findByFundingIdForUpdate(fundingId)
                 .orElseGet(() -> Shipment.create(fundingId, projectId));
         shipment.registerShipment(carrier, trackingNumber);
         Shipment saved = shipmentRepository.save(shipment);
@@ -64,7 +64,7 @@ public class ShipmentService {
         verifyProjectOwnership(projectId, sellerId);
         verifyFundingBelongsToProject(fundingId, projectId);
 
-        Shipment shipment = shipmentRepository.findByFundingId(fundingId)
+        Shipment shipment = shipmentRepository.findByFundingIdForUpdate(fundingId)
                 .orElseGet(() -> Shipment.create(fundingId, projectId));
         shipment.saveShippingInfo(carrier, trackingNumber);
         return shipmentRepository.save(shipment);
@@ -107,7 +107,7 @@ public class ShipmentService {
     public Shipment confirmReceipt(UUID projectId, UUID fundingId, UUID buyerId) {
         verifyFundingOwnershipInProject(fundingId, projectId, buyerId);
         // shipments 행 자체가 없으면(아직 발송 전) "배송완료 전" 상태와 동일하게 취급한다.
-        Shipment shipment = shipmentRepository.findByFundingId(fundingId)
+        Shipment shipment = shipmentRepository.findByFundingIdForUpdate(fundingId)
                 .orElseThrow(() -> new BusinessException(FulfillmentErrorCode.NOT_YET_DELIVERED));
         shipment.confirmReceipt(Instant.now(), false);
         return shipmentRepository.save(shipment);

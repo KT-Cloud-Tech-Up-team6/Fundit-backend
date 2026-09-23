@@ -78,7 +78,7 @@ class ShipmentServiceUnitExceptionTest {
         when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
         Shipment shipped = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
         shipped.registerShipment("CJ대한통운", "123456789012");
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipped));
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.of(shipped));
 
         // when & then
         assertThatThrownBy(() -> service.registerShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), sellerId, "우체국택배", "999"))
@@ -103,7 +103,7 @@ class ShipmentServiceUnitExceptionTest {
     void 발송_전_상태에서_수령확인하면_예외가_발생한다() {
         // given — shipments 레코드 자체가 없음
         when(orderFundingClient.fetch(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(new FundingSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000123"), buyerId, UUID.randomUUID()));
-        when(shipmentRepository.findByFundingId(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
+        when(shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000001024"))).thenReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> service.confirmReceipt(UUID.fromString("00000000-0000-0000-0000-000000000123"), UUID.fromString("00000000-0000-0000-0000-000000001024"), buyerId))
@@ -121,7 +121,7 @@ class ShipmentServiceUnitExceptionTest {
         shipped.registerShipment("CJ대한통운", "123456789012");
         when(projectOwnershipClient.getSellerId(projectId)).thenReturn(sellerId);
         when(orderFundingClient.fetch(fundingId)).thenReturn(new FundingSnapshot(projectId, buyerId, UUID.randomUUID()));
-        when(shipmentRepository.findByFundingId(fundingId)).thenReturn(Optional.of(shipped));
+        when(shipmentRepository.findByFundingIdForUpdate(fundingId)).thenReturn(Optional.of(shipped));
 
         // when & then
         assertThatThrownBy(() -> service.saveShippingInfo(projectId, fundingId, sellerId, "한진택배", "999"))

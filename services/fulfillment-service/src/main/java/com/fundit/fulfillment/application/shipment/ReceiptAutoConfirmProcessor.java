@@ -26,7 +26,7 @@ public class ReceiptAutoConfirmProcessor {
     /** @return true면 이번 호출로 자동확정 처리됨, false면 이미 처리돼 있었음(idempotent). */
     @Transactional
     public boolean autoConfirmOne(UUID fundingId) {
-        return shipmentRepository.findByFundingId(fundingId)
+        return shipmentRepository.findByFundingIdForUpdate(fundingId)
                 .filter(shipment -> shipment.getStatus() == ShipmentStatus.DELIVERED)
                 .map(shipment -> {
                     shipment.confirmReceipt(Instant.now(), true);
