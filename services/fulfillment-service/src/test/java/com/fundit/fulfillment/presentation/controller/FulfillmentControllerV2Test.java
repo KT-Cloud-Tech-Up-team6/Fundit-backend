@@ -57,7 +57,7 @@ class FulfillmentControllerV2Test {
         var view = new FulfillmentQueryService.ProjectFulfillmentView(PROJECT_ID, FulfillmentStage.SHIPPING_OUT,
                 Instant.parse("2026-09-08T10:00:00Z"), false,
                 List.of(new FulfillmentQueryService.StageSnapshot(FulfillmentStage.SHIPPING_OUT,
-                        FulfillmentQueryService.StageProgressStatus.IN_PROGRESS, null, null, "포장 완료", Instant.now())),
+                        FulfillmentQueryService.StageProgressStatus.IN_PROGRESS, null, null, "포장 완료", List.of(), Instant.now())),
                 List.of());
         when(fulfillmentQueryService.getProjectFulfillment(PROJECT_ID)).thenReturn(view);
 
@@ -73,6 +73,8 @@ class FulfillmentControllerV2Test {
         // given
         UUID sellerId = UUID.randomUUID();
         FulfillmentTracker tracker = FulfillmentTracker.create(PROJECT_ID);
+        tracker.advanceTo(FulfillmentStage.MANUFACTURING);
+        tracker.advanceTo(FulfillmentStage.INSPECTION);
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
         when(stageProgressService.transitionStage(PROJECT_ID, sellerId, FulfillmentStage.SHIPPING_OUT)).thenReturn(tracker);
 
@@ -94,7 +96,7 @@ class FulfillmentControllerV2Test {
         FulfillmentStageDetailJpaEntity saved = FulfillmentStageDetailJpaEntity.builder()
                 .id(501L).trackerId(1L).stage("SHIPPING_OUT").detailText("포장 완료, 순차 출고 중")
                 .updatedAt(Instant.parse("2026-09-08T10:00:00Z")).build();
-        when(stageProgressService.registerStageDetail(any(), any(), any(), any(), any(), any())).thenReturn(saved);
+        when(stageProgressService.registerStageDetail(any(), any(), any(), any(), any(), any(), any())).thenReturn(saved);
 
         // when & then
         mockMvc.perform(post("/api/v2/projects/{projectId}/fulfillment/stage-details", PROJECT_ID)

@@ -12,8 +12,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * 단순 애그리거트(persistence-convention.md 2번 — append-only, 검증/전이 로직 없음).
@@ -45,6 +48,10 @@ public class FulfillmentStageDetailJpaEntity {
 
     @Column(name = "detail_text", nullable = false)
     private String detailText;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "photo_urls", columnDefinition = "jsonb")
+    private List<String> photoUrls;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

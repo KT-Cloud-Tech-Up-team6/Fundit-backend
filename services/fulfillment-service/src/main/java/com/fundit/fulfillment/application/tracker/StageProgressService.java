@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,9 +40,10 @@ public class StageProgressService {
     @Transactional
     public FulfillmentStageDetailJpaEntity registerStageDetail(UUID projectId, UUID sellerId, FulfillmentStage stage,
                                                                 Instant plannedStartAt, Instant plannedEndAt,
-                                                                String detailText) {
+                                                                String detailText, List<String> photoUrls) {
         verifyOwnership(projectId, sellerId);
         FulfillmentTracker tracker = getTrackerOrThrow(projectId);
+        tracker.verifyCurrentStage(stage);
 
         Instant now = Instant.now();
         FulfillmentStageDetailJpaEntity saved = stageDetailJpaRepository.save(FulfillmentStageDetailJpaEntity.builder()
@@ -50,6 +52,7 @@ public class StageProgressService {
                 .plannedStartAt(plannedStartAt)
                 .plannedEndAt(plannedEndAt)
                 .detailText(detailText)
+                .photoUrls(photoUrls)
                 .updatedAt(now)
                 .build());
 
