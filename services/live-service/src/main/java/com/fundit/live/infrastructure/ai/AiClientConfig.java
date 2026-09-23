@@ -46,6 +46,21 @@ public class AiClientConfig {
     }
 
     /**
+     * 하이라이트는 Q&A 코파일럿과 같은 서버다(큐시트와 다름) — base-url·토큰은 공유하고
+     * 타임아웃만 분리한다. 결과는 콜백(push)으로 오므로 이 호출은 202 접수 응답만 기다리면
+     * 되지만, 기본 3초는 접수 자체도 촉박할 수 있어 여유를 둔다(AI팀 요청).
+     */
+    @Bean
+    @Qualifier("aiHighlightsRestClient")
+    public RestClient aiHighlightsRestClient(
+            @Value("${live.ai.base-url}") String baseUrl,
+            @Value("${live.ai.token}") String token,
+            @Value("${live.ai.connect-timeout-ms:3000}") int connectTimeoutMs,
+            @Value("${live.ai.highlights-read-timeout-ms:10000}") int highlightsReadTimeoutMs) {
+        return build(baseUrl, token, connectTimeoutMs, highlightsReadTimeoutMs);
+    }
+
+    /**
      * 큐시트는 Q&A 코파일럿과 **다른 AI 서버**다(별도 레포·팀, 2026-09-22 협의 확정) — base-url·
      * 토큰을 공유하면 안 된다. 읽기 타임아웃 기본 200초는 실측(평균 86.5초·최대 122.1초) +
      * 여유분이다 — "3분 이상 잡아달라"는 합의를 넉넉히 충족한다.

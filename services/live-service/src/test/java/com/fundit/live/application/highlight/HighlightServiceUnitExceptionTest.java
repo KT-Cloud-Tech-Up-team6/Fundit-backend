@@ -3,6 +3,8 @@ package com.fundit.live.application.highlight;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.chat.VodChatQueryService;
+import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
@@ -34,6 +36,8 @@ class HighlightServiceUnitExceptionTest {
     @Mock private LiveHighlightRepository highlightRepository;
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private AiClient aiClient;
+    @Mock private ProjectContextClient projectContextClient;
+    @Mock private VodChatQueryService vodChatQueryService;
 
     @InjectMocks private HighlightService highlightService;
 
@@ -64,7 +68,7 @@ class HighlightServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
-        verify(aiClient, never()).requestHighlights(anyString(), anyString(), any());
+        verify(aiClient, never()).requestHighlights(anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -77,7 +81,7 @@ class HighlightServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
-        verify(aiClient, never()).requestHighlights(anyString(), any(), any());
+        verify(aiClient, never()).requestHighlights(anyString(), any(), any(), any(), any());
     }
 
     @Test

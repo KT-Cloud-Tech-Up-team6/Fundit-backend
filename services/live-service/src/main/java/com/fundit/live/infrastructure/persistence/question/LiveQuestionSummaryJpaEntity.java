@@ -95,6 +95,7 @@ public class LiveQuestionSummaryJpaEntity {
         this.summaryText = item.representativeText();
         this.relatedQuestionCount = item.count();
         this.promoted = item.promoted();
+        this.handledBy = item.handledBy();
         // NONE은 이미 남긴 답변(판매자 recordAnswer 등)을 지우지 않는다 — answered=true인데
         // answeredBy=NONE인 모순 행이 생긴다. AI 계약에 "답변 철회"는 없다.
         // null도 같이 받는다: 모르는 enum 값은 null로 떨어지는데(AiClientConfig), 그걸

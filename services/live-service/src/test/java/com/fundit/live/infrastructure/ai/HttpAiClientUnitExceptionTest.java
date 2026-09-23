@@ -29,7 +29,7 @@ class HttpAiClientUnitExceptionTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/comments"))
                 .andRespond(withStatus(org.springframework.http.HttpStatus.CONFLICT));
@@ -48,7 +48,7 @@ class HttpAiClientUnitExceptionTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/unanswered/fq_9999"))
                 .andRespond(withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
@@ -66,7 +66,7 @@ class HttpAiClientUnitExceptionTest {
         RestClient.Builder builder = builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClient client = builder.build();
-        HttpAiClient aiClient = new HttpAiClient(client, client, client);
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
 
         server.expect(requestTo("https://ai.fundit.internal/lives/live-1/faq?top_n=10"))
                 .andRespond(withUnauthorizedRequest());
