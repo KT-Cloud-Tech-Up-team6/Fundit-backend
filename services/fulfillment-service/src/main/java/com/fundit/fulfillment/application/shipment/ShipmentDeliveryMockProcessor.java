@@ -26,7 +26,7 @@ public class ShipmentDeliveryMockProcessor {
     @Transactional
     public boolean markDeliveredOne(UUID fundingId) {
         // 배치가 대상 목록을 조회한 시점과 처리 시점 사이에 상태가 바뀌었을 수 있어 매번 최신값을 다시 읽는다.
-        return shipmentRepository.findByFundingId(fundingId)
+        return shipmentRepository.findByFundingIdForUpdate(fundingId)
                 .filter(shipment -> shipment.getStatus() == ShipmentStatus.SHIPPED)
                 .map(shipment -> {
                     shipment.markDelivered(Instant.now());

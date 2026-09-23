@@ -97,4 +97,34 @@ class ShipmentUnitTest {
         // then
         assertThat(shipment.isReceiptAutoConfirmed()).isTrue();
     }
+
+    @Test
+    void 임시저장은_송장만_채우고_상태를_바꾸지_않는다() {
+        // given
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
+
+        // when
+        shipment.saveShippingInfo("CJ대한통운", "123456789012");
+
+        // then
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PREPARING);
+        assertThat(shipment.getCarrier()).isEqualTo("CJ대한통운");
+        assertThat(shipment.getTrackingNumber()).isEqualTo("123456789012");
+        assertThat(shipment.getShippedAt()).isNull();
+    }
+
+    @Test
+    void 임시저장한_건도_발송_처리하면_SHIPPED로_전환된다() {
+        // given
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        shipment.saveShippingInfo("CJ대한통운", "111111111111");
+
+        // when
+        shipment.registerShipment("한진택배", "222222222222");
+
+        // then
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
+        assertThat(shipment.getTrackingNumber()).isEqualTo("222222222222");
+        assertThat(shipment.getShippedAt()).isNotNull();
+    }
 }

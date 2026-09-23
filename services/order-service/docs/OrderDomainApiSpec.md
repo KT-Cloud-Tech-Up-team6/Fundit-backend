@@ -595,7 +595,8 @@ GET /api/v1/projects/{projectId}/orders
     "shippingAddress": {
       "recipientName": "홍길동", "phoneNumber": "010-1234-5678",
       "zipcode": "12345", "addressLine1": "...", "addressLine2": "101동 101호"
-    }
+    },
+    "shippedAt": "2026-09-08T14:00:00Z"
   }
 ]
 ```
@@ -604,6 +605,8 @@ GET /api/v1/projects/{projectId}/orders
 
 - 프로젝트 소유권은 project-service 조회로 검증(S4). 타인 프로젝트 `403`, 없음 `404`.
 - `status=GOAL_ACHIEVED` 건만 반환(발송 대상). 빈 목록은 `[]`.
+- `shippedAt`은 발송 여부 구분용(미발송이면 생략). fulfillment-service `shipment.shipped.v1`을 구독해 채우는 **캐시 컬럼**(V10)이라 발송 처리 직후 잠깐 비어 있을 수 있다 — 발송 직후의 행 상태는 이 목록이 아니라 발송 API 응답으로 갱신할 것.
+- 송장(`carrier`·`trackingNumber`)은 fulfillment-service 소유라 여기 없다. 발송완료 행의 송장은 fulfillment-service `GET /api/v2/projects/{projectId}/shipments?fundingIds=`(판매자 배치 조회)로 받는다.
 - fulfillment-service는 단건 발송 등록 API만 제공한다. 목록은 이 엔드포인트를 FE가 직접 호출한다.
 
 ---

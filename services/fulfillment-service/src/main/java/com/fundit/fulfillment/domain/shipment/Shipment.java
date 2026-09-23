@@ -10,8 +10,11 @@ import java.util.UUID;
 
 /**
  * 복잡한 애그리거트(persistence-convention.md 기준) — {@code PREPARING→SHIPPED→DELIVERED→
- * RECEIPT_CONFIRMED} 상태 전이 불변식이 있다. 판매자가 발송 등록(FULFILLMENT-006)을 하기 전까지는
- * 이 애그리거트 자체가 존재하지 않는다(지연 생성) — fulfillment-service CLAUDE.md 핵심 설계 결정.
+ * RECEIPT_CONFIRMED} 상태 전이 불변식이 있다. 판매자가 발송 등록이나 임시저장(FULFILLMENT-006)을
+ * 하기 전까지는 이 애그리거트 자체가 존재하지 않는다(지연 생성).
+ *
+ * <p>행이 있다고 발송된 것은 아니다 — 임시저장으로 {@code PREPARING} 행이 먼저 생길 수 있어,
+ * 발송 여부는 반드시 {@code status}로 판정한다(행 존재로 판정하지 말 것).
  */
 @Getter
 @Builder(toBuilder = true)
@@ -49,6 +52,18 @@ public class Shipment {
         this.trackingNumber = trackingNumber;
         this.status = ShipmentStatus.SHIPPED;
         this.shippedAt = Instant.now();
+    }
+
+    /**
+     * FULFILLMENT-006 — 발송 전 택배사·운송장 임시저장. 상태 전이도, 이벤트 발행도 없다
+     * (실제 발송 처리는 {@link #registerShipment}).
+     */
+    public void saveShippingInfo(String carrier, String trackingNumber) {
+        if (status.ordinal() >= ShipmentStatus.SHIPPED.ordinal()) {
+            throw new BusinessException(FulfillmentErrorCode.ALREADY_SHIPPED);
+        }
+        this.carrier = carrier;
+        this.trackingNumber = trackingNumber;
     }
 
     /** FULFILLMENT-007 — 배송완료 목업 배치 전용. */
