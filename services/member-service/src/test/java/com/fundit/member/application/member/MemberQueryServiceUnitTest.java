@@ -25,6 +25,32 @@ class MemberQueryServiceUnitTest {
     private MemberQueryService memberQueryService;
 
     @Test
+    void 닉네임_일괄_조회는_찾은_회원의_닉네임만_돌려준다() {
+        // given — 없는 id·탈퇴 회원은 리포지토리 조건(deletedAt is null)에서 빠진다
+        UUID found = UUID.randomUUID();
+        UUID missing = UUID.randomUUID();
+        when(memberJpaRepository.findAllByIdInAndDeletedAtIsNull(java.util.Set.of(found, missing)))
+                .thenReturn(java.util.List.of(MemberJpaEntity.builder()
+                        .id(found).name("홍길동").phoneNumber("01012345678").nickname("쓱쓱생활연구소").build()));
+
+        // when
+        var result = memberQueryService.findNicknames(java.util.List.of(found, missing));
+
+        // then — 이름·전화번호는 나가지 않는다
+        assertThat(result).containsExactly(new MemberQueryService.MemberNickname(found, "쓱쓱생활연구소"));
+    }
+
+    @Test
+    void 닉네임_일괄_조회에_id가_없으면_조회하지_않고_빈_목록이다() {
+        // when
+        var result = memberQueryService.findNicknames(java.util.List.of());
+
+        // then
+        assertThat(result).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(memberJpaRepository);
+    }
+
+    @Test
     void 존재하는_회원이면_프로필을_반환한다() {
         // given
         UUID accountId = UUID.randomUUID();

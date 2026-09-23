@@ -36,4 +36,17 @@ class MemberQueryServiceUnitExceptionTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
     }
+
+    @Test
+    void 닉네임_일괄_조회는_상한을_넘으면_400이다() {
+        // given — 상한이 없으면 id 수천 개로 회원 닉네임을 한 번에 긁어갈 수 있다
+        java.util.List<UUID> ids = java.util.stream.Stream.generate(UUID::randomUUID)
+                .limit(MemberQueryService.MAX_NICKNAME_LOOKUP + 1).toList();
+
+        // when & then
+        assertThatThrownBy(() -> memberQueryService.findNicknames(ids))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+    }
 }
