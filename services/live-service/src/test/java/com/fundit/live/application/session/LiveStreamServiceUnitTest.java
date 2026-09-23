@@ -4,6 +4,8 @@ import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaEntity;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
@@ -33,11 +35,30 @@ class LiveStreamServiceUnitTest {
     @Mock private IvsClient ivsClient;
     @Mock private ProjectContextClient projectContextClient;
     @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Mock private LiveChannelJpaRepository channelRepository;
 
     @InjectMocks private LiveStreamService liveStreamService;
 
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
+
+    @Test
+    void 송출_정보는_저장된_참조로_키_값을_꺼내_돌려준다() {
+        // given — DB엔 ARN(참조)만 있고 값은 요청 시점에 IVS에서 꺼낸다(S9)
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.create(1L, UUID.randomUUID())));
+        given(channelRepository.findBySellerId(sellerId)).willReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").ivsIngestEndpoint("rtmps://ingest:443/app/")
+                .ivsPlaybackUrl("https://play").ivsStreamKeyRef("arn:stream-key").active(true).build()));
+        given(ivsClient.getStreamKeyValue("arn:stream-key")).willReturn("sk_secret");
+
+        // when
+        LiveStreamService.StreamInfo info = liveStreamService.streamInfo(sellerId, liveId);
+
+        // then
+        assertThat(info.ingestEndpoint()).isEqualTo("rtmps://ingest:443/app/");
+        assertThat(info.streamKey()).isEqualTo("sk_secret");
+    }
 
     @Test
     void 색인_완료_표시는_새_트랜잭션에서_저장한다() {

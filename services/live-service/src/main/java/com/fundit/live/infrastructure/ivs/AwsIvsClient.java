@@ -9,12 +9,15 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
+import software.amazon.awssdk.services.ivschat.model.SendEventRequest;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -92,6 +95,18 @@ public class AwsIvsClient implements IvsClient {
             log.warn("IVS 시청자 수 조회 실패, channelArn={}", channelArn, e);
             return 0;
         }
+    }
+
+    @Override
+    public String getStreamKeyValue(String streamKeyRef) {
+        return call(() -> ivs.getStreamKey(GetStreamKeyRequest.builder().arn(streamKeyRef).build()))
+                .streamKey().value();
+    }
+
+    @Override
+    public void sendChatEvent(String roomArn, String eventName, Map<String, String> attributes) {
+        call(() -> ivschat.sendEvent(SendEventRequest.builder()
+                .roomIdentifier(roomArn).eventName(eventName).attributes(attributes).build()));
     }
 
     private static <T> T call(Supplier<T> request) {

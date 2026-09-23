@@ -11,6 +11,8 @@ import com.fundit.live.application.question.QuestionInsightService;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.event.LiveEventTransport.QuestionsSummarizedEvent;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaEntity;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
@@ -49,6 +51,7 @@ public class LiveStreamService {
     private final QuestionInsightService questionInsightService;
     private final ProjectContextClient projectContextClient;
     private final PlatformTransactionManager transactionManager;
+    private final LiveChannelJpaRepository channelRepository;
 
     private static final int FINAL_SUMMARY_TOP_N = 100;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -219,6 +222,26 @@ public class LiveStreamService {
      * (제목에 따옴표가 섞일 수 있어 문자열 템플릿 대신 매퍼로 이스케이프한다).
      */
     private record OutboxPayload(String liveId, String projectId, String occurredAt, String projectTitle) {
+    }
+
+    /**
+     * 판매자 송출 정보(OBS에 넣을 ingest 주소·스트림 키). 키는 DB에 참조(ARN)만 있고 값은
+     * 요청 시점에 IVS에서 꺼낸다(S9). 상태를 안 바꾸는 조회라 락 없는 {@code findOwned}로
+     * 소유권만 본다.
+     *
+     * <p>트랜잭션을 걸지 않는다 — 걸면 IVS 응답을 기다리는 동안 DB 커넥션을 잡고 있다. 두 조회는
+     * 각자 짧은 트랜잭션으로 끝나고 읽는 값도 지연 로딩 없는 컬럼뿐이다.
+     */
+    public StreamInfo streamInfo(UUID sellerId, UUID liveId) {
+        sessionRepository.findOwned(liveId, sellerId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        LiveChannelJpaEntity channel = channelRepository.findBySellerId(sellerId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return new StreamInfo(channel.getIvsIngestEndpoint(),
+                ivsClient.getStreamKeyValue(channel.getIvsStreamKeyRef()));
+    }
+
+    public record StreamInfo(String ingestEndpoint, String streamKey) {
     }
 
     /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */

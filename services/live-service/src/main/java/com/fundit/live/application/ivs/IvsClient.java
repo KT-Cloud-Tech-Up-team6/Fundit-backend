@@ -29,6 +29,12 @@ public interface IvsClient {
      */
     int getViewerCount(String channelArn);
 
+    /** ARN(참조)으로 실제 스트림 키 값을 조회한다. 요청 시점에만 쓰고 저장하지 않는다(S9). */
+    String getStreamKeyValue(String streamKeyRef);
+
+    /** 서버발 이벤트. 참가자 MESSAGE가 아니라 EVENT 타입으로 도착한다 — FE가 렌더링해야 보인다. */
+    void sendChatEvent(String roomArn, String eventName, java.util.Map<String, String> attributes);
+
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
     }

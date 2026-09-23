@@ -18,6 +18,7 @@
 | PATCH | `/api/v1/lives/{liveId}/cue-sheet` | O (본인 소유 LIVE) | AI 큐시트 직접 수정 |
 | POST | `/api/v1/lives/{liveId}/start` | O (본인 소유 LIVE) | LIVE 시작 |
 | POST | `/api/v1/lives/{liveId}/end` | O (본인 소유 LIVE) | LIVE 종료 |
+| GET | `/api/v1/lives/{liveId}/stream-info` | O (본인 소유 LIVE) | 송출 정보(ingest 주소·스트림 키) 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/insights` | O (본인 소유 LIVE) | AI 집계 Q&A(FAQ) 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}` | O (본인 소유 LIVE) | 대표질문(FAQ 클러스터) 원본 채팅 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/unanswered` | O (본인 소유 LIVE) | 미답변 질문 창(근거 없음) 조회 |
@@ -417,13 +418,33 @@ Response Body
 Validation / Business Rules
 
 - 시작은 `DRAFT`·`SCHEDULED`에서만 가능하다. 종료는 `LIVE`에서만 가능하다. 그 외는 `409`.
-- **스트림 키는 응답에 담지 않는다.** 송출 소프트웨어 설정용 키는 별도 발급 경로로 분리하고, 여기서는 `ingestEndpoint`만 돌려준다 — 방송 시작 응답은 로그·브라우저 히스토리에 남기 쉬운 값이다.
+- **스트림 키는 응답에 담지 않는다.** 송출 소프트웨어 설정용 키는 아래 `stream-info`로 분리하고, 여기서는 `ingestEndpoint`만 돌려준다 — 방송 시작 응답은 로그·브라우저 히스토리에 남기 쉬운 값이다.
 - 송출 오류 시 상태를 `ERROR`로 두고 `error_detail`을 함께 저장한다(요구사항정의서 6.3.4). 응답은 사유를 일반화해 내보낸다(S10).
 - **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다.
 - 질문요약이 완성되면 **`live.questions-summarized.v1`을 추가로 발행**해 project-service가 LIVE 검증 탭을 채우게 한다(아래 "질문요약 발행" 절).
 - **시작 시 `live.started.v1`을 발행**한다. `notification.raised.v1`을 직접 쏘지 않는 이유: 그 토픽은
   수신자(`memberId`)가 채워져 있어야 하는데 신청자 목록(`live_notify_requests`)은 notification이 소유한다.
   live는 누구에게 보낼지 알 방법이 없다. notification이 이 도메인 이벤트를 구독해 알림을 만든다.
+
+---
+
+### 송출 정보 조회
+
+```
+GET /api/v1/lives/{liveId}/stream-info
+```
+
+Response Body
+
+```json
+{ "ingestEndpoint": "rtmps://xxx.global-contribute.live-video.net:443/app/", "streamKey": "sk_ap-northeast-2_..." }
+```
+
+Validation / Business Rules
+
+- 판매자가 OBS 같은 송출 프로그램에 넣을 값이다. 본인 소유 LIVE만 조회된다 — 남의 방송·채널 없음은 `404`.
+- **스트림 키 값은 DB에 없다.** 채널 생성 시 참조(ARN, `live_channels.ivs_stream_key_ref`)만 저장하고, 이 호출 때마다 IVS `GetStreamKey`로 꺼낸다(S9). 탈취되면 타인이 이 채널로 무단 송출하므로 이 응답을 로그에 남기지 않는다.
+- 스텁 모드(`live.ivs.mode=stub`)에선 `stub-stream-key-value:...` 형식의 가짜 값이 나간다 — 실제 송출에는 쓸 수 없다.
 
 ---
 
@@ -609,8 +630,12 @@ Validation / Business Rules
 
 - **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 AI의 `registerSellerAnswer`에 등록되고
   `live_question_summaries.answer_text`/`is_answered`가 채워진다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
-- **채팅에는 아직 자동 게시되지 않는다.** `IvsClient`에 `SendMessage`류가 없어(스텁만 존재)
-  실제 채팅 게시는 그 클라이언트가 생기는 별도 작업으로 미뤄졌다 — 지금은 저장·조회까지만이다.
+- **`SEND`하면 BE가 채팅방에 게시한다.** 답변 저장이 커밋된 뒤 IVS Chat `SendEvent`로 보낸다 —
+  이벤트 이름 `seller-answer`, 속성 `questionId`·`answer`. 참가자 MESSAGE가 아니라 **EVENT 타입**으로
+  도착하므로 FE가 이 타입을 렌더링해야 화면에 보인다. 판매자 화면이 자기 토큰으로 직접 올리면 두 번
+  보이니 클라이언트 측 게시는 하지 않는다. 게시 실패는 답변 저장을 막지 않는다(로그만 남김).
+  IVS 이벤트 속성은 합계 4KB 상한이라, 넘는 긴 답변은 **`questionId`만** 보낸다 — FE는
+  `GET /chat/answered-questions`에서 그 `questionId`의 `answerText`를 조회해 표시한다.
 - `referenceChunks`는 근거가 아니라 판매자 참고용이다. AI가 확인 못 한 사실은 `draftAnswer`에
   `[판매자 확인 필요: ...]`로 비워둔다(임의 생성 금지).
 - **환불·결제·배송 등 정책 항목은 AI가 요약·재구성하지 않고 판매자가 등록한 원문을 그대로 제공한다**(요구사항정의서 6.4.3).

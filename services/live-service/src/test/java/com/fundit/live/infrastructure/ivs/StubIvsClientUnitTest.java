@@ -48,6 +48,23 @@ class StubIvsClientUnitTest {
     }
 
     @Test
+    void 스트림_키_값은_실제_형식을_흉내_내지_않는다() {
+        // given & when
+        String value = client.getStreamKeyValue("stub-stream-key-ref/seller-a");
+
+        // then — 진짜처럼 보이면 OBS 송출 실패를 늦게 발견한다
+        assertThat(value).startsWith("stub-stream-key-value:").contains("seller-a");
+    }
+
+    @Test
+    void 채팅_이벤트는_보낼_대상이_없어도_예외가_없다() {
+        // given & when & then
+        org.assertj.core.api.Assertions.assertThatCode(() ->
+                client.sendChatEvent("room-arn", "seller-answer", java.util.Map.of("answer", "a")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void 테스트_영상_URL을_설정하면_재생_URL로_쓴다() {
         // given — IVS 없이 FE 플레이어를 검증할 S3 테스트 영상
         StubIvsClient configured = new StubIvsClient("https://infrastudy.store/media/test/master.m3u8");

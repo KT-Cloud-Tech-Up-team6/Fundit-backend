@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * {@code action}이 GENERATE면 AI 초안 미리보기만 반환한다 — 아무것도 기록하지 않는다.
- * SEND여야 AI에 등록되고 소비자 Q&A 버튼에 노출된다. 실제 채팅 게시는 판매자 화면이
- * 자기 채팅 토큰으로 직접 한다({@code AiAnswerService} "[천장]" 참고).
+ * SEND여야 AI에 등록되고 소비자 Q&A 버튼에 노출되며, 채팅 게시도 BE가 한다
+ * ({@code AiAnswerService#send} 참고).
  *
  * <p>이 흐름은 AI가 근거를 못 찾은(UNANSWERABLE) 질문 전용이다 — 근거를 찾은 질문은
  * 채팅 배치 응답으로 이미 즉시 답변되어 있다.
