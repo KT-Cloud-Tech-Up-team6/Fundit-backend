@@ -24,10 +24,10 @@ class FulfillmentTrackerUnitTest {
         FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
 
         // when
-        tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
+        tracker.advanceTo(FulfillmentStage.MANUFACTURING);
 
         // then
-        assertThat(tracker.getCurrentStage()).isEqualTo(FulfillmentStage.SHIPPING_OUT);
+        assertThat(tracker.getCurrentStage()).isEqualTo(FulfillmentStage.MANUFACTURING);
     }
 
     @Test

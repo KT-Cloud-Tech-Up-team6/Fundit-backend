@@ -71,6 +71,7 @@ public class FulfillmentQueryService {
                 latest.map(FulfillmentStageDetailJpaEntity::getPlannedStartAt).orElse(null),
                 latest.map(FulfillmentStageDetailJpaEntity::getPlannedEndAt).orElse(null),
                 latest.map(FulfillmentStageDetailJpaEntity::getDetailText).orElse(null),
+                latest.map(FulfillmentStageDetailJpaEntity::getPhotoUrls).orElse(null),
                 latest.map(FulfillmentStageDetailJpaEntity::getUpdatedAt).orElse(null));
     }
 
@@ -88,7 +89,7 @@ public class FulfillmentQueryService {
     }
 
     public record StageSnapshot(FulfillmentStage stage, StageProgressStatus status, Instant plannedStartAt,
-                                 Instant plannedEndAt, String detailText, Instant updatedAt) {
+                                 Instant plannedEndAt, String detailText, List<String> photoUrls, Instant updatedAt) {
     }
 
     public record ProjectFulfillmentView(UUID projectId, FulfillmentStage currentStage, Instant lastUpdatedAt,

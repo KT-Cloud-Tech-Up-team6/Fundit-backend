@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,11 +69,40 @@ class StageProgressServiceUnitExceptionTest {
     void 이전_단계로_역행하면_예외가_발생한다() {
         // given
         FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        tracker.advanceTo(FulfillmentStage.MANUFACTURING);
+        tracker.advanceTo(FulfillmentStage.INSPECTION);
         tracker.advanceTo(FulfillmentStage.SHIPPING_OUT);
         when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
 
         // when & then
         assertThatThrownBy(() -> service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.MANUFACTURING))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(FulfillmentErrorCode.INVALID_STAGE_TRANSITION));
+    }
+
+    @Test
+    void 중간_단계를_건너뛰면_예외가_발생한다() {
+        // given
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
+
+        // when & then
+        assertThatThrownBy(() -> service.transitionStage(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId, FulfillmentStage.SHIPPING_OUT))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(FulfillmentErrorCode.INVALID_STAGE_TRANSITION));
+    }
+
+    @Test
+    void 현재_단계가_아닌_기록을_등록하려_하면_예외가_발생한다() {
+        // given
+        FulfillmentTracker tracker = FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        when(trackerRepository.findByProjectId(UUID.fromString("00000000-0000-0000-0000-000000000123"))).thenReturn(Optional.of(tracker));
+
+        // when & then
+        assertThatThrownBy(() -> service.registerStageDetail(UUID.fromString("00000000-0000-0000-0000-000000000123"), sellerId,
+                FulfillmentStage.MANUFACTURING, null, null, "생산 시작", List.of()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.INVALID_STAGE_TRANSITION));

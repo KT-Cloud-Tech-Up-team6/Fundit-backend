@@ -5,12 +5,13 @@ import com.fundit.fulfillment.application.tracker.FulfillmentQueryService.StageS
 import com.fundit.fulfillment.domain.tracker.FulfillmentStage;
 
 import java.time.Instant;
+import java.util.List;
 
 public record StageStatusView(FulfillmentStage stage, StageProgressStatus status, Instant plannedStartAt,
-                               Instant plannedEndAt, String detailText, Instant updatedAt) {
+                               Instant plannedEndAt, String detailText, List<String> photoUrls, Instant updatedAt) {
 
     public static StageStatusView from(StageSnapshot snapshot) {
         return new StageStatusView(snapshot.stage(), snapshot.status(), snapshot.plannedStartAt(),
-                snapshot.plannedEndAt(), snapshot.detailText(), snapshot.updatedAt());
+                snapshot.plannedEndAt(), snapshot.detailText(), snapshot.photoUrls(), snapshot.updatedAt());
     }
 }
