@@ -1,5 +1,9 @@
 package com.fundit.live.application.question;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fundit.live.application.ai.AiClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -10,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -81,5 +86,35 @@ class AiAnswerServiceUnitTest {
         assertThat(s.isAnswered()).isTrue();
         assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
         assertThat(s.getAnsweredAt()).isNotNull();
+    }
+
+    @Test
+    void AI_Live_Knowledge_등록에_실패해도_판매자_답변은_그대로_저장된다() {
+        // given — AI 재사용 등록이 실패해도 화면에 보여줄 판매자 답변 자체는 남아야 한다.
+        // 재사용 등록 실패 자체는 로그로만 남긴다(AI팀 요청 검토 중 발견한 갭).
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenOwnedAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(false));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(AiAnswerService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            // when
+            aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+            // then — 답변은 저장되고, 실패는 로그로 남는다
+            assertThat(s.isAnswered()).isTrue();
+            assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                assertThat(event.getFormattedMessage()).contains("AI Live Knowledge 등록 실패");
+            });
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }
