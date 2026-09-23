@@ -1,5 +1,6 @@
 package com.fundit.live.infrastructure.ai;
 
+import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -22,8 +23,19 @@ public class StubAiClient implements AiClient {
     private static final String STUB_SEGMENTS = """
             [{"id":"stub-0","title":"오프닝","duration":30,"outline":"[stub] 상품 소개","script":"[stub] 안녕하세요."}]""";
 
+    /**
+     * QA/dev에서 큐시트 {@code FAILED} 상태를 재현하기 위한 매직 값(FE 요청) — PR #117로 내부
+     * 콜백(임의 상태 주입 경로)이 삭제된 뒤로는 이 스텁이 항상 성공만 반환해 재현할 방법이
+     * 없었다. {@code tone}에 이 값을 넣어 요청하면 실패를 흉내낸다. prod는 {@code live.ai.mode=http}라
+     * 이 스텁 자체가 뜨지 않아 운영 코드 경로에는 영향이 없다.
+     */
+    static final String QA_FORCE_FAIL_TONE = "QA_FORCE_FAIL";
+
     @Override
     public String requestCueSheet(String liveId, CueSheetRequest request) {
+        if (QA_FORCE_FAIL_TONE.equals(request.tone())) {
+            throw new DependencyFailureException(new RuntimeException("QA_FORCE_FAIL"));
+        }
         return STUB_SEGMENTS;
     }
 
