@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -117,11 +118,23 @@ public class ProjectService {
         try {
             return new ProjectCreateResult(projectRepository.save(project), false);
         } catch (DataIntegrityViolationException e) {
-            // uq_projects_seller_idempotency_key 위반 — 동시에 같은 키로 들어온 다른 요청이 먼저
-            // 커밋됨(OrderCreateService.create와 동일 레이스 처리).
+            // uq_projects_seller_idempotency_key 위반만 CONFLICT로 흡수한다 — 동시에 같은 키로
+            // 들어온 다른 요청이 먼저 커밋된 경우다(OrderCreateService.create와 동일 레이스 처리).
+            // 그 외 무결성 위반(예: NOT NULL)까지 여기서 삼키면 진짜 버그가 가짜 CONFLICT로 가려진다.
+            if (!isUniqueConstraintViolation(e)) {
+                throw e;
+            }
             throw new BusinessException(CommonErrorCode.CONFLICT,
                     "동일한 Idempotency-Key로 처리 중인 요청이 있습니다. 잠시 후 다시 시도하세요.");
         }
+    }
+
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
+
+    private boolean isUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && UNIQUE_VIOLATION_SQL_STATE.equals(sqlException.getSQLState());
     }
 
     /** {@code replay=true}면 이번 호출로 새로 만든 프로젝트가 아니라 같은 키의 기존 DRAFT를 그대로 반환한 것이다. */

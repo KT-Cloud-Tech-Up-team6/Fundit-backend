@@ -15,6 +15,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -64,8 +65,12 @@ public class RewardService {
         try {
             saved = rewardRepository.save(reward);
         } catch (DataIntegrityViolationException e) {
-            // uq_rewards_project_idempotency_key 위반 — 동시에 같은 키로 들어온 다른 요청이 먼저
-            // 커밋됨(OrderCreateService.create와 동일 레이스 처리).
+            // uq_rewards_project_idempotency_key 위반만 CONFLICT로 흡수한다 — 동시에 같은 키로
+            // 들어온 다른 요청이 먼저 커밋된 경우다(OrderCreateService.create와 동일 레이스 처리).
+            // 그 외 무결성 위반(예: CHECK 제약)까지 여기서 삼키면 진짜 버그가 가짜 CONFLICT로 가려진다.
+            if (!isUniqueConstraintViolation(e)) {
+                throw e;
+            }
             throw new BusinessException(CommonErrorCode.CONFLICT,
                     "동일한 Idempotency-Key로 처리 중인 요청이 있습니다. 잠시 후 다시 시도하세요.");
         }
@@ -92,6 +97,14 @@ public class RewardService {
 
     /** {@code replay=true}면 이번 호출로 새로 만든 리워드가 아니라 같은 키의 기존 리워드를 그대로 반환한 것이다. */
     public record RewardCreateResult(Reward reward, boolean replay) {
+    }
+
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
+
+    private boolean isUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && UNIQUE_VIOLATION_SQL_STATE.equals(sqlException.getSQLState());
     }
 
     @Transactional

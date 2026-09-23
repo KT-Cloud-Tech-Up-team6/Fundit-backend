@@ -119,6 +119,49 @@ class RewardServiceUnitExceptionTest {
     }
 
     @Test
+    void 동시_생성으로_유니크제약을_위반하면_CONFLICT_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        java.sql.SQLException uniqueViolation = new java.sql.SQLException("duplicate key value", "23505");
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("insert failed", uniqueViolation));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-a"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 유니크제약_위반이_아닌_무결성_예외는_그대로_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        java.sql.SQLException checkViolation = new java.sql.SQLException("check constraint violated", "23514");
+        org.springframework.dao.DataIntegrityViolationException checkException =
+                new org.springframework.dao.DataIntegrityViolationException("insert failed", checkViolation);
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.save(any())).thenThrow(checkException);
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-a"))
+                .isSameAs(checkException);
+    }
+
+    @Test
     void 존재하지_않는_리워드를_수정하면_404_예외가_발생한다() {
         // given
         when(rewardRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());

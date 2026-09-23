@@ -64,6 +64,7 @@ import java.util.UUID;
 public class ProjectController {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
     private final ProjectService projectService;
     private final ProjectQueryService projectQueryService;
@@ -119,6 +120,7 @@ public class ProjectController {
     public ResponseEntity<ProjectCreateResponse> create(
             @LoginUser CurrentUser user,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
         ProjectService.ProjectCreateResult result = projectService.create(user.id(), idempotencyKey);
         Project project = result.project();
         HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
@@ -237,6 +239,17 @@ public class ProjectController {
         return blocks.stream()
                 .map(b -> new IntroContentBlockResponse(b.type().name(), b.value()))
                 .toList();
+    }
+
+    /** idempotency_key 컬럼이 VARCHAR(100)이라 DB 제약과 동일한 길이를 여기서 먼저 검증한다. */
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null) {
+            return;
+        }
+        if (idempotencyKey.isBlank() || idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "Idempotency-Key는 공백일 수 없고 " + MAX_IDEMPOTENCY_KEY_LENGTH + "자를 넘을 수 없습니다.");
+        }
     }
 
     /** 콤마로 구분한 다중 상태값을 지원한다(예: SUCCEEDED,FAILED). 미지정 시 빈 리스트(=전체 상태). */

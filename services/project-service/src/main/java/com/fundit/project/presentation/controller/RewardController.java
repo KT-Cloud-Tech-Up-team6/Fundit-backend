@@ -1,5 +1,7 @@
 package com.fundit.project.presentation.controller;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.reward.RewardQueryService;
@@ -59,6 +61,7 @@ public class RewardController {
             @LoginUser CurrentUser user, @PathVariable UUID projectId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody RewardCreateRequest request) {
+        validateIdempotencyKey(idempotencyKey);
         String idempotencyRequestHash = idempotencyKey == null ? null : hashRequest(request);
         NormalizedQuantity quantity = normalizeUnlimitedQuantity(request.isLimited(), request.quantity());
         RewardService.RewardCreateResult result = rewardService.create(user.id(), projectId, new RewardService.CreateRewardCommand(
@@ -69,6 +72,19 @@ public class RewardController {
                 idempotencyKey, idempotencyRequestHash);
         HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(toResponse(result.reward()));
+    }
+
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
+
+    /** idempotency_key 컬럼이 VARCHAR(100)이라 DB 제약과 동일한 길이를 여기서 먼저 검증한다. */
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null) {
+            return;
+        }
+        if (idempotencyKey.isBlank() || idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "Idempotency-Key는 공백일 수 없고 " + MAX_IDEMPOTENCY_KEY_LENGTH + "자를 넘을 수 없습니다.");
+        }
     }
 
     /** 같은 Idempotency-Key에 다른 본문이 오는 것을 구분하기 위한 요청 해시(SHA-256). OrderController와 동일 패턴. */
