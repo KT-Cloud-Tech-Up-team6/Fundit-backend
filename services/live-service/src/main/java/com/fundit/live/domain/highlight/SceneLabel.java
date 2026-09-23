@@ -11,5 +11,9 @@ public enum SceneLabel {
     AUDIENCE_REACTION,
     SPEC,
     PRICE_BENEFIT,
-    COMPARISON
+    COMPARISON,
+    /** 방송 도입부(AI팀 요청, 2026-09-23) — 타임라인이 방송 전체를 빈틈없이 덮어야 해서 SPEC으로 뭉개지 않는다. */
+    INTRO,
+    /** 방송 마무리(위와 같은 이유). */
+    CLOSING
 }
