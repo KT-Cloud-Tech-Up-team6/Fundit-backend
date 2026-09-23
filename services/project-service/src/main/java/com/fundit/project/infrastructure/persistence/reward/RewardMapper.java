@@ -32,6 +32,8 @@ class RewardMapper {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .deletedAt(entity.getDeletedAt())
+                .idempotencyKey(entity.getIdempotencyKey())
+                .idempotencyRequestHash(entity.getIdempotencyRequestHash())
                 .build();
     }
 
@@ -56,6 +58,8 @@ class RewardMapper {
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
                 .deletedAt(domain.getDeletedAt())
+                .idempotencyKey(domain.getIdempotencyKey())
+                .idempotencyRequestHash(domain.getIdempotencyRequestHash())
                 .build();
     }
 }

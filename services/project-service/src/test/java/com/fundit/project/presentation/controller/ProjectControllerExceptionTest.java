@@ -83,6 +83,24 @@ class ProjectControllerExceptionTest {
     }
 
     @Test
+    void IdempotencyKey가_공백이면_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/api/v1/projects")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("Idempotency-Key", "   "))
+                .andExpect(status().isBadRequest());
+        verify(projectService, never()).create(any(), any());
+    }
+
+    @Test
+    void IdempotencyKey가_100자를_넘으면_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/api/v1/projects")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("Idempotency-Key", "a".repeat(101)))
+                .andExpect(status().isBadRequest());
+        verify(projectService, never()).create(any(), any());
+    }
+
+    @Test
     void DRAFT가_아닌_프로젝트_삭제시도는_422를_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();

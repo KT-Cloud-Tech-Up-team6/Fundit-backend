@@ -78,12 +78,30 @@ class ProjectServiceUnitTest {
         when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        Project result = projectService.create(sellerId);
+        ProjectService.ProjectCreateResult result = projectService.create(sellerId, null);
 
         // then
-        assertThat(result.getSellerId()).isEqualTo(sellerId);
-        assertThat(result.getStatus()).isEqualTo(ProjectStatus.DRAFT);
-        assertThat(result.getPublicId()).isNotNull();
+        assertThat(result.replay()).isFalse();
+        assertThat(result.project().getSellerId()).isEqualTo(sellerId);
+        assertThat(result.project().getStatus()).isEqualTo(ProjectStatus.DRAFT);
+        assertThat(result.project().getPublicId()).isNotNull();
+    }
+
+    @Test
+    void 같은_Idempotency_Key로_재요청하면_기존_프로젝트를_그대로_반환한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        Project existing = ownedDraftProject(sellerId, publicId);
+        when(projectRepository.findBySellerIdAndIdempotencyKey(sellerId, "key-1")).thenReturn(Optional.of(existing));
+
+        // when
+        ProjectService.ProjectCreateResult result = projectService.create(sellerId, "key-1");
+
+        // then
+        assertThat(result.replay()).isTrue();
+        assertThat(result.project()).isEqualTo(existing);
+        verify(projectRepository, never()).save(any());
     }
 
     @Nested

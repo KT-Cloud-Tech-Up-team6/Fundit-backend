@@ -18,6 +18,9 @@ public interface RewardRepository {
     /** 소프트 삭제된 리워드는 제외한다. */
     Optional<Reward> findById(Long id);
 
+    /** 생성 요청 Idempotency-Key로 프로젝트 범위 중복 조회. 소프트 삭제된 리워드는 제외한다. */
+    Optional<Reward> findByProjectIdAndIdempotencyKey(Long projectId, String idempotencyKey);
+
     /**
      * 소프트 삭제된 리워드는 제외한다.
      * 같은 리워드의 동시 PATCH 필드 병합을 직렬화하기 위해 비관적 락을 건다.

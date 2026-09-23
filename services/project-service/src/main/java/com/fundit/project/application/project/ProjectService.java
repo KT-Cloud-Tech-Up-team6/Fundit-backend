@@ -21,16 +21,19 @@ import com.fundit.project.infrastructure.persistence.project.query.ProjectListPr
 import com.fundit.project.infrastructure.persistence.reward.RewardJpaRepository;
 import com.github.f4b6a3.uuid.UuidCreator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -88,8 +91,21 @@ public class ProjectService {
     public record ProjectStatusCounts(long ongoing, long draft, long completed) {
     }
 
+    /**
+     * {@code idempotencyKey}는 {@code Idempotency-Key} 헤더(선택값) — 없으면 항상 새 DRAFT를
+     * 만든다. 있으면 셀러 범위로 조회해 같은 키가 이미 있으면 새로 만들지 않고 기존 프로젝트를
+     * 그대로 돌려준다(order-service OrderCreateService와 동일 패턴). 본문이 없는 API라 요청
+     * 해시 비교는 필요 없다.
+     */
     @Transactional
-    public Project create(UUID sellerId) {
+    public ProjectCreateResult create(UUID sellerId, String idempotencyKey) {
+        if (idempotencyKey != null) {
+            Optional<Project> existing = projectRepository.findBySellerIdAndIdempotencyKey(sellerId, idempotencyKey);
+            if (existing.isPresent()) {
+                return new ProjectCreateResult(existing.get(), true);
+            }
+        }
+
         Instant now = Instant.now();
         Project project = Project.builder()
                 .publicId(UuidCreator.getTimeOrderedEpoch())
@@ -97,8 +113,32 @@ public class ProjectService {
                 .status(ProjectStatus.DRAFT)
                 .createdAt(now)
                 .updatedAt(now)
+                .idempotencyKey(idempotencyKey)
                 .build();
-        return projectRepository.save(project);
+        try {
+            return new ProjectCreateResult(projectRepository.save(project), false);
+        } catch (DataIntegrityViolationException e) {
+            // uq_projects_seller_idempotency_key 위반만 CONFLICT로 흡수한다 — 동시에 같은 키로
+            // 들어온 다른 요청이 먼저 커밋된 경우다(OrderCreateService.create와 동일 레이스 처리).
+            // 그 외 무결성 위반(예: NOT NULL)까지 여기서 삼키면 진짜 버그가 가짜 CONFLICT로 가려진다.
+            if (!isUniqueConstraintViolation(e)) {
+                throw e;
+            }
+            throw new BusinessException(CommonErrorCode.CONFLICT,
+                    "동일한 Idempotency-Key로 처리 중인 요청이 있습니다. 잠시 후 다시 시도하세요.");
+        }
+    }
+
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
+
+    private boolean isUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && UNIQUE_VIOLATION_SQL_STATE.equals(sqlException.getSQLState());
+    }
+
+    /** {@code replay=true}면 이번 호출로 새로 만든 프로젝트가 아니라 같은 키의 기존 DRAFT를 그대로 반환한 것이다. */
+    public record ProjectCreateResult(Project project, boolean replay) {
     }
 
     @Transactional

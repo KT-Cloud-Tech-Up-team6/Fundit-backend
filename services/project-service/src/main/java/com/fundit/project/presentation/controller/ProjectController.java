@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,6 +64,7 @@ import java.util.UUID;
 public class ProjectController {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
     private final ProjectService projectService;
     private final ProjectQueryService projectQueryService;
@@ -110,12 +112,19 @@ public class ProjectController {
     }
 
     @Operation(summary = "프로젝트 생성(DRAFT)",
-            description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다.")
+            description = "빈 DRAFT 프로젝트를 생성한다. 이후 basic-info/story 등 단계별 API로 채워나간다. "
+                    + "{@code Idempotency-Key} 헤더는 선택값이다 — 보내면 같은 셀러가 같은 키로 재요청했을 때 "
+                    + "새 DRAFT를 만들지 않고 기존 프로젝트를 그대로 돌려준다(201 대신 200).")
     @ApiResponse(responseCode = "201", description = "생성됨")
     @PostMapping
-    public ResponseEntity<ProjectCreateResponse> create(@LoginUser CurrentUser user) {
-        Project project = projectService.create(user.id());
-        return ResponseEntity.status(HttpStatus.CREATED)
+    public ResponseEntity<ProjectCreateResponse> create(
+            @LoginUser CurrentUser user,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        ProjectService.ProjectCreateResult result = projectService.create(user.id(), idempotencyKey);
+        Project project = result.project();
+        HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status)
                 .body(new ProjectCreateResponse(project.getPublicId(), project.getStatus().name()));
     }
 
@@ -230,6 +239,17 @@ public class ProjectController {
         return blocks.stream()
                 .map(b -> new IntroContentBlockResponse(b.type().name(), b.value()))
                 .toList();
+    }
+
+    /** idempotency_key 컬럼이 VARCHAR(100)이라 DB 제약과 동일한 길이를 여기서 먼저 검증한다. */
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null) {
+            return;
+        }
+        if (idempotencyKey.isBlank() || idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "Idempotency-Key는 공백일 수 없고 " + MAX_IDEMPOTENCY_KEY_LENGTH + "자를 넘을 수 없습니다.");
+        }
     }
 
     /** 콤마로 구분한 다중 상태값을 지원한다(예: SUCCEEDED,FAILED). 미지정 시 빈 리스트(=전체 상태). */

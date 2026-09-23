@@ -11,10 +11,13 @@ import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardOptionGroup;
 import com.fundit.project.domain.reward.RewardRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,13 +31,28 @@ public class RewardService {
     private final RewardEventPublisher rewardEventPublisher;
     private final MediaUrlValidator mediaUrlValidator;
 
+    /**
+     * {@code idempotencyKey}는 {@code Idempotency-Key} 헤더(선택값) — 없으면 항상 새 리워드를
+     * 만든다. 있으면 프로젝트 범위로 조회해 같은 키가 이미 있으면 새로 만들지 않고 기존 리워드를
+     * 그대로 돌려준다(order-service OrderCreateService와 동일 패턴). 같은 키에 요청 본문
+     * (idempotencyRequestHash)이 다르면 CONFLICT로 거부한다.
+     */
     @Transactional
-    public Reward create(UUID sellerId, UUID projectPublicId, CreateRewardCommand command) {
+    public RewardCreateResult create(UUID sellerId, UUID projectPublicId, CreateRewardCommand command,
+                                      String idempotencyKey, String idempotencyRequestHash) {
         Project project = projectRepository.findByPublicId(projectPublicId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!project.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
+
+        if (idempotencyKey != null) {
+            Optional<RewardCreateResult> replay = findReplay(project.getId(), idempotencyKey, idempotencyRequestHash);
+            if (replay.isPresent()) {
+                return replay.get();
+            }
+        }
+
         if (command.imageUrl() != null) {
             mediaUrlValidator.validate(project.getPublicId(), command.imageUrl(), MediaCategory.IMAGE);
         }
@@ -42,8 +60,20 @@ public class RewardService {
         Reward reward = Reward.create(project.getId(), command.name(), command.description(), command.imageUrl(),
                 command.price(), command.isLimited(), command.quantity(), command.isEarlyBird(),
                 command.earlyBirdDiscountType(), command.earlyBirdDiscountValue(), command.optionGroups(),
-                command.shippingFee(), command.estimatedDeliveryDays());
-        Reward saved = rewardRepository.save(reward);
+                command.shippingFee(), command.estimatedDeliveryDays(), idempotencyKey, idempotencyRequestHash);
+        Reward saved;
+        try {
+            saved = rewardRepository.save(reward);
+        } catch (DataIntegrityViolationException e) {
+            // uq_rewards_project_idempotency_key 위반만 CONFLICT로 흡수한다 — 동시에 같은 키로
+            // 들어온 다른 요청이 먼저 커밋된 경우다(OrderCreateService.create와 동일 레이스 처리).
+            // 그 외 무결성 위반(예: CHECK 제약)까지 여기서 삼키면 진짜 버그가 가짜 CONFLICT로 가려진다.
+            if (!isUniqueConstraintViolation(e)) {
+                throw e;
+            }
+            throw new BusinessException(CommonErrorCode.CONFLICT,
+                    "동일한 Idempotency-Key로 처리 중인 요청이 있습니다. 잠시 후 다시 시도하세요.");
+        }
         if (reward.getOptionGroups() != null && !reward.getOptionGroups().isEmpty()) {
             List<RewardOptionGroup> persistedOptions = rewardRepository.replaceOptions(saved.getId(), reward.getOptionGroups());
             saved = saved.toBuilder().optionGroups(persistedOptions).build();
@@ -51,7 +81,30 @@ public class RewardService {
 
         rewardEventPublisher.publishRewardCreated(
                 new RewardEventPublisher.RewardCreatedEvent(saved.getId(), project.getId(), saved.isLimited(), saved.getQuantity()));
-        return saved;
+        return new RewardCreateResult(saved, false);
+    }
+
+    /** 같은 프로젝트의 같은 키로 이미 만든 리워드가 있으면 재생성/이벤트 재발행 없이 그대로 돌려준다. */
+    private Optional<RewardCreateResult> findReplay(Long projectId, String idempotencyKey, String idempotencyRequestHash) {
+        return rewardRepository.findByProjectIdAndIdempotencyKey(projectId, idempotencyKey).map(existing -> {
+            if (!Objects.equals(existing.getIdempotencyRequestHash(), idempotencyRequestHash)) {
+                throw new BusinessException(CommonErrorCode.CONFLICT,
+                        "동일한 Idempotency-Key로 다른 내용의 요청이 감지되었습니다.");
+            }
+            return new RewardCreateResult(existing, true);
+        });
+    }
+
+    /** {@code replay=true}면 이번 호출로 새로 만든 리워드가 아니라 같은 키의 기존 리워드를 그대로 반환한 것이다. */
+    public record RewardCreateResult(Reward reward, boolean replay) {
+    }
+
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
+
+    private boolean isUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && UNIQUE_VIOLATION_SQL_STATE.equals(sqlException.getSQLState());
     }
 
     @Transactional

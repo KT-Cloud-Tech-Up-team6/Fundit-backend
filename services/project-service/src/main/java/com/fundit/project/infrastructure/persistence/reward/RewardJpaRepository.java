@@ -13,6 +13,8 @@ public interface RewardJpaRepository extends JpaRepository<RewardJpaEntity, Long
 
     Optional<RewardJpaEntity> findByIdAndDeletedAtIsNull(Long id);
 
+    Optional<RewardJpaEntity> findByProjectIdAndIdempotencyKeyAndDeletedAtIsNull(Long projectId, String idempotencyKey);
+
     /**
      * 리워드 행을 비관적으로 잠근다.
      * replaceOptions의 삭제-재삽입 경합과 PATCH 필드 병합 경합을 직렬화하기 위한 전용 락 조회.

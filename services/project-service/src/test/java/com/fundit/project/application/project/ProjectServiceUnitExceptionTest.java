@@ -130,6 +130,35 @@ class ProjectServiceUnitExceptionTest {
     }
 
     @Test
+    void 동시_생성으로_유니크제약을_위반하면_CONFLICT_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        java.sql.SQLException uniqueViolation = new java.sql.SQLException("duplicate key value", "23505");
+        when(projectRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("insert failed", uniqueViolation));
+
+        // when & then
+        assertThatThrownBy(() -> projectService.create(sellerId, "key-1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 유니크제약_위반이_아닌_무결성_예외는_그대로_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        java.sql.SQLException notNullViolation = new java.sql.SQLException("null value in column", "23502");
+        org.springframework.dao.DataIntegrityViolationException notNullException =
+                new org.springframework.dao.DataIntegrityViolationException("insert failed", notNullViolation);
+        when(projectRepository.save(any())).thenThrow(notNullException);
+
+        // when & then
+        assertThatThrownBy(() -> projectService.create(sellerId, "key-1"))
+                .isSameAs(notNullException);
+    }
+
+    @Test
     void 필수항목이_미완료면_제출할_수_없다() {
         // given
         UUID sellerId = UUID.randomUUID();

@@ -67,11 +67,12 @@ class RewardServiceUnitTest {
             });
 
             // when
-            Reward result = rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", null, 39000L, true, 100, true, EarlyBirdDiscountType.RATE, 10L, options, null, null));
+            RewardService.RewardCreateResult result = rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
+                    "얼리버드", "설명", null, 39000L, true, 100, true, EarlyBirdDiscountType.RATE, 10L, options, null, null),
+                    null, null);
 
             // then
-            assertThat(result.getId()).isEqualTo(10L);
+            assertThat(result.reward().getId()).isEqualTo(10L);
             verify(rewardRepository).replaceOptions(eq(10L), eq(options));
             verify(rewardEventPublisher).publishRewardCreated(any());
         }
@@ -91,7 +92,8 @@ class RewardServiceUnitTest {
 
             // when
             rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", imageUrl, 39000L, false, null, false, null, null, null, null, null));
+                    "얼리버드", "설명", imageUrl, 39000L, false, null, false, null, null, null, null, null),
+                    null, null);
 
             // then
             verify(mediaUrlValidator).validate(projectPublicId, imageUrl, MediaCategory.IMAGE);
@@ -111,10 +113,34 @@ class RewardServiceUnitTest {
 
             // when
             rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
-                    "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null));
+                    "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null),
+                    null, null);
 
             // then
             verify(rewardRepository, never()).replaceOptions(any(), any());
+        }
+
+        @Test
+        void 같은_Idempotency_Key로_재요청하면_기존_리워드를_그대로_반환하고_이벤트를_재발행하지_않는다() {
+            // given
+            UUID sellerId = UUID.randomUUID();
+            UUID projectPublicId = UUID.randomUUID();
+            Project project = ownedProject(sellerId, projectPublicId);
+            Reward existing = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null)
+                    .toBuilder().id(10L).build();
+            when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+            when(rewardRepository.findByProjectIdAndIdempotencyKey(1L, "key-1")).thenReturn(Optional.of(existing));
+
+            // when
+            RewardService.RewardCreateResult result = rewardService.create(sellerId, projectPublicId, new RewardService.CreateRewardCommand(
+                    "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null),
+                    "key-1", null);
+
+            // then
+            assertThat(result.replay()).isTrue();
+            assertThat(result.reward().getId()).isEqualTo(10L);
+            verify(rewardRepository, never()).save(any());
+            verify(rewardEventPublisher, never()).publishRewardCreated(any());
         }
     }
 

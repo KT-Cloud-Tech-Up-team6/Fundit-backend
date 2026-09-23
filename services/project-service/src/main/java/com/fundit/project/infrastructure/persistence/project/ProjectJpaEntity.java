@@ -97,6 +97,9 @@ public class ProjectJpaEntity {
     @Column(name = "deadline_notified_at")
     private Instant deadlineNotifiedAt;
 
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();
