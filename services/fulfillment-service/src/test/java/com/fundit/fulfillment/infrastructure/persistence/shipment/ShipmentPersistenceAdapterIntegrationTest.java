@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -72,5 +73,22 @@ class ShipmentPersistenceAdapterIntegrationTest {
         // then
         assertThat(found).isPresent();
         assertThat(found.get().getCarrier()).isEqualTo("CJ대한통운");
+    }
+
+    @Test
+    @Transactional
+    void 상태_변경용_조회는_행에_쓰기_잠금을_걸고_같은_값을_돌려준다() {
+        // given — 잠금 조회는 트랜잭션 안에서만 성립한다.
+        trackerRepository.save(FulfillmentTracker.create(UUID.fromString("00000000-0000-0000-0000-000000000557")));
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000009004"), UUID.fromString("00000000-0000-0000-0000-000000000557"));
+        shipment.registerShipment("CJ대한통운", "123456789012");
+        shipmentRepository.save(shipment);
+
+        // when — SELECT ... FOR UPDATE가 실제로 실행되는지(파생 쿼리 이름 포함) 확인한다.
+        var found = shipmentRepository.findByFundingIdForUpdate(UUID.fromString("00000000-0000-0000-0000-000000009004"));
+
+        // then
+        assertThat(found).isPresent();
+        assertThat(found.get().getTrackingNumber()).isEqualTo("123456789012");
     }
 }
