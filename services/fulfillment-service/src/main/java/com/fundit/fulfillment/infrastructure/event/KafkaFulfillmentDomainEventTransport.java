@@ -2,6 +2,7 @@ package com.fundit.fulfillment.infrastructure.event;
 
 import com.fundit.common.error.DependencyFailureException;
 import com.fundit.common.event.KafkaTopics;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShipmentShippedEvent;
 import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShippingCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -44,6 +45,16 @@ public class KafkaFulfillmentDomainEventTransport implements FulfillmentDomainEv
         payload.put("sellerId", sellerId);
         payload.put("completedAt", completedAt);
         send(KafkaTopics.SHIPPING_COMPLETED, String.valueOf(event.fundingId()), payload);
+    }
+
+    @Override
+    public void sendShipmentShipped(ShipmentShippedEvent event, Instant shippedAt, Long outboxId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventId", SERVICE_NAME + ":" + outboxId);
+        payload.put("fundingId", event.fundingId());
+        payload.put("projectId", event.projectId());
+        payload.put("shippedAt", shippedAt);
+        send(KafkaTopics.SHIPMENT_SHIPPED, String.valueOf(event.fundingId()), payload);
     }
 
     /**

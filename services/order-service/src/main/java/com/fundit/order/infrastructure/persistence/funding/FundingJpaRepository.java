@@ -64,4 +64,65 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
     @Modifying
     @Query("update FundingJpaEntity f set f.projectPublicId = :projectPublicId where f.id = :id")
     void updateProjectPublicId(@Param("id") Long id, @Param("projectPublicId") UUID projectPublicId);
+
+    /**
+     * #129 — 판매자 발송목록. {@code shipping_address}가 JSONB(Hibernate JSON 타입 매핑)라
+     * {@code ->>'recipientName'} 연산자를 쓰려면 네이티브 쿼리가 필요하다(JPQL로는 불가).
+     *
+     * <p>{@code :q}를 {@code CAST(:q AS text)}로 명시적으로 캐스팅한다 — 캐스팅 없이
+     * {@code concat('%', :q, '%')}에 null을 바인딩하면 PostgreSQL이 플래닝 시점에 파라미터 타입을
+     * bytea로 잘못 추론해 {@code lower(bytea) does not exist}로 500이 난다(프로젝트 목록 조회
+     * 버그(bug/project-inquire#127)와 동일한 함정). 그때는 쿼리 메서드를 분리해서 피했지만, 여기는
+     * 파라미터 자체를 캐스팅해 애초에 타입 추론이 필요 없게 만드는 방식(2안)으로 막는다 — 네이티브
+     * SQL이라 HQL cast 지원 범위 문제가 없어 이 방식이 안전하다.
+     *
+     * <p>{@code shippingFilter}는 서비스 계층이 항상 "ALL"/"WAITING"/"SHIPPED" 중 하나로 채워
+     * 넘긴다(null 없음) — 그래서 이 파라미터는 같은 함정을 겪지 않는다.
+     *
+     * <p>{@code q}는 호출부({@link FundingPersistenceAdapter})가 LIKE 와일드카드(`%`/`_`)를
+     * 리터럴로 이스케이프해서 넘긴다 — 그래서 `ESCAPE '\'`로 그 이스케이프를 해석하도록 명시한다.
+     * 이스케이프 없이 그대로 쓰면 검색어에 `%`/`_`가 포함될 때 의도한 부분일치 대신 와일드카드로
+     * 해석돼 엉뚱한 행까지 매칭된다.
+     */
+    @Query(value = """
+            SELECT * FROM fundings f
+            WHERE f.project_public_id = :projectId
+              AND f.status = 'GOAL_ACHIEVED'
+              AND (:shippingFilter = 'ALL'
+                   OR (:shippingFilter = 'WAITING' AND f.shipped_at IS NULL)
+                   OR (:shippingFilter = 'SHIPPED' AND f.shipped_at IS NOT NULL))
+              AND (CAST(:q AS text) IS NULL
+                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%') ESCAPE '\\')
+            ORDER BY f.created_at DESC
+            """,
+            countQuery = """
+            SELECT count(*) FROM fundings f
+            WHERE f.project_public_id = :projectId
+              AND f.status = 'GOAL_ACHIEVED'
+              AND (:shippingFilter = 'ALL'
+                   OR (:shippingFilter = 'WAITING' AND f.shipped_at IS NULL)
+                   OR (:shippingFilter = 'SHIPPED' AND f.shipped_at IS NOT NULL))
+              AND (CAST(:q AS text) IS NULL
+                   OR lower(f.shipping_address ->> 'recipientName') LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                   OR CAST(f.public_id AS text) LIKE concat('%', CAST(:q AS text), '%') ESCAPE '\\')
+            """,
+            nativeQuery = true)
+    Page<FundingJpaEntity> findSellerOrders(@Param("projectId") UUID projectId,
+                                             @Param("shippingFilter") String shippingFilter,
+                                             @Param("q") String q, Pageable pageable);
+
+    /** #129 — 판매자 발송목록 탭 건수. */
+    long countByProjectPublicIdAndStatusAndShippedAtIsNull(UUID projectPublicId, String status);
+
+    /** #129 — 판매자 발송목록 탭 건수. */
+    long countByProjectPublicIdAndStatusAndShippedAtIsNotNull(UUID projectPublicId, String status);
+
+    /**
+     * #129 — fulfillment-service {@code shipment.shipped.v1} 구독 처리. 조건부 UPDATE라
+     * 중복 수신(Kafka at-least-once)에도 두 번째부터는 갱신 행이 0건이라 idempotent하다.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("update FundingJpaEntity f set f.shippedAt = :shippedAt where f.publicId = :fundingId and f.shippedAt is null")
+    void markShippedIfAbsent(@Param("fundingId") UUID fundingId, @Param("shippedAt") Instant shippedAt);
 }

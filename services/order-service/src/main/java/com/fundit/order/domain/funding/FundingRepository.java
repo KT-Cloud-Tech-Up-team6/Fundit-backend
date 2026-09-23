@@ -32,4 +32,16 @@ public interface FundingRepository {
 
     /** 내부 API — 알림 팬아웃 대상(펀딩 성립 후 아직 환불되지 않은 참여자)만 조회. */
     List<Funding> findGoalAchievedByProjectId(UUID projectId);
+
+    /** #129 — 판매자 발송목록(검색어·발송상태 필터·페이지네이션). q는 blank 없이 trim된 값 또는 null. */
+    Page<Funding> findSellerOrders(UUID projectId, ShippingFilter shippingFilter, String q, Pageable pageable);
+
+    /** #129 — 판매자 발송목록 탭 건수. */
+    SellerOrderShippingCounts countSellerOrdersByShippingStatus(UUID projectId);
+
+    /**
+     * #129 — fulfillment-service {@code shipment.shipped.v1} 구독 처리. 이미 채워져 있으면
+     * 갱신하지 않는(idempotent) 조건부 UPDATE.
+     */
+    void markShipped(UUID fundingId, Instant shippedAt);
 }

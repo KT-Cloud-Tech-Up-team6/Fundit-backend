@@ -34,6 +34,12 @@ public class Funding {
     private final long shippingFee;
     private final Instant paymentExpiresAt;
     private Instant decidedAt;
+    /**
+     * #129 — fulfillment-service {@code shipment.shipped.v1} 구독으로만 채워진다(조건부 UPDATE,
+     * {@link FundingRepository#markShipped}). 이 값을 설정하는 도메인 메서드는 없다 — 단순히
+     * hydrate→save 왕복 시 기존 값을 날리지 않고 그대로 실어 나르는 통과용 필드다.
+     */
+    private final Instant shippedAt;
     private final List<FundingLineItem> lineItems;
     private final Instant createdAt;
     /** ORDER-003 멱등 키(Idempotency-Key 헤더, 선택값) — 회원 범위 유니크. */

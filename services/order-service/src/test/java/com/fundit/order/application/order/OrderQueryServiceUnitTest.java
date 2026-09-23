@@ -8,6 +8,7 @@ import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
+import com.fundit.order.domain.funding.ShippingFilter;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaEntity;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaRepository;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,13 +57,15 @@ class OrderQueryServiceUnitTest {
                 .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 1, 10_000L, List.of())))
                 .createdAt(Instant.now()).build();
         when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.of(sellerId));
-        when(fundingRepository.findGoalAchievedByProjectId(projectId)).thenReturn(List.of(funding));
+        when(fundingRepository.findSellerOrders(eq(projectId), eq(ShippingFilter.ALL), isNull(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
 
         // when
-        var result = orderQueryService.listForSeller(sellerId, projectId);
+        var result = orderQueryService.listForSeller(sellerId, projectId, null, null,
+                org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then
-        assertThat(result).containsExactly(funding);
+        assertThat(result.getContent()).containsExactly(funding);
     }
 
     @Test

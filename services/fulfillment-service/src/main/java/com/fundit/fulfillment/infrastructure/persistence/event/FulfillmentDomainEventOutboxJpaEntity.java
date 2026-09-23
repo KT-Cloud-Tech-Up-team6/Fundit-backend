@@ -26,6 +26,7 @@ import java.util.UUID;
 public class FulfillmentDomainEventOutboxJpaEntity {
 
     public static final String TYPE_SHIPPING_COMPLETED = "SHIPPING_COMPLETED";
+    public static final String TYPE_SHIPMENT_SHIPPED = "SHIPMENT_SHIPPED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

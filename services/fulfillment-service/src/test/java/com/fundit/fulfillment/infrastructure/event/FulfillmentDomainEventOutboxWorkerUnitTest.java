@@ -1,6 +1,7 @@
 package com.fundit.fulfillment.infrastructure.event;
 
 import com.fundit.common.error.DependencyFailureException;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShipmentShippedEvent;
 import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShippingCompletedEvent;
 import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
 import com.fundit.fulfillment.infrastructure.persistence.event.FulfillmentDomainEventOutboxJpaEntity;
@@ -98,6 +99,25 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         assertThat(event.getPublishedAt()).isNull();
         assertThat(event.getAttemptCount()).isEqualTo(1);
         assertThat(event.getLastError()).contains("브로커 미구성");
+    }
+
+    @Test
+    void 발송시작_이벤트는_판매자ID_조회없이_바로_발행된다() {
+        // given
+        setUp();
+        FulfillmentDomainEventOutboxJpaEntity event = FulfillmentDomainEventOutboxJpaEntity.builder()
+                .id(3L).eventType(FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPMENT_SHIPPED)
+                .fundingOrderId(UUID.fromString("00000000-0000-0000-0000-000000001024")).projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123")).build();
+        when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
+
+        // when
+        worker.publishPending();
+
+        // then
+        ArgumentCaptor<ShipmentShippedEvent> captor = ArgumentCaptor.forClass(ShipmentShippedEvent.class);
+        verify(transport).sendShipmentShipped(captor.capture(), eq(event.getCreatedAt()), eq(3L));
+        assertThat(captor.getValue().fundingId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001024"));
+        assertThat(event.getPublishedAt()).isNotNull();
     }
 
     @Test

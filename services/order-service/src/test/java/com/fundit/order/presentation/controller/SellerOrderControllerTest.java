@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,6 +21,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -51,17 +54,18 @@ class SellerOrderControllerTest {
                 .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 2, 10_000L,
                         List.of(new FundingLineItemOption(1L, 10L, "색상", 100L, "블랙")))))
                 .createdAt(Instant.now()).build();
-        when(orderQueryService.listForSeller(sellerId, projectId)).thenReturn(List.of(funding));
+        when(orderQueryService.listForSeller(eq(sellerId), eq(projectId), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(funding)));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/" + projectId + "/orders")
                         .header("X-User-Id", sellerId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value(orderId.toString()))
-                .andExpect(jsonPath("$[0].lineItems[0].rewardId").value(5))
-                .andExpect(jsonPath("$[0].lineItems[0].quantity").value(2))
-                .andExpect(jsonPath("$[0].lineItems[0].options[0].optionValueId").value(100))
-                .andExpect(jsonPath("$[0].shippingAddress.recipientName").value("홍길동"));
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.content[0].lineItems[0].rewardId").value(5))
+                .andExpect(jsonPath("$.content[0].lineItems[0].quantity").value(2))
+                .andExpect(jsonPath("$.content[0].lineItems[0].options[0].optionValueId").value(100))
+                .andExpect(jsonPath("$.content[0].shippingAddress.recipientName").value("홍길동"));
     }
 }

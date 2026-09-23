@@ -44,7 +44,8 @@ class OrderQueryServiceUnitExceptionTest {
         when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId))
+        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId, null, null,
+                org.springframework.data.domain.PageRequest.of(0, 20)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
@@ -56,7 +57,8 @@ class OrderQueryServiceUnitExceptionTest {
         when(projectOwnershipClient.findSellerId(projectId)).thenReturn(Optional.of(UUID.randomUUID()));
 
         // when & then
-        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId))
+        assertThatThrownBy(() -> orderQueryService.listForSeller(UUID.randomUUID(), projectId, null, null,
+                org.springframework.data.domain.PageRequest.of(0, 20)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
     }
