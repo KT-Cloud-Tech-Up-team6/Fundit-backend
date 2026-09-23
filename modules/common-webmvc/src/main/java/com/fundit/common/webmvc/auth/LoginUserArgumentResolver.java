@@ -34,6 +34,9 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         String userId = webRequest.getHeader(AuthHeaders.USER_ID);
         if (userId == null || userId.isBlank()) {
+            if (!parameter.getParameterAnnotation(LoginUser.class).required()) {
+                return null;
+            }
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
 

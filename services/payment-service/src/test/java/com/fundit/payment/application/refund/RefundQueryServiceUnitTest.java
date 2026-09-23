@@ -85,12 +85,12 @@ class RefundQueryServiceUnitTest {
             }
         };
         PageRequest pageable = PageRequest.of(0, 20);
-        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, pageable))
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(projection), pageable, 1));
         when(orderSummaryClient.fetchBatch(List.of(new UUID(0L, 1024L)))).thenReturn(Map.of());
 
         // when
-        var page = refundQueryService.listMyRefunds(memberId, pageable);
+        var page = refundQueryService.listMyRefunds(memberId, null, null, pageable);
 
         // then
         assertThat(page.getContent()).singleElement().satisfies(summary -> {
@@ -122,17 +122,50 @@ class RefundQueryServiceUnitTest {
             public Instant getProcessedAt() { return Instant.now(); }
         };
         PageRequest pageable = PageRequest.of(0, 20);
-        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, pageable))
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(projection), pageable, 1));
         when(orderSummaryClient.fetchBatch(List.of(fundingId))).thenReturn(Map.of(fundingId,
-                new OrderSummaryClient.OrderSummary("프로젝트", List.of(new OrderSummaryClient.LineItem("리워드", 1, 10_000L)))));
+                new OrderSummaryClient.OrderSummary("프로젝트",
+                        List.of(new OrderSummaryClient.LineItem("리워드", 1, 10_000L, List.of())))));
 
         // when
-        var page = refundQueryService.listMyRefunds(memberId, pageable);
+        var page = refundQueryService.listMyRefunds(memberId, null, null, pageable);
 
         // then
         assertThat(page.getContent()).singleElement().satisfies(summary ->
                 assertThat(summary.orderSummary().projectTitle()).isEqualTo("프로젝트"));
+    }
+
+    @Test
+    void 유형과_진행중_필터는_완료_반려를_제외한_상태목록으로_변환돼_전달된다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, "DEFECT",
+                List.of("REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"), pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        // when
+        var page = refundQueryService.listMyRefunds(memberId, com.fundit.payment.domain.refund.RefundTriggerType.DEFECT,
+                true, pageable);
+
+        // then
+        assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 진행여부가_false면_완료_반려_상태목록으로_변환돼_전달된다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, null, List.of("COMPLETED", "REJECTED"),
+                pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        // when
+        var page = refundQueryService.listMyRefunds(memberId, null, false, pageable);
+
+        // then
+        assertThat(page.getContent()).isEmpty();
     }
 
     @Test

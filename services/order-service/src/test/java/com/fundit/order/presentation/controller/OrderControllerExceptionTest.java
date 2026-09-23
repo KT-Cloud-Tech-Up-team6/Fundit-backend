@@ -50,7 +50,7 @@ class OrderControllerExceptionTest {
     void 재고가_부족하면_409를_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(orderCreateService.create(any(), any(), any(), any(), any(), anyBoolean()))
+        when(orderCreateService.create(any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenThrow(new BusinessException(OrderErrorCode.INSUFFICIENT_STOCK));
 
         // when & then

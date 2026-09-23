@@ -68,6 +68,18 @@ class NoticeServiceUnitExceptionTest {
     }
 
     @Test
+    void 비공개_프로젝트_새소식_본문조회는_소유자가_아니면_404를_반환한다() {
+        // given
+        stubPrivateNotice(1L);
+
+        // when & then
+        assertThatThrownBy(() -> noticeService.get(1L, UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void 존재하지_않는_새소식_수정시_404_예외가_발생한다() {
         // given
         when(noticeJpaRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());

@@ -42,7 +42,7 @@ class FundingPersistenceAdapterIntegrationTest {
         List<FundingLineItem> lineItems = List.of(new FundingLineItem(null, 5L, "얼리버드 패키지", 2, 10_000L, options));
         Funding funding = Funding.create(memberId, projectId, "프로젝트",
                 new ShippingAddress("홍길동", "010-1234-5678", "12345", "서울시", "101동"),
-                3_000L, lineItems, paymentExpiresAt);
+                3_000L, lineItems, paymentExpiresAt, null, null);
         if (status != FundingStatus.PENDING) {
             funding = funding.toBuilder().status(status).build();
         }

@@ -1,5 +1,7 @@
 package com.fundit.payment.application.refund;
 
+import com.fundit.payment.domain.refund.RefundRequestStatus;
+import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.infrastructure.persistence.refund.RefundRequestJpaRepository;
 import com.fundit.payment.infrastructure.persistence.refund.query.RefundSummaryProjection;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,12 +25,25 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class RefundQueryService {
 
+    private static final List<String> IN_PROGRESS_STATUSES = List.of(RefundRequestStatus.REQUESTED.name(),
+            RefundRequestStatus.UNDER_REVIEW.name(), RefundRequestStatus.APPROVED.name(),
+            RefundRequestStatus.PROCESSING.name());
+    private static final List<String> DONE_STATUSES = List.of(RefundRequestStatus.COMPLETED.name(),
+            RefundRequestStatus.REJECTED.name());
+
     private final RefundRequestJpaRepository refundRequestJpaRepository;
     private final OrderSummaryClient orderSummaryClient;
 
-    /** V04 — 프로젝트명·상품/옵션은 order-service를 페이지 단위로 한 번만 배치 조회해 채운다. */
-    public Page<RefundSummary> listMyRefunds(UUID accountId, Pageable pageable) {
-        Page<RefundSummaryProjection> page = refundRequestJpaRepository.findSummariesByMemberId(accountId, pageable);
+    /**
+     * V04 — 프로젝트명·상품/옵션은 order-service를 페이지 단위로 한 번만 배치 조회해 채운다.
+     * {@code triggerType}/{@code inProgress}는 둘 다 선택값(null이면 필터 없음) — 진행중은
+     * 완료/반려 전 상태 전부(REQUESTED/UNDER_REVIEW/APPROVED/PROCESSING)로 판정한다.
+     */
+    public Page<RefundSummary> listMyRefunds(UUID accountId, RefundTriggerType triggerType, Boolean inProgress,
+                                              Pageable pageable) {
+        List<String> statuses = inProgress == null ? null : (inProgress ? IN_PROGRESS_STATUSES : DONE_STATUSES);
+        Page<RefundSummaryProjection> page = refundRequestJpaRepository.findSummariesByMemberId(accountId,
+                triggerType == null ? null : triggerType.name(), statuses, pageable);
         Map<UUID, OrderSummaryClient.OrderSummary> orderSummaries = orderSummaryClient.fetchBatch(
                 page.getContent().stream().map(RefundSummaryProjection::getFundingId).distinct().toList());
         return page.map(projection -> toView(projection, orderSummaries.get(projection.getFundingId())));

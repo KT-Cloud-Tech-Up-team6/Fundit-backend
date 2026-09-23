@@ -7,7 +7,9 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -33,6 +35,18 @@ public class RefundRequest {
     private final Instant requestedAt;
     private Instant processedAt;
 
+    /** {@link #completeImmediately}가 허용하는 유형 — 실제 호출부(FundingLifecycleEventSyncService,
+     * PaymentReconciliationService, SimpleChangeOfMindRefundService, ShippingDelayRefundService) 기준. */
+    private static final Set<RefundTriggerType> IMMEDIATE_TRIGGER_TYPES = EnumSet.of(
+            RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
+            RefundTriggerType.SHIPPING_DELAY, RefundTriggerType.SYSTEM_RECONCILIATION);
+
+    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — SYSTEM_RECONCILIATION은 대체계좌 대기
+     * 경로(executeFullRefundOrAwaitAlternateAccount)로 호출되지 않아 제외한다. */
+    private static final Set<RefundTriggerType> ALTERNATE_ACCOUNT_TRIGGER_TYPES = EnumSet.of(
+            RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
+            RefundTriggerType.SHIPPING_DELAY);
+
     /** PAYMENT-006 — 하자환불 신청. 증빙 누락 시 신청 자체를 차단한다. */
     public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
                                                List<String> evidenceUrls) {
@@ -50,14 +64,31 @@ public class RefundRequest {
                 .build();
     }
 
+    /** 교환 신청 — 판매자 검토 대기(REQUESTED)로만 접수한다. 승인/완료(재발송)는 별도 설계 필요. */
+    public static RefundRequest requestExchange(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
+                                                 List<String> evidenceUrls) {
+        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
+            throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
+        }
+        return RefundRequest.builder()
+                .fundingId(fundingId)
+                .paymentId(paymentId)
+                .sellerId(sellerId)
+                .triggerType(RefundTriggerType.EXCHANGE)
+                .status(RefundRequestStatus.REQUESTED)
+                .reasonDetail(reasonDetail)
+                .evidenceUrls(evidenceUrls)
+                .build();
+    }
+
     /**
      * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 처리되는 유형(단순변심/미달자동/
      * 발송지연/시스템 재조정). 토스 취소가 이미 성공했다는 전제로 곧바로 COMPLETED로 기록한다.
      */
     public static RefundRequest completeImmediately(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
                                                       boolean isFullRefund) {
-        if (triggerType == RefundTriggerType.DEFECT) {
-            throw new IllegalArgumentException("DEFECT는 즉시 처리 대상이 아닙니다(판매자 검토 필요).");
+        if (!IMMEDIATE_TRIGGER_TYPES.contains(triggerType)) {
+            throw new IllegalArgumentException(triggerType + "는 즉시 처리 대상이 아닙니다.");
         }
         Instant now = Instant.now();
         return RefundRequest.builder()
@@ -78,6 +109,9 @@ public class RefundRequest {
      */
     public static RefundRequest awaitingAlternateAccount(RefundTriggerType triggerType, UUID fundingId,
                                                            UUID paymentId) {
+        if (!ALTERNATE_ACCOUNT_TRIGGER_TYPES.contains(triggerType)) {
+            throw new IllegalArgumentException(triggerType + "는 대체 계좌 대기 대상이 아닙니다.");
+        }
         return RefundRequest.builder()
                 .fundingId(fundingId)
                 .paymentId(paymentId)

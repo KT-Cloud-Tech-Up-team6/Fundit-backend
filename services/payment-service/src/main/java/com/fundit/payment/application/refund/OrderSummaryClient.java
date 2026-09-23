@@ -17,6 +17,10 @@ public interface OrderSummaryClient {
     record OrderSummary(String projectTitle, List<LineItem> lineItems) {
     }
 
-    record LineItem(String rewardName, int quantity, long unitPrice) {
+    record LineItem(String rewardName, int quantity, long unitPrice, List<LineItemOption> options) {
+    }
+
+    /** 주문 시점 옵션 스냅샷(order-service {@code funding_line_item_options}) — 옵션 수정과 무관하게 불변. */
+    record LineItemOption(String optionGroupName, String optionValue) {
     }
 }

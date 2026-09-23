@@ -15,7 +15,13 @@ public enum RefundTriggerType {
     DEFECT,
     SHIPPING_DELAY,
     /** [신규, 정책 확인 필요] PAYMENT-017 전용 — 결제-재고만료 충돌 자동환불. */
-    SYSTEM_RECONCILIATION;
+    SYSTEM_RECONCILIATION,
+    /**
+     * [신규, MVP 범위 제한] 교환 신청. 환불(결제취소)이 아니라 재발송이 필요한 별개 흐름이라
+     * {@link #toOrderServiceReason()}으로 완결되지 않는다 — 신청·목록조회까지만 지원하고,
+     * 승인/완료(재발송 연동, fulfillment-service 협의 필요)는 별도 설계가 끝나기 전까지 없다.
+     */
+    EXCHANGE;
 
     /**
      * order-service {@code PaymentEventListener.RefundReason}으로 매핑한다.
@@ -32,6 +38,8 @@ public enum RefundTriggerType {
             case SIMPLE_CHANGE_OF_MIND -> RefundReason.CANCELLED_BY_MEMBER;
             case DEFECT -> RefundReason.POST_SUCCESS_DEFECT;
             case SHIPPING_DELAY -> RefundReason.POST_SUCCESS_DELAY;
+            case EXCHANGE -> throw new UnsupportedOperationException(
+                    "EXCHANGE는 결제취소를 수반하지 않아 RefundExecutionService로 완료 처리하지 않는다.");
         };
     }
 }

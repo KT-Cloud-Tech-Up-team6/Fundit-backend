@@ -70,10 +70,11 @@ public class NoticeController {
         return PageResponse.from(result);
     }
 
-    @Operation(summary = "새소식 본문 조회", description = "열람·재편집용. 목록과 동일하게 소속 프로젝트가 공개일 때만 조회 가능하다.")
+    @Operation(summary = "새소식 본문 조회",
+            description = "열람·재편집용. 프로젝트가 공개면 누구나, 비공개(작성 중)면 소유 판매자만 조회 가능하다.")
     @GetMapping("/notices/{noticeId}")
-    public NoticeDetailResponse get(@PathVariable Long noticeId) {
-        ProjectNoticeJpaEntity notice = noticeService.get(noticeId);
+    public NoticeDetailResponse get(@LoginUser(required = false) CurrentUser user, @PathVariable Long noticeId) {
+        ProjectNoticeJpaEntity notice = noticeService.get(noticeId, user == null ? null : user.id());
         return new NoticeDetailResponse(notice.getId(), notice.getNoticeType(), notice.getTitle(),
                 notice.getContent(), notice.getCreatedAt());
     }

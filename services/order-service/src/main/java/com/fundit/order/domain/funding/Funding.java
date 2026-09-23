@@ -36,9 +36,14 @@ public class Funding {
     private Instant decidedAt;
     private final List<FundingLineItem> lineItems;
     private final Instant createdAt;
+    /** ORDER-003 멱등 키(Idempotency-Key 헤더, 선택값) — 회원 범위 유니크. */
+    private final String idempotencyKey;
+    /** 같은 키로 다른 요청 본문이 오는 것을 구분하기 위한 요청 해시. idempotencyKey가 없으면 null. */
+    private final String idempotencyRequestHash;
 
     public static Funding create(UUID memberId, UUID projectId, String projectTitle, ShippingAddress shippingAddress,
-                                  long shippingFee, List<FundingLineItem> lineItems, Instant paymentExpiresAt) {
+                                  long shippingFee, List<FundingLineItem> lineItems, Instant paymentExpiresAt,
+                                  String idempotencyKey, String idempotencyRequestHash) {
         return Funding.builder()
                 .publicId(UUID.randomUUID())
                 .memberId(memberId)
@@ -49,6 +54,8 @@ public class Funding {
                 .shippingFee(shippingFee)
                 .lineItems(lineItems)
                 .paymentExpiresAt(paymentExpiresAt)
+                .idempotencyKey(idempotencyKey)
+                .idempotencyRequestHash(idempotencyRequestHash)
                 .build();
     }
 

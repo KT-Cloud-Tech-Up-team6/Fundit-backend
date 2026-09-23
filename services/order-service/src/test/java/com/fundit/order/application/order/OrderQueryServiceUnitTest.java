@@ -152,6 +152,7 @@ class OrderQueryServiceUnitTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of(
                 FundingCouponApplicationJpaEntity.builder().fundingId(1L).couponIssuanceId(1L).discountAmount(2_000L).build()));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
 
         // when
         OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
@@ -173,6 +174,7 @@ class OrderQueryServiceUnitTest {
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
         when(fulfillmentStatusClient.fetch(orderId))
                 .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, true));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
 
         // when
         OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);

@@ -26,10 +26,19 @@ public record RefundSummaryResponseV2(Long refundId, UUID fundingId, String trig
                         .map(RefundLineItemResponse::from).toList());
     }
 
-    public record RefundLineItemResponse(String rewardName, int quantity, long unitPrice) {
+    public record RefundLineItemResponse(String rewardName, int quantity, long unitPrice,
+                                          List<RefundLineItemOptionResponse> options) {
 
         public static RefundLineItemResponse from(OrderSummaryClient.LineItem lineItem) {
-            return new RefundLineItemResponse(lineItem.rewardName(), lineItem.quantity(), lineItem.unitPrice());
+            return new RefundLineItemResponse(lineItem.rewardName(), lineItem.quantity(), lineItem.unitPrice(),
+                    lineItem.options().stream().map(RefundLineItemOptionResponse::from).toList());
+        }
+    }
+
+    public record RefundLineItemOptionResponse(String optionGroupName, String optionValue) {
+
+        public static RefundLineItemOptionResponse from(OrderSummaryClient.LineItemOption option) {
+            return new RefundLineItemOptionResponse(option.optionGroupName(), option.optionValue());
         }
     }
 }

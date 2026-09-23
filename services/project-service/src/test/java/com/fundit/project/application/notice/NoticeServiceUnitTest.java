@@ -96,6 +96,25 @@ class NoticeServiceUnitTest {
     }
 
     @Test
+    void 비공개_프로젝트여도_소유_판매자는_새소식_본문을_조회한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        ProjectNoticeJpaEntity notice = ProjectNoticeJpaEntity.builder()
+                .id(1L).projectId(1L).noticeType("FAQ").title("제목").content("내용").build();
+        Project draftProject = Project.builder()
+                .id(1L).publicId(UUID.randomUUID()).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(noticeJpaRepository.findById(1L)).thenReturn(Optional.of(notice));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(draftProject));
+
+        // when
+        ProjectNoticeJpaEntity result = noticeService.get(1L, sellerId);
+
+        // then
+        assertThat(result.getContent()).isEqualTo("내용");
+    }
+
+    @Test
     void 공개_프로젝트_새소식에_댓글을_등록한다() {
         // given
         UUID memberId = UUID.randomUUID();

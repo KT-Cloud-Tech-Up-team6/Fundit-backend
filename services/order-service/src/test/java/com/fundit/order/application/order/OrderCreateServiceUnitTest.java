@@ -25,7 +25,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -83,11 +85,12 @@ class OrderCreateServiceUnitTest {
         // when
         OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 2, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false);
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false, null, null);
 
         // then
         assertThat(result.funding()).isEqualTo(savedFunding);
         assertThat(result.finalAmount()).isEqualTo(21_000L);
+        assertThat(result.replay()).isFalse();
         verify(inventoryRepository).decreaseStock(REWARD_ID, 2);
 
         ArgumentCaptor<FundingCouponApplicationJpaEntity> captor =
@@ -112,11 +115,39 @@ class OrderCreateServiceUnitTest {
 
         // when
         orderCreateService.create(MEMBER_ID, PROJECT_ID, List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false);
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null);
 
         // then
         ArgumentCaptor<Funding> captor = ArgumentCaptor.forClass(Funding.class);
         verify(fundingRepository).save(captor.capture());
         assertThat(captor.getValue().getProjectTitle()).isEmpty();
+    }
+
+    @Test
+    void 같은_Idempotency_Key로_재요청하면_새_주문을_만들지_않고_기존_주문을_반환한다() {
+        // given
+        Funding existing = Funding.builder().id(100L).publicId(UUID.randomUUID()).memberId(MEMBER_ID)
+                .projectId(PROJECT_ID).projectTitle("프로젝트")
+                .status(com.fundit.order.domain.funding.FundingStatus.PENDING)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
+                .lineItems(List.of()).createdAt(Instant.now())
+                .idempotencyKey("retry-key-1").idempotencyRequestHash("hash-1").build();
+        when(fundingRepository.findByMemberIdAndIdempotencyKey(MEMBER_ID, "retry-key-1"))
+                .thenReturn(Optional.of(existing));
+        when(couponApplicationJpaRepository.findByFundingId(100L)).thenReturn(List.of());
+
+        // when
+        OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
+                List.of(new OrderLineItemRequest(REWARD_ID, 2, null)),
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false,
+                "retry-key-1", "hash-1");
+
+        // then
+        assertThat(result.funding()).isEqualTo(existing);
+        assertThat(result.finalAmount()).isEqualTo(3_000L);
+        assertThat(result.replay()).isTrue();
+        verify(inventoryRepository, never()).decreaseStock(any(), anyInt());
+        verify(fundingRepository, never()).save(any());
     }
 }

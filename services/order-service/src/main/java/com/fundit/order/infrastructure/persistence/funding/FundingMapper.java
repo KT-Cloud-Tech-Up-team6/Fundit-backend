@@ -33,6 +33,8 @@ public class FundingMapper {
                 .decidedAt(entity.getDecidedAt())
                 .lineItems(lineItems)
                 .createdAt(entity.getCreatedAt())
+                .idempotencyKey(entity.getIdempotencyKey())
+                .idempotencyRequestHash(entity.getIdempotencyRequestHash())
                 .build();
     }
 
@@ -50,6 +52,8 @@ public class FundingMapper {
                 .paymentExpiresAt(domain.getPaymentExpiresAt())
                 .decidedAt(domain.getDecidedAt())
                 .createdAt(domain.getCreatedAt())
+                .idempotencyKey(domain.getIdempotencyKey())
+                .idempotencyRequestHash(domain.getIdempotencyRequestHash())
                 .build();
     }
 
