@@ -12,7 +12,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +39,8 @@ public class AiAnswerService {
     private final IvsClient ivsClient;
 
     static final String CHAT_EVENT_NAME = "seller-answer";
+    /** IVS Chat SendEvent attributes 합계 상한(AWS API 문서: "4 KB total"). */
+    static final int CHAT_EVENT_ATTRIBUTES_MAX_BYTES = 4 * 1024;
 
     /** 초안 미리보기. 이 호출은 아무것도 기록하지 않는다. */
     @Transactional(readOnly = true)
@@ -50,7 +55,7 @@ public class AiAnswerService {
      * <p>AI 등록이 성공해야 로컬에 남긴다 — AI 쪽이 실패했는데 로컬만 "답변 완료"로 표시되면
      * 다음 유사 질문이 다시 미답변으로 잡히는데 화면은 이미 답변된 것으로 보여준다.
      *
-     * <p>저장 뒤 IVS Chat {@code SendEvent}로 채팅방에 게시한다({@value #CHAT_EVENT_NAME}).
+     * <p>커밋 뒤 IVS Chat {@code SendEvent}로 채팅방에 게시한다({@value #CHAT_EVENT_NAME}).
      * 참가자 MESSAGE가 아니라 EVENT 타입으로 도착하므로 FE가 이 타입을 렌더링해야 보이고,
      * 판매자 화면이 자기 토큰으로 직접 올리던 게시는 걷어내야 두 번 보이지 않는다.
      * 게시 실패는 답변 저장을 막지 않는다.
@@ -71,22 +76,51 @@ public class AiAnswerService {
             log.warn("AI Live Knowledge 등록 실패, liveId={}, questionId={}", liveId, questionId);
         }
         summary.recordAnswer(finalAnswer, Instant.now());
-        postToChat(session, questionId, finalAnswer);
+        postToChatAfterCommit(session, questionId, finalAnswer);
         return summary;
     }
 
-    private void postToChat(LiveSession session, UUID questionId, String answer) {
+    /**
+     * 커밋 뒤에 게시한다 — 트랜잭션 안에서 보내면 커밋이 실패했을 때 채팅엔 답변이 떴는데
+     * 저장은 롤백된 상태가 된다. 트랜잭션 밖(단위 테스트 등)에선 바로 보낸다.
+     */
+    private void postToChatAfterCommit(LiveSession session, UUID questionId, String answer) {
         if (session.getIvsChatRoomArn() == null) {
             return;
         }
-        try {
-            ivsClient.sendChatEvent(session.getIvsChatRoomArn(), CHAT_EVENT_NAME,
-                    Map.of("questionId", questionId.toString(), "answer", answer));
-        } catch (RuntimeException e) {
-            // ponytail: 재시도 없이 로그만 남긴다. IVS 이벤트 attributes는 합계 1KB 상한이라 긴 답변은
-            // 여기서 실패한다 — 반복되면 answer를 잘라 보내거나 questionId만 실어 FE가 조회하게 한다.
-            log.warn("채팅 게시 실패, liveId={}, questionId={}", session.getPublicId(), questionId, e);
+        Runnable post = () -> postToChat(session.getIvsChatRoomArn(), session.getPublicId(), questionId, answer);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            post.run();
+            return;
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                post.run();
+            }
+        });
+    }
+
+    private void postToChat(String roomArn, UUID liveId, UUID questionId, String answer) {
+        try {
+            ivsClient.sendChatEvent(roomArn, CHAT_EVENT_NAME, chatEventAttributes(questionId, answer));
+        } catch (RuntimeException e) {
+            // ponytail: 재시도 없이 로그만 남긴다. 운영에서 반복되면 재시도 큐로 옮긴다.
+            log.warn("채팅 게시 실패, liveId={}, questionId={}", liveId, questionId, e);
+        }
+    }
+
+    /** 한도를 넘는 긴 답변은 {@code questionId}만 보낸다 — FE가 {@code answered-questions}로 조회한다. */
+    static Map<String, String> chatEventAttributes(UUID questionId, String answer) {
+        Map<String, String> full = Map.of("questionId", questionId.toString(), "answer", answer);
+        int bytes = full.entrySet().stream()
+                .mapToInt(e -> utf8Length(e.getKey()) + utf8Length(e.getValue()))
+                .sum();
+        return bytes <= CHAT_EVENT_ATTRIBUTES_MAX_BYTES ? full : Map.of("questionId", questionId.toString());
+    }
+
+    private static int utf8Length(String s) {
+        return s.getBytes(StandardCharsets.UTF_8).length;
     }
 
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {

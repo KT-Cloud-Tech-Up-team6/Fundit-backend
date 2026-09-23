@@ -630,11 +630,12 @@ Validation / Business Rules
 
 - **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 AI의 `registerSellerAnswer`에 등록되고
   `live_question_summaries.answer_text`/`is_answered`가 채워진다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
-- **`SEND`하면 BE가 채팅방에 게시한다.** 저장 뒤 IVS Chat `SendEvent`로 보낸다 — 이벤트 이름
-  `seller-answer`, 속성 `questionId`·`answer`. 참가자 MESSAGE가 아니라 **EVENT 타입**으로 도착하므로
-  FE가 이 타입을 렌더링해야 화면에 보인다. 판매자 화면이 자기 토큰으로 직접 올리면 두 번 보이니
-  클라이언트 측 게시는 하지 않는다. 게시 실패는 답변 저장을 막지 않는다(로그만 남김). IVS 이벤트
-  속성은 합계 1KB 상한이라 매우 긴 답변은 게시에 실패할 수 있다.
+- **`SEND`하면 BE가 채팅방에 게시한다.** 답변 저장이 커밋된 뒤 IVS Chat `SendEvent`로 보낸다 —
+  이벤트 이름 `seller-answer`, 속성 `questionId`·`answer`. 참가자 MESSAGE가 아니라 **EVENT 타입**으로
+  도착하므로 FE가 이 타입을 렌더링해야 화면에 보인다. 판매자 화면이 자기 토큰으로 직접 올리면 두 번
+  보이니 클라이언트 측 게시는 하지 않는다. 게시 실패는 답변 저장을 막지 않는다(로그만 남김).
+  IVS 이벤트 속성은 합계 4KB 상한이라, 넘는 긴 답변은 **`questionId`만** 보낸다 — FE는
+  `GET /chat/answered-questions`에서 그 `questionId`의 `answerText`를 조회해 표시한다.
 - `referenceChunks`는 근거가 아니라 판매자 참고용이다. AI가 확인 못 한 사실은 `draftAnswer`에
   `[판매자 확인 필요: ...]`로 비워둔다(임의 생성 금지).
 - **환불·결제·배송 등 정책 항목은 AI가 요약·재구성하지 않고 판매자가 등록한 원문을 그대로 제공한다**(요구사항정의서 6.4.3).

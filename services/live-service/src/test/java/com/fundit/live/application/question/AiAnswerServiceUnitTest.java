@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -126,6 +129,50 @@ class AiAnswerServiceUnitTest {
         // then
         assertThat(s.isAnswered()).isTrue();
         assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
+    }
+
+    @Test
+    void 트랜잭션_중이면_커밋된_뒤에_게시한다() {
+        // given — 커밋 전에 보내면 롤백됐을 때 채팅엔 답변이 뜨고 저장은 사라진다
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenLiveWithRoomAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(true));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            // when
+            aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+            // then — 커밋 전엔 안 보내고, afterCommit에서 보낸다
+            verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+            verify(ivsClient).sendChatEvent(eq("arn:room"), eq(AiAnswerService.CHAT_EVENT_NAME), anyMap());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void 속성_한도를_넘는_긴_답변은_questionId만_보낸다() {
+        // given — IVS SendEvent attributes는 합계 4KB 상한이다. 넘기면 게시 자체가 거부된다.
+        String longAnswer = "가".repeat(AiAnswerService.CHAT_EVENT_ATTRIBUTES_MAX_BYTES);
+
+        // when
+        Map<String, String> attributes = AiAnswerService.chatEventAttributes(questionId, longAnswer);
+
+        // then — FE는 answered-questions에서 이 questionId로 답변을 조회한다
+        assertThat(attributes).containsOnlyKeys("questionId");
+        assertThat(attributes.get("questionId")).isEqualTo(questionId.toString());
+    }
+
+    @Test
+    void 한도_이내_답변은_답변까지_같이_보낸다() {
+        // when
+        Map<String, String> attributes = AiAnswerService.chatEventAttributes(questionId, "500ml입니다");
+
+        // then
+        assertThat(attributes).containsEntry("answer", "500ml입니다")
+                .containsEntry("questionId", questionId.toString());
     }
 
     private void givenLiveWithRoomAndSummary(LiveQuestionSummaryJpaEntity s) {
