@@ -112,7 +112,8 @@ public class QuestionInsightService {
                 .findBySessionIdAndAiQuestionId(sessionId, item.qid())
                 .orElseGet(() -> newSummary(sessionId, item.qid()));
         summary.applyFromAi(new AiClient.FaqItem(item.qid(), item.representativeText(), item.count(),
-                summary.getTopic(), AiClient.AnsweredBy.NONE, null, null, summary.isPromoted()));
+                summary.getTopic(), AiClient.AnsweredBy.NONE, null, null, summary.isPromoted(),
+                summary.getHandledBy()));
         return summaryRepository.save(summary);
     }
 
