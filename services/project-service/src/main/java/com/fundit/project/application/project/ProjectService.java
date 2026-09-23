@@ -65,7 +65,9 @@ public class ProjectService {
                 ? Arrays.stream(ProjectStatus.values()).map(Enum::name).toList()
                 : statuses.stream().map(Enum::name).toList();
         String keyword = (q == null || q.isBlank()) ? null : q.trim();
-        return projectJpaRepository.findList(sellerId, statusNames, keyword, pageable);
+        return keyword == null
+                ? projectJpaRepository.findList(sellerId, statusNames, pageable)
+                : projectJpaRepository.findListByTitle(sellerId, statusNames, keyword, pageable);
     }
 
     /** 상태 그룹별(진행중/준비중/완료) 프로젝트 개수. */
