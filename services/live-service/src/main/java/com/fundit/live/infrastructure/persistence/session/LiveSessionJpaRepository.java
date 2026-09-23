@@ -42,6 +42,12 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     Optional<LiveSessionJpaEntity> findOwnedForUpdate(@Param("publicId") UUID publicId,
                                                       @Param("sellerId") UUID sellerId);
 
+    /**
+     * order-service 주문 생성 시 "이 프로젝트가 지금 방송 중인가"(내부 전용). 판매자당 채널이 1개라
+     * 프로젝트당 동시에 LIVE인 세션은 최대 1개다 — {@code findFirst}는 방어용이다.
+     */
+    Optional<LiveSessionJpaEntity> findFirstByProjectIdAndStatus(UUID projectId, LiveStatus status);
+
     /** 위와 같은 이유의 잠금인데 호출자가 AI 서버라 대조할 sellerId가 없다(내부 콜백 전용). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from LiveSessionJpaEntity s where s.publicId = :publicId")

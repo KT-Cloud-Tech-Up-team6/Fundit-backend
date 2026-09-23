@@ -62,11 +62,14 @@ public class OrderCreateService {
      * 새 주문을 만든다(기존 동작 유지). 있으면 회원 범위로 조회해 같은 키가 이미 있으면 새로
      * 만들지 않고 기존 주문을 그대로 돌려준다(재고 차감/쿠폰 적용을 다시 하지 않음). 같은 키에
      * 요청 본문(idempotencyRequestHash)이 다르면 CONFLICT로 거부한다.
+     *
+     * <p>{@code liveSessionId}는 호출부가 <b>트랜잭션 밖에서</b> live-service를 조회해 넘긴 값이다
+     * (여기서 조회하면 DB 커넥션을 쥔 채 외부 응답을 기다리게 된다). 조회에 실패했으면 null이 온다.
      */
     @Transactional
     public OrderCreateResult create(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
                                      ShippingAddress shippingAddress, List<String> couponCodes, boolean autoApplyBestCoupon,
-                                     String idempotencyKey, String idempotencyRequestHash) {
+                                     String idempotencyKey, String idempotencyRequestHash, Long liveSessionId) {
         if (idempotencyKey != null) {
             Optional<OrderCreateResult> replay = findReplay(memberId, idempotencyKey, idempotencyRequestHash);
             if (replay.isPresent()) {
@@ -87,7 +90,8 @@ public class OrderCreateService {
         Instant paymentExpiresAt = Instant.now().plus(paymentExpiryMinutes, ChronoUnit.MINUTES);
 
         Funding funding = Funding.create(memberId, projectId, projectTitle, shippingAddress,
-                pricing.shippingFee(), fundingLineItems, paymentExpiresAt, idempotencyKey, idempotencyRequestHash);
+                pricing.shippingFee(), fundingLineItems, paymentExpiresAt, idempotencyKey, idempotencyRequestHash,
+                liveSessionId);
         Funding saved;
         try {
             saved = fundingRepository.save(funding);

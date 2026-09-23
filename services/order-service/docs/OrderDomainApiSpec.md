@@ -19,6 +19,7 @@
 | 15 | GET | `/internal/orders/order-summaries` | 내부 주문 요약 배치 조회(프로젝트명·라인아이템) | 내부 키 (`InternalGatewaySecretFilter`) | payment 연동(V04) |
 | 16 | GET | `/internal/fundings/{fundingId}/settlement-aggregate` | 내부 정산 집계 조회(리워드·옵션별 판매수량/금액, 메이커 쿠폰 차감액) | 내부 키 (`InternalGatewaySecretFilter`) | payment 연동(PAYMENT-009/012) |
 | 17 | GET | `/api/v1/projects/{projectId}/orders` | 판매자 발송 대상 목록 | O (판매자) | 발송 등록 화면 |
+| 18 | GET | `/api/v1/orders/live-stats` | 방송 중 주문 건수·매출 집계 | O (판매자·방송 소유자) | live 연동(#149) |
 
 > ORDER-006(펀딩 마감 목표달성 판정), ORDER-007(쿠폰 발급-플랫폼 자동), ORDER-013(미결제 주문 자동 만료), ORDER-016(리워드 이벤트 구독-재고 동기화)은 스케줄러/이벤트로만 트리거되어 REST 엔드포인트가 없습니다. ORDER-015(쿠폰 사용처리·복원)는 `PaymentEventKafkaListener`가 `payment.completed.v1`/`refund.completed.v1`을 구독해 실제로 배선되어 있습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
@@ -146,6 +147,9 @@ POST /api/v1/orders
 - 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupons.used_budget_amount` 갱신. `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행할 예정 — 현재 리스너 미배선).
 - 금액은 서버에서 재검증(클라이언트 전달값 불신, S4), 재고 차감 쿼리는 바인딩 변수 사용(S1).
 - 응답의 `orderId`는 `fundings.public_id`(UUID), `projectId`는 project-service publicId(UUID). 이후 결제 요청은 payment-service의 `POST /api/v2/payments`(`fundingId`=이 `orderId`)로 이어진다.
+- **라이브 주문 꼬리표**: 서버가 live 내부 API(`/internal/v1/lives/by-project/{projectId}/active-status`)로 그 프로젝트가 지금 방송 중인지 확인해 `fundings.live_session_id`를 채운다(비-라이브 주문은 NULL). 요청 바디에는 아무 것도 추가되지 않는다 — 클라이언트가 보낸 값을 믿지 않기 위해 서버가 직접 조회한다.
+  - **live 조회 실패(타임아웃/5xx)여도 주문은 성공**하고 `live_session_id`만 NULL로 남는다. 라이브ID는 나중에 집계(18번)에 쓰는 꼬리표라 못 달아도 본 거래를 막지 않는다 — 쿠폰 클레임(9번, 게이트)과 정반대 정책이다.
+  - 조회는 주문 트랜잭션에 진입하기 **전**(컨트롤러)에 끝낸다. 트랜잭션 안에서 외부 호출을 하면 DB 커넥션을 쥔 채 응답을 기다리게 된다.
 
 ---
 
@@ -301,9 +305,14 @@ POST /api/v1/sellers/coupons
   "quantity": 200,
   "minFundingAmount": 30000,
   "perMemberLimit": 1,
-  "expiresAt": "2026-09-30T23:59:59Z"
+  "expiresAt": "2026-09-30T23:59:59Z",
+  "issueChannel": "LIVE",
+  "liveId": "0199c3a0-1111-2222-3333-444455556666",
+  "dropType": "FIRST_COME"
 }
 ```
+
+> `issueChannel`/`liveId`/`dropType`은 선택값이다. 생략하면 `GENERAL` 쿠폰으로 발급되고 live-service 호출이 발생하지 않는다. `issueChannel=LIVE`면 `liveId`(방송 공개 UUID)가 필수고, 서버가 live 내부 API로 내부 세션 PK를 해석해 `coupons.live_session_id`에 저장한다 — 판매자 FE는 BIGINT 세션 PK를 모른다.
 
 **Response**: `201 Created`
 
@@ -320,6 +329,7 @@ POST /api/v1/sellers/coupons
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트에만 발급 가능 — `projectId`의 `seller_id`를 project-service 내부 API로 조회해 검증(S4). 불일치 시 `403 FORBIDDEN`, 프로젝트 없음 `404 NOT_FOUND`.
+- `issueChannel=LIVE`면 **방송 소유자도 대조**한다 — live가 주는 `sellerId`와 로그인 사용자가 다르면 `403 FORBIDDEN`, 방송 없음 `404 NOT_FOUND`, `liveId` 누락 `400 INVALID_INPUT`. 프로젝트는 내 것인데 남의 방송에 쿠폰을 매달 수 있으면 그 방송 시청자에게 내 쿠폰이 뿌려진다.
 - `discountType='FREE_SHIPPING'`이면 `discountValue=0`으로 저장, 적용 시점에 해당 주문의 `shippingFee`가 할인액이 됨.
 - 발급 개수 전량이 최대 한도로 사용돼도 `budgetLimit`을 넘는 명백한 경우는 발급 시점에 `422 COUPON_BUDGET_EXCEEDED`로 차단한다. 그 외(정률·무료배송처럼 상한을 알 수 없는 경우)는 발급을 허용하고 적용 단계에서 예산 소진 시 노출 제외.
 - `couponCode`는 서버에서 생성(예: `PJT{projectId}-{랜덤4자리}`), 클라이언트가 지정하지 않음.
@@ -347,7 +357,9 @@ POST /api/v1/coupons/{couponCode}/claim
 
 - `coupons.remaining_quantity`를 `version` 낙관적 락으로 조건부 차감(`UPDATE ... WHERE remaining_quantity > 0 AND version = :v`) 후 `coupon_issuances` 생성 — 갱신 실패(동시 소진) 시 짧게 재시도, 최종 실패 시 `409 CONFLICT`("쿠폰이 모두 소진되었습니다").
 - `per_member_limit` 초과 발급 시도 → `422 COUPON_NOT_APPLICABLE`.
-- `issue_channel='LIVE'`인 쿠폰의 "방송 진행 중" 검증은 live-service 연동 전이라 **생략**한다. GENERAL/LIVE 구분 없이 동일 엔드포인트로 클레임한다.
+- `issue_channel='LIVE'`인 쿠폰은 **방송 중일 때만** 발급된다 — live 내부 API(`/internal/v1/lives/sessions/{sessionId}/status`)로 상태를 확인해 `LIVE`가 아니면 `422 COUPON_NOT_APPLICABLE`("진행 중인 방송이 아닙니다"). 세션이 없으면 같은 코드로 거부하고 정합성 경고 로그를 남긴다(order가 live에 없는 세션을 참조 중이라는 뜻).
+- **live 조회 실패(타임아웃/5xx)면 발급을 거부한다(`503`)**. 쿠폰은 통과/차단을 정하는 게이트라 못 믿으면 닫는다 — 주문 생성의 `liveSessionId`(꼬리표, 실패해도 주문 진행)와 정반대 정책이다.
+- `GENERAL` 쿠폰은 live 호출 자체가 발생하지 않는다. GENERAL/LIVE 구분 없이 동일 엔드포인트로 클레임한다.
 
 ---
 
@@ -611,6 +623,32 @@ GET /api/v1/projects/{projectId}/orders
 
 ---
 
+### 18. 방송 중 주문 건수·매출 집계
+
+```
+GET /api/v1/orders/live-stats?liveId={uuid}
+```
+
+**Auth Required**: O (판매자 — 해당 방송의 소유자만)
+
+**Response Body**
+
+```json
+{ "liveId": "0199c3a0-...", "paidCount": 12, "paidAmount": 480000,
+  "pendingCount": 3, "pendingAmount": 90000 }
+```
+
+**Validation / Business Rules**
+
+- `liveId`(방송 공개 UUID)로 live 내부 API를 조회해 `sessionId`·`sellerId`를 얻고, `sellerId`가 로그인 사용자와 다르면 `403 FORBIDDEN`. project-service는 거치지 않는다.
+- 세션 없음 `404 NOT_FOUND`, live 조회 실패 `503 DEPENDENCY_FAILURE`.
+- `paid*`는 `FUNDING_IN_PROGRESS`/`GOAL_ACHIEVED`, `pending*`는 `PENDING`. 취소·만료·환불 건은 어느 쪽에도 포함되지 않는다.
+- 금액은 **쿠폰 할인 반영 전 리워드 합산액**(배송비 제외) — 서포터 활동 목록(1번)과 같은 기준이다.
+- `pending`을 같이 내리는 이유: 방송 중 주문은 대부분 아직 `PENDING`(결제 만료 30분)이라 결제완료만 세면 방송 내내 0에 가깝게 보인다. 표시 방식은 FE가 정한다.
+- FE 폴링(3~5초)이 걸리는 경로라 집계는 쿼리 1개(`FILTER`)로 끝내고, `fundings(live_session_id)` 부분 인덱스(V11)로 풀스캔을 막는다.
+
+---
+
 ## 에러 코드 매핑
 
 `error-handling.md` 기준으로, 공통 코드는 `CommonErrorCode`를 그대로 쓰고 새 코드만 `OrderErrorCode`(도메인 전용, `implements ErrorCode`)에 추가합니다.
@@ -729,6 +767,7 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 
 ## 반영 이력
 
+- **[구현 동기화, 2026-09-24]** live ↔ order 연동(#149): 주문 생성이 `fundings.live_session_id`를 채우고(3번), 방송 중 주문 집계 API(18번)와 LIVE 쿠폰 생성 경로(8번)를 열었다. LIVE 쿠폰 클레임의 "방송 중" 검증(9번)도 실제 live 조회로 해소 — **조회 실패 시 쿠폰은 거부(게이트), 주문은 진행(꼬리표)**. `fundings(live_session_id)` 부분 인덱스 V11 추가.
 - **[구현 동기화, 2026-09-18]** payment-service 결제 연동 대응 + PM 쿠폰(16장) 정책 대조 결과 반영: `/internal/fundings/{fundingId}`·`/internal/orders/{orderId}` 응답에 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceId` 추가(11/12번 항목, PAYMENT-001 연동 블로커 해소), 쿠폰함 응답에 `minFundingAmount`/`perMemberLimit`/`targetScope`/`targetRefId` 추가(10번 항목), `CATEGORY`/`MAKER` 쿠폰 스코프 실제 매칭 구현(project-service 카테고리 노출 포함), preview/생성 요청에 `autoApplyBestCoupon`(최적 쿠폰 자동 추천, 16.3.4) 추가.
 - **[구현 동기화, 2026-09-17]** 현재 코드 기준으로 REST 누락분(재고 조회·내부 펀딩 API), 목록/상세 `finalAmount` 쿠폰 적용 차이, Kafka 실제 토픽·페이로드, ORDER-006 이벤트 구독, ORDER-015 리스너 미배선, ORDER-016 구현 완료, 배송비 3000원/만료 30분, `reserved_stock` 미사용, 쿠폰함 `PageResponse`, `notification.raised.v1` 발행을 반영.
 - **[신규 발견, 2026-09-07] `RewardCreated`/`RewardUpdated` 구독 필요**: project-service가 이미 아웃박스로 발행 중인 이벤트인데 order-service 쪽 구독 기능이 기능명세서에 없어 `OrderFunctionalSpec.md`에 ORDER-016으로 추가(GitHub 코드 확인: `RewardEventPublisher`, `RewardEventOutboxWorker`). **→ 구현 완료.** `@KafkaListener`가 `reward.created.v1`/`reward.updated.v1`을 구독하고, `inventories.initial_quantity` 대비 델타로 `available_stock`을 갱신한다.
@@ -740,6 +779,5 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 
 - **ORDER-015 Kafka 리스너 미배선**: `PaymentEventSyncService`는 있으나 `@KafkaListener`가 없어 결제완료/환불완료 이벤트를 소비하지 않는다. 붙이기 전까지 쿠폰 사용확정·`PENDING`→`FUNDING_IN_PROGRESS` 전이가 일어나지 않는다.
 - **재입고 알림 신청 기능 중복**: 위 7번 엔드포인트 참고 — member-service `MvpImplementationSummary.md`의 MEMBER-008과 소유권 정리 필요.
-- **LIVE 쿠폰 "방송 중" 검증**: claim 시 live-service 조회를 생략 중.
 - **`GET /api/v1/inventories/{rewardId}` 인증**: 게이트웨이 미라우팅으로 외부 차단만 하고, 서비스 간 호출에는 내부 키를 요구하지 않는다. project-service HTTP 클라이언트도 아직 Noop.
 - **`project.funding-deadline-reached.v1` 미발행**: ORDER-006 리스너는 있으나 project-service가 토픽을 발행하지 않아 성립/미달 판정이 트리거되지 않는다.

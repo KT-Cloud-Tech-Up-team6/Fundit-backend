@@ -47,9 +47,13 @@ public class Funding {
     /** 같은 키로 다른 요청 본문이 오는 것을 구분하기 위한 요청 해시. idempotencyKey가 없으면 null. */
     private final String idempotencyRequestHash;
 
+    /**
+     * {@code liveSessionId}는 방송 중 생성된 주문에만 붙는 꼬리표다(비-라이브 주문은 null).
+     * 게이트가 아니라 집계용 표식이라, 호출부가 live 조회에 실패하면 null을 넘기고 주문은 그대로 진행한다.
+     */
     public static Funding create(UUID memberId, UUID projectId, String projectTitle, ShippingAddress shippingAddress,
                                   long shippingFee, List<FundingLineItem> lineItems, Instant paymentExpiresAt,
-                                  String idempotencyKey, String idempotencyRequestHash) {
+                                  String idempotencyKey, String idempotencyRequestHash, Long liveSessionId) {
         return Funding.builder()
                 .publicId(UUID.randomUUID())
                 .memberId(memberId)
@@ -62,6 +66,7 @@ public class Funding {
                 .paymentExpiresAt(paymentExpiresAt)
                 .idempotencyKey(idempotencyKey)
                 .idempotencyRequestHash(idempotencyRequestHash)
+                .liveSessionId(liveSessionId)
                 .build();
     }
 

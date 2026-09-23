@@ -1,5 +1,8 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.common.error.DependencyFailureException;
+import com.fundit.order.application.live.LiveStatusClient;
+import com.fundit.order.application.order.LiveOrderStatsService;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderLineItemRequest;
@@ -12,6 +15,7 @@ import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.order.presentation.dto.OrderCancelResponse;
 import com.fundit.order.presentation.dto.OrderCreateResponse;
 import com.fundit.order.presentation.dto.OrderDetailResponse;
+import com.fundit.order.presentation.dto.LiveOrderStatsResponse;
 import com.fundit.order.presentation.dto.OrderLineItemRequestDto;
 import com.fundit.order.presentation.dto.OrderPreviewRequest;
 import com.fundit.order.presentation.dto.OrderPreviewResponse;
@@ -19,6 +23,8 @@ import com.fundit.order.presentation.dto.OrderSummaryResponse;
 import com.fundit.order.presentation.dto.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -51,10 +57,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderController {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderController.class);
+
     private final OrderPreviewService orderPreviewService;
     private final OrderCreateService orderCreateService;
     private final OrderQueryService orderQueryService;
     private final OrderCancelService orderCancelService;
+    private final LiveOrderStatsService liveOrderStatsService;
+    private final LiveStatusClient liveStatusClient;
 
     /** ORDER-002/010 — 결제금액 계산(미리보기, 쿠폰 적용/해제 포함). 비영속. */
     @PostMapping("/preview")
@@ -77,10 +87,29 @@ public class OrderController {
         String idempotencyRequestHash = idempotencyKey == null ? null : hashRequest(request);
         OrderCreateService.OrderCreateResult result = orderCreateService.create(user.id(), request.projectId(),
                 toLineItems(request.lineItems()), request.shippingAddress().toDomain(), request.couponCodes(),
-                request.resolveAutoApplyBestCoupon(), idempotencyKey, idempotencyRequestHash);
+                request.resolveAutoApplyBestCoupon(), idempotencyKey, idempotencyRequestHash,
+                findLiveSessionId(request.projectId()));
         HttpStatus status = result.replay() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status)
                 .body(OrderCreateResponse.from(result.funding(), result.finalAmount()));
+    }
+
+    /**
+     * 방송 중 생성된 주문에 붙일 세션 꼬리표. 트랜잭션에 들어가기 전에 여기서 조회한다 —
+     * 주문 생성 트랜잭션 안에서 외부 호출을 하면 DB 커넥션을 쥔 채 응답을 기다리게 된다.
+     *
+     * <p>조회 실패는 주문을 막지 않는다(확정 계약 5번): 라이브ID는 나중에 집계에 쓰는 꼬리표라
+     * 못 달아도 본 거래는 진행한다. 쿠폰(게이트)과 반대 정책이다.
+     */
+    private Long findLiveSessionId(UUID projectId) {
+        try {
+            return liveStatusClient.findActiveByProject(projectId)
+                    .map(LiveStatusClient.LiveStatus::sessionId)
+                    .orElse(null);
+        } catch (DependencyFailureException e) {
+            log.warn("live-service 조회 실패 — liveSessionId 없이 주문을 생성합니다. projectId={}", projectId, e);
+            return null;
+        }
     }
 
     /** 같은 Idempotency-Key에 다른 본문이 오는 것을 구분하기 위한 요청 해시(SHA-256). */
@@ -92,6 +121,18 @@ public class OrderController {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
         }
+    }
+
+    /**
+     * 방송 중 화면(FL_S_LV_STREAM)의 주문 건수·매출 지표. 판매자(방송 소유자) 전용이며,
+     * 소유권은 live-service가 주는 sellerId와 로그인 사용자를 대조해 판정한다.
+     *
+     * <p>{@code pending}(미결제)을 같이 내리는 이유: 방송 중 주문은 대부분 아직 PENDING이라
+     * 결제완료만 세면 방송 내내 0에 가깝게 보인다. 표시 방식은 FE가 고른다.
+     */
+    @GetMapping("/live-stats")
+    public LiveOrderStatsResponse liveStats(@LoginUser CurrentUser user, @RequestParam UUID liveId) {
+        return LiveOrderStatsResponse.from(liveId, liveOrderStatsService.getStats(user.id(), liveId));
     }
 
     /** ORDER-004 — 내 펀딩 참여 목록 조회. */

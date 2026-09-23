@@ -34,12 +34,15 @@ class CouponIssuanceServiceUnitTest {
     @InjectMocks
     private CouponIssuanceService couponIssuanceService;
 
+    private static final long LIVE_SESSION_ID = 42L;
+
     private Coupon coupon() {
         return Coupon.builder().id(1L).couponCode("LIVE-XY12").couponName("쿠폰")
                 .discountType(DiscountType.AMOUNT).discountValue(3_000)
                 .issuerType(IssuerType.PLATFORM).targetScope(CouponTargetScope.ALL)
                 .minFundingAmount(0).perMemberLimit(1).remainingQuantity(5)
-                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel(IssueChannel.LIVE).version(0).build();
+                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel(IssueChannel.LIVE)
+                .liveSessionId(LIVE_SESSION_ID).version(0).build();
     }
 
     @Test
@@ -114,4 +117,5 @@ class CouponIssuanceServiceUnitTest {
         // then
         assertThat(issuance).isEmpty();
     }
+
 }

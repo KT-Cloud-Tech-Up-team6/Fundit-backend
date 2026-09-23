@@ -1,5 +1,6 @@
 package com.fundit.order.infrastructure.persistence.funding;
 
+import com.fundit.order.infrastructure.persistence.funding.query.LiveOrderStatsProjection;
 import com.fundit.order.infrastructure.persistence.funding.query.SupporterActivityProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -57,6 +58,34 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
             + "group by f.memberId, f.createdAt "
             + "order by f.createdAt desc")
     Page<SupporterActivityProjection> findSupporterActivity(@Param("projectId") UUID projectId, Pageable pageable);
+
+    /**
+     * 방송 중 화면의 주문 건수·매출 집계. 방송 중 3~5초 폴링이 걸리는 경로라 쿼리는 <b>1개</b>로
+     * 끝낸다 — 결제완료/미결제를 {@code FILTER}로 한 번에 센다.
+     *
+     * <p>금액은 쿠폰 할인 반영 전 리워드 합산액이다({@link #findSupporterActivity}와 같은 기준,
+     * 배송비 제외). 취소(CANCELLED_BY_MEMBER)·만료(PAYMENT_EXPIRED)·환불 건은 두 FILTER 어디에도
+     * 걸리지 않아 자동으로 빠진다.
+     *
+     * <p>{@code count(DISTINCT f.id)}인 이유: 주문 1건에 리워드가 여러 줄이면 조인 후 행이 늘어나
+     * 그냥 {@code count(*)}로 세면 리워드 줄 수를 주문 건수로 내보내게 된다. 리워드가 없는 주문도
+     * 건수에선 빠지지 않도록 LEFT JOIN을 쓴다.
+     *
+     * <p>별칭을 {@code "paidCount"}처럼 큰따옴표로 감싼 이유: 따옴표가 없으면 PostgreSQL이 컬럼
+     * 라벨을 소문자로 내려서(paidcount) 인터페이스 프로젝션이 매핑할 속성을 찾지 못한다.
+     */
+    @Query(value = """
+            SELECT count(DISTINCT f.id) FILTER (WHERE f.status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')) AS "paidCount",
+                   coalesce(sum(li.unit_price * li.quantity)
+                            FILTER (WHERE f.status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')), 0) AS "paidAmount",
+                   count(DISTINCT f.id) FILTER (WHERE f.status = 'PENDING') AS "pendingCount",
+                   coalesce(sum(li.unit_price * li.quantity)
+                            FILTER (WHERE f.status = 'PENDING'), 0) AS "pendingAmount"
+            FROM fundings f
+            LEFT JOIN funding_line_items li ON li.funding_id = f.id
+            WHERE f.live_session_id = :liveSessionId
+            """, nativeQuery = true)
+    LiveOrderStatsProjection findLiveOrderStats(@Param("liveSessionId") Long liveSessionId);
 
     /** cross-service ID 통일(#69) 백필 대상 — 레거시 Long project_id는 있지만 UUID가 아직 안 채워진 행. */
     List<FundingJpaEntity> findByProjectIdIsNotNullAndProjectPublicIdIsNull();

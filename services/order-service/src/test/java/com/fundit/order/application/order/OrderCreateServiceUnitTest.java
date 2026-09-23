@@ -85,7 +85,7 @@ class OrderCreateServiceUnitTest {
         // when
         OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 2, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false, null, null);
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false, null, null, null);
 
         // then
         assertThat(result.funding()).isEqualTo(savedFunding);
@@ -115,7 +115,7 @@ class OrderCreateServiceUnitTest {
 
         // when
         orderCreateService.create(MEMBER_ID, PROJECT_ID, List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null);
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null, null);
 
         // then
         ArgumentCaptor<Funding> captor = ArgumentCaptor.forClass(Funding.class);
@@ -141,7 +141,7 @@ class OrderCreateServiceUnitTest {
         OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 2, null)),
                 new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false,
-                "retry-key-1", "hash-1");
+                "retry-key-1", "hash-1", null);
 
         // then
         assertThat(result.funding()).isEqualTo(existing);

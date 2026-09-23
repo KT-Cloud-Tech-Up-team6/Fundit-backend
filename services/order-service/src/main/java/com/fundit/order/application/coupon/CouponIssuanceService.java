@@ -30,7 +30,10 @@ public class CouponIssuanceService {
     private final CouponRepository couponRepository;
     private final CouponIssuanceRepository couponIssuanceRepository;
 
-    /** ORDER-012 — 소비자가 쿠폰코드로 직접 "받기"를 요청한다. */
+    /**
+     * ORDER-012 — 소비자가 쿠폰코드로 직접 "받기"를 요청한다. LIVE 방송 여부 판정은 외부 호출이라
+     * 트랜잭션 밖({@link CouponClaimService})에서 끝내고 들어온다 — 여기는 만료·한도·수량만 본다.
+     */
     @Transactional
     public CouponIssuance claim(UUID memberId, String couponCode) {
         Coupon coupon = couponRepository.findByCouponCode(couponCode)
@@ -43,9 +46,6 @@ public class CouponIssuanceService {
         if (alreadyIssued >= coupon.getPerMemberLimit()) {
             throw new BusinessException(OrderErrorCode.COUPON_NOT_APPLICABLE, "1인 발급 한도를 초과했습니다.");
         }
-        // issue_channel=LIVE 쿠폰의 "방송 진행 중" 검증은 live-service 연동 전이라 생략한다
-        // [가정 — live-service 동기 조회 붙는 대로 후속 보강 필요, OrderDomainApiSpec.md #9 참고].
-
         return issueOrThrow(coupon, memberId);
     }
 

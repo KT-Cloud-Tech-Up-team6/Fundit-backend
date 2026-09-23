@@ -6,6 +6,8 @@ import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.domain.OrderErrorCode;
 import com.fundit.order.domain.coupon.CouponRepository;
 import com.fundit.order.domain.coupon.DiscountType;
+import com.fundit.order.domain.coupon.DropType;
+import com.fundit.order.domain.coupon.IssueChannel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,7 +39,8 @@ class MakerCouponIssueServiceUnitExceptionTest {
     private MakerCouponIssueCommand command(DiscountType discountType, long discountValue, Long maxDiscountAmount,
                                              Long budgetLimit, int quantity) {
         return new MakerCouponIssueCommand(PROJECT_ID, "쿠폰", discountType, discountValue, maxDiscountAmount,
-                budgetLimit, quantity, 0L, 1, Instant.now().plus(30, ChronoUnit.DAYS));
+                budgetLimit, quantity, 0L, 1, Instant.now().plus(30, ChronoUnit.DAYS),
+                IssueChannel.GENERAL, null, null, null);
     }
 
     @Test
@@ -75,5 +78,21 @@ class MakerCouponIssueServiceUnitExceptionTest {
                 command(DiscountType.AMOUNT, 1_000, null, 100_000L, 200)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.COUPON_BUDGET_EXCEEDED));
+    }
+
+    @Test
+    void 남의_방송에_LIVE_쿠폰을_매달면_FORBIDDEN_예외가_발생한다() {
+        // given — 프로젝트는 내 것이지만 방송은 남의 것. 통과시키면 남의 시청자에게 내 쿠폰이 뿌려진다.
+        UUID sellerId = UUID.randomUUID();
+        MakerCouponIssueCommand liveCommand = new MakerCouponIssueCommand(PROJECT_ID, "라이브 특가",
+                DiscountType.AMOUNT, 3_000L, null, null, 100, 0L, 1,
+                Instant.now().plus(30, ChronoUnit.DAYS),
+                IssueChannel.LIVE, DropType.FIRST_COME, 42L, UUID.randomUUID());
+        when(projectOwnershipClient.findSellerId(PROJECT_ID)).thenReturn(Optional.of(sellerId));
+
+        // when & then
+        assertThatThrownBy(() -> makerCouponIssueService.issue(sellerId, liveCommand))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
     }
 }
