@@ -1,7 +1,7 @@
 package com.fundit.order.presentation.controller;
 
 import com.fundit.order.application.coupon.CouponBoxQueryService;
-import com.fundit.order.application.coupon.CouponIssuanceService;
+import com.fundit.order.application.coupon.CouponClaimService;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponRepository;
@@ -43,7 +43,7 @@ class CouponControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private CouponIssuanceService couponIssuanceService;
+    private CouponClaimService couponClaimService;
     @MockitoBean
     private CouponBoxQueryService couponBoxQueryService;
     @MockitoBean
@@ -62,7 +62,7 @@ class CouponControllerTest {
         // given
         UUID memberId = UUID.randomUUID();
         CouponIssuance issuance = CouponIssuance.issue("LIVE-XY12", memberId);
-        when(couponIssuanceService.claim(memberId, "LIVE-XY12")).thenReturn(issuance);
+        when(couponClaimService.claim(memberId, "LIVE-XY12")).thenReturn(issuance);
         when(couponRepository.findByCouponCode("LIVE-XY12")).thenReturn(java.util.Optional.of(coupon()));
 
         // when & then

@@ -3,7 +3,7 @@ package com.fundit.order.presentation.controller;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.order.application.coupon.CouponBoxQueryService;
-import com.fundit.order.application.coupon.CouponIssuanceService;
+import com.fundit.order.application.coupon.CouponClaimService;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceStatus;
@@ -28,14 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class CouponController {
 
-    private final CouponIssuanceService couponIssuanceService;
+    private final CouponClaimService couponClaimService;
     private final CouponBoxQueryService couponBoxQueryService;
     private final CouponRepository couponRepository;
 
     /** ORDER-012 — 쿠폰 발급받기(소비자 능동 클레임). */
     @PostMapping("/{couponCode}/claim")
     public CouponClaimResponse claim(@LoginUser CurrentUser user, @PathVariable String couponCode) {
-        CouponIssuance issuance = couponIssuanceService.claim(user.id(), couponCode);
+        CouponIssuance issuance = couponClaimService.claim(user.id(), couponCode);
         Coupon coupon = couponRepository.findByCouponCode(couponCode)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         return CouponClaimResponse.from(issuance, coupon);

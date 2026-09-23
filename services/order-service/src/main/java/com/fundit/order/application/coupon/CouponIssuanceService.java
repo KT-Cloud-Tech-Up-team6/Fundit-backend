@@ -2,10 +2,8 @@ package com.fundit.order.application.coupon;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
-import com.fundit.order.application.live.LiveStatusClient;
 import com.fundit.order.domain.OrderErrorCode;
 import com.fundit.order.domain.coupon.Coupon;
-import com.fundit.order.domain.coupon.IssueChannel;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceRepository;
 import com.fundit.order.domain.coupon.CouponRepository;
@@ -29,14 +27,13 @@ public class CouponIssuanceService {
 
     private static final Logger log = LoggerFactory.getLogger(CouponIssuanceService.class);
 
-    /** live-service {@code LiveSession.status}의 "방송 중" 값. 문자열인 이유는 서비스 간 계약이기 때문. */
-    private static final String LIVE_STATUS = "LIVE";
-
     private final CouponRepository couponRepository;
     private final CouponIssuanceRepository couponIssuanceRepository;
-    private final LiveStatusClient liveStatusClient;
 
-    /** ORDER-012 — 소비자가 쿠폰코드로 직접 "받기"를 요청한다. */
+    /**
+     * ORDER-012 — 소비자가 쿠폰코드로 직접 "받기"를 요청한다. LIVE 방송 여부 판정은 외부 호출이라
+     * 트랜잭션 밖({@link CouponClaimService})에서 끝내고 들어온다 — 여기는 만료·한도·수량만 본다.
+     */
     @Transactional
     public CouponIssuance claim(UUID memberId, String couponCode) {
         Coupon coupon = couponRepository.findByCouponCode(couponCode)
@@ -49,8 +46,6 @@ public class CouponIssuanceService {
         if (alreadyIssued >= coupon.getPerMemberLimit()) {
             throw new BusinessException(OrderErrorCode.COUPON_NOT_APPLICABLE, "1인 발급 한도를 초과했습니다.");
         }
-        requireLiveOngoing(coupon);
-
         return issueOrThrow(coupon, memberId);
     }
 
@@ -83,31 +78,6 @@ public class CouponIssuanceService {
             log.info("자동 발급 중단(소진). couponCode={}, memberId={}", couponCode, memberId);
             return Optional.empty();
         }
-    }
-
-    /**
-     * LIVE 쿠폰은 방송 중일 때만 받을 수 있다. GENERAL 쿠폰은 live 호출 자체가 발생하지 않는다.
-     *
-     * <p>쿠폰은 통과/차단을 정하는 <b>게이트</b>라, live 조회 실패(타임아웃/5xx)는 예외를 그대로
-     * 전파해 503으로 끝낸다(확정 계약 4번) — 못 믿으면 닫는다. 주문의 라이브ID(꼬리표)와 반대다.
-     */
-    private void requireLiveOngoing(Coupon coupon) {
-        if (coupon.getIssueChannel() != IssueChannel.LIVE) {
-            return;
-        }
-        if (coupon.getLiveSessionId() == null) {
-            log.warn("LIVE 쿠폰에 liveSessionId가 없습니다. couponCode={}", coupon.getCouponCode());
-            throw new BusinessException(OrderErrorCode.COUPON_NOT_APPLICABLE, "진행 중인 방송이 아닙니다.");
-        }
-        Optional<LiveStatusClient.LiveStatus> live = liveStatusClient.findBySessionId(coupon.getLiveSessionId());
-        if (live.isEmpty()) {
-            // live에 없는 세션을 order가 참조 중이라는 뜻 — 데이터 정합성 문제라 경고로 남긴다.
-            log.warn("존재하지 않는 방송 세션을 참조하는 LIVE 쿠폰입니다. couponCode={}, liveSessionId={}",
-                    coupon.getCouponCode(), coupon.getLiveSessionId());
-        } else if (LIVE_STATUS.equals(live.get().status())) {
-            return;
-        }
-        throw new BusinessException(OrderErrorCode.COUPON_NOT_APPLICABLE, "진행 중인 방송이 아닙니다.");
     }
 
     private CouponIssuance issueOrThrow(Coupon coupon, UUID memberId) {
