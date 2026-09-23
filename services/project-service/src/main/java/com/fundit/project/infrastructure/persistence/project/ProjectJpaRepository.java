@@ -25,6 +25,11 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
     /**
      * statuses는 항상 비어있지 않은 값으로 넘긴다(status 미지정 시 서비스 계층에서 전체 상태를
      * 채워 넘김) — JPA 파라미터를 collection IN절과 null 체크 양쪽에 걸쳐 쓰는 걸 피하기 위함.
+     *
+     * <p>q(검색어) 유무로 쿼리를 분리한다 — {@code (:q is null or lower(p.title) like lower(concat(...)))}
+     * 형태는 PostgreSQL이 {@code concat} 표현식 타입을 플래닝 시점에 정해야 해서 q가 null이면
+     * bytea로 잘못 추론돼 {@code lower(bytea) does not exist}로 500이 난다(런타임 값과 무관하게
+     * 쿼리 플래닝 시점 타입 추론 문제라 null 가드로 못 막음). q 없는 쪽은 concat을 아예 쓰지 않는다.
      */
     @Query("""
             select p.id as id, p.publicId as projectId, p.projectDisplayCode as projectDisplayCode, p.title as title,
@@ -34,11 +39,25 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
             from ProjectJpaEntity p
             where p.sellerId = :sellerId and p.deletedAt is null
               and p.status in :statuses
-              and (:q is null or lower(p.title) like lower(concat('%', :q, '%')))
             order by p.createdAt desc
             """)
     Page<ProjectListProjection> findList(@Param("sellerId") UUID sellerId, @Param("statuses") List<String> statuses,
-                                          @Param("q") String q, Pageable pageable);
+                                          Pageable pageable);
+
+    @Query("""
+            select p.id as id, p.publicId as projectId, p.projectDisplayCode as projectDisplayCode, p.title as title,
+                   p.coverImageUrl as thumbnailUrl, p.status as status, p.createdAt as createdAt,
+                   p.fundingStartAt as fundingStartAt, p.fundingDeadline as fundingDeadline,
+                   p.goalAmount as goalAmount, p.categoryMajor as categoryMajor, p.categoryMinor as categoryMinor
+            from ProjectJpaEntity p
+            where p.sellerId = :sellerId and p.deletedAt is null
+              and p.status in :statuses
+              and lower(p.title) like lower(concat('%', :q, '%'))
+            order by p.createdAt desc
+            """)
+    Page<ProjectListProjection> findListByTitle(@Param("sellerId") UUID sellerId,
+                                                 @Param("statuses") List<String> statuses,
+                                                 @Param("q") String q, Pageable pageable);
 
     @Query("""
             select p.status as status, count(p) as count
