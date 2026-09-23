@@ -71,6 +71,10 @@ public class FundingJpaEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
+    /** #129 — fulfillment-service shipment.shipped.v1 구독으로 채운다. NULL=발송 대기. */
+    @Column(name = "shipped_at")
+    private Instant shippedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

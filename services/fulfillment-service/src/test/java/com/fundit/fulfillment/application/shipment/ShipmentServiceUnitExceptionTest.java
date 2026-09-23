@@ -2,6 +2,7 @@ package com.fundit.fulfillment.application.shipment;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher;
 import com.fundit.fulfillment.application.funding.OrderFundingClient;
 import com.fundit.fulfillment.application.funding.OrderFundingClient.FundingSnapshot;
 import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
@@ -31,6 +32,8 @@ class ShipmentServiceUnitExceptionTest {
     private ProjectOwnershipClient projectOwnershipClient;
     @Mock
     private OrderFundingClient orderFundingClient;
+    @Mock
+    private FulfillmentDomainEventPublisher domainEventPublisher;
 
     private ShipmentService service;
 
@@ -39,7 +42,7 @@ class ShipmentServiceUnitExceptionTest {
 
     @BeforeEach
     void setUp() {
-        service = new ShipmentService(shipmentRepository, projectOwnershipClient, orderFundingClient);
+        service = new ShipmentService(shipmentRepository, projectOwnershipClient, orderFundingClient, domainEventPublisher);
     }
 
     @Test

@@ -59,6 +59,7 @@ reward.create.v1           ❌  과거형 아님
 | `project.funding-deadline-reached.v1` | project | order | `projectId` |
 | `project.funding-reward-stats-updated.v1` | order | project (판매자 펀딩현황 rewardStats) | `projectId` |
 | `shipping.completed.v1` | fulfillment | payment (정산) | `fundingId` |
+| `shipment.shipped.v1` | fulfillment | order (판매자 발송목록 발송상태 필터·건수 캐시) | `fundingId` |
 | `payment.reconciliation-required.v1` | 미정 | payment | `fundingId` |
 | `live.started.v1` | live | notification (시작 알림) | `liveId` |
 | `live.ended.v1` | live | AI 파트(질문요약·하이라이트 생성 트리거) | `liveId` |

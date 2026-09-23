@@ -4,6 +4,8 @@ import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
+import com.fundit.order.domain.funding.SellerOrderShippingCounts;
+import com.fundit.order.domain.funding.ShippingFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -86,6 +88,24 @@ public class FundingPersistenceAdapter implements FundingRepository {
     public List<Funding> findGoalAchievedByProjectId(UUID projectId) {
         return fundingJpaRepository.findByProjectPublicIdAndStatusIn(projectId, List.of(FundingStatus.GOAL_ACHIEVED.name()))
                 .stream().map(this::hydrate).toList();
+    }
+
+    @Override
+    public Page<Funding> findSellerOrders(UUID projectId, ShippingFilter shippingFilter, String q, Pageable pageable) {
+        return fundingJpaRepository.findSellerOrders(projectId, shippingFilter.name(), q, pageable).map(this::hydrate);
+    }
+
+    @Override
+    public SellerOrderShippingCounts countSellerOrdersByShippingStatus(UUID projectId) {
+        String status = FundingStatus.GOAL_ACHIEVED.name();
+        long waiting = fundingJpaRepository.countByProjectPublicIdAndStatusAndShippedAtIsNull(projectId, status);
+        long shipped = fundingJpaRepository.countByProjectPublicIdAndStatusAndShippedAtIsNotNull(projectId, status);
+        return new SellerOrderShippingCounts(waiting, shipped);
+    }
+
+    @Override
+    public void markShipped(UUID fundingId, Instant shippedAt) {
+        fundingJpaRepository.markShippedIfAbsent(fundingId, shippedAt);
     }
 
     private Funding hydrate(FundingJpaEntity entity) {

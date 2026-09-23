@@ -1,5 +1,7 @@
 package com.fundit.fulfillment.application.shipment;
 
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShipmentShippedEvent;
 import com.fundit.fulfillment.application.funding.OrderFundingClient;
 import com.fundit.fulfillment.application.funding.OrderFundingClient.FundingSnapshot;
 import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +32,8 @@ class ShipmentServiceUnitTest {
     private ProjectOwnershipClient projectOwnershipClient;
     @Mock
     private OrderFundingClient orderFundingClient;
+    @Mock
+    private FulfillmentDomainEventPublisher domainEventPublisher;
 
     private ShipmentService service;
 
@@ -37,7 +42,7 @@ class ShipmentServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        service = new ShipmentService(shipmentRepository, projectOwnershipClient, orderFundingClient);
+        service = new ShipmentService(shipmentRepository, projectOwnershipClient, orderFundingClient, domainEventPublisher);
     }
 
     @Test
@@ -54,6 +59,8 @@ class ShipmentServiceUnitTest {
         // then
         assertThat(result.getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
         assertThat(result.getCarrier()).isEqualTo("CJ대한통운");
+        verify(domainEventPublisher).publishShipmentShipped(new ShipmentShippedEvent(
+                UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123")));
     }
 
     @Test

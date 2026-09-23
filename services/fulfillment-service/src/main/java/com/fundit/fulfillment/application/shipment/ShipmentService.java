@@ -2,6 +2,8 @@ package com.fundit.fulfillment.application.shipment;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher;
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShipmentShippedEvent;
 import com.fundit.fulfillment.application.funding.OrderFundingClient;
 import com.fundit.fulfillment.application.funding.OrderFundingClient.FundingSnapshot;
 import com.fundit.fulfillment.application.project.ProjectOwnershipClient;
@@ -26,8 +28,13 @@ public class ShipmentService {
     private final ShipmentRepository shipmentRepository;
     private final ProjectOwnershipClient projectOwnershipClient;
     private final OrderFundingClient orderFundingClient;
+    private final FulfillmentDomainEventPublisher domainEventPublisher;
 
-    /** FULFILLMENT-006 — API #5. */
+    /**
+     * FULFILLMENT-006 — API #5. {@code registerShipment}가 이미 SHIPPED 이상이면 예외를 던지므로
+     * (`Shipment.registerShipment`), 이 메서드가 성공적으로 끝나는 건 PREPARING→SHIPPED 전이가
+     * 실제로 일어난 경우뿐이다 — 매 호출마다 이벤트를 중복 발행할 걱정 없이 그대로 발행한다.
+     */
     @Transactional
     public Shipment registerShipment(UUID projectId, UUID fundingId, UUID sellerId, String carrier,
                                       String trackingNumber) {
@@ -37,7 +44,9 @@ public class ShipmentService {
         Shipment shipment = shipmentRepository.findByFundingId(fundingId)
                 .orElseGet(() -> Shipment.create(fundingId, projectId));
         shipment.registerShipment(carrier, trackingNumber);
-        return shipmentRepository.save(shipment);
+        Shipment saved = shipmentRepository.save(shipment);
+        domainEventPublisher.publishShipmentShipped(new ShipmentShippedEvent(fundingId, projectId));
+        return saved;
     }
 
     /**

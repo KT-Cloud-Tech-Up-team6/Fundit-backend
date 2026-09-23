@@ -1,5 +1,6 @@
 package com.fundit.fulfillment.infrastructure.event;
 
+import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShipmentShippedEvent;
 import com.fundit.fulfillment.application.funding.FulfillmentDomainEventPublisher.ShippingCompletedEvent;
 
 import java.time.Instant;
@@ -20,4 +21,11 @@ public interface FulfillmentDomainEventTransport {
      * outboxId는 소비 측 멱등의 근거가 되는 eventId("fulfillment:{outboxId}")의 재료다.
      */
     void sendShippingCompleted(ShippingCompletedEvent event, UUID sellerId, Instant completedAt, Long outboxId);
+
+    /**
+     * order-service는 sellerId 없이 fundingId(public_id)만으로 자기 fundings 행을 갱신할 수 있어
+     * {@link #sendShippingCompleted}와 달리 sellerId 조회가 필요 없다. outboxId는 소비 측 멱등의
+     * 근거가 되는 eventId("fulfillment:{outboxId}")의 재료다.
+     */
+    void sendShipmentShipped(ShipmentShippedEvent event, Instant shippedAt, Long outboxId);
 }

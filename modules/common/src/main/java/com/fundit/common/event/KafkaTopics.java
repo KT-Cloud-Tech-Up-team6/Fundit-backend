@@ -96,6 +96,13 @@ public final class KafkaTopics {
     /** 배송 완료. 발행: fulfillment / 구독: payment(최종 정산). 파티션 키: fundingId. */
     public static final String SHIPPING_COMPLETED = "shipping.completed.v1";
 
+    /**
+     * 발송 시작(PREPARING→SHIPPED, 판매자 발송정보 등록 시점). 발행: fulfillment / 구독: order
+     * (판매자 발송정보 목록의 발송상태 필터·건수 캐시 갱신). 파티션 키: fundingId.
+     * {@link #SHIPPING_COMPLETED}(SHIPPED→DELIVERED, 정산 트리거)와는 다른 전이 시점이다.
+     */
+    public static final String SHIPMENT_SHIPPED = "shipment.shipped.v1";
+
     /** 결제 대사 필요. 구독: payment. <b>발행처 미정</b> — 확정 시 이 주석을 채울 것. 파티션 키: fundingId. */
     public static final String PAYMENT_RECONCILIATION_REQUIRED = "payment.reconciliation-required.v1";
 

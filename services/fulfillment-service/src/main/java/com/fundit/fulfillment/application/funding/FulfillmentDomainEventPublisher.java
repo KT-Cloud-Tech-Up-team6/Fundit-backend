@@ -13,6 +13,16 @@ public interface FulfillmentDomainEventPublisher {
     /** FULFILLMENT-007 — 배송완료 시점, payment-service PAYMENT-014(최종정산) 트리거. */
     void publishShippingCompleted(ShippingCompletedEvent event);
 
+    /**
+     * FULFILLMENT-006 — 발송정보 등록(PREPARING→SHIPPED) 시점, order-service 판매자 발송목록의
+     * 발송상태 필터·건수 캐시 갱신 트리거. {@link #publishShippingCompleted}(SHIPPED→DELIVERED)와는
+     * 다른 전이 시점이다.
+     */
+    void publishShipmentShipped(ShipmentShippedEvent event);
+
     record ShippingCompletedEvent(UUID fundingId, UUID projectId) {
+    }
+
+    record ShipmentShippedEvent(UUID fundingId, UUID projectId) {
     }
 }

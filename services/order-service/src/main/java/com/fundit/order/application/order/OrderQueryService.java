@@ -8,6 +8,8 @@ import com.fundit.order.application.fulfillment.FulfillmentStatusClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
+import com.fundit.order.domain.funding.SellerOrderShippingCounts;
+import com.fundit.order.domain.funding.ShippingFilter;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaEntity;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,16 +64,29 @@ public class OrderQueryService {
     }
 
     /**
-     * 판매자 발송 목록 — 소유 프로젝트의 성립(GOAL_ACHIEVED) 참여 건을 발송 대상으로 반환한다.
-     * 프로젝트 소유권은 project-service 조회로 검증한다(S4).
+     * #129 — 판매자 발송 목록. 소유 프로젝트의 성립(GOAL_ACHIEVED) 참여 건을 검색어·발송상태
+     * 필터·페이지네이션으로 조회한다. 프로젝트 소유권은 project-service 조회로 검증한다(S4).
      */
-    public List<Funding> listForSeller(UUID sellerId, UUID projectId) {
+    public Page<Funding> listForSeller(UUID sellerId, UUID projectId, ShippingFilter shippingFilter, String q,
+                                        Pageable pageable) {
+        verifyProjectOwnership(sellerId, projectId);
+        ShippingFilter filter = shippingFilter == null ? ShippingFilter.ALL : shippingFilter;
+        String keyword = (q == null || q.isBlank()) ? null : q.trim();
+        return fundingRepository.findSellerOrders(projectId, filter, keyword, pageable);
+    }
+
+    /** #129 — 판매자 발송 목록 탭(전체/발송대기/발송완료) 건수. */
+    public SellerOrderShippingCounts sellerOrderShippingCounts(UUID sellerId, UUID projectId) {
+        verifyProjectOwnership(sellerId, projectId);
+        return fundingRepository.countSellerOrdersByShippingStatus(projectId);
+    }
+
+    private void verifyProjectOwnership(UUID sellerId, UUID projectId) {
         UUID actualSellerId = projectOwnershipClient.findSellerId(projectId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (!actualSellerId.equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
-        return fundingRepository.findGoalAchievedByProjectId(projectId);
     }
 
     /** orderId(public_id) 소유권 서버 검증 — 타인 주문 접근 시 FORBIDDEN(S4). */
