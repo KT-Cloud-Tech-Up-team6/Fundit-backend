@@ -18,8 +18,8 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 >
 > **외부 연동 2개는 스텁이다.** 자격증명·계약이 확정되면 클래스 하나씩 추가하고 프로퍼티만 바꾼다.
 > - `live.ivs.mode=stub` → `StubIvsClient`. 실제는 `AwsIvsClient`(AWS SDK ivs·ivschat, 의존성은 이미 있음) —
->   **채팅에 메시지를 쓰는 `SendMessage`류가 아직 없다.** AI 추천답변 `SEND`가 지금 저장·조회까지만
->   하는 이유가 이것이다(아래 "AI 추천답변은 자동 게시하지 않는다" 참고).
+>   채팅 게시는 `SendMessage`(WebSocket, 클라이언트 전용)가 아니라 REST인 `SendEvent`로 한다
+>   (`IvsClient.sendChatEvent`) — EVENT 타입으로 도착해 FE가 렌더링해야 보인다.
 > - `live.ai.mode=stub` → `StubAiClient`, `=http` → `HttpAiClient`. **Q&A/FAQ는 AI팀 실계약(v1,
 >   2026-09-17 E2E 검증 완료)으로 연동 완료됐다** — `prepare`/`updateContext`/`submitComments`/
 >   `faq`/`faqComments`/`unanswered`/`unansweredDetail`/`registerSellerAnswer`/`summary`.
@@ -64,7 +64,7 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 - **AI 실패가 방송을 막지 않는다**: 큐시트·대표질문·하이라이트 API가 실패해도 송출과 채팅은 정상이어야 한다(`PRD` 6.4.4.2). AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 만들지 말 것.
 - **AI는 우리가 조립한 컨텍스트만 받는다**: 흐름은 `FE → BE → AI → BE → FE`이고 FE는 AI 서버를 직접 부르지 않는다(협의 확정). 호출 구현은 `auth-service`의 `PortOneRestClient` 패턴을 그대로 쓴다 — `RestClient` + connect/read 타임아웃 명시, 실패는 `DependencyFailureException`, 응답은 구조 검증 후 사용(S7). 기본 타임아웃을 그대로 두면 AI가 느려질 때 방송 화면이 같이 멈춘다.
 - **자동 생성물은 비공개로 시작한다**: 하이라이트는 `is_public=false`가 기본이고 판매자가 확정해야 소비자에게 보인다(`PRD` 6.6.3). 기본값을 TRUE로 바꾸면 검수 전 내용이 그대로 새어나간다.
-- **AI 추천답변은 자동 게시하지 않는다**: `GENERATE`로 초안만 만들고 판매자가 `SEND`해야 `registerSellerAnswer`에 등록되고 `live_question_summaries`가 갱신된다. **`SEND`가 지금 실제 채팅에 게시하지는 않는다** — `IvsClient`에 `SendMessage`류가 없어서다(위 "외부 연동 2개는 스텁이다" 참고). 채팅 게시는 `AwsIvsClient`가 생기는 별도 작업으로 미뤄졌다. 환불·결제·배송 등 **정책 항목은 요약·재구성하지 않고 등록된 원문 그대로** 내보낸다(`PRD` 6.4.3).
+- **AI 추천답변은 자동 게시하지 않는다**: `GENERATE`로 초안만 만들고 판매자가 `SEND`해야 `registerSellerAnswer`에 등록되고 `live_question_summaries`가 갱신된 뒤 BE가 `SendEvent`(`seller-answer`)로 채팅방에 게시한다 — 게시 실패는 답변 저장을 막지 않는다. 판매자 화면이 직접 게시하면 중복되므로 FE는 EVENT만 렌더링한다. 환불·결제·배송 등 **정책 항목은 요약·재구성하지 않고 등록된 원문 그대로** 내보낸다(`PRD` 6.4.3).
 - **근거 없는 답변을 만들지 않는다**: 상품 질문의 근거 범위는 리워드 기본 정보와 상세페이지뿐이다. AI가 근거를 못 찾으면 답변을 생성하지 않고 미답변으로 분류해 판매자에게 넘긴다 — 판매자 화면은 `referenceChunks`가 빈 것으로 이 상태를 안다.
 - **AI 컨텍스트는 값이 실제로 바뀌는 지점에서만 갱신한다**: `prepare`는 방송 시작 시 1회(상품이 바뀌면 재호출), `updateContext`는 방송 설정 저장 시. 둘 다 트랜잭션 커밋 후에 호출해 AI 실패·지연이 방송 시작/설정 저장 자체를 막지 않는다. 폴링은 두지 않는다(YAGNI).
 - **쿠폰 재고는 원자적 UPDATE로 차감한다**: `UPDATE ... SET remaining_quantity = remaining_quantity - 1 WHERE id = ? AND remaining_quantity > 0`. 조회 후 차감하면 방송 중 동시 요청에서 초과 발급이 난다.
