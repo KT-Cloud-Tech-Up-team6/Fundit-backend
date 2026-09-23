@@ -35,6 +35,7 @@ class HttpOrderSummaryClientUnitTest {
 
     @Test
     void 내부API키를_붙여_주문_요약을_배치_조회한다() {
+        // given
         UUID orderId = UUID.randomUUID();
         server.expect(requestTo("http://localhost:8084/internal/orders/order-summaries?orderIds=" + orderId))
                 .andExpect(method(GET))
@@ -45,8 +46,10 @@ class HttpOrderSummaryClientUnitTest {
                               "options": [{"optionValueId": 100, "optionGroupName": "색상", "optionValue": "블랙"}]}]}]
                         """.formatted(orderId), MediaType.APPLICATION_JSON));
 
+        // when
         Map<UUID, OrderSummaryClient.OrderSummary> result = client.fetchBatch(List.of(orderId));
 
+        // then
         assertThat(result.get(orderId).projectTitle()).isEqualTo("프로젝트");
         assertThat(result.get(orderId).lineItems()).hasSize(1);
         assertThat(result.get(orderId).lineItems().get(0).options())

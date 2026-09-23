@@ -44,8 +44,10 @@ class SimpleChangeOfMindRefundServiceUnitExceptionTest {
 
     @Test
     void 완료된_결제가_없으면_NOT_FOUND다() {
+        // given
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
 
+        // when & then
         assertThatThrownBy(() -> simpleChangeOfMindRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
@@ -54,10 +56,12 @@ class SimpleChangeOfMindRefundServiceUnitExceptionTest {
 
     @Test
     void 타인_결제면_FORBIDDEN이다() {
+        // given
         Payment payment = Payment.create(FUNDING_ID, UUID.randomUUID(), "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
 
+        // when & then
         assertThatThrownBy(() -> simpleChangeOfMindRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
@@ -66,12 +70,14 @@ class SimpleChangeOfMindRefundServiceUnitExceptionTest {
 
     @Test
     void 이미_발송됐으면_ALREADY_SHIPPED다() {
+        // given
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-1", 89_000L, "주문", null, "idem");
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
         when(shippingStatusClient.fetch(FUNDING_ID))
                 .thenReturn(new ShippingStatusClient.ShippingStatus(true, false, null, null));
 
+        // when & then
         assertThatThrownBy(() -> simpleChangeOfMindRefundService.requestCancel(MEMBER_ID, FUNDING_ID))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())

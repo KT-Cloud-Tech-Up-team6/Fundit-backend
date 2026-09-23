@@ -62,12 +62,14 @@ class RefundControllerTest {
 
     @Test
     void 본인_환불내역을_조회하면_200을_반환한다() throws Exception {
+        // given
         UUID memberId = UUID.randomUUID();
         Instant requestedAt = Instant.parse("2026-09-08T01:00:00Z");
         when(refundQueryService.listMyRefunds(eq(memberId), any(), any(), any())).thenReturn(
                 new PageImpl<>(List.of(new RefundQueryService.RefundSummary(3L, ORDER_ID, "DEFECT", "REQUESTED",
                         89_000L, requestedAt, null, null, null, null)), PageRequest.of(0, 20), 1));
 
+        // when & then
         mockMvc.perform(get("/api/v1/refunds")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))

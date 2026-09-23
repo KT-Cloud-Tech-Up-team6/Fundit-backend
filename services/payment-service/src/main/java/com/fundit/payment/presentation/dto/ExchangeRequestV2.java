@@ -1,5 +1,6 @@
 package com.fundit.payment.presentation.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
@@ -14,6 +15,6 @@ import java.util.UUID;
  */
 public record ExchangeRequestV2(
         @NotNull UUID fundingId,
-        @NotNull String reasonDetail,
-        @NotEmpty List<String> evidenceUrls) {
+        @NotBlank String reasonDetail,
+        @NotEmpty List<@NotBlank String> evidenceUrls) {
 }

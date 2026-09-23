@@ -106,10 +106,12 @@ class RefundControllerV2Test {
 
     @Test
     void 목록_조회는_유형과_진행여부_쿼리파라미터를_서비스에_그대로_전달한다() throws Exception {
+        // given
         UUID memberId = UUID.randomUUID();
         when(refundQueryService.listMyRefunds(eq(memberId), eq(RefundTriggerType.DEFECT), eq(true), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
+        // when & then
         mockMvc.perform(get("/api/v2/refunds")
                         .param("triggerType", "DEFECT")
                         .param("inProgress", "true")
@@ -121,10 +123,12 @@ class RefundControllerV2Test {
 
     @Test
     void 단순변심_환불을_신청하면_UUID_fundingId를_그대로_전달한다() throws Exception {
+        // given
         UUID memberId = UUID.randomUUID();
         when(simpleChangeOfMindRefundService.requestCancel(memberId, FUNDING_ID))
                 .thenReturn(new SimpleChangeOfMindRefundService.SimpleChangeOfMindRefundResult(13L, "COMPLETED"));
 
+        // when & then
         mockMvc.perform(post("/api/v2/refunds/simple-change-of-mind")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
@@ -136,10 +140,12 @@ class RefundControllerV2Test {
 
     @Test
     void 교환을_신청하면_REQUESTED_상태로_응답한다() throws Exception {
+        // given
         UUID memberId = UUID.randomUUID();
         when(exchangeRequestService.request(eq(memberId), eq(FUNDING_ID), eq("사이즈 변경"), any()))
                 .thenReturn(new ExchangeRequestService.ExchangeRequestResult(14L, "REQUESTED"));
 
+        // when & then
         mockMvc.perform(post("/api/v2/refunds/exchange")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)

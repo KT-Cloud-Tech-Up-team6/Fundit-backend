@@ -54,8 +54,9 @@ public class HttpOrderSummaryClient implements OrderSummaryClient {
             }
             return response.stream().collect(Collectors.toMap(InternalOrderSummaryResponse::orderId,
                     r -> new OrderSummary(r.projectTitle(), r.lineItems().stream()
-                            .map(li -> new LineItem(li.rewardName(), li.quantity(), li.unitPrice(), li.options().stream()
-                                    .map(o -> new LineItemOption(o.optionGroupName(), o.optionValue())).toList()))
+                            .map(li -> new LineItem(li.rewardName(), li.quantity(), li.unitPrice(),
+                                    (li.options() == null ? List.<InternalLineItemOptionResponse>of() : li.options()).stream()
+                                            .map(o -> new LineItemOption(o.optionGroupName(), o.optionValue())).toList()))
                             .toList())));
         } catch (RestClientException e) {
             log.warn("order-service 주문 요약 배치 조회 실패(프로젝트명/상품정보 없이 진행)", e);
