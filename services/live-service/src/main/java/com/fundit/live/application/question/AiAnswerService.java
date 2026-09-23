@@ -10,10 +10,12 @@ import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJp
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -37,6 +39,7 @@ public class AiAnswerService {
     private final LiveSessionRepository sessionRepository;
     private final AiClient aiClient;
     private final IvsClient ivsClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     static final String CHAT_EVENT_NAME = "seller-answer";
     /** IVS Chat SendEvent attributes 합계 상한(AWS API 문서: "4 KB total"). */
@@ -55,7 +58,7 @@ public class AiAnswerService {
      * <p>AI 등록이 성공해야 로컬에 남긴다 — AI 쪽이 실패했는데 로컬만 "답변 완료"로 표시되면
      * 다음 유사 질문이 다시 미답변으로 잡히는데 화면은 이미 답변된 것으로 보여준다.
      *
-     * <p>커밋 뒤 IVS Chat {@code SendEvent}로 채팅방에 게시한다({@value #CHAT_EVENT_NAME}).
+     * <p>커밋 뒤 별도 스레드에서 IVS Chat {@code SendEvent}로 채팅방에 게시한다({@value #CHAT_EVENT_NAME}).
      * 참가자 MESSAGE가 아니라 EVENT 타입으로 도착하므로 FE가 이 타입을 렌더링해야 보이고,
      * 판매자 화면이 자기 토큰으로 직접 올리던 게시는 걷어내야 두 번 보이지 않는다.
      * 게시 실패는 답변 저장을 막지 않는다.
@@ -76,38 +79,34 @@ public class AiAnswerService {
             log.warn("AI Live Knowledge 등록 실패, liveId={}, questionId={}", liveId, questionId);
         }
         summary.recordAnswer(finalAnswer, Instant.now());
-        postToChatAfterCommit(session, questionId, finalAnswer);
+        if (session.getIvsChatRoomArn() != null) {
+            eventPublisher.publishEvent(
+                    new SellerAnswerSent(session.getIvsChatRoomArn(), liveId, questionId, finalAnswer));
+        }
         return summary;
     }
 
     /**
-     * 커밋 뒤에 게시한다 — 트랜잭션 안에서 보내면 커밋이 실패했을 때 채팅엔 답변이 떴는데
-     * 저장은 롤백된 상태가 된다. 트랜잭션 밖(단위 테스트 등)에선 바로 보낸다.
+     * 커밋 뒤 별도 스레드에서 게시한다({@code CueSheetService.onCueSheetGenerationRequested}와 같은
+     * 방식). 트랜잭션 안에서 보내면 롤백됐을 때 채팅엔 답변이 떠 있고, 커밋 콜백에서 바로 보내면
+     * 그동안 DB 커넥션과 판매자 요청이 IVS 응답을 기다린다. 트랜잭션 밖에서 발행돼도 실행된다
+     * ({@code fallbackExecution}).
+     *
+     * <p>package-private — 테스트에서 Spring 이벤트 시스템 없이 직접 호출하기 위해서다.
      */
-    private void postToChatAfterCommit(LiveSession session, UUID questionId, String answer) {
-        if (session.getIvsChatRoomArn() == null) {
-            return;
-        }
-        Runnable post = () -> postToChat(session.getIvsChatRoomArn(), session.getPublicId(), questionId, answer);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            post.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                post.run();
-            }
-        });
-    }
-
-    private void postToChat(String roomArn, UUID liveId, UUID questionId, String answer) {
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    void onSellerAnswerSent(SellerAnswerSent event) {
         try {
-            ivsClient.sendChatEvent(roomArn, CHAT_EVENT_NAME, chatEventAttributes(questionId, answer));
+            ivsClient.sendChatEvent(event.roomArn(), CHAT_EVENT_NAME,
+                    chatEventAttributes(event.questionId(), event.answer()));
         } catch (RuntimeException e) {
             // ponytail: 재시도 없이 로그만 남긴다. 운영에서 반복되면 재시도 큐로 옮긴다.
-            log.warn("채팅 게시 실패, liveId={}, questionId={}", liveId, questionId, e);
+            log.warn("채팅 게시 실패, liveId={}, questionId={}", event.liveId(), event.questionId(), e);
         }
+    }
+
+    record SellerAnswerSent(String roomArn, UUID liveId, UUID questionId, String answer) {
     }
 
     /** 한도를 넘는 긴 답변은 {@code questionId}만 보낸다 — FE가 {@code answered-questions}로 조회한다. */

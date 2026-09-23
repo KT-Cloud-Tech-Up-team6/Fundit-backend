@@ -228,8 +228,10 @@ public class LiveStreamService {
      * 판매자 송출 정보(OBS에 넣을 ingest 주소·스트림 키). 키는 DB에 참조(ARN)만 있고 값은
      * 요청 시점에 IVS에서 꺼낸다(S9). 상태를 안 바꾸는 조회라 락 없는 {@code findOwned}로
      * 소유권만 본다.
+     *
+     * <p>트랜잭션을 걸지 않는다 — 걸면 IVS 응답을 기다리는 동안 DB 커넥션을 잡고 있다. 두 조회는
+     * 각자 짧은 트랜잭션으로 끝나고 읽는 값도 지연 로딩 없는 컬럼뿐이다.
      */
-    @Transactional(readOnly = true)
     public StreamInfo streamInfo(UUID sellerId, UUID liveId) {
         sessionRepository.findOwned(liveId, sellerId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

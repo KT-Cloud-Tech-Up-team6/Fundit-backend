@@ -17,8 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +25,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +42,7 @@ class AiAnswerServiceUnitTest {
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private AiClient aiClient;
     @Mock private IvsClient ivsClient;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private AiAnswerService aiAnswerService;
 
@@ -98,8 +100,8 @@ class AiAnswerServiceUnitTest {
     }
 
     @Test
-    void SEND하면_채팅방에_이벤트로_게시한다() {
-        // given
+    void SEND하면_게시_이벤트만_발행하고_직접_보내지_않는다() {
+        // given — 게시는 커밋 뒤 별도 스레드(onSellerAnswerSent)에서 한다
         LiveQuestionSummaryJpaEntity s = summary();
         givenLiveWithRoomAndSummary(s);
         given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
@@ -107,6 +109,36 @@ class AiAnswerServiceUnitTest {
 
         // when
         aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // then
+        verify(eventPublisher).publishEvent(new AiAnswerService.SellerAnswerSent(
+                "arn:room", liveId, questionId, "500ml/700ml 두 가지입니다."));
+        verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void 채팅방이_없으면_게시_이벤트를_발행하지_않는다() {
+        // given — 방송을 시작한 적 없는 세션은 채팅방 ARN이 없다
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenOwnedAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(true));
+
+        // when
+        aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // then
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void 게시_이벤트를_받으면_채팅방에_보낸다() {
+        // given
+        AiAnswerService.SellerAnswerSent event =
+                new AiAnswerService.SellerAnswerSent("arn:room", liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // when
+        aiAnswerService.onSellerAnswerSent(event);
 
         // then
         verify(ivsClient).sendChatEvent("arn:room", AiAnswerService.CHAT_EVENT_NAME,
@@ -114,42 +146,15 @@ class AiAnswerServiceUnitTest {
     }
 
     @Test
-    void 채팅_게시에_실패해도_판매자_답변은_그대로_저장된다() {
-        // given — 게시는 부가 동작이다. 실패로 답변 저장이 롤백되면 소비자 Q&A 버튼이 비게 된다.
-        LiveQuestionSummaryJpaEntity s = summary();
-        givenLiveWithRoomAndSummary(s);
-        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
-                .willReturn(new AiClient.SellerAnswerResult(true));
+    void 채팅_게시에_실패해도_예외를_밖으로_던지지_않는다() {
+        // given — 게시는 부가 동작이다. 답변은 이미 커밋됐고, 여기서 던지면 로그 없이 비동기 스레드에서 사라진다.
         willThrow(new DependencyFailureException(new RuntimeException("ivs down")))
                 .given(ivsClient).sendChatEvent(anyString(), anyString(), anyMap());
+        AiAnswerService.SellerAnswerSent event =
+                new AiAnswerService.SellerAnswerSent("arn:room", liveId, questionId, "500ml/700ml 두 가지입니다.");
 
-        // when
-        aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
-
-        // then
-        assertThat(s.isAnswered()).isTrue();
-        assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
-    }
-
-    @Test
-    void 트랜잭션_중이면_커밋된_뒤에_게시한다() {
-        // given — 커밋 전에 보내면 롤백됐을 때 채팅엔 답변이 뜨고 저장은 사라진다
-        LiveQuestionSummaryJpaEntity s = summary();
-        givenLiveWithRoomAndSummary(s);
-        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
-                .willReturn(new AiClient.SellerAnswerResult(true));
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            // when
-            aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
-
-            // then — 커밋 전엔 안 보내고, afterCommit에서 보낸다
-            verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
-            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-            verify(ivsClient).sendChatEvent(eq("arn:room"), eq(AiAnswerService.CHAT_EVENT_NAME), anyMap());
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+        // when & then
+        assertThatCode(() -> aiAnswerService.onSellerAnswerSent(event)).doesNotThrowAnyException();
     }
 
     @Test
@@ -167,11 +172,14 @@ class AiAnswerServiceUnitTest {
 
     @Test
     void 한도_이내_답변은_답변까지_같이_보낸다() {
+        // given
+        String answer = "500ml입니다";
+
         // when
-        Map<String, String> attributes = AiAnswerService.chatEventAttributes(questionId, "500ml입니다");
+        Map<String, String> attributes = AiAnswerService.chatEventAttributes(questionId, answer);
 
         // then
-        assertThat(attributes).containsEntry("answer", "500ml입니다")
+        assertThat(attributes).containsEntry("answer", answer)
                 .containsEntry("questionId", questionId.toString());
     }
 
