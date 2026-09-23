@@ -69,6 +69,22 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     Page<LiveSessionJpaEntity> findPublic(@Param("status") LiveStatus status, Pageable pageable);
 
     /**
+     * "팔로우한 창작자" 필터. {@code sellerIds}가 빈 컬렉션이면 안 부른다 — JPQL {@code IN}은
+     * 바인딩 파라미터가 null이면 컬렉션 파라미터 확장이 실패한다(스칼라 {@code = :x}와 다른
+     * 함정). 그래서 필터가 없을 때 쓰는 {@link #findPublic(LiveStatus, Pageable)}와 메서드를
+     * 분리했다 — 하나로 합쳐 {@code :sellerIds is null}로 우회하지 않는다.
+     */
+    @Query("""
+            select s from LiveSessionJpaEntity s
+            where s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
+              and (:status is null or s.status = :status)
+              and s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId in :sellerIds)
+            order by s.createdAt desc, s.id desc
+            """)
+    Page<LiveSessionJpaEntity> findPublicBySellerIds(@Param("status") LiveStatus status,
+                                                      @Param("sellerIds") List<UUID> sellerIds, Pageable pageable);
+
+    /**
      * 공개 단건 조회(시청 정보·VOD·채팅 토큰). <b>DRAFT는 여기서 걸러 404가 되게 한다</b> —
      * 호출부마다 {@code if (DRAFT)}를 붙이면 네 번째 호출부에서 빠진다. 실제로 세 곳 중 한 곳에만
      * 있어서, 설정 중인 방송에 요청을 넣으면 409가 돌아와 존재가 드러났다(security.md S10).
@@ -96,4 +112,12 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     @Query(value = "UPDATE live_sessions SET like_count = like_count + :delta "
             + "WHERE id = :sessionId AND like_count + :delta >= 0", nativeQuery = true)
     int addLikeCount(@Param("sessionId") Long sessionId, @Param("delta") int delta);
+
+    /**
+     * {@code addLikeCount} 직후 실제 값을 다시 읽는다 — 영속성 컨텍스트에 이미 로드된
+     * 엔티티의 {@code likeCount} 필드는 벌크 UPDATE를 반영하지 못해 stale하다. 스칼라 조회라
+     * 1차 캐시를 안 거치므로 항상 최신값이다.
+     */
+    @Query(value = "SELECT like_count FROM live_sessions WHERE id = :sessionId", nativeQuery = true)
+    int findLikeCount(@Param("sessionId") Long sessionId);
 }

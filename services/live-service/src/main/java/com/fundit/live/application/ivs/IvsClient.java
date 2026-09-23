@@ -23,6 +23,12 @@ public interface IvsClient {
      */
     String createChatToken(String roomArn, String userId, java.util.List<String> capabilities);
 
+    /**
+     * 현재 시청자 수. 방송 중이 아니면 0 — "실시간 순위" 정렬 대상은 이미 {@code status=LIVE}로
+     * 걸러진 세션이라 여기서 예외로 전체 요청을 막을 이유가 없다(집계 실패가 목록 조회를 막으면 안 됨).
+     */
+    int getViewerCount(String channelArn);
+
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
     }
