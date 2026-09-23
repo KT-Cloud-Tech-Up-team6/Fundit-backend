@@ -833,7 +833,8 @@ Response Body
 
 ```json
 [ { "liveId": "0199...", "introText": "...", "status": "LIVE", "projectId": "0198...",
-    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12, "createdAt": "2026-09-20T10:00:00Z" } ]
+    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12, "createdAt": "2026-09-20T10:00:00Z",
+    "sellerNickname": "쓱쓱생활연구소" } ]
 ```
 
 ```
@@ -849,7 +850,7 @@ Response Body
   "content": [
     { "liveId": "0199...", "introText": "...", "status": "LIVE", "thumbnailUrl": "...",
       "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128,
-      "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234 }
+      "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234, "sellerNickname": "쓱쓱생활연구소" }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
 }
@@ -867,8 +868,12 @@ Validation / Business Rules
   파라미터를 같이 줘도 무시된다(다른 상태엔 시청자 수 개념이 없다). 방송이 막 끊겨 IVS가
   "방송 중 아님"을 돌려주면 0으로 처리한다(순위 목록 전체 조회가 막히면 안 된다).
 - **`sellerId`(팔로우한 창작자 필터)**: 다중 지정 가능. 팔로우 관계는 member-service 소관이라
-  FE가 `GET /api/v1/follows`로 받은 목록을 그대로 넘겨준다 — live-service는 member-service를
-  동기 호출하지 않는다. `sort=viewerCount`와 동시 지정은 지원하지 않는다(`sort`가 우선).
+  FE가 `GET /api/v1/follows`로 받은 목록을 그대로 넘겨준다 — 필터링을 위해 member-service를
+  호출하지는 않는다. `sort=viewerCount`와 동시 지정은 지원하지 않는다(`sort`가 우선).
+- **`sellerNickname`(판매자명, #154)**: 배너·소비자 목록(모든 정렬) 카드에 채운다. 페이지의 판매자들을 모아
+  member-service 내부 API(`GET /internal/v1/members/nicknames`)를 **페이지당 1회** 일괄 호출한다.
+  member 조회가 실패하거나(타임아웃 connect 1초/read 2초) 닉네임이 없는 판매자면 **이 필드만 생략되고
+  목록은 정상 응답**한다 — FE는 필드가 없으면 판매자명 영역을 비우면 된다. 판매자 본인 목록(`/mine`)에는 없다.
 - **정렬 기본값은 생성 최신순**(`createdAt desc, id desc`)이다. 상태별로 기준이 갈리면
   `status`를 생략한 전체 조회에서 어느 쪽을 쓸지 정할 수 없다. `id` 보조 정렬은 `createdAt`이
   동률일 때 페이지 간 중복·누락을 막는다.
