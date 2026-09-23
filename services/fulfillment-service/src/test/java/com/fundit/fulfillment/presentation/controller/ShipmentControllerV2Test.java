@@ -95,4 +95,42 @@ class ShipmentControllerV2Test {
                 .andExpect(jsonPath("$.status").value("RECEIPT_CONFIRMED"))
                 .andExpect(jsonPath("$.fundingId").value(FUNDING_ID.toString()));
     }
+
+    @Test
+    void 임시저장하면_PREPARING과_함께_송장을_그대로_반환한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        Shipment shipment = Shipment.create(FUNDING_ID, PROJECT_ID);
+        shipment.saveShippingInfo("CJ대한통운", "123456789012");
+        when(shipmentService.saveShippingInfo(eq(PROJECT_ID), eq(FUNDING_ID), eq(sellerId), eq("CJ대한통운"), eq("123456789012")))
+                .thenReturn(shipment);
+
+        // when & then — 판매자 본인이 방금 넣은 값이라 마스킹하지 않는다.
+        mockMvc.perform(post("/api/v2/projects/{projectId}/fundings/{fundingId}/shipment/draft", PROJECT_ID, FUNDING_ID)
+                        .header("X-User-Id", sellerId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrier\": \"CJ대한통운\", \"trackingNumber\": \"123456789012\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PREPARING"))
+                .andExpect(jsonPath("$.trackingNumber").value("123456789012"));
+    }
+
+    @Test
+    void 구매자_조회는_발송_전_임시저장_송장을_가린다() throws Exception {
+        // given
+        UUID buyerId = UUID.randomUUID();
+        Shipment draft = Shipment.create(FUNDING_ID, PROJECT_ID);
+        draft.saveShippingInfo("CJ대한통운", "123456789012");
+        when(shipmentService.getShipment(PROJECT_ID, FUNDING_ID, buyerId)).thenReturn(draft);
+
+        // when & then
+        mockMvc.perform(get("/api/v2/projects/{projectId}/fundings/{fundingId}/shipment", PROJECT_ID, FUNDING_ID)
+                        .header("X-User-Id", buyerId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PREPARING"))
+                .andExpect(jsonPath("$.carrier").doesNotExist())
+                .andExpect(jsonPath("$.trackingNumber").doesNotExist());
+    }
 }

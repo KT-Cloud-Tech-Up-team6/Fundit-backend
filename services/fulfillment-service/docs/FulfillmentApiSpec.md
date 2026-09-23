@@ -32,12 +32,14 @@
 | 13 | POST | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment` | 발송정보 등록(UUID) | O (판매자) | FULFILLMENT-006 |
 | 14 | GET | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment` | 배송현황 조회(UUID) | O (구매자) | FULFILLMENT-003 |
 | 15 | POST | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment/confirm-receipt` | 수령 확인(UUID) | O (구매자) | FULFILLMENT-009 |
+| 16 | POST | `/api/v2/projects/{projectId}/fundings/{fundingId}/shipment/draft` | 발송정보 임시저장(발송 처리 없음) | O (판매자) | FULFILLMENT-006 |
+| 17 | GET | `/api/v2/projects/{projectId}/shipments?fundingIds=` | 발송정보 배치 조회(판매자 발송 목록용) | O (판매자) | FULFILLMENT-006 |
 
 > FULFILLMENT-001(트래커 초기화), FULFILLMENT-004(미등록 알림), FULFILLMENT-007(배송완료 목업 처리), FULFILLMENT-010(미확인 자동확정)은 이벤트/스케줄러로만 트리거되어 REST 엔드포인트가 없습니다. 하단 "이벤트 발행/구독" 섹션에 정리했습니다.
 >
 > **(2차 검토)** #5·6·7은 초안에서 `/api/v1/fundings/{fundingId}/...`였으나 `projectId`를 경로에 포함하도록 수정했습니다. projectId가 경로에 있으면 판매자 소유권 검증(#5)이 "이 funding이 내 프로젝트 소속인가"라는 order-service 교차조회 없이 "이 프로젝트가 내 것인가"만으로 가능해지고, #7의 자동 DELIVERY 전이 로직 제거와 함께 일관성이 맞습니다.
 >
-> **발송 대상 목록**: fulfillment는 fundingId를 아는 단건 등록/조회만 제공한다. 판매자 화면의 주문UUID·리워드/옵션·수량·수령인·배송지 목록은 order-service `GET /api/v1/projects/{projectId}/orders`를 FE가 직접 호출한다.
+> **발송 대상 목록**: fulfillment는 fundingId를 아는 단건 등록/조회만 제공한다. 판매자 화면의 주문UUID·리워드/옵션·수량·수령인·배송지 목록은 order-service `GET /api/v1/projects/{projectId}/orders`를 FE가 직접 호출한다. 그 목록 응답의 `shippedAt`으로 행별 발송 여부를 구분하고, 발송완료 행의 택배사·운송장은 #17(배치 조회)로 한 번에 받는다 — 단건 조회(#6·#14)는 구매자 전용이라 판매자가 쓸 수 없다.
 
 ---
 
@@ -225,6 +227,7 @@ POST /api/v1/projects/{projectId}/fundings/{fundingId}/shipment
 - `carrier`·`trackingNumber` 누락 → `400 INVALID_INPUT`.
 - 응답은 #6·#7과 동일한 `ShipmentResponse` 전체 필드다. 발송 직후 `deliveredAt`/`receiptConfirmedAt`은 null이라 생략되고, `canConfirmReceipt`는 `false`.
 - 요구사항정의서 8.3.3에 따라 실제 택배사 배송추적 API 연동은 하지 않음(목업) — 이후 배송완료 전환은 FULFILLMENT-007 배치가 처리.
+- 발송 전에 #16으로 임시저장해 둔 값이 있으면 이 API가 그 위에 덮어쓰고 `SHIPPED`로 전이한다.
 - **(2차 검토)** 초안에는 "프로젝트의 모든 funding이 SHIPPED 이상이면 DELIVERY로 자동 전이"하는 규칙이 있었으나 제거함(전체 funding 개수를 알 수 없어 판정 불가능) — DELIVERY로의 전이는 엔드포인트 #2(단계 전환)를 통해 판매자가 직접 수행.
 
 ---
@@ -258,6 +261,48 @@ GET /api/v1/projects/{projectId}/fundings/{fundingId}/shipment
 - 소유권 검증(S4): `@LoginUser CurrentUser.id`를 order-service funding `memberId`와 대조. 본인 funding이 아니면 `403 FORBIDDEN`.
 - 아직 발송 전(`shipments` 레코드 없음)이면 `status: "PREPARING"`, `canConfirmReceipt: false`만 채우고 나머지 필드는 생략(에러 아님).
 - `canConfirmReceipt`는 `status='DELIVERED'`일 때만 `true` — 프론트가 "수령확인" 버튼 노출 여부를 결정. 수령 전이면 `receiptConfirmedAt`은 생략.
+- `status`가 `SHIPPED` 미만이면 `carrier`·`trackingNumber`를 응답에서 제외한다 — 판매자가 #16으로 임시저장해 둔 송장이 "아직 발송되지 않은 건"의 배송현황에 노출되면 안 된다. 판매자 경로(#5·#16·#17)에서는 가리지 않는다.
+
+---
+
+### 6-1. 발송정보 임시저장 (v2 전용)
+
+```
+POST /api/v2/projects/{projectId}/fundings/{fundingId}/shipment/draft
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: Path Parameter: `projectId`, `fundingId` — Body는 #5와 동일(`carrier`, `trackingNumber` 모두 필수)
+
+**Response Body** (`ShipmentResponseV2`) — `status`는 `PREPARING` 그대로, `shippedAt`은 생략
+
+**Validation / Business Rules**
+
+- 발송정보 화면의 "저장" 버튼용. 택배사·운송장만 적어 두고 **발송 처리는 하지 않는다** — 상태는 `PREPARING`을 유지하고 `shipment.shipped.v1`을 발행하지 않으므로, order-service 판매자 발송 목록에서 계속 "발송 대기"로 집계된다.
+- 소유권 검증은 #5와 동일(프로젝트 소유 + 펀딩-프로젝트 교차 검증).
+- 이미 `SHIPPED` 이상인 건에 시도 → `ALREADY_SHIPPED`. 발송 후 송장 정정은 현재 지원하지 않는다.
+- 같은 경로의 `POST`(#13, 발송 처리)와 **경로를 나눈 것은 의도**다 — 같은 URL에 메서드만 다르게 두면 오호출 한 번이 곧 발송 처리가 되고 접근 로그에서 둘을 구분할 수 없다.
+- 이 API로 행이 먼저 생길 수 있어 `shipments`는 "발송 등록 시에만 생성"이 아니다. 배송완료 배치(FULFILLMENT-007)·정산 내부 조회(#8)는 행 존재가 아니라 `status`로 판정하므로 영향이 없다.
+
+---
+
+### 6-2. 발송정보 배치 조회 (v2 전용, 판매자)
+
+```
+GET /api/v2/projects/{projectId}/shipments?fundingIds={uuid},{uuid},...
+```
+
+**Auth Required**: O (판매자)
+
+**Response Body**: `ShipmentResponseV2` 배열 — 요청한 `fundingIds` 순서·건수 그대로
+
+**Validation / Business Rules**
+
+- 판매자 발송 목록 한 페이지분을 한 번에 채우는 용도. 행마다 단건 조회를 돌면 건당 소유권·펀딩 확인 호출이 2번씩 붙어 페이지 로드마다 내부 호출이 행 수만큼 불어난다.
+- 프로젝트 소유자만 호출 가능(`403 FORBIDDEN`). 요청한 `fundingIds` 중 다른 프로젝트의 것은 결과에서 제외하고, 아직 발송 전이라 행이 없는 건과 동일하게 `PREPARING` 가상 뷰로 채운다(저장하지 않음).
+- `fundingIds`는 최대 100건 — 초과 시 `400 INVALID_INPUT`.
+- 판매자 경로이므로 `carrier`·`trackingNumber`를 가리지 않는다.
 
 ---
 

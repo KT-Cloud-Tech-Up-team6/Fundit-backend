@@ -13,9 +13,12 @@ public record ShipmentResponse(Long fundingId, ShipmentStatus status, String car
                                 Instant shippedAt, Instant deliveredAt, Instant receiptConfirmedAt,
                                 boolean canConfirmReceipt) {
 
+    /** 발송 전 임시저장 송장 마스킹 규칙은 v2와 같다 — {@link ShipmentResponseV2#from} 참고. */
     public static ShipmentResponse from(Shipment shipment) {
-        return new ShipmentResponse(null, shipment.getStatus(), shipment.getCarrier(),
-                shipment.getTrackingNumber(), shipment.getShippedAt(), shipment.getDeliveredAt(),
+        boolean shipped = shipment.getStatus().ordinal() >= ShipmentStatus.SHIPPED.ordinal();
+        return new ShipmentResponse(null, shipment.getStatus(),
+                shipped ? shipment.getCarrier() : null, shipped ? shipment.getTrackingNumber() : null,
+                shipment.getShippedAt(), shipment.getDeliveredAt(),
                 shipment.getReceiptConfirmedAt(), shipment.canConfirmReceipt());
     }
 }

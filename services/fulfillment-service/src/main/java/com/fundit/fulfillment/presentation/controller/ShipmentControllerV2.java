@@ -31,7 +31,20 @@ public class ShipmentControllerV2 {
     public ShipmentResponseV2 register(@LoginUser CurrentUser user, @PathVariable UUID projectId,
                                         @PathVariable UUID fundingId,
                                         @Valid @RequestBody ShipmentRegisterRequest request) {
-        return ShipmentResponseV2.from(shipmentService.registerShipment(projectId, fundingId, user.id(),
+        return ShipmentResponseV2.forSeller(shipmentService.registerShipment(projectId, fundingId, user.id(),
+                request.carrier(), request.trackingNumber()));
+    }
+
+    /**
+     * 발송정보 "저장" — 택배사·운송장만 저장하고 발송 처리는 하지 않는다(상태 PREPARING 유지).
+     * 발송 처리({@link #register})와 <b>경로를 나눈 것은 의도</b>다 — 같은 URL에 메서드만 다르게
+     * 두면 오호출 한 번이 곧 발송 처리가 되고, 접근 로그에서도 둘을 구분할 수 없다.
+     */
+    @PostMapping("/draft")
+    public ShipmentResponseV2 saveDraft(@LoginUser CurrentUser user, @PathVariable UUID projectId,
+                                         @PathVariable UUID fundingId,
+                                         @Valid @RequestBody ShipmentRegisterRequest request) {
+        return ShipmentResponseV2.forSeller(shipmentService.saveShippingInfo(projectId, fundingId, user.id(),
                 request.carrier(), request.trackingNumber()));
     }
 

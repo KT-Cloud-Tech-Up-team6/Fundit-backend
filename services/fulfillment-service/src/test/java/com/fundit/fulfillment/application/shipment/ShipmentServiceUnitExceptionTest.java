@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -109,5 +110,51 @@ class ShipmentServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.NOT_YET_DELIVERED));
+    }
+
+    @Test
+    void 이미_발송된_건은_임시저장할_수_없다() {
+        // given
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        UUID fundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        Shipment shipped = Shipment.create(fundingId, projectId);
+        shipped.registerShipment("CJ대한통운", "123456789012");
+        when(projectOwnershipClient.getSellerId(projectId)).thenReturn(sellerId);
+        when(orderFundingClient.fetch(fundingId)).thenReturn(new FundingSnapshot(projectId, buyerId, UUID.randomUUID()));
+        when(shipmentRepository.findByFundingId(fundingId)).thenReturn(Optional.of(shipped));
+
+        // when & then
+        assertThatThrownBy(() -> service.saveShippingInfo(projectId, fundingId, sellerId, "한진택배", "999"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(FulfillmentErrorCode.ALREADY_SHIPPED));
+    }
+
+    @Test
+    void 본인_소유_프로젝트가_아니면_발송목록을_배치조회할_수_없다() {
+        // given
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        when(projectOwnershipClient.getSellerId(projectId)).thenReturn(sellerId);
+
+        // when & then
+        assertThatThrownBy(() -> service.listForSeller(projectId, UUID.randomUUID(),
+                List.of(UUID.fromString("00000000-0000-0000-0000-000000001024"))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(CommonErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void 구매자_조회는_경로의_projectId가_펀딩의_프로젝트와_다르면_거부된다() {
+        // given — 소유자는 맞지만 경로 projectId가 남의 프로젝트인 경우.
+        UUID fundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        when(orderFundingClient.fetch(fundingId))
+                .thenReturn(new FundingSnapshot(UUID.randomUUID(), buyerId, UUID.randomUUID()));
+
+        // when & then
+        assertThatThrownBy(() -> service.getShipment(UUID.fromString("00000000-0000-0000-0000-000000000123"), fundingId, buyerId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(CommonErrorCode.FORBIDDEN));
     }
 }

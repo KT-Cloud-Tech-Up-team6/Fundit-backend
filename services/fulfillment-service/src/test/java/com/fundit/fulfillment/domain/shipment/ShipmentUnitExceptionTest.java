@@ -50,4 +50,17 @@ class ShipmentUnitExceptionTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(FulfillmentErrorCode.NOT_YET_DELIVERED));
     }
+
+    @Test
+    void 이미_발송된_건은_임시저장으로_송장을_덮어쓸_수_없다() {
+        // given
+        Shipment shipment = Shipment.create(UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123"));
+        shipment.registerShipment("CJ대한통운", "123456789012");
+
+        // when & then
+        assertThatThrownBy(() -> shipment.saveShippingInfo("우체국택배", "999"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(FulfillmentErrorCode.ALREADY_SHIPPED));
+    }
 }
