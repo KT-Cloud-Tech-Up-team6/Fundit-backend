@@ -97,6 +97,12 @@ public class RewardJpaEntity {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
+    @Column(name = "idempotency_request_hash", length = 64)
+    private String idempotencyRequestHash;
+
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();

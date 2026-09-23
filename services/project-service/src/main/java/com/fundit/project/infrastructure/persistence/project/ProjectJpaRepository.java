@@ -20,6 +20,8 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
 
     Optional<ProjectJpaEntity> findByIdAndDeletedAtIsNull(Long id);
 
+    Optional<ProjectJpaEntity> findBySellerIdAndIdempotencyKeyAndDeletedAtIsNull(UUID sellerId, String idempotencyKey);
+
     List<ProjectJpaEntity> findBySellerIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID sellerId);
 
     /**

@@ -53,7 +53,8 @@ class RewardControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+        when(rewardService.create(eq(sellerId), eq(projectId), any(), any(), any()))
+                .thenReturn(new RewardService.RewardCreateResult(reward(1L), false));
 
         // when & then
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
@@ -72,7 +73,8 @@ class RewardControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+        when(rewardService.create(eq(sellerId), eq(projectId), any(), any(), any()))
+                .thenReturn(new RewardService.RewardCreateResult(reward(1L), false));
 
         // when
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
@@ -85,7 +87,7 @@ class RewardControllerTest {
 
         // then
         ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
-        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture(), any(), any());
         assertThat(captor.getValue().isLimited()).isFalse();
         assertThat(captor.getValue().quantity()).isNull();
     }
@@ -95,7 +97,8 @@ class RewardControllerTest {
         // given — 모순 조합, 도메인 검증(quantity>=0)이 거부하도록 정규화하지 않고 그대로 흘려보낸다
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+        when(rewardService.create(eq(sellerId), eq(projectId), any(), any(), any()))
+                .thenReturn(new RewardService.RewardCreateResult(reward(1L), false));
 
         // when
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
@@ -108,7 +111,7 @@ class RewardControllerTest {
 
         // then
         ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
-        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture(), any(), any());
         assertThat(captor.getValue().isLimited()).isTrue();
         assertThat(captor.getValue().quantity()).isEqualTo(-1);
     }
@@ -138,7 +141,8 @@ class RewardControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(eq(sellerId), eq(projectId), any())).thenReturn(reward(1L));
+        when(rewardService.create(eq(sellerId), eq(projectId), any(), any(), any()))
+                .thenReturn(new RewardService.RewardCreateResult(reward(1L), false));
 
         // when
         mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
@@ -151,7 +155,7 @@ class RewardControllerTest {
 
         // then
         ArgumentCaptor<RewardService.CreateRewardCommand> captor = ArgumentCaptor.forClass(RewardService.CreateRewardCommand.class);
-        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture());
+        verify(rewardService).create(eq(sellerId), eq(projectId), captor.capture(), any(), any());
         assertThat(captor.getValue().shippingFee()).isEqualTo(3000L);
         assertThat(captor.getValue().estimatedDeliveryDays()).isEqualTo(7);
     }

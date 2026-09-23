@@ -49,7 +49,8 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -66,7 +67,8 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(UUID.randomUUID(), projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
@@ -87,10 +89,76 @@ class RewardServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
-                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null, null, null)))
+                new RewardService.CreateRewardCommand("이름", "설명", imageUrl, 1000L, false, null, false, null, null, null, null, null),
+                null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.INVALID_MEDIA_URL);
+    }
+
+    @Test
+    void 같은_Idempotency_Key에_다른_본문이_오면_409_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        Reward existing = Reward.create(1L, "이름", "설명", null, 1000L, false, null, false, null, null, null, null, null)
+                .toBuilder().id(5L).idempotencyKey("key-1").idempotencyRequestHash("hash-a").build();
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.findByProjectIdAndIdempotencyKey(1L, "key-1")).thenReturn(Optional.of(existing));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-b"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 동시_생성으로_유니크제약을_위반하면_CONFLICT_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        java.sql.SQLException uniqueViolation = new java.sql.SQLException("duplicate key value", "23505");
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("insert failed", uniqueViolation));
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-a"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 유니크제약_위반이_아닌_무결성_예외는_그대로_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectPublicId = UUID.randomUUID();
+        Project project = Project.builder()
+                .id(1L).publicId(projectPublicId).sellerId(sellerId).status(ProjectStatus.DRAFT)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        java.sql.SQLException checkViolation = new java.sql.SQLException("check constraint violated", "23514");
+        org.springframework.dao.DataIntegrityViolationException checkException =
+                new org.springframework.dao.DataIntegrityViolationException("insert failed", checkViolation);
+        when(projectRepository.findByPublicId(projectPublicId)).thenReturn(Optional.of(project));
+        when(rewardRepository.save(any())).thenThrow(checkException);
+
+        // when & then
+        assertThatThrownBy(() -> rewardService.create(sellerId, projectPublicId,
+                new RewardService.CreateRewardCommand("이름", "설명", null, 1000L, false, null, false, null, null, null, null, null),
+                "key-1", "hash-a"))
+                .isSameAs(checkException);
     }
 
     @Test

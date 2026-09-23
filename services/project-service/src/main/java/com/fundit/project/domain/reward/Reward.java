@@ -38,11 +38,26 @@ public class Reward {
     private final Instant createdAt;
     private Instant updatedAt;
     private Instant deletedAt;
+    /** 생성 요청의 Idempotency-Key(선택). null이면 idempotencyRequestHash도 항상 null. */
+    private final String idempotencyKey;
+    /** 같은 키로 다른 요청 본문이 오는 것을 구분하기 위한 요청 해시. */
+    private final String idempotencyRequestHash;
 
     public static Reward create(Long projectId, String name, String description, String imageUrl, Long price,
                                  boolean isLimited, Integer quantity, boolean isEarlyBird,
                                  EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
                                  List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays) {
+        return create(projectId, name, description, imageUrl, price, isLimited, quantity, isEarlyBird,
+                earlyBirdDiscountType, earlyBirdDiscountValue, optionGroups, shippingFee, estimatedDeliveryDays,
+                null, null);
+    }
+
+    /** RewardService.create()가 Idempotency-Key 배선을 위해 쓰는 전체 인자 버전. */
+    public static Reward create(Long projectId, String name, String description, String imageUrl, Long price,
+                                 boolean isLimited, Integer quantity, boolean isEarlyBird,
+                                 EarlyBirdDiscountType earlyBirdDiscountType, Long earlyBirdDiscountValue,
+                                 List<RewardOptionGroup> optionGroups, Long shippingFee, Integer estimatedDeliveryDays,
+                                 String idempotencyKey, String idempotencyRequestHash) {
         validateQuantity(isLimited, quantity);
         validateEarlyBirdDiscount(isEarlyBird, earlyBirdDiscountType, earlyBirdDiscountValue, price);
         validateShippingInfo(shippingFee, estimatedDeliveryDays);
@@ -63,6 +78,8 @@ public class Reward {
                 .simpleRefundDisabled(false)
                 .shippingFee(shippingFee)
                 .estimatedDeliveryDays(estimatedDeliveryDays)
+                .idempotencyKey(idempotencyKey)
+                .idempotencyRequestHash(idempotencyRequestHash)
                 .build();
     }
 

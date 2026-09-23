@@ -45,11 +45,37 @@ class RewardControllerExceptionTest {
     }
 
     @Test
+    void IdempotencyKey가_공백이면_400을_반환한다() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("Idempotency-Key", "   ")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"얼리버드","description":"설명","price":39000,"isLimited":true,"quantity":100}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void IdempotencyKey가_100자를_넘으면_400을_반환한다() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("Idempotency-Key", "a".repeat(101))
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"얼리버드","description":"설명","price":39000,"isLimited":true,"quantity":100}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 수량정합성_위반이면_400을_반환한다() throws Exception {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        when(rewardService.create(org.mockito.ArgumentMatchers.eq(sellerId), org.mockito.ArgumentMatchers.eq(projectId), any()))
+        when(rewardService.create(org.mockito.ArgumentMatchers.eq(sellerId), org.mockito.ArgumentMatchers.eq(projectId), any(), any(), any()))
                 .thenThrow(new BusinessException(ProjectErrorCode.INVALID_REWARD_QUANTITY));
 
         // when & then

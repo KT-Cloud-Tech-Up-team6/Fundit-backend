@@ -32,6 +32,7 @@ class ProjectMapper {
                 .updatedAt(entity.getUpdatedAt())
                 .deletedAt(entity.getDeletedAt())
                 .deadlineNotifiedAt(entity.getDeadlineNotifiedAt())
+                .idempotencyKey(entity.getIdempotencyKey())
                 .build();
     }
 
@@ -54,6 +55,7 @@ class ProjectMapper {
                 .updatedAt(domain.getUpdatedAt())
                 .deletedAt(domain.getDeletedAt())
                 .deadlineNotifiedAt(domain.getDeadlineNotifiedAt())
+                .idempotencyKey(domain.getIdempotencyKey())
                 .build();
     }
 

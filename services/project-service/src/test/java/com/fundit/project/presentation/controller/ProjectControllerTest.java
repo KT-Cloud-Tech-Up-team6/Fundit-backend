@@ -94,13 +94,30 @@ class ProjectControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
-        when(projectService.create(sellerId)).thenReturn(draftProject(sellerId, publicId));
+        when(projectService.create(eq(sellerId), any()))
+                .thenReturn(new ProjectService.ProjectCreateResult(draftProject(sellerId, publicId), false));
 
         // when & then
         mockMvc.perform(post("/api/v1/projects").header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.projectId").value(publicId.toString()))
                 .andExpect(jsonPath("$.status").value("DRAFT"));
+    }
+
+    @Test
+    void 같은_Idempotency_Key로_재요청하면_200을_반환한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        when(projectService.create(eq(sellerId), eq("key-1")))
+                .thenReturn(new ProjectService.ProjectCreateResult(draftProject(sellerId, publicId), true));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/projects")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("Idempotency-Key", "key-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projectId").value(publicId.toString()));
     }
 
     @Test

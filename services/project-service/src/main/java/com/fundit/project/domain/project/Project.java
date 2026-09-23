@@ -39,6 +39,8 @@ public class Project {
     private Instant deletedAt;
     /** 펀딩 마감 감시(FundingDeadlineWatcher)가 project.funding-deadline-reached.v1을 중복 발행하지 않도록 남기는 표시. */
     private Instant deadlineNotifiedAt;
+    /** 생성 요청의 Idempotency-Key(선택). order-service Funding과 동일 패턴 — 셀러 범위로 중복 생성을 막는다. */
+    private final String idempotencyKey;
 
     public boolean isDeleted() {
         return deletedAt != null;

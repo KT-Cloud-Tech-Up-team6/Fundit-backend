@@ -17,6 +17,9 @@ public interface ProjectRepository {
     /** 소프트 삭제된 프로젝트는 제외한다. */
     Optional<Project> findById(Long id);
 
+    /** 생성 요청 Idempotency-Key로 셀러 범위 중복 조회. 소프트 삭제된 프로젝트는 제외한다. */
+    Optional<Project> findBySellerIdAndIdempotencyKey(UUID sellerId, String idempotencyKey);
+
     /**
      * FundingDeadlineWatcher 배치 대상 조회 — status=ONGOING이고 funding_deadline이 지났는데
      * 아직 통지(deadline_notified_at)하지 않은 프로젝트만 가져온다(중복 발행 방지).

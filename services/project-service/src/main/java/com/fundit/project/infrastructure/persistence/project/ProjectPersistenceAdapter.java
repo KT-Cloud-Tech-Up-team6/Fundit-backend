@@ -35,6 +35,11 @@ public class ProjectPersistenceAdapter implements ProjectRepository {
     }
 
     @Override
+    public Optional<Project> findBySellerIdAndIdempotencyKey(UUID sellerId, String idempotencyKey) {
+        return jpaRepository.findBySellerIdAndIdempotencyKeyAndDeletedAtIsNull(sellerId, idempotencyKey).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Project> findOngoingWithDeadlineReached(Instant now, Pageable pageable) {
         return jpaRepository
                 .findByStatusAndFundingDeadlineLessThanEqualAndDeadlineNotifiedAtIsNullAndDeletedAtIsNullOrderByIdAsc(
