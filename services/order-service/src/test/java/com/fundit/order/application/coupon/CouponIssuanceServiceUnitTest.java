@@ -1,5 +1,6 @@
 package com.fundit.order.application.coupon;
 
+import com.fundit.order.application.live.LiveStatusClient;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceRepository;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,22 +32,33 @@ class CouponIssuanceServiceUnitTest {
     private CouponRepository couponRepository;
     @Mock
     private CouponIssuanceRepository couponIssuanceRepository;
+    @Mock
+    private LiveStatusClient liveStatusClient;
 
     @InjectMocks
     private CouponIssuanceService couponIssuanceService;
+
+    private static final long LIVE_SESSION_ID = 42L;
 
     private Coupon coupon() {
         return Coupon.builder().id(1L).couponCode("LIVE-XY12").couponName("쿠폰")
                 .discountType(DiscountType.AMOUNT).discountValue(3_000)
                 .issuerType(IssuerType.PLATFORM).targetScope(CouponTargetScope.ALL)
                 .minFundingAmount(0).perMemberLimit(1).remainingQuantity(5)
-                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel(IssueChannel.LIVE).version(0).build();
+                .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS)).issueChannel(IssueChannel.LIVE)
+                .liveSessionId(LIVE_SESSION_ID).version(0).build();
+    }
+
+    private void 방송중() {
+        when(liveStatusClient.findBySessionId(LIVE_SESSION_ID)).thenReturn(
+                Optional.of(new LiveStatusClient.LiveStatus(UUID.randomUUID(), LIVE_SESSION_ID, "LIVE", UUID.randomUUID())));
     }
 
     @Test
-    void 클레임하면_발급되고_수량이_차감된다() {
+    void 방송중이면_라이브쿠폰이_발급되고_수량이_차감된다() {
         // given
         UUID memberId = UUID.randomUUID();
+        방송중();
         when(couponRepository.findByCouponCode("LIVE-XY12")).thenReturn(Optional.of(coupon()));
         when(couponIssuanceRepository.countByCouponCodeAndOwnerId("LIVE-XY12", memberId)).thenReturn(0L);
         when(couponRepository.decreaseRemainingQuantity("LIVE-XY12")).thenReturn(true);
@@ -113,5 +126,23 @@ class CouponIssuanceServiceUnitTest {
 
         // then
         assertThat(issuance).isEmpty();
+    }
+
+    @Test
+    void GENERAL_쿠폰은_live를_호출하지_않고_발급된다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        Coupon general = coupon().toBuilder().couponCode("GEN-1").issueChannel(IssueChannel.GENERAL)
+                .liveSessionId(null).build();
+        when(couponRepository.findByCouponCode("GEN-1")).thenReturn(Optional.of(general));
+        when(couponIssuanceRepository.countByCouponCodeAndOwnerId("GEN-1", memberId)).thenReturn(0L);
+        when(couponRepository.decreaseRemainingQuantity("GEN-1")).thenReturn(true);
+        when(couponIssuanceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        // when
+        couponIssuanceService.claim(memberId, "GEN-1");
+
+        // then — 방송 여부를 따질 이유가 없는 쿠폰이라 live-service를 아예 부르지 않는다
+        verifyNoInteractions(liveStatusClient);
     }
 }

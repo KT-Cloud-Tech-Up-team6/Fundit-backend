@@ -48,6 +48,11 @@ order:
       # ORDER-005 availableActions() 판단용(V07) — project-service 클라이언트와 동일 패턴.
       connect-timeout-ms: 2000
       read-timeout-ms: 3000
+    live-service:
+      # 라이브 주문 꼬리표(fundings.live_session_id)·LIVE 쿠폰 검증용. 위 두 연동(2000/3000)보다
+      # 짧은 이유: 이 호출은 주문 생성 경로에 물린다 — 라이브ID는 부가 정보라 느려질 바엔 포기한다.
+      connect-timeout-ms: 1000
+      read-timeout-ms: 1000
   # cross-service ID 통일(#69) 1회성 백필 스위치 — 기본 꺼짐. 운영에서 필요할 때만
   # ORDER_BACKFILL_FUNDING_PROJECT_PUBLIC_ID=true로 켜서 재기동 1회 실행 후 다시 끈다
   # (FundingProjectPublicIdBackfillRunner 참고, 영구 스케줄 잡 아님).

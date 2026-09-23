@@ -1,5 +1,7 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.order.application.live.LiveStatusClient;
+import com.fundit.order.application.order.LiveOrderStatsService;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -23,12 +25,17 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fundit.common.error.DependencyFailureException;
+import com.fundit.order.infrastructure.persistence.funding.query.LiveOrderStatsProjection;
+
 import java.time.Instant;
+import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +70,10 @@ class OrderControllerTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
+    @MockitoBean
+    private LiveOrderStatsService liveOrderStatsService;
+    @MockitoBean
+    private LiveStatusClient liveStatusClient;
 
     private Funding funding(UUID memberId, UUID publicId, FundingStatus status) {
         return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(PROJECT_ID).projectTitle("프로젝트")
@@ -167,7 +178,7 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
-        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false), any(), any()))
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false), any(), any(), any()))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
 
         // when & then
@@ -188,7 +199,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
-                eq("retry-key-1"), any()))
+                eq("retry-key-1"), any(), any()))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, true));
 
         // when & then
@@ -274,5 +285,81 @@ class OrderControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED_BY_MEMBER"));
+    }
+
+    @Test
+    void 방송중이면_주문에_세션ID를_실어_넘긴다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
+        when(liveStatusClient.findActiveByProject(PROJECT_ID)).thenReturn(
+                Optional.of(new LiveStatusClient.LiveStatus(UUID.randomUUID(), 42L, "LIVE", UUID.randomUUID())));
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
+                any(), any(), eq(42L)))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void live_조회에_실패해도_주문은_생성된다() throws Exception {
+        // given — 라이브ID는 꼬리표라 못 달아도 본 거래를 막지 않는다(확정 계약 5번)
+        UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
+        when(liveStatusClient.findActiveByProject(PROJECT_ID))
+                .thenThrow(new DependencyFailureException(new IllegalStateException("timeout")));
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
+                any(), any(), isNull()))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void 방송_집계를_조회하면_건수와_금액을_반환한다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        when(liveOrderStatsService.getStats(memberId, liveId)).thenReturn(new LiveOrderStatsProjection() {
+            public long getPaidCount() {
+                return 12;
+            }
+
+            public long getPaidAmount() {
+                return 480_000;
+            }
+
+            public long getPendingCount() {
+                return 3;
+            }
+
+            public long getPendingAmount() {
+                return 90_000;
+            }
+        });
+
+        // when & then
+        mockMvc.perform(get("/api/v1/orders/live-stats")
+                        .param("liveId", liveId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liveId").value(liveId.toString()))
+                .andExpect(jsonPath("$.paidCount").value(12))
+                .andExpect(jsonPath("$.paidAmount").value(480000))
+                .andExpect(jsonPath("$.pendingCount").value(3))
+                .andExpect(jsonPath("$.pendingAmount").value(90000));
     }
 }
