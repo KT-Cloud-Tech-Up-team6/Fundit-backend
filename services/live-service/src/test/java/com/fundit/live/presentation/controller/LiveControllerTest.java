@@ -14,6 +14,8 @@ import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.presentation.GlobalExceptionHandler;
+import com.fundit.live.presentation.dto.LiveDetailResponse;
+import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -107,13 +109,45 @@ class LiveControllerTest {
     @Test
     void 내_목록은_로그인_사용자_기준으로_조회한다() throws Exception {
         // given
-        when(liveQueryService.findMine(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(liveQueryService.findMine(any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/mine")
                         .header(AuthHeaders.USER_ID, userId.toString())
                         .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void 상태별_건수를_조회한다() throws Exception {
+        // given
+        when(liveQueryService.countMineByStatus(any()))
+                .thenReturn(new LiveStatusCountsResponse(2, 1, 1, 3, 0));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/status-counts")
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draft").value(2))
+                .andExpect(jsonPath("$.ended").value(3));
+    }
+
+    @Test
+    void 단건_상세를_조회한다() throws Exception {
+        // given
+        UUID liveId = UUID.randomUUID();
+        when(liveQueryService.findOwnedDetail(any(), any())).thenReturn(
+                new LiveDetailResponse(liveId, "LIVE", UUID.randomUUID(), "테크·가전", "생활가전",
+                        "소개", null, null, 0, java.time.Instant.now(), 7, 90L));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}", liveId)
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewerCount").value(7))
+                .andExpect(jsonPath("$.elapsedSeconds").value(90));
     }
 
     @Test

@@ -99,13 +99,15 @@ class LiveSessionJpaRepositoryIntegrationTest {
                 .allMatch(s -> s.getStatus() == LiveStatus.LIVE);
     }
 
+    private static final List<LiveStatus> ALL_STATUSES = List.of(LiveStatus.values());
+
     @Test
     void 내_목록은_DRAFT를_포함한다() {
         // given — 임시저장으로 돌아갈 유일한 경로다(PRD 6.2.4.1)
         seedSession(channelId, LiveStatus.DRAFT);
 
         // when
-        var page = sessionRepository.findMine(sellerId, null, PageRequest.of(0, 20));
+        var page = sessionRepository.findMine(sellerId, ALL_STATUSES, null, null, PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1)
@@ -120,11 +122,79 @@ class LiveSessionJpaRepositoryIntegrationTest {
         seedSession(otherChannel, LiveStatus.LIVE);
 
         // when
-        var page = sessionRepository.findMine(sellerId, null, PageRequest.of(0, 20));
+        var page = sessionRepository.findMine(sellerId, ALL_STATUSES, null, null, PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1)
                 .allMatch(s -> s.getChannelId().equals(channelId));
+    }
+
+    @Test
+    void 내_목록은_다중_상태로_거를_수_있다() {
+        // given
+        seedSession(channelId, LiveStatus.DRAFT);
+        seedSession(channelId, LiveStatus.SCHEDULED);
+        seedSession(channelId, LiveStatus.LIVE);
+
+        // when
+        var page = sessionRepository.findMine(sellerId, List.of(LiveStatus.DRAFT, LiveStatus.SCHEDULED),
+                null, null, PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(2)
+                .extracting(LiveSessionJpaEntity::getStatus)
+                .containsExactlyInAnyOrder(LiveStatus.DRAFT, LiveStatus.SCHEDULED);
+    }
+
+    @Test
+    void 내_목록은_프로젝트_ID로_거를_수_있다() {
+        // given
+        var target = sessionRepository.save(LiveSessionJpaEntity.builder()
+                .publicId(UUID.randomUUID()).projectId(UUID.randomUUID()).channelId(channelId)
+                .status(LiveStatus.LIVE).likeCount(0).build());
+        seedSession(channelId, LiveStatus.LIVE);
+
+        // when
+        var page = sessionRepository.findMine(sellerId, ALL_STATUSES, target.getProjectId(), null,
+                PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1)
+                .extracting(LiveSessionJpaEntity::getPublicId).containsExactly(target.getPublicId());
+    }
+
+    @Test
+    void 내_목록은_소개_문구로_검색할_수_있다() {
+        // given
+        sessionRepository.save(LiveSessionJpaEntity.builder()
+                .publicId(UUID.randomUUID()).projectId(UUID.randomUUID()).channelId(channelId)
+                .introText("신제품 언박싱").status(LiveStatus.LIVE).likeCount(0).build());
+        seedSession(channelId, LiveStatus.LIVE);
+
+        // when
+        var page = sessionRepository.findMine(sellerId, ALL_STATUSES, null, "언박싱", PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).hasSize(1)
+                .allMatch(s -> s.getIntroText().contains("언박싱"));
+    }
+
+    @Test
+    void 상태별_건수는_판매자_본인_것만_집계한다() {
+        // given
+        Long otherChannel = seedChannel(otherSellerId).getId();
+        seedSession(channelId, LiveStatus.DRAFT);
+        seedSession(channelId, LiveStatus.DRAFT);
+        seedSession(channelId, LiveStatus.LIVE);
+        seedSession(otherChannel, LiveStatus.LIVE);
+
+        // when
+        var rows = sessionRepository.countBySellerIdGroupByStatus(sellerId);
+
+        // then
+        assertThat(rows).hasSize(2)
+                .extracting(r -> r.getStatus() + ":" + r.getCount())
+                .containsExactlyInAnyOrder("DRAFT:2", "LIVE:1");
     }
 
     @Test
