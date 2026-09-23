@@ -6,6 +6,8 @@ import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
+import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
+import software.amazon.awssdk.services.ivs.model.GetStreamKeyResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamResponse;
 import software.amazon.awssdk.services.ivs.model.Stream;
@@ -15,8 +17,10 @@ import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenResponse;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomResponse;
+import software.amazon.awssdk.services.ivschat.model.SendEventRequest;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -106,4 +110,37 @@ class AwsIvsClientUnitTest {
         assertThat(viewerCount).isEqualTo(42);
     }
 
+    @Test
+    void 스트림_키는_ARN으로_조회해_값을_돌려준다() {
+        // given
+        given(ivs.getStreamKey(any(GetStreamKeyRequest.class))).willReturn(GetStreamKeyResponse.builder()
+                .streamKey(StreamKey.builder().arn("arn:stream-key").value("sk_secret").build())
+                .build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        String value = client.getStreamKeyValue("arn:stream-key");
+
+        // then
+        ArgumentCaptor<GetStreamKeyRequest> captor = ArgumentCaptor.forClass(GetStreamKeyRequest.class);
+        verify(ivs).getStreamKey(captor.capture());
+        assertThat(captor.getValue().arn()).isEqualTo("arn:stream-key");
+        assertThat(value).isEqualTo("sk_secret");
+    }
+
+    @Test
+    void 채팅_이벤트는_방_이름_속성을_그대로_보낸다() {
+        // given
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        client.sendChatEvent("arn:room", "seller-answer", Map.of("answer", "500ml입니다"));
+
+        // then
+        ArgumentCaptor<SendEventRequest> captor = ArgumentCaptor.forClass(SendEventRequest.class);
+        verify(ivschat).sendEvent(captor.capture());
+        assertThat(captor.getValue().roomIdentifier()).isEqualTo("arn:room");
+        assertThat(captor.getValue().eventName()).isEqualTo("seller-answer");
+        assertThat(captor.getValue().attributes()).containsEntry("answer", "500ml입니다");
+    }
 }

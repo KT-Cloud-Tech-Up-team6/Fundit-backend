@@ -24,6 +24,7 @@ import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
 import com.fundit.live.presentation.dto.LiveStatusResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import com.fundit.live.presentation.dto.PageResponse;
+import com.fundit.live.presentation.dto.StreamInfoResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -100,6 +101,12 @@ public class LiveController {
     @GetMapping("/{liveId}")
     public LiveDetailResponse findOwned(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
         return liveQueryService.findOwnedDetail(user.id(), liveId);
+    }
+
+    /** 판매자 송출 정보(ingest 주소·스트림 키). 키 값은 저장하지 않고 요청 시점에만 조회한다(S9). */
+    @GetMapping("/{liveId}/stream-info")
+    public StreamInfoResponse streamInfo(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return StreamInfoResponse.from(liveStreamService.streamInfo(user.id(), liveId));
     }
 
     /** LIVE 기본 설정 등록/수정(요구사항정의서 6.2.4.1). 부분 업데이트다. */

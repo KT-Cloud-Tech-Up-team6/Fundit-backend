@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * IVS 자격증명이 내려오기 전까지 쓰는 스텁. {@code live.ivs.mode=stub}(기본값)일 때 뜬다.
@@ -57,5 +58,16 @@ public class StubIvsClient implements IvsClient {
     @Override
     public int getViewerCount(String channelArn) {
         return Math.abs(channelArn.hashCode() % 1000);
+    }
+
+    /** 진짜 키처럼 보이면 FE가 OBS 송출 실패를 늦게 발견한다 — 채팅 토큰과 같은 원칙. */
+    @Override
+    public String getStreamKeyValue(String streamKeyRef) {
+        return "stub-stream-key-value:" + streamKeyRef;
+    }
+
+    @Override
+    public void sendChatEvent(String roomArn, String eventName, Map<String, String> attributes) {
+        // 실제 채팅방이 없어 보낼 대상이 없다.
     }
 }

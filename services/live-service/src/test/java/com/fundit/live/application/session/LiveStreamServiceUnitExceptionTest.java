@@ -6,6 +6,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import com.fundit.live.domain.session.LiveStatus;
 import org.junit.jupiter.api.Test;
@@ -33,11 +34,39 @@ class LiveStreamServiceUnitExceptionTest {
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private LiveEventOutboxJpaRepository outboxRepository;
     @Mock private IvsClient ivsClient;
+    @Mock private LiveChannelJpaRepository channelRepository;
 
     @InjectMocks private LiveStreamService liveStreamService;
 
     private final UUID sellerId = UUID.randomUUID();
     private final UUID liveId = UUID.randomUUID();
+
+    @Test
+    void 송출_정보는_남의_방송이면_404다() {
+        // given — 스트림 키가 새면 타인이 이 채널로 무단 송출한다. 소유권이 먼저다.
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> liveStreamService.streamInfo(sellerId, liveId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+        verify(ivsClient, never()).getStreamKeyValue(anyString());
+    }
+
+    @Test
+    void 송출_정보는_채널이_없으면_404다() {
+        // given
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.create(1L, UUID.randomUUID())));
+        given(channelRepository.findBySellerId(sellerId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> liveStreamService.streamInfo(sellerId, liveId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
 
     @Test
     void 남의_방송이면_404다() {

@@ -4,7 +4,9 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.persistence.question.LiveQuestionSummaryJpaEntity;
@@ -17,13 +19,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +37,7 @@ class AiAnswerServiceUnitTest {
     @Mock private LiveQuestionSummaryJpaRepository summaryRepository;
     @Mock private LiveSessionRepository sessionRepository;
     @Mock private AiClient aiClient;
+    @Mock private IvsClient ivsClient;
 
     @InjectMocks private AiAnswerService aiAnswerService;
 
@@ -86,6 +92,46 @@ class AiAnswerServiceUnitTest {
         assertThat(s.isAnswered()).isTrue();
         assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
         assertThat(s.getAnsweredAt()).isNotNull();
+    }
+
+    @Test
+    void SEND하면_채팅방에_이벤트로_게시한다() {
+        // given
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenLiveWithRoomAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(true));
+
+        // when
+        aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // then
+        verify(ivsClient).sendChatEvent("arn:room", AiAnswerService.CHAT_EVENT_NAME,
+                Map.of("questionId", questionId.toString(), "answer", "500ml/700ml 두 가지입니다."));
+    }
+
+    @Test
+    void 채팅_게시에_실패해도_판매자_답변은_그대로_저장된다() {
+        // given — 게시는 부가 동작이다. 실패로 답변 저장이 롤백되면 소비자 Q&A 버튼이 비게 된다.
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenLiveWithRoomAndSummary(s);
+        given(aiClient.registerSellerAnswer(anyString(), eq("fq_0002"), anyString()))
+                .willReturn(new AiClient.SellerAnswerResult(true));
+        willThrow(new DependencyFailureException(new RuntimeException("ivs down")))
+                .given(ivsClient).sendChatEvent(anyString(), anyString(), anyMap());
+
+        // when
+        aiAnswerService.send(sellerId, liveId, questionId, "500ml/700ml 두 가지입니다.");
+
+        // then
+        assertThat(s.isAnswered()).isTrue();
+        assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
+    }
+
+    private void givenLiveWithRoomAndSummary(LiveQuestionSummaryJpaEntity s) {
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(
+                LiveSession.builder().id(1L).publicId(liveId).ivsChatRoomArn("arn:room").build()));
+        given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.of(s));
     }
 
     @Test
