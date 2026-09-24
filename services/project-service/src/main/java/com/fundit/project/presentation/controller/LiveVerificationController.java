@@ -4,6 +4,8 @@ import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.project.application.liveverification.LiveVerificationService;
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaEntity;
+import com.fundit.project.presentation.dto.LiveQuestionListItemResponse;
+import com.fundit.project.presentation.dto.LiveQuestionListResponse;
 import com.fundit.project.presentation.dto.LiveVerificationCreateRequest;
 import com.fundit.project.presentation.dto.LiveVerificationListItemResponse;
 import com.fundit.project.presentation.dto.LiveVerificationListResponse;
@@ -38,8 +40,11 @@ public class LiveVerificationController {
     private final LiveVerificationService liveVerificationService;
 
     @Operation(summary = "LIVE검증 콘텐츠 등록",
-            description = "방송이 끝난 뒤 남는 LIVE검증 질문요약/답변을 등록한다. 방송 송출 자체는 live-service 소관.")
+            description = "방송이 끝난 뒤 남는 LIVE검증 질문요약/답변을 등록한다. 방송 송출 자체는 live-service 소관. "
+                    + "질문 문구·건수는 live-service 이벤트로만 채워지므로, 수신되지 않은 questionSummaryId는 404다.")
     @ApiResponse(responseCode = "201", description = "생성됨")
+    @ApiResponse(responseCode = "404", description = "수신된 적 없는 questionSummaryId")
+    @ApiResponse(responseCode = "409", description = "이미 답변을 등록한 질문")
     @PostMapping("/projects/{projectId}/live-verifications")
     public ResponseEntity<LiveVerificationResponse> create(
             @LoginUser CurrentUser user, @PathVariable UUID projectId,
@@ -67,12 +72,23 @@ public class LiveVerificationController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "LIVE검증 콘텐츠 목록 조회(소비자)")
+    @Operation(summary = "LIVE검증 콘텐츠 목록 조회(소비자)",
+            description = "답변이 등록된 질문만 내려간다. 질문 문구·건수는 live-service 질문요약에서 조인해 채운다.")
     @GetMapping("/projects/{projectId}/live-verifications")
     public LiveVerificationListResponse listForConsumer(@PathVariable UUID projectId) {
         var content = liveVerificationService.listForConsumer(projectId).stream()
-                .map(e -> new LiveVerificationListItemResponse(e.getId(), e.getQuestionCount(), e.getAnswer()))
+                .map(LiveVerificationListItemResponse::from)
                 .toList();
         return new LiveVerificationListResponse(content);
+    }
+
+    @Operation(summary = "LIVE 질문 목록 조회(판매자)",
+            description = "live-service가 보내온 대표 질문 목록. 아직 답변하지 않은 질문도 포함해 무엇을 등록할 수 있는지 보여준다.")
+    @GetMapping("/projects/{projectId}/live-questions")
+    public LiveQuestionListResponse listQuestionsForSeller(@LoginUser CurrentUser user, @PathVariable UUID projectId) {
+        var content = liveVerificationService.listQuestionsForSeller(user.id(), projectId).stream()
+                .map(LiveQuestionListItemResponse::from)
+                .toList();
+        return new LiveQuestionListResponse(content);
     }
 }
