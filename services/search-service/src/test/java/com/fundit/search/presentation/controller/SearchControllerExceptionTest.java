@@ -1,6 +1,7 @@
 package com.fundit.search.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.search.application.live.LiveCardClient;
 import com.fundit.search.application.search.PopularKeywordQueryService;
 import com.fundit.search.application.search.ProjectSearchService;
 import com.fundit.search.application.search.RecentKeywordService;
@@ -34,6 +35,8 @@ class SearchControllerExceptionTest {
     private PopularKeywordQueryService popularKeywordQueryService;
     @MockitoBean
     private SellerSearchService sellerSearchService;
+    @MockitoBean
+    private LiveCardClient liveCardClient;
 
     @Test
     void 로그인_없이_최근_검색어를_조회하면_401을_반환한다() throws Exception {

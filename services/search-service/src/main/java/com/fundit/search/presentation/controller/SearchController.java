@@ -3,6 +3,8 @@ package com.fundit.search.presentation.controller;
 import com.fundit.common.auth.AuthHeaders;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.search.application.live.LiveCardClient;
+import com.fundit.search.application.live.LiveCardClient.LiveCard;
 import com.fundit.search.application.search.PopularKeywordQueryService;
 import com.fundit.search.application.search.ProjectSearchService;
 import com.fundit.search.application.search.RecentKeywordService;
@@ -24,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -36,6 +37,7 @@ public class SearchController {
     private final RecentKeywordService recentKeywordService;
     private final PopularKeywordQueryService popularKeywordQueryService;
     private final SellerSearchService sellerSearchService;
+    private final LiveCardClient liveCardClient;
 
     /**
      * SEARCH-005/008. 미로그인도 검색 가능(선택적 인증) — 로그인 회원만 최근검색어가 자동 저장되므로
@@ -55,14 +57,20 @@ public class SearchController {
     }
 
     /**
-     * SEARCH-006. live-service는 이미 끝났지만 {@code live_documents}를 채울 컨슈머가 아직 없어
-     * 항상 빈 결과를 반환하는 스텁이다(SearchERD.md 5-③) — 실제 필요해질 때 컨슈머를 붙인다(YAGNI).
-     * SEARCH-005와 동일한 키워드/로그 검증은 하지 않는다.
+     * SEARCH-006. live-service {@code GET /api/v1/lives}를 프록시한다. DRAFT 제외는 live-service
+     * 쿼리에 고정돼 있어 여기서 다시 거를 필요가 없다.
+     *
+     * <p>{@code keyword}를 받지 않는다 — API 명세서(SearchDomainApiSpec #6) 그대로이고,
+     * live-service 공개 목록에도 아직 키워드 파라미터가 없다(있는 건 판매자 전용 {@code /lives/mine}).
+     * 실제 요구가 생기면 live-service에 {@code q}를 추가한 뒤 그대로 전달한다.
+     *
+     * <p>SEARCH-005와 달리 {@code search_query_logs} 적재·최근검색어 저장을 하지 않는다 —
+     * 검색어 자체를 받지 않기 때문이다.
      */
     @GetMapping("/lives")
-    public PageResponse<Object> searchLives(
+    public PageResponse<LiveCard> searchLives(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return new PageResponse<>(List.of(), page, size, 0, 0, false);
+        return PageResponse.from(liveCardClient.findPublic(SearchPageRequests.of(page, size)));
     }
 
     /** SEARCH-009. 본인 최근 검색어만 조회한다(security.md S4) — member_id는 항상 @LoginUser에서 주입. */

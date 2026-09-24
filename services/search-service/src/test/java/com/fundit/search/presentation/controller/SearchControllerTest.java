@@ -1,6 +1,8 @@
 package com.fundit.search.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.search.application.live.LiveCardClient;
+import com.fundit.search.application.live.LiveCardClient.LiveCard;
 import com.fundit.search.application.search.PopularKeywordQueryService;
 import com.fundit.search.application.search.PopularKeywordQueryService.PopularKeywordItem;
 import com.fundit.search.application.search.ProjectSearchService;
@@ -51,6 +53,9 @@ class SearchControllerTest {
     @MockitoBean
     private SellerSearchService sellerSearchService;
 
+    @MockitoBean
+    private LiveCardClient liveCardClient;
+
     @Test
     void 비로그인_상품_검색은_최근검색어_저장_없이_동작한다() throws Exception {
         // given
@@ -79,15 +84,23 @@ class SearchControllerTest {
     }
 
     @Test
-    void 검색_LIVE_탭은_항상_빈_결과를_반환하는_스텁이다() throws Exception {
-        // given: 없음
+    void 검색_LIVE_탭은_live_service_목록을_PageResponse로_반환한다() throws Exception {
+        // given
+        UUID liveId = UUID.randomUUID();
+        LiveCard card = new LiveCard(liveId, "캠핑 의자 라이브", "SCHEDULED", UUID.randomUUID(),
+                "https://cdn/thumb.png", Instant.parse("2026-09-25T11:00:00Z"), 3,
+                Instant.parse("2026-09-20T09:00:00Z"), null);
+        when(liveCardClient.findPublic(any()))
+                .thenReturn(new PageImpl<>(List.of(card), PageRequest.of(0, 20), 1));
 
-        // when
-        var result = mockMvc.perform(get("/api/v1/search/lives"));
-
-        // then
-        result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").isEmpty());
+        // when & then
+        mockMvc.perform(get("/api/v1/search/lives"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].liveId").value(liveId.toString()))
+                .andExpect(jsonPath("$.content[0].introText").value("캠핑 의자 라이브"))
+                .andExpect(jsonPath("$.content[0].status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false));
     }
 
     @Test

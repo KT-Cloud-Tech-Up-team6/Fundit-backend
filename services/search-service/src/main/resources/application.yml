@@ -25,6 +25,12 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 search:
+  integration:
+    live-service:
+      # 검색 LIVE 탭(SEARCH-006)·홈 LIVE 섹션(SEARCH-002)이 부르는 live-service 공개 목록 API.
+      # base-url은 프로필별 yml에서 주입하고 로컬은 LiveServiceClientConfig 기본값을 쓴다.
+      connect-timeout-ms: 2000
+      read-timeout-ms: 3000
   kafka:
     retry:
       interval-ms: 1000
