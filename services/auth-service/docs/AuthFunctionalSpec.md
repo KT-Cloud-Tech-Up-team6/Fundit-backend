@@ -104,7 +104,7 @@
 - **처리 내용**: 이메일 중복 검증 → 비밀번호 BCrypt 해시 저장(`accounts` 테이블) → 본인인증 임시토큰(`verificationToken`) 검증(AUTH-005에서 발급된 토큰을 Redis에서 1회 소비하고, 저장된 휴대폰번호와 요청의 휴대폰번호가 일치하는지 대조) → member-service에 프로필 생성 동기 호출 — 실패 시 보상 트랜잭션(계정 삭제)으로 처리, AUTH-012가 안전망
 - **입력값**: 비밀번호, 이메일, 본인인증 임시토큰, (프로필용) 이름, 휴대전화번호, 약관동의 목록, (선택) 주소
 - **출력값**: 생성된 accountId, 가입 완료 회원정보(memberId 포함), 초기 Access/Refresh Token
-- **예외 처리**: 필수값 누락/형식오류 → 400 / 이메일 중복 → 409 / 본인인증 임시토큰 만료·미존재·휴대폰번호 불일치 → 401 `TOKEN_INVALID` / member-service 프로필 생성 실패 → 보상 트랜잭션으로 계정 삭제 후 503
+- **예외 처리**: 필수값 누락/형식오류 → 400 / 이메일 중복 → 409 / 본인인증한 이름+전화번호로 이미 계정 존재 → 409 `ACCOUNT_ALREADY_EXISTS`(#150) / 본인인증 임시토큰 만료·미존재·휴대폰번호 불일치 → 401 `TOKEN_INVALID` / member-service 프로필 생성 실패 → 보상 트랜잭션으로 계정 삭제 후 503
 - **보안/권한** (S1·S2·S3·S9·S10): 비밀번호는 솔트 포함 해시로 저장, 복잡도 검증(S3) · 전 입력값 서버 검증·바인딩(S1·S2) · 이메일 등 저장 시 암호화, HTTPS 전송(S9) · 비밀번호 평문 로깅 금지(S10)
 
 #### AUTH-008. 계정(자격증명) 생성 — 소셜가입
@@ -232,6 +232,7 @@
 | 본인인증 임시토큰 만료·미존재·휴대폰번호 불일치 | `CommonErrorCode.TOKEN_INVALID`(401, 기존) | AUTH-007 |
 | 이메일 형식 오류 / 필수값 누락 | `CommonErrorCode.INVALID_INPUT`(400, 기존) | AUTH-006, AUTH-007, AUTH-008 |
 | 이메일 중복 | `AuthErrorCode.EMAIL_ALREADY_EXISTS` (신규, 409) | AUTH-006, AUTH-007 |
+| 동일인 중복가입(본인인증한 이름+전화번호 일치) | `AuthErrorCode.ACCOUNT_ALREADY_EXISTS` (신규, 409, #150) | AUTH-007 |
 | 이미 가입된 소셜 계정 | `AuthErrorCode.EMAIL_ALREADY_EXISTS` 재사용 또는 `SOCIAL_ACCOUNT_ALREADY_EXISTS`(신규) | AUTH-008 |
 | 이메일 찾기/재설정 링크 발송 시 계정 없음 | **에러코드 없음** — 존재 여부 비노출 위해 항상 성공 형태로 응답 (AUTH-009, AUTH-010 참고) | AUTH-009, AUTH-010 |
 
