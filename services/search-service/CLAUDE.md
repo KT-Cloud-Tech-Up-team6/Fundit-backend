@@ -5,14 +5,16 @@
 ## 이 서비스가 하는 일
 홈피드 추천 프로젝트, 카테고리 탐색, 통합 키워드 검색(상품/LIVE/판매자), 최근·인기 검색어를 제공합니다. (`PRD.md` 10. 홈/카테고리/검색 기준)
 
-**원본 데이터를 하나도 소유하지 않는 순수 read-model 서비스입니다.** 프로젝트 원본은 project-service, 판매자 정보는 member-service, LIVE는 (아직 없는) live-service, 펀딩 집계는 order-service 소유입니다. 이 서비스는 그 원본들의 읽기 전용 비정규화 사본(`project_documents` 등)을 자기 DB에 두고, 조회 요청마다 다른 서비스를 동기 호출하지 않게 합니다. **이벤트를 발행하지 않고 전부 구독만 합니다.**
+**원본 데이터를 하나도 소유하지 않는 순수 read-model 서비스입니다.** 프로젝트 원본은 project-service, 판매자 정보는 member-service, LIVE는 live-service, 펀딩 집계는 order-service 소유입니다. 이 서비스는 그 원본들의 읽기 전용 비정규화 사본(`project_documents` 등)을 자기 DB에 두고, 조회 요청마다 다른 서비스를 동기 호출하지 않게 합니다. **예외는 LIVE 하나입니다** — 색인으로 만들 수 없어 live-service 공개 API를 직접 호출합니다(아래 `LiveCardClient`). **이벤트를 발행하지 않고 전부 구독만 합니다.**
 
 ## 먼저 읽을 문서
 구현을 시작하기 전에 **`services/search-service/docs/SearchDomainFunctionalSpec.md`(SEARCH-001~015)를 먼저 읽으세요 — 그중에서도 SEARCH-011을 가장 먼저** 읽어야 합니다. API 계약은 `SearchDomainApiSpec.md`, DDL·설계 결정·확인 필요 사항은 `SearchERD.md`입니다. 이 CLAUDE.md는 그 문서들의 핵심만 요약한 것이지 대체하지 않습니다.
 
-## ⚠️ 아직 남은 것 — SEARCH-013 + 게이트웨이 라우팅 확인
+## ⚠️ 아직 남은 것 — SEARCH-013
 
 **SEARCH-011은 해결됐습니다.** project-service가 `project.approved.v1`/`project.updated.v1`을 발행하고(`ProjectIndexEventPublisher`/`ProjectIndexEventOutboxWorker`), 이 서비스가 `ProjectIndexEventKafkaListener` → `ProjectDocumentIndexSyncService`로 구독해 `project_documents`를 upsert합니다(`ProjectDocumentJpaRepository.upsertProjectInfo`). 게이트웨이 라우팅도 `platform:gateway-service` `application.yml`에 추가됐습니다(`/api/v1/home/**`, `/api/v1/categories/**`, `/api/v1/search/**` → `${downstream.search-service-base-url}`, 환경변수 `SEARCH_SERVICE_BASE_URL`).
+
+**SEARCH-002/006(LIVE)도 해결됐습니다.** live-service 공개 API 프록시로 연결했습니다(`LiveCardClient` → `LiveServiceLiveCardClient`).
 
 남은 것:
 - **SEARCH-013(펀딩 집계 동기화)은 여전히 막혀 있습니다.** project-service PROJECT-015가 참고하는 펀딩 집계 이벤트 자체가 미확정이라(`project_documents.current_amount`/`achievement_rate`/`participant_count`), 아직 착수할 수 없습니다.
@@ -33,7 +35,7 @@ cd services/search-service && docker compose up -d
 
 이 서비스는 애그리거트 대부분이 `persistence-convention.md` 2번("단순 애그리거트")·3번("조회 전용 프로젝션") 대상이라 `domain`/`Mapper`/`PersistenceAdapter`/포트 인터페이스를 생략할 수 있다. **PR 하나가 커지지 않도록 아래 단위로 쪼개서 진행한다** — 뒤 단계가 앞 단계의 파일을 재사용하도록 순서를 잡았다.
 
-공용 응답 DTO 2개(`ContentResponse<T>`, `PageResponse<T>`)는 처음 필요해지는 시점에 한 번만 만들고 이후 전부 재사용한다. LIVE 탭/배너(SEARCH-002/006)는 항상 빈 배열을 반환하는 스텁이라 별도 컨트롤러·서비스 없이 이미 만든 컨트롤러에 메서드 하나만 추가한다.
+공용 응답 DTO 2개(`ContentResponse<T>`, `PageResponse<T>`)는 처음 필요해지는 시점에 한 번만 만들고 이후 전부 재사용한다. LIVE 탭/배너(SEARCH-002/006)는 live-service 프록시라 별도 컨트롤러·서비스 없이 이미 만든 컨트롤러에 메서드 하나씩만 추가한다.
 
 1. **카테고리 조회(SEARCH-003)** — `CategoryJpaEntity`/`JpaRepository`, `CategoryQueryService`, `CategoryController`, `CategoryTreeResponse`, 시드 마이그레이션. 이 서비스 전체 레이어 패턴(엔티티→서비스→컨트롤러)을 세우는 첫 PR.
 2. **홈피드 + 홈 LIVE 스텁(SEARCH-001, 002)** — `ProjectDocumentJpaEntity`/`JpaRepository`(이후 모든 프로젝트 관련 기능이 재사용), `ProjectCardProjection`(계산 필드 `projectDisplayCode`는 프로젝션 default 메서드로 처리), `HomeFeedQueryService`, `HomeController`, 공용 `ContentResponse<T>`.
@@ -51,13 +53,14 @@ cd services/search-service && docker compose up -d
 ## 도메인 테이블 (스키마 확정 — `V1__init_schema.sql`)
 - `categories` — project-service `categories`의 읽기 전용 미러. 이벤트 동기화 대상이 아니다(마스터 데이터, Flyway 시드로만 관리). **전체 체계가 project-service와 아직 완전히 일치하지 않는다** — `SearchERD.md` 5-④ 참고.
 - `project_documents` — 홈피드·카테고리·검색의 "상품" 색인. PK는 project-service `projects.id`를 그대로 쓴다(별도 서로게이트 키 없음). `status`는 `ONGOING`/`SUCCEEDED`/`FAILED`만 존재 — DRAFT/PENDING_REVIEW는 비공개라 애초에 색인 대상이 아니다.
-- `live_documents` — 검색 LIVE 탭 색인용. live-service는 끝났고 `live.started.v1`/`live.ended.v1`도 발행 중이지만 컨슈머가 아직 없다. 홈 진행중 LIVE 배너는 이 테이블 없이 live-service `GET /api/v1/lives/banner`로 이미 해결됨. 검색 LIVE 탭이 실제 필요해질 때 컨슈머를 붙인다(YAGNI).
+- `live_documents` — **현재 사용하지 않는다.** 검색 LIVE 탭 색인용으로 선반영했지만, 이벤트 페이로드에 카드 필드가 없고(`{liveId, projectId, occurredAt, projectTitle}`) SCHEDULED 전이 이벤트도 없어 색인으로는 카드를 만들 수 없다. LIVE 탭·홈 배너 모두 live-service 공개 API 프록시로 해결했다(`SearchERD.md` 5-③).
 - `search_query_logs` — 실행된 모든 검색 원본 로그. `popular_search_keywords` 배치 집계의 소스.
 - `recent_search_keywords` — 회원별 최근 검색어. `(member_id, keyword)` PK, upsert로 멱등 처리(member-service `wishes`와 동일 패턴).
 - `popular_search_keywords` — 전역 인기 검색어 "현재 스냅샷"(이력 없음). 배치가 매 주기 TRUNCATE 후 재적재.
 - `seller_summary`(VIEW) — `project_documents`를 `seller_id`로 집계. 별도 물리 테이블 없음(동기화 누락 위험 회피).
 
 ## 핵심 설계 결정 (구현 시 반드시 지킬 것)
+- **LIVE만 동기 호출이다(`LiveCardClient`).** `GET /api/v1/search/lives`는 live-service `GET /api/v1/lives`를, `GET /api/v1/home/lives`는 `GET /api/v1/lives/banner`를 프록시한다. 응답은 live-service `LiveSummaryResponse`와 필드 1:1로 미러링한다 — 이름을 바꾸면 FE가 LIVE 메인과 같은 카드 컴포넌트를 못 쓴다(`title`은 없고 카드 문구는 `introText`). 홈은 live-service 장애 시 빈 목록으로 떨어뜨리고, 검색 LIVE 탭은 503을 그대로 올린다.
 - **원본을 절대 직접 쓰지 않는다.** 모든 갱신은 이벤트 구독(또는 SEARCH-015 내부 배치)을 통해서만 일어난다 — DB-per-service 원칙, `project_documents`는 project-service 원본의 최종적 일관성(eventual consistency) 사본이다.
 - **검색은 PostgreSQL `pg_trgm`으로 시작한다(Elasticsearch 도입 안 함)[가정].** 이 레포 전체가 Postgres 단일 스택이라 새 인프라를 들이지 않는다. 정확도·트래픽 이슈가 실제로 나오면 재검토 대상.
 - **`project_display_code`(예: `F0000123`)는 컬럼으로 저장하지 않는다.** project-service와 동일한 생성 규칙(`'F' || LPAD(id::text, 7, '0')`)을 API 응답 직렬화 시점에 `project_id`로부터 계산한다.
@@ -88,7 +91,7 @@ cd services/search-service && docker compose up -d
 
 ## 남은 확인 필요 사항 (상세는 `docs/SearchERD.md` 5번, `docs/SearchDomainFunctionalSpec.md` 하단)
 1. **[최우선] 펀딩 집계 이벤트 확정** — SEARCH-013, project-service PROJECT-015와 공동 이슈. 확정 전까지 카드의 달성률/참여자수는 계속 0이다.
-2. LIVE 관련 전 기능(SEARCH-002, SEARCH-006) — live-service 착수 대기.
+2. 검색 LIVE 탭의 키워드 검색 — live-service 공개 목록에 키워드 파라미터가 없어(판매자 전용 `/lives/mine`에만 있음) 현재 `/api/v1/search/lives`는 `keyword`를 받지 않는다. 필요해지면 live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다.
 3. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
 4. 인기순 정렬 산출식, 최근/인기 검색어 정책값.
 5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).

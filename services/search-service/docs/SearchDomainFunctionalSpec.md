@@ -44,13 +44,13 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **소분류**: 홈 진행 중 LIVE 영역
 - **예외 처리**: 진행 중 LIVE 없음 → 빈 배열(영역 자체 미노출은 프론트 처리)
 - **요구사항**: 현재 방송 중인 LIVE의 썸네일·진입 배너를 홈 상단에 노출한다
-- **우선순위**: MVP(PRD 기준) — **`live_documents` 컨슈머 미연결로 스텁** (live-service 자체는 이미 끝남)
+- **우선순위**: MVP — **완료**(live-service 공개 API 프록시)
 - **입력값**: 없음
 - **중분류**: 홈
-- **처리 내용(기술)**: `GET /api/v1/home/lives`는 항상 빈 배열을 반환한다. **대안으로 live-service `GET /api/v1/lives/banner`가 이미 진행중 LIVE를 내려주므로 프론트는 지금 이 경로를 쓰면 된다.** 검색 LIVE 탭(SEARCH-006)이 실제 필요해질 때 `live_documents`에서 `status='LIVE'`인 행을 조회하도록 교체(YAGNI)
-- **출력값**: LIVE 카드 목록(liveId, title, projectId, thumbnailUrl, viewerCount) — 현재는 항상 빈 배열
+- **처리 내용(기술)**: live-service `GET /api/v1/lives/banner`를 동기 호출해 그대로 내려준다(`LiveCardClient`). 색인 `live_documents`는 쓰지 않는다 — `SearchERD.md` 5-③. live-service 장애 시 200 + 빈 배열로 떨어뜨린다(홈 피드까지 같이 죽이지 않기 위해)
+- **출력값**: LIVE 카드 목록 — live-service `LiveSummaryResponse`와 필드 1:1(`liveId`, `introText`, `status`, `projectId`, `thumbnailUrl`, `scheduledStartAt`, `likeCount`, `createdAt`). `title`은 없고(LIVE에 제목 입력 자체가 없음) `viewerCount`는 이 경로에서 채워지지 않는다
 - **트리거 방식**: API 호출
-- **검토의견(변경사항)**: **`SearchERD.md` 5-③과 동일한 이유로 데이터 소스가 없다.** live-service가 아직 코드조차 없어(`settings.gradle` 미포함) `live_documents`를 채울 이벤트가 없다. API 계약은 선반영했고, 실제 배포 전까지는 **항상 빈 배열을 반환하는 스텁**이다. live-service 착수 시점에 재검토 필요.
+- **검토의견(변경사항)**: 색인(`live_documents`) 대신 REST 프록시로 구현했다. `live.started.v1`/`live.ended.v1` 페이로드에 카드 필드가 하나도 없고(`{liveId, projectId, occurredAt, projectTitle}`) SCHEDULED 전이 이벤트가 없어, 이벤트만으로는 카드도 예정 LIVE도 만들 수 없기 때문이다. LIVE 건수가 프로젝트와 자릿수가 달라 프록시로 충분하다 — 지연이 문제가 되면 그때 컨슈머를 붙인다.
 
 ---
 
@@ -124,13 +124,13 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **소분류**: 키워드 검색 — LIVE 탭
 - **예외 처리**: 결과 0건 → SEARCH-005와 동일 안내
 - **요구사항**: 입력 키워드로 LIVE를 검색하고, 진행 중/진행예정 하위 탭을 제공한다
-- **우선순위**: MVP(PRD 기준) — **`live_documents` 컨슈머 미연결로 스텁** (live-service 자체는 이미 끝남, YAGNI로 미룸)
-- **입력값**: `page`, `size`(스텁 단계에서는 `keyword`/`subTab`을 받지 않음)
+- **우선순위**: MVP — **완료**(live-service 공개 API 프록시, 키워드 검색은 범위 밖)
+- **입력값**: `page`, `size`(`keyword`/`subTab`은 받지 않음 — 아래 검토의견 참고)
 - **중분류**: 검색
-- **처리 내용(기술)**: 항상 빈 페이지를 반환한다. 상품 탭과 달리 키워드 검증·검색 로그·최근검색어 저장을 하지 않는다
-- **출력값**: 페이지네이션된 LIVE 카드 목록(현재는 항상 빈 결과)
+- **처리 내용(기술)**: live-service `GET /api/v1/lives`를 동기 호출해 `PageResponse`로 감싼다(`LiveCardClient`). DRAFT 제외는 live-service 쿼리에 고정돼 있다. 상품 탭과 달리 키워드 검증·검색 로그·최근검색어 저장을 하지 않는다 — 검색어를 받지 않기 때문이다. live-service 장애는 503으로 올린다(SEARCH-002와 다른 점: 이 페이지는 전체가 LIVE다)
+- **출력값**: 페이지네이션된 LIVE 카드 목록(항목 스키마는 SEARCH-002와 동일)
 - **트리거 방식**: API 호출
-- **검토의견(변경사항)**: SEARCH-002와 동일한 이유(`SearchERD.md` 5-③)로 현재는 항상 빈 배열을 반환하는 스텁이다. live-service 착수 후 실제 검색으로 교체할 때 SEARCH-005와 계약을 맞출 것.
+- **검토의견(변경사항)**: **키워드 검색은 아직 불가능하다** — live-service 공개 목록에 키워드 파라미터가 없다(있는 건 판매자 전용 `/lives/mine`의 `introText` 검색). 프론트 요청도 "목록의 실제 방송을 같은 카드 스키마로"까지였으므로 이번 범위에서 제외했다. 실제 요구가 생기면 live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 하고(`findPublicByViewerCount` 경로까지 같이 태워야 조용히 무시되지 않는다), 그때 SEARCH-005와 계약을 맞춘다.
 
 ---
 
@@ -344,7 +344,7 @@ search-service는 **이벤트를 발행하지 않고 전부 구독만** 합니�
 ## ⚠️ 남은 확인 필요 사항 (요약 — 상세는 `SearchERD.md` 5번)
 
 1. **펀딩 집계 이벤트 확정** — SEARCH-013, project-service PROJECT-015와 공동 이슈. 그 전까지 카드 달성률/참여자수는 0.
-2. LIVE 관련 전 기능(SEARCH-002, SEARCH-006) — live-service 착수 대기, 현재는 빈 배열 스텁.
+2. 검색 LIVE 탭 키워드 검색(SEARCH-006) — live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다. 목록 연동 자체(SEARCH-002/006)는 완료.
 3. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
 4. 인기순 정렬 산출식, 최근/인기 검색어 정책값(보관 개수·집계 주기·노출 개수).
 5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
