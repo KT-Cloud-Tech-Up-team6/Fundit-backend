@@ -145,6 +145,7 @@ Validation / Business Rules
 - 이메일 중복 시 409.
 - 비밀번호는 솔트 포함 해시(BCrypt)로 저장, 복잡도 규칙 검증.
 - `verificationToken` 검증 실패/만료/미존재 시 401(`TOKEN_INVALID`). 검증 시 Redis에서 1회 소비(get-and-delete)하고, 저장된 `phoneNumber`가 요청의 `phoneNumber`와 일치하는지 대조한다 — 불일치 시에도 동일하게 401.
+- **1인 1계정(#150, 2026-09-24 PM 확정)**: 본인인증한 **이름+전화번호**로 이미 계정이 있으면 409(`ACCOUNT_ALREADY_EXISTS`, "이미 계정이 존재합니다.") — 이메일만 바꿔 재가입하는 것을 막는다. 본인인증 **뒤에** 검사한다(인증 없이 가입 여부를 캐낼 수 없게). 전화번호를 바꾼 뒤 재가입은 예외로 보고 막지 않는다. PortOne(KG이니시스 통합인증)은 DI를 주지 않아 DI 기준은 쓸 수 없다. DB UNIQUE는 기존 dev 중복 계정 때문에 걸지 않았다(운영 오픈 전 정리 후 검토).
 - **계정 생성 및 프로필 생성 처리 순서(보상 트랜잭션)**:
     1. auth-service가 `accounts` 행을 생성하고 **커밋**한다(네트워크 호출 중 트랜잭션을 열어두지 않기 위함).
     2. 커밋 후 회원 도메인의 `POST /api/v1/members`를 동기 호출해 프로필을 생성한다.
@@ -170,9 +171,9 @@ Request Body
 | `authorizationCode` | String | N | OAuth 인가 코드. `signupToken`을 제출하는 경우 생략 가능 |
 | `signupToken` | String | N | 소셜 로그인 시도 중 미가입으로 판정되며 발급된 토큰(하단 로그인 API 참고). `authorizationCode` 대신 제출 가능 |
 | `agreedTerms` | Array | Y | 약관 동의 목록 |
-| `name` | String | N | 제공자 응답에 이름이 없을 경우 추가 입력 |
+| `name` | String | **Y** | 이름. 본인인증 없이 사용자가 입력한 값(member 프로필 저장용) |
 | `nickname` | String | **Y** | 표시명. 프론트가 제공자 닉네임(`login/social` 응답의 `name`)으로 폼을 미리 채우고 사용자가 고칠 수 있다. **서버는 제공자 값을 쓰지 않는다** — 요청값이 유일한 출처다(이메일과 반대) |
-| `phoneNumber` | String | N | 제공자 응답에 없을 경우 추가 입력 |
+| `phoneNumber` | String | **Y** | 전화번호. 본인인증 없이 사용자가 입력한 값(member `phone_number` NOT NULL) |
 
 Response Body (Set-Cookie로 refreshToken 발급됨)
 
@@ -186,11 +187,11 @@ Response Body (Set-Cookie로 refreshToken 발급됨)
 
 Validation / Business Rules
 
-> **구현 정정(2026-09-10)**: `POST /auth/signup/social`은 `verificationToken`(본인인증)을 **필수로 받는다.**
-> 아래 표에는 없지만, 일반가입(AUTH-007)은 본인인증을 요구하고 member-service는 `phone_number`를 NOT NULL로
-> 저장한다. 소셜만 면제하면 본인인증을 안 거친 회원이 생기고, 정책 A가 대조할 휴대폰번호도 사용자가
-> 타이핑한 값이 된다. `name`/`phoneNumber`는 요청에서 받지 않고 본인인증 결과를 그대로 쓴다.
-> **기획 확인 후 완화 가능** — 쌓인 미인증 데이터는 되돌리기 어려워 엄격한 쪽을 기본값으로 뒀다.
+> **본인인증 없음(#150, 2026-09-24 결정)**: 2026-09-10 구현 정정으로 받던 `verificationToken`을 **제거했다.**
+> 본인인증은 일반가입(AUTH-007)에만 남는다. `name`·`phoneNumber`는 요청값을 그대로 member 프로필에 넘기고,
+> **계정의 이름·전화번호 해시는 비워 둔다** — 인증 안 된 값이 이메일 찾기(AUTH-009)·비밀번호 재설정·일반가입
+> 중복 판정에 섞이지 않게 하기 위해서다. 그래서 소셜 전용 계정은 이메일 찾기 대상이 아니고(소셜 로그인으로 진입),
+> 소셜 계정이 있는 사람도 일반가입은 따로 할 수 있다(PM 결정: 중복 방지는 일반가입만).
 
 - `authorizationCode`/`signupToken` 둘 다 없으면 400.
 - `authorizationCode` 제출 시: 인가 코드로 제공자 사용자정보 조회, 응답값 검증 후 사용.

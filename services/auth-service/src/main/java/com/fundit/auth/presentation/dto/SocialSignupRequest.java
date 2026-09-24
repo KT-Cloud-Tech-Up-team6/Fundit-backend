@@ -19,12 +19,16 @@ import java.util.Map;
  *       폼을 미리 채우고(login/social 응답의 {@code name}), 사용자가 고칠 수 있다.
  *       서버는 제공자 값을 쓰지 않는다 — 요청에 실려 온 값이 유일한 출처다.</li>
  * </ul>
+ *
+ * <p>{@code name}·{@code phoneNumber}는 본인인증 없이 사용자가 입력한 값이다(#150 — 소셜은 본인인증 제외).
+ * member 프로필에만 쓰이고 계정의 조회용 해시에는 남지 않는다({@code SocialSignupService} 참고).
  */
 public record SocialSignupRequest(
         @NotBlank String signupToken,
-        @NotBlank String verificationToken,
         @Email String email,
+        @NotBlank String name,
         @NotBlank @Size(max = 50) String nickname,
+        @NotBlank String phoneNumber,
         @NotEmpty List<String> agreedTerms,
         Map<String, Object> address
 ) {
