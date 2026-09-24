@@ -11,9 +11,11 @@ import com.fundit.project.infrastructure.persistence.liveverification.LiveVerifi
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,11 +51,30 @@ public class LiveVerificationService {
                 project.getId(), questionSummaryId)) {
             throw new BusinessException(ProjectErrorCode.LIVE_VERIFICATION_ALREADY_EXISTS);
         }
-        return liveVerificationJpaRepository.save(LiveVerificationJpaEntity.builder()
-                .projectId(project.getId())
-                .questionSummaryId(questionSummaryId)
-                .answer(answer)
-                .build());
+        try {
+            // IDENTITY 전략이라 save() 시점에 INSERT가 실제로 나간다 — 유니크 위반도 여기서 터진다.
+            return liveVerificationJpaRepository.save(LiveVerificationJpaEntity.builder()
+                    .projectId(project.getId())
+                    .questionSummaryId(questionSummaryId)
+                    .answer(answer)
+                    .build());
+        } catch (DataIntegrityViolationException e) {
+            // 위 exists 체크와 INSERT 사이에 같은 질문으로 다른 요청이 먼저 커밋된 경우
+            // (uq_live_verifications_question 위반)만 409로 흡수한다 — ProjectService.create와 동일 레이스 처리.
+            // 그 외 무결성 위반까지 삼키면 진짜 버그가 가짜 CONFLICT로 가려진다.
+            if (!isUniqueConstraintViolation(e)) {
+                throw e;
+            }
+            throw new BusinessException(ProjectErrorCode.LIVE_VERIFICATION_ALREADY_EXISTS);
+        }
+    }
+
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
+
+    private boolean isUniqueConstraintViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException sqlException
+                && UNIQUE_VIOLATION_SQL_STATE.equals(sqlException.getSQLState());
     }
 
     @Transactional

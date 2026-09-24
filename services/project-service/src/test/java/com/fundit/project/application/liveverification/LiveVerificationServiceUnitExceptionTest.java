@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -137,5 +138,51 @@ class LiveVerificationServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void 동시_등록으로_유니크제약을_위반하면_409_예외가_발생한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        stubExistingQuestion(sellerId, publicId);
+        java.sql.SQLException uniqueViolation = new java.sql.SQLException("duplicate key value", "23505");
+        when(liveVerificationJpaRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("insert failed", uniqueViolation));
+
+        // when & then
+        assertThatThrownBy(() -> liveVerificationService.create(sellerId, publicId, "live-q-1", "답변"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.LIVE_VERIFICATION_ALREADY_EXISTS);
+    }
+
+    @Test
+    void 유니크제약_위반이_아닌_무결성_예외는_그대로_전파된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        stubExistingQuestion(sellerId, publicId);
+        java.sql.SQLException notNullViolation = new java.sql.SQLException("null value in column", "23502");
+        org.springframework.dao.DataIntegrityViolationException notNullException =
+                new org.springframework.dao.DataIntegrityViolationException("insert failed", notNullViolation);
+        when(liveVerificationJpaRepository.save(any())).thenThrow(notNullException);
+
+        // when & then
+        assertThatThrownBy(() -> liveVerificationService.create(sellerId, publicId, "live-q-1", "답변"))
+                .isSameAs(notNullException);
+    }
+
+    /** 소유 프로젝트 + 수신된 질문요약 + 기존 답변 없음 — 등록 직전까지 통과하는 상태. */
+    private void stubExistingQuestion(UUID sellerId, UUID publicId) {
+        Project project = Project.builder()
+                .id(1L).publicId(publicId).sellerId(sellerId).status(ProjectStatus.ONGOING)
+                .createdAt(Instant.now()).updatedAt(Instant.now()).build();
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+        when(liveQuestionSummaryJpaRepository.findByProjectIdAndQuestionSummaryId(1L, "live-q-1"))
+                .thenReturn(Optional.of(LiveQuestionSummaryJpaEntity.builder()
+                        .id(1L).projectId(1L).questionSummaryId("live-q-1").summaryText("질문").questionCount(3).build()));
+        when(liveVerificationJpaRepository.existsByProjectIdAndQuestionSummaryIdAndDeletedAtIsNull(1L, "live-q-1"))
+                .thenReturn(false);
     }
 }
