@@ -23,7 +23,9 @@ public enum ProjectErrorCode implements ErrorCode {
     MEDIA_TOO_LARGE(400, "파일 용량이 허용 범위를 초과했습니다."),
     INVALID_MEDIA_URL(400, "업로드가 확인되지 않았거나 올바르지 않은 파일 주소입니다."),
     INVALID_PROJECT_DATA(422, "Funding Story 생성에 필요한 프로젝트 정보가 올바르지 않습니다."),
-    NOT_READY_TO_GENERATE(422, "Funding Story 요약 확인이 필요합니다.");
+    NOT_READY_TO_GENERATE(422, "Funding Story 요약 확인이 필요합니다."),
+    LIVE_QUESTION_SUMMARY_NOT_FOUND(404, "등록되지 않은 LIVE 질문입니다."),
+    LIVE_VERIFICATION_ALREADY_EXISTS(409, "이미 답변을 등록한 질문입니다.");
 
     private final int httpStatus;
     private final String message;

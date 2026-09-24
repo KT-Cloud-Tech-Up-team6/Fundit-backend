@@ -46,6 +46,7 @@
 | 30 | PATCH | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 수정 | O (판매자) | PROJECT-014 |
 | 31 | DELETE | `/api/v1/live-verifications/{id}` | LIVE검증 콘텐츠 삭제 | O (판매자) | PROJECT-014 |
 | 32 | GET | `/api/v1/projects/{projectId}/live-verifications` | 방송종료 후 LIVE검증 질문/답변 조회(소비자) | X (공통) | PROJECT-019 |
+| 32-1 | GET | `/api/v1/projects/{projectId}/live-questions` | LIVE 질문 목록 조회(판매자, 미답변 포함) | O (판매자) | PROJECT-014 |
 | 33 | GET | `/api/v1/projects/{projectId}/funding-status` | 펀딩 현황 조회(판매자) | O (판매자) | PROJECT-015 |
 | 34 | GET | `/api/v1/projects/{projectId}/wish-stats` | 찜·알림신청 건수 조회(판매자용) | O (판매자) | PROJECT-016 |
 | 35 | GET | `/internal/projects/{projectId}` | 내부 프로젝트 스냅샷 조회(Long PK, v1/Kafka 해석용) | 내부 키 (`X-Internal-Api-Key`) | — |
@@ -1076,6 +1077,9 @@ POST /api/v1/projects/{projectId}/live-verifications
 **Validation / Business Rules**
 
 - `questionSummaryId`는 live-service가 생성한 질문 요약 참조값(cross-service, FK 아님).
+- **질문 문구·건수는 요청으로 받지 않는다.** `live.questions-summarized.v1`로 수신해 `live_question_summaries`(로컬 복제본)에 적재된 값을 조회 시 조인해 쓴다 — 판매자가 임의 문구를 넣으면 live-service 원본과 어긋난다.
+- **수신된 적 없는 `questionSummaryId`는 `404 LIVE_QUESTION_SUMMARY_NOT_FOUND`.** 판매자는 #32-1 목록에서 질문을 고른 뒤 답변을 등록한다.
+- **같은 질문에 답변이 이미 있으면 `409 LIVE_VERIFICATION_ALREADY_EXISTS`**(수정은 #30 PATCH). DB에도 부분 유니크 인덱스(`deleted_at IS NULL`)로 이중 방어 — 소프트 삭제 후 재등록은 가능하다.
 - 답변 텍스트는 소비자 화면(프로젝트 상세 LIVE검증 탭)에 노출되므로 출력 인코딩 적용(S2).
 - 본인 소유 프로젝트만 등록 가능(S4).
 
@@ -1140,7 +1144,8 @@ GET /api/v1/projects/{projectId}/live-verifications
 ```json
 {
   "content": [
-    { "liveVerificationId": 301, "questionCount": 12, "answer": "네, 방수 기능 있습니다." }
+    { "liveVerificationId": 301, "questionSummaryId": "0199d1...", "questionText": "배송은 얼마나 걸리나요?",
+      "questionCount": 12, "answer": "네, 방수 기능 있습니다." }
   ]
 }
 ```
@@ -1148,6 +1153,40 @@ GET /api/v1/projects/{projectId}/live-verifications
 **Validation / Business Rules**
 
 - LIVE 미진행 프로젝트는 빈 배열 반환(탭 자체는 프론트에서 미노출 처리, PRD 12.2.4).
+- **답변이 등록된 질문만** 내려간다(미답변 질문은 판매자용 #32-1에서만 보인다).
+- `questionText`/`questionCount`는 `live_question_summaries`(live-service 이벤트 수신분)에서 조인한다. 질문요약 수신 전에 등록된 과거 항목은 `questionText: null`, `questionCount: 0`이다.
+
+---
+
+### 32-1. LIVE 질문 목록 조회(판매자)
+
+```
+GET /api/v1/projects/{projectId}/live-questions
+```
+
+**Auth Required**: O (판매자)
+
+**Request**: Path Parameter: `projectId`
+
+**Response Body**
+
+```json
+{
+  "content": [
+    { "questionSummaryId": "0199d1...", "questionText": "배송은 얼마나 걸리나요?", "questionCount": 12,
+      "answered": true, "liveVerificationId": 301, "answer": "네, 방수 기능 있습니다." },
+    { "questionSummaryId": "0199d2...", "questionText": "방수 되나요?", "questionCount": 5,
+      "answered": false, "liveVerificationId": null, "answer": null }
+  ]
+}
+```
+
+**Validation / Business Rules**
+
+- **미답변 질문을 포함한다** — #29가 수신된 질문에만 답변을 허용하므로, 판매자는 이 목록에서 `questionSummaryId`를 고른다.
+- 질문 건수(`questionCount`) 내림차순.
+- 본인 소유 프로젝트만 조회 가능(S4).
+- 방송 종료 후 live-service 질문요약이 수신되기 전에는 빈 배열이다.
 
 ---
 
@@ -1277,6 +1316,7 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 | PROJECT-007 | 발행 | `reward.created.v1` / `reward.updated.v1` | 리워드 생성/수정 시(삭제·환불정책 PATCH는 미발행). 파티션 키: `rewardId`. `projectId`는 **내부 Long** |
 | PROJECT-015 | 구독 | `project.funding-reward-stats-updated.v1` | order-service 1일 배치. `reward_stats` 전체 교체. 파티션 키: 내부 `projectId` |
 | PROJECT-016 | 구독 | `project.wished.v1` / `project.unwished.v1` | 찜 통계 |
+| PROJECT-014, PROJECT-019 | 구독 | `live.questions-summarized.v1` | live-service 방송 종료 질문요약. LIVE검증 탭 질문 문구·건수의 **유일한 출처**. 파티션 키: `liveId` |
 | PROJECT-018, PROJECT-029, PROJECT-030 반려 | 발행 | (없음) | `notification.raised.v1`를 발행하지 않음 |
 
 ### `project.approved.v1` / `project.updated.v1` payload
@@ -1320,6 +1360,24 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 
 - `projectId`: 내부 Long PK(공개 UUID가 아님)
 - `quantity`: 무제한 리워드는 `null`
+
+### `live.questions-summarized.v1` 수신 payload
+
+```json
+{
+  "eventId": "live:1042",
+  "liveId": "0199c3a0-...",
+  "projectId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+  "summaries": [
+    { "questionSummaryId": "0199d1...", "summaryText": "배송은 얼마나 걸리나요?", "questionCount": 12 }
+  ]
+}
+```
+
+- `projectId`는 **`public_id`(UUID)** 다. `live_question_summaries.project_id`는 내부 Long이라 컨슈머가 `findByPublicId`로 변환한다 — live-service는 내부 PK를 알 방법이 없으므로 변환은 이쪽 몫이다(live-service 계약 변경 없음).
+- 멱등 기준은 `(project_id, question_summary_id)`. 재수신 시 문구·건수만 갱신하고 행을 늘리지 않는다(`eventId` 기준으로 잡으면 갱신 발행을 놓친다).
+- 모르는 `projectId`는 로그만 남기고 스킵한다(재시도 없는 에러 핸들러라 예외를 던져도 버려진다).
+- 발행 측(live-service)이 AI 요약 실패 시 발행을 포기하므로(`LiveStreamService`) 이벤트가 오지 않으면 해당 방송의 LIVE검증 탭은 비어 있고, 판매자는 답변을 등록할 수 없다.
 
 > `project.funding-deadline-reached.v1`은 `KafkaTopics`/`event-convention.md`에 있으나 **이 서비스는 발행하지 않는다.** order-service ORDER-006 리스너는 구독 중이다.
 
