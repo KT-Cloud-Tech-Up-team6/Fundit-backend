@@ -29,12 +29,14 @@ class PaymentCreateServiceUnitExceptionTest {
     private OrderFundingClient orderFundingClient;
     @Mock
     private PaymentRepository paymentRepository;
+    @Mock
+    private PgOrderIdIssuer pgOrderIdIssuer;
 
     private PaymentCreateService paymentCreateService;
 
     @BeforeEach
     void setUp() {
-        paymentCreateService = new PaymentCreateService(orderFundingClient, paymentRepository);
+        paymentCreateService = new PaymentCreateService(orderFundingClient, paymentRepository, pgOrderIdIssuer);
     }
 
     @Test

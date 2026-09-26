@@ -34,6 +34,13 @@ public class RefundRequestPersistenceAdapter implements RefundRequestRepository 
             RefundRequestStatus.PROCESSING.name());
 
     @Override
+    public Optional<RefundRequest> findReshippingExchangeByFundingId(UUID fundingId) {
+        return jpaRepository.findFirstByFundingOrderIdAndTriggerTypeAndStatusOrderByRequestedAtDesc(fundingId,
+                        RefundTriggerType.EXCHANGE.name(), RefundRequestStatus.PROCESSING.name())
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public boolean existsUnresolvedPostShipmentRequest(UUID fundingId) {
         return jpaRepository.existsByFundingOrderIdAndTriggerTypeInAndStatusIn(fundingId,
                 RefundTriggerType.postShipmentTypes().stream().map(RefundTriggerType::name).toList(),

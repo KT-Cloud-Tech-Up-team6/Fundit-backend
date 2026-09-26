@@ -105,7 +105,7 @@ class RefundControllerExceptionTest {
     void 완료된_결제가_없으면_예상액_조회는_404를_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
         UUID orderId = new UUID(2L, 1024L);
-        when(refundEstimateService.estimate(memberId, orderId, null, false))
+        when(refundEstimateService.estimate(memberId, orderId, null, null, null))
                 .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/refunds/estimate")

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJpaEntity, Long> {
@@ -56,6 +57,9 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
     Page<RefundSummaryProjection> findSummariesBySellerId(@Param("sellerId") UUID sellerId, Pageable pageable);
 
     /** 발송 후 신청 중복 접수 차단용(반품비 차감 부분취소가 두 번 실행되는 것을 막는다). */
+    Optional<RefundRequestJpaEntity> findFirstByFundingOrderIdAndTriggerTypeAndStatusOrderByRequestedAtDesc(
+            UUID fundingOrderId, String triggerType, String status);
+
     boolean existsByFundingOrderIdAndTriggerTypeInAndStatusIn(UUID fundingOrderId, List<String> triggerTypes,
                                                               List<String> statuses);
 }

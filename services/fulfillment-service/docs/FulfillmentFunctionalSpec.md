@@ -151,6 +151,23 @@
 - **검토의견(변경사항)**: 이관/신규 — payment-service `ShippingStatusClient`(FS-096 대응, `StubShippingStatusClient`가 항상 "미발송"으로 응답 중)와 order-service `OrderDomainApiSpec.md`의 "배송 진행 단계는 shipping-service 조회 필요"라는 가정을 실제로 구현하는 항목. 또한 payment-service PAYMENT-006(하자환불, "수령 후 기간 내" 신청기간)이 참조할 `receiptConfirmedAt`도 이 API가 유일한 출처임 — 지금까지는 이 값 자체가 어느 서비스에도 없었다. **(2차 검토)** 초안은 미발송 건을 그냥 "미발송으로 응답"하고 끝내려 했으나, 발송 전에는 `shipments`(project_id를 들고 있는 유일한 로컬 테이블)에 행 자체가 없어 `isDelayed` 계산에 필요한 `projectId`를 구할 수 없었다 — 정작 PAYMENT-008이 가장 궁금해하는 케이스(발송 안 됨+지연 여부)를 판정 못 하는 설계였다. order-service 내부 API로 `projectId`를 조회하도록 수정.
 ---
  
+## 8-1. FULFILLMENT-008b — 교환 재발송 착수 내부 API (payment-service 연동) `신규`
+
+- **PRD 코드**: -
+- **권한**: 시스템
+- **담당 서비스**: fulfillment-service
+- **대분류**: 공통 / **중분류**: 제작/배송 / **소분류**: 교환 재발송 착수
+- **보안/권한 고려사항**: [S1·S4] 내부 전용 엔드포인트(`InternalEndpoint` + `InternalGatewaySecretFilter`의 `X-Internal-Api-Key` 검증). 교환 승인 여부·교환비 부담 주체는 payment-service가 이미 검증한 뒤 호출한다 — 이 API는 그 판단을 반복하지 않는다
+- **요구사항**: 교환이 승인(판매자 귀책·기타)되거나 구매자가 교환 배송비를 결제하면, 해당 펀딩의 배송을 새 사이클로 되돌려 판매자가 다시 발송할 수 있게 한다
+- **우선순위**: MVP
+- **입력값**: fundingId(경로, UUID), `refundRequestId`(payment-service 교환 신청 id — 재요청 멱등키)
+- **처리 내용(기술)**: `shipments` 행을 쓰기 잠금으로 읽어 `status`를 `PREPARING`으로 내리고 `carrier`/`tracking_number`/`shipped_at`/`delivered_at`/`receipt_confirmed_at`을 비운다. `reshipment_count`를 1 올리고 `last_reshipment_requested_at`·`last_reshipment_refund_request_id`를 기록한다(V7). 행을 추가하지 않는 이유는 `uq_shipments_funding_order`(펀딩당 1행)다. 이후 판매자가 FULFILLMENT-006으로 새 운송장을 등록하면 `shipment.shipped.v1`이 다시 발행되고, payment-service가 그 이벤트로 교환을 완료 처리한다
+- **출력값**: `{ status, reshipmentCount }`
+- **예외 처리**: 배송 완료 전(`PREPARING`/`SHIPPED`) → `409 RESHIPMENT_NOT_ALLOWED` / `shipments` 행 없음 → `404 NOT_FOUND` / 같은 `refundRequestId` 재요청 → 상태를 바꾸지 않고 현재 값 그대로 응답(멱등)
+- **트리거 방식**: API 호출(내부, 동기)
+- **검토의견(변경사항)**: 신규 — 환불 정책 V.1.0의 교환이 "재발송"을 필요로 하는데 그 착수 경로가 없어 payment-service 교환 흐름이 접수에서 멈춰 있었다. 이력 보존(이전 사이클의 운송장)은 범위 밖으로 두고 상태 리셋으로 처리했다 — 재발송 이력이 화면에 필요해지면 별도 테이블로 분리할 것
+---
+ 
 ## 9. FULFILLMENT-009 — 수령 확인 처리 (구매자)
  
 - **PRD 코드**: FL_B_MY_02_01

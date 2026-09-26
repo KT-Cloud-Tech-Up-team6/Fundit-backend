@@ -19,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,13 +38,16 @@ class PaymentConfirmServiceUnitTest {
     private SettlementHoldService settlementHoldService;
     @Mock
     private PaymentFailureRecorder paymentFailureRecorder;
+    @Mock
+    private ExchangeFeePaymentListener exchangeFeePaymentListener;
 
     private PaymentConfirmService paymentConfirmService;
 
     @BeforeEach
     void setUp() {
         paymentConfirmService = new PaymentConfirmService(paymentRepository, tossPaymentsClient,
-                paymentEventPublisher, settlementHoldService, paymentFailureRecorder);
+                paymentEventPublisher, settlementHoldService, paymentFailureRecorder,
+                exchangeFeePaymentListener);
     }
 
     @Test
@@ -79,5 +83,26 @@ class PaymentConfirmServiceUnitTest {
         // then
         assertThat(result.status()).isEqualTo(PaymentStatus.COMPLETED.name());
         org.mockito.Mockito.verifyNoInteractions(tossPaymentsClient);
+    }
+
+    /** 교환 배송비는 주문 결제가 아니다 — order-service 통지(PaymentCompleted)도, 정산 보류도 없다. */
+    @Test
+    void 교환_배송비_결제는_교환_흐름으로만_넘어간다() {
+        // given
+        Payment feePayment = Payment.createExchangeFee(FUNDING_ID, MEMBER_ID, "fundit-fee-1", 5_000L, "교환 배송비",
+                77L, "idem-fee");
+        when(paymentRepository.findByPgOrderId("fundit-fee-1")).thenReturn(Optional.of(feePayment));
+        when(tossPaymentsClient.confirm("pay_key_fee", "fundit-fee-1", 5_000L)).thenReturn(
+                new TossPaymentsClient.TossPaymentResult("pay_key_fee", "fundit-fee-1", "secret_fee", "카드",
+                        null, Instant.now(), 5_000L));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        var result = paymentConfirmService.confirm(MEMBER_ID, "pay_key_fee", "fundit-fee-1", 5_000L);
+
+        // then
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        verify(exchangeFeePaymentListener).onExchangeFeePaid(any());
+        verifyNoInteractions(paymentEventPublisher, settlementHoldService);
     }
 }

@@ -50,11 +50,12 @@ class PaymentPersistenceAdapterUnitTest {
         when(jpaRepository.findByPgOrderId("fundit-1")).thenReturn(Optional.of(entity));
         when(jpaRepository.findByPgPaymentKey("key")).thenReturn(Optional.empty());
         when(jpaRepository.findByIdempotencyKey("idem")).thenReturn(Optional.of(entity));
-        when(jpaRepository.findByCompletedFundingOrderId(fundingId)).thenReturn(Optional.empty());
-        when(jpaRepository.findFirstByFundingOrderIdAndStatusInOrderByCreatedAtDesc(fundingId,
+        when(jpaRepository.findByCompletedFundingOrderIdAndPurpose(fundingId, "REWARD")).thenReturn(Optional.empty());
+        when(jpaRepository.findFirstByFundingOrderIdAndPurposeAndStatusInOrderByCreatedAtDesc(fundingId, "REWARD",
                 List.of(PaymentStatus.COMPLETED.name(), PaymentStatus.CANCELLED.name())))
                 .thenReturn(Optional.of(entity));
-        when(jpaRepository.findFirstByFundingOrderIdAndStatusOrderByCreatedAtDesc(fundingId, PaymentStatus.PENDING.name()))
+        when(jpaRepository.findFirstByFundingOrderIdAndPurposeAndStatusOrderByCreatedAtDesc(fundingId, "REWARD",
+                PaymentStatus.PENDING.name()))
                 .thenReturn(Optional.of(entity));
         when(jpaRepository.existsByPgOrderId("fundit-1")).thenReturn(true);
 

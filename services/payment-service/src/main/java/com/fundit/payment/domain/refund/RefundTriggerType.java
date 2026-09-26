@@ -37,8 +37,12 @@ public enum RefundTriggerType {
      */
     RETURN_CHANGE_OF_MIND;
 
-    /** 판매자 검토(승인/반려) 대상 — 신청만 접수해두고 결정 API에서 취소를 실행한다. */
-    private static final Set<RefundTriggerType> SELLER_DECISION_TYPES = EnumSet.of(DEFECT, RETURN_CHANGE_OF_MIND);
+    /**
+     * 판매자 검토(승인/반려) 대상. 하자환불·반품은 결정 API에서 결제취소를 실행하고, 교환은
+     * 취소 대신 교환비 수납(구매자 귀책) 또는 재발송 요청으로 이어진다.
+     */
+    private static final Set<RefundTriggerType> SELLER_DECISION_TYPES = EnumSet.of(DEFECT, RETURN_CHANGE_OF_MIND,
+            EXCHANGE);
 
     /** 발송 후(배송 완료 후) 신청 유형 — 수령 후 7일 기한과 중복 신청 검사를 공유한다. */
     private static final Set<RefundTriggerType> POST_SHIPMENT_TYPES = EnumSet.of(DEFECT, EXCHANGE,

@@ -1,5 +1,6 @@
 package com.fundit.payment.infrastructure.persistence.payment;
 
+import com.fundit.payment.domain.payment.PaymentPurpose;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -56,6 +57,13 @@ public class PaymentJpaEntity {
     @Column(name = "order_name", nullable = false, length = 100)
     private String orderName;
 
+    @Column(nullable = false, length = 20)
+    private String purpose;
+
+    /** purpose='EXCHANGE_FEE'일 때만 채워진다(refund.refund_requests 참조, FK 아님). */
+    @Column(name = "refund_request_id")
+    private Long refundRequestId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "coupon_issuance_ids", nullable = false, columnDefinition = "jsonb")
     private List<Long> couponIssuanceIds;
@@ -91,6 +99,11 @@ public class PaymentJpaEntity {
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();
+        // DDL의 DEFAULT 'REWARD'는 컬럼을 생략한 INSERT에만 적용된다 — JPA는 항상 값을 실어
+        // 보내므로(null 포함) 여기서 같은 기본값을 채운다(createdAt/updatedAt과 같은 이유).
+        if (this.purpose == null) {
+            this.purpose = PaymentPurpose.REWARD.name();
+        }
         if (this.createdAt == null) {
             this.createdAt = now;
         }

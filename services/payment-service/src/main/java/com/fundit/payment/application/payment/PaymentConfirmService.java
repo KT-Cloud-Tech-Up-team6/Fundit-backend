@@ -28,6 +28,7 @@ public class PaymentConfirmService {
     private final PaymentEventPublisher paymentEventPublisher;
     private final SettlementHoldService settlementHoldService;
     private final PaymentFailureRecorder paymentFailureRecorder;
+    private final ExchangeFeePaymentListener exchangeFeePaymentListener;
 
     @Transactional
     public PaymentConfirmResult confirm(UUID accountId, String paymentKey, String orderId, long amount) {
@@ -53,6 +54,14 @@ public class PaymentConfirmService {
         payment.markCompleted(tossResult.paymentKey(), tossResult.secret(), method, tossResult.easyPayProvider(),
                 tossResult.approvedAt() == null ? Instant.now() : tossResult.approvedAt());
         Payment saved = paymentRepository.save(payment);
+
+        // 교환 배송비는 주문 결제가 아니다 — order-service에 알릴 PaymentCompleted도, 판매자 정산
+        // 대상 금액도 아니라서(정산 귀속 미정, 아래 ponytail) 교환 흐름으로만 넘긴다.
+        // ponytail: 교환비를 판매자 정산에 포함하기로 정해지면 여기서 openHold를 열면 된다.
+        if (saved.isExchangeFee()) {
+            exchangeFeePaymentListener.onExchangeFeePaid(saved);
+            return PaymentConfirmResult.from(saved);
+        }
 
         // 정산 에스크로 보류 시작 — 결제 완료 즉시 정산 대상 금액을 잡아둔다(settlement.settlement_holds).
         // settlement_holds.funding_id는 아직 BIGINT(정산 UUID 전환 범위 밖)라 신규 결제는 null로 둔다.

@@ -2,6 +2,7 @@ package com.fundit.payment.infrastructure.persistence.payment;
 
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
+import com.fundit.payment.domain.payment.PaymentPurpose;
 import com.fundit.payment.domain.payment.PaymentStatus;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,7 @@ class PaymentMapperUnitTest {
                 .amount(89_000L)
                 .orderName("테스트 주문")
                 .couponIssuanceIds(List.of(7L))
+                .purpose(PaymentPurpose.REWARD)
                 .paymentMethod(PaymentMethod.EASY_PAY)
                 .easyPayProvider("KAKAOPAY")
                 .status(PaymentStatus.COMPLETED)
@@ -63,5 +65,20 @@ class PaymentMapperUnitTest {
         assertThat(entity.getPaymentMethod()).isNull();
         assertThat(restored.getPaymentMethod()).isNull();
         assertThat(restored.getStatus()).isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    void 교환_배송비_결제는_용도와_교환_신청_id가_유지된다() {
+        // given
+        Payment domain = Payment.createExchangeFee(new UUID(0L, 1024L), UUID.randomUUID(), "fundit-fee", 5_000L,
+                "교환 배송비", 77L, "idem-fee");
+
+        // when
+        Payment roundTripped = mapper.toDomain(mapper.toEntity(domain));
+
+        // then
+        assertThat(roundTripped.getPurpose()).isEqualTo(PaymentPurpose.EXCHANGE_FEE);
+        assertThat(roundTripped.getRefundRequestId()).isEqualTo(77L);
+        assertThat(roundTripped.isExchangeFee()).isTrue();
     }
 }
