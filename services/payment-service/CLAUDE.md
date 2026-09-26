@@ -154,7 +154,7 @@ dependencies {
 본인(`@LoginUser`) `refund_requests`를 페이지네이션 조회. 전 유형을 `trigger_type` 구분 없이 통합 응답(금액/수단/예상처리기간/상태)하고 `triggerType` 파라미터로 필터한다. **`amount`는 결제 원금이 아니라 실 환불액**이다 — `payment_cancellations.cancel_amount` 합계에 `payments.amount` 폴백(반품비 차감 부분취소 반영, 새 컬럼 만들지 말 것).
 
 ### PAYMENT-006 `POST /api/v1/refunds/defect`
-하자유형(불량/파손/표시광고상이) + 증빙(사진/설명) 첨부해 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 생성. 증빙 누락 시 `EVIDENCE_REQUIRED`(400). 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행).
+하자유형(`DefectType` — 불량/파손/오배송/상품 설명과 다름/구성품 누락/기타) + 증빙(사진/설명) 첨부해 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 생성. 증빙 누락 시 `EVIDENCE_REQUIRED`(400). 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행).
 
 ### 발송 후 반품·교환 `POST /api/v2/refunds/return` / `POST /api/v2/refunds/exchange`
 하자환불과 함께 `PostShipmentRefundRequestService` **한 서비스**를 공유한다 — 세 유형이 접수 검증과 저장 골격을 전부 같이 쓰기 때문이다(유형별 서비스 클래스를 복붙하지 말 것). 공통 가드 순서는 **소유권 → 배송완료·수령 후 7일 → 중복 신청**이고, 정책값은 `ReturnPolicy`(반품비 5,000원 + 신청 기한 7일)에 모아 신청·승인·사전계산 세 곳이 같은 값을 쓴다.
@@ -162,7 +162,8 @@ dependencies {
 - **기한 기준일은 `deliveredAt`**이다. `receiptConfirmedAt`은 배송완료 +7일에 자동 확정되므로 기준으로 삼으면 실제 기간이 14일이 된다.
 - **증빙은 `DEFECT`일 때만 필수**다. 반품·교환은 구매자 귀책이라 입증 자료를 요구하지 않는다.
 - **중복 신청 차단은 세 경로 모두에 적용되고, 응용 계층 검사 + DB 부분 유니크 인덱스 두 겹이다**(`uq_refund_requests_unresolved_post_shipment`, V8) — exists 검사만으로는 검사와 INSERT 사이의 경합을 막을 수 없고, 중복 접수가 두 건 승인되면 반품비 차감 부분취소가 두 번 실행돼 실제로 돈이 두 번 빠진다. 인덱스 조건에서 `COMPLETED`/`REJECTED`는 빠져 재신청이 허용된다(반려된 하자환불을 반품으로 다시 접수하는 흐름).
-- 교환은 **접수·조회까지만** 동작한다(교환 배송비 별도 결제·재발송 연동은 범위 밖).
+- **사유 유형은 전용 컬럼이 없어 `reason_detail` 앞에 `"[DAMAGED] 상세"` 형태로 붙여 저장한다**(`RefundReasonTag`). 붙이는 쪽(요청 DTO 3종)과 떼는 쪽(v2 목록 응답)이 이 클래스를 공유하니 포맷을 각자 만들지 말 것 — FE가 이 문자열을 파싱하지 않도록 조회 응답에서 `reasonType`/`reasonDetail`로 나눠 내려준다.
+- 교환은 **접수·조회와 금액 안내까지만** 동작한다. 사유(`ExchangeReason`)가 교환 배송비 부담 주체를 정하고(구매자 귀책 2종만 5,000원), 접수 응답·사전 계산(R05)이 `additionalPaymentAmount`로 알려준다. **실제 수납은 판매자 승인 시점 토스 신규 결제**로 방식만 정해졌고 구현은 재발송 연동과 함께 범위 밖이다 — 같은 펀딩의 두 번째 완료 결제를 막는 `uq_payments_completed_funding`을 `payments.purpose`(`REWARD`/`EXCHANGE_FEE`) 기준으로 바꾸는 작업이 선행돼야 한다.
 
 ### PAYMENT-007 `PATCH /api/v1/refunds/{refundId}/decision`
 **대상은 `DEFECT`와 `RETURN_CHANGE_OF_MIND` 두 유형**(`RefundTriggerType.isSellerDecisionTarget()`)이다 — 교환은 결제취소를 수반하지 않아 이 경로로 완료되지 않는다. 판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출. **취소 금액은 귀책에 따라 갈린다**(환불 정책 V.1.0): `DEFECT`는 `payments.amount` 전액(`is_full_refund=true`, `POST_SUCCESS_DEFECT`), `RETURN_CHANGE_OF_MIND`는 `payments.amount - 5000`(반품비 차감 부분취소, `is_full_refund=false`, `POST_SUCCESS_RETURN`). 완료 시 `RefundCompleted(fundingId, couponIssuanceIds, refundReason, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.

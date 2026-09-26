@@ -86,12 +86,16 @@ public class RefundControllerV2 {
      * 교환 신청 — 판매자 검토 대기 상태(REQUESTED)로만 접수한다. 교환은 환불(결제취소)이 아니라
      * 재발송이 필요한 별개 흐름이라 fulfillment-service 연동이 필요한 승인/완료 처리는 아직
      * 없다 — 신청·목록조회(GET /api/v2/refunds?triggerType=EXCHANGE)까지만 이번 범위다.
+     *
+     * <p>{@code exchangeReason}이 교환 배송비 부담 주체를 정한다. 구매자 귀책이면 5,000원을
+     * 별도 결제해야 하지만, 실제 수납은 판매자 승인 시점이라 여기서는 금액만 응답에 담는다.
      */
     @PostMapping("/exchange")
     public ResponseEntity<ExchangeRequestResponse> requestExchange(@LoginUser CurrentUser user,
                                                                      @Valid @RequestBody ExchangeRequestV2 request) {
         var result = postShipmentRefundRequestService.request(user.id(), request.fundingId(),
-                RefundTriggerType.EXCHANGE, request.reasonDetail(), request.evidenceUrls());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ExchangeRequestResponse.from(result));
+                RefundTriggerType.EXCHANGE, request.toReasonDetail(), request.evidenceUrls());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ExchangeRequestResponse.from(result, request.exchangeReason()));
     }
 }

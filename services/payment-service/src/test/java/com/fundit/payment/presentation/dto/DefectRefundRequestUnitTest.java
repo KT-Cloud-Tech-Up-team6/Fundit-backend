@@ -1,5 +1,6 @@
 package com.fundit.payment.presentation.dto;
 
+import com.fundit.payment.domain.refund.DefectType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,13 +11,13 @@ class DefectRefundRequestUnitTest {
 
     @Test
     void 하자유형을_reasonDetail_앞에_붙인다() {
-        var request = new DefectRefundRequest(1024L, DefectRefundRequest.DefectType.DAMAGED, "파손", List.of("url"));
+        var request = new DefectRefundRequest(1024L, DefectType.DAMAGED, "파손", List.of("url"));
         assertThat(request.toReasonDetail()).isEqualTo("[DAMAGED] 파손");
     }
 
     @Test
     void reasonDetail이_없으면_태그만_남긴다() {
-        var request = new DefectRefundRequest(1024L, DefectRefundRequest.DefectType.DEFECTIVE, null, List.of("url"));
+        var request = new DefectRefundRequest(1024L, DefectType.DEFECTIVE, null, List.of("url"));
         assertThat(request.toReasonDetail()).isEqualTo("[DEFECTIVE] ");
     }
 }

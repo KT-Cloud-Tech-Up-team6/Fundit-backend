@@ -16,6 +16,12 @@ public final class ReturnPolicy {
     /** 구매자 귀책(단순변심·옵션 선택 오류) 반품 시 구매자가 부담하는 반품 배송비. */
     public static final long RETURN_SHIPPING_FEE = 5_000L;
 
+    /**
+     * 구매자 귀책 교환 시 구매자가 별도 결제하는 교환 배송비. 지금은 반품비와 금액이 같지만
+     * 정책상 다른 항목이라 상수를 따로 둔다(한쪽만 바뀔 수 있다).
+     */
+    public static final long EXCHANGE_SHIPPING_FEE = 5_000L;
+
     /** "수령 후 7일 이내 신청" — 기준일은 배송 완료(deliveredAt)다. */
     public static final Duration REQUEST_WINDOW = Duration.ofDays(7);
 

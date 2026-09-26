@@ -51,7 +51,7 @@
 - **우선순위**: MVP
 - **입력값**: 페이지네이션. 호출자 식별은 `@LoginUser CurrentUser`
 - **중분류**: 마이페이지
-- **처리 내용(기술)**: 참여취소/미달자동/하자/지연취소/시스템재조정/교환/반품 유형을 `trigger_type` 구분 없이 통합 조회, 상태(신청/검토/승인/진행중/완료/반려) 조회. `triggerType` 파라미터로 유형별 필터가 가능하다(발송 후 반품 `RETURN_CHANGE_OF_MIND`와 모금 중 취소 `SIMPLE_CHANGE_OF_MIND`가 구분된다). **`amount`는 결제 원금이 아니라 실 환불 금액**이다 — `payment_cancellations.cancel_amount` 합계를 쓰고 아직 취소가 없는 건은 `payments.amount`로 폴백한다(반품비 차감 부분취소 반영, 새 컬럼 없음). 반품 건은 `returnShippingFee=5000`이 함께 내려간다
+- **처리 내용(기술)**: 참여취소/미달자동/하자/지연취소/시스템재조정/교환/반품 유형을 `trigger_type` 구분 없이 통합 조회, 상태(신청/검토/승인/진행중/완료/반려) 조회. `triggerType` 파라미터로 유형별 필터가 가능하다(발송 후 반품 `RETURN_CHANGE_OF_MIND`와 모금 중 취소 `SIMPLE_CHANGE_OF_MIND`가 구분된다). **`amount`는 결제 원금이 아니라 실 환불 금액**이다 — `payment_cancellations.cancel_amount` 합계를 쓰고 아직 취소가 없는 건은 `payments.amount`로 폴백한다(반품비 차감 부분취소 반영, 새 컬럼 없음). 반품 건은 `returnShippingFee=5000`이 함께 내려간다. v2 응답은 사유를 `reasonType`(유형)과 `reasonDetail`(상세)로 나눠 내려보내 FE가 저장 문자열(`"[DAMAGED] ..."`)을 파싱하지 않게 하고, 교환 건은 사유별 `additionalPaymentAmount`(구매자 귀책 5,000원)도 채운다
 - **출력값**: 환불 내역 목록(실 환불금액, 반품배송비, 수단, 예상처리기간, 상태)
 - **트리거 방식**: API 호출
 
@@ -133,7 +133,7 @@
 - **예외 처리**: 배송 완료 전 → `NOT_DELIVERED`(409) / 수령 후 7일 경과 → `RETURN_PERIOD_EXPIRED`(409) / 진행 중인 반품·교환 신청 존재 → `REFUND_ALREADY_REQUESTED`(409) / 결제액이 반품비 이하 → `RETURN_FEE_EXCEEDS_AMOUNT`(422)
 - **출력값**: 신청 접수 결과(`refundId`, `status=REQUESTED`, `paymentAmount`, `returnShippingFee`, `estimatedRefundAmount`)
 - **트리거 방식**: API 호출(`POST /api/v2/refunds/return`)
-- **검토의견(변경사항)**: 성립 후 **발송 전** 단순변심 취소(`POST /api/v2/refunds/simple-change-of-mind`)는 정책·Figma(2026-09-25) 모두 불가로 확정돼 **경로를 제거**했다. 발송 전 취소는 발송지연(PAYMENT-008) 경로만 남는다. `RefundTriggerType.SIMPLE_CHANGE_OF_MIND`는 모금 중 참여 취소(PAYMENT-004)가 계속 쓰므로 유지되며, 이후 이 값은 "모금 중 취소" 한 가지 의미만 갖는다. 교환 배송비 5,000원 별도 결제와 재발송 연동은 범위 밖이다
+- **검토의견(변경사항)**: 성립 후 **발송 전** 단순변심 취소(`POST /api/v2/refunds/simple-change-of-mind`)는 정책·Figma(2026-09-25) 모두 불가로 확정돼 **경로를 제거**했다. 발송 전 취소는 발송지연(PAYMENT-008) 경로만 남는다. `RefundTriggerType.SIMPLE_CHANGE_OF_MIND`는 모금 중 참여 취소(PAYMENT-004)가 계속 쓰므로 유지되며, 이후 이 값은 "모금 중 취소" 한 가지 의미만 갖는다. 교환은 사유(`exchangeReason`, 구매자 귀책 2종·판매자 귀책 5종·기타)를 받아 교환 배송비 부담 주체를 정하고 접수 응답·사전 계산(R05)으로 **금액만 안내**한다 — 5,000원의 실제 수납은 **판매자 승인 시점 토스 신규 결제**로 방식이 정해졌으나(사유별 귀책이 승인에서 확정되므로 접수 시점에 받지 않는다) 재발송 연동과 함께 범위 밖이다
 
 ---
 

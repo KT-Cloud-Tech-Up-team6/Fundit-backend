@@ -150,12 +150,56 @@ class RefundControllerV2Test {
     }
 
     @Test
-    void 교환을_신청하면_REQUESTED_상태로_응답한다() throws Exception {
+    void 구매자_귀책_교환을_신청하면_추가_결제_금액과_함께_응답한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
         when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
-                eq(RefundTriggerType.EXCHANGE), eq("사이즈 변경"), any()))
+                eq(RefundTriggerType.EXCHANGE), eq("[WRONG_OPTION] 사이즈 변경"), any()))
                 .thenReturn(new PostShipmentRefundRequestResult(14L, "REQUESTED", 89_000L, 0L, 89_000L));
+
+        // when & then
+        mockMvc.perform(post("/api/v2/refunds/exchange")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fundingId":"%s","exchangeReason":"WRONG_OPTION","reasonDetail":"사이즈 변경","evidenceUrls":["https://cdn/a.jpg"]}
+                                """.formatted(FUNDING_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.refundId").value(14))
+                .andExpect(jsonPath("$.status").value("REQUESTED"))
+                .andExpect(jsonPath("$.exchangeShippingFee").value(5_000))
+                .andExpect(jsonPath("$.additionalPaymentAmount").value(5_000));
+    }
+
+    @Test
+    void 판매자_귀책_교환이면_추가_결제_금액이_0원이다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
+                eq(RefundTriggerType.EXCHANGE), eq("[WRONG_DELIVERY] 다른 상품이 왔어요"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(15L, "REQUESTED", 89_000L, 0L, 89_000L));
+
+        // when & then
+        mockMvc.perform(post("/api/v2/refunds/exchange")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fundingId":"%s","exchangeReason":"WRONG_DELIVERY","reasonDetail":"다른 상품이 왔어요"}
+                                """.formatted(FUNDING_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.additionalPaymentAmount").value(0));
+    }
+
+    /** FE가 사유를 보내도록 전환하는 동안 기존 요청(사유 없음)도 그대로 접수돼야 한다. */
+    @Test
+    void 교환_사유를_보내지_않으면_기타로_접수된다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
+                eq(RefundTriggerType.EXCHANGE), eq("[OTHER] 사이즈 변경"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(16L, "REQUESTED", 89_000L, 0L, 89_000L));
 
         // when & then
         mockMvc.perform(post("/api/v2/refunds/exchange")
@@ -166,7 +210,25 @@ class RefundControllerV2Test {
                                 {"fundingId":"%s","reasonDetail":"사이즈 변경","evidenceUrls":["https://cdn/a.jpg"]}
                                 """.formatted(FUNDING_ID)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.refundId").value(14))
-                .andExpect(jsonPath("$.status").value("REQUESTED"));
+                .andExpect(jsonPath("$.additionalPaymentAmount").value(0));
+    }
+
+    @Test
+    void 목록_조회_응답은_사유_유형과_상세를_나눠_내려준다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(refundQueryService.listMyRefunds(eq(memberId), any(), any(), any())).thenReturn(
+                new PageImpl<>(List.of(new RefundQueryService.RefundSummary(4L, FUNDING_ID, "EXCHANGE", "REQUESTED",
+                        89_000L, Instant.parse("2026-09-08T01:00:00Z"), "[CHANGE_OF_MIND] 색상이 달라요", null, null,
+                        null)), PageRequest.of(0, 20), 1));
+
+        // when & then
+        mockMvc.perform(get("/api/v2/refunds")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].reasonType").value("CHANGE_OF_MIND"))
+                .andExpect(jsonPath("$.content[0].reasonDetail").value("색상이 달라요"))
+                .andExpect(jsonPath("$.content[0].additionalPaymentAmount").value(5_000));
     }
 }
