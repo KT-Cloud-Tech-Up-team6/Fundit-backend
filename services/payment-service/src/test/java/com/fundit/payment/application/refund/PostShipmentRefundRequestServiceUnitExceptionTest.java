@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -139,6 +141,24 @@ class PostShipmentRefundRequestServiceUnitExceptionTest {
                 RefundTriggerType.DEFECT, "파손", List.of()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertErrorCode(e, PaymentErrorCode.EVIDENCE_REQUIRED));
+    }
+
+    /**
+     * exists 검사를 통과한 뒤 경합에서 진 쪽 — DB 유니크 인덱스(V8)가 INSERT를 거절하면 같은
+     * 409로 번역해야 한다. 중복 접수가 두 건 승인되면 반품비 차감 부분취소가 두 번 실행된다.
+     */
+    @Test
+    void 저장_시점에_중복이_감지되면_REFUND_ALREADY_REQUESTED다() {
+        givenCompletedPaymentOf(MEMBER_ID, 23_000L);
+        givenDeliveredDaysAgo(2);
+        when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(new OrderFundingClient.FundingSnapshot(
+                MEMBER_ID, UUID.randomUUID(), "SUCCEEDED", 23_000L, "주문", null, FUNDING_ID, 0L, 0L));
+        when(refundRequestRepository.save(any())).thenThrow(
+                new DataIntegrityViolationException("uq_refund_requests_unresolved_post_shipment"));
+
+        assertThatThrownBy(() -> request(RefundTriggerType.RETURN_CHANGE_OF_MIND))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertErrorCode(e, PaymentErrorCode.REFUND_ALREADY_REQUESTED));
     }
 
     private void request(RefundTriggerType triggerType) {

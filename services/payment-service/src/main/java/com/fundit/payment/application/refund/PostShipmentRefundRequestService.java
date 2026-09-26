@@ -11,6 +11,7 @@ import com.fundit.payment.domain.refund.RefundRequestRepository;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.domain.refund.ReturnPolicy;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,12 +57,29 @@ public class PostShipmentRefundRequestService {
         // 목록 조회 때마다 건별로 order-service를 호출하지 않기 위한 비정규화.
         UUID sellerId = orderFundingClient.fetch(fundingId).sellerId();
 
-        RefundRequest saved = refundRequestRepository.save(RefundRequest.requestAfterShipment(triggerType, fundingId,
+        RefundRequest saved = saveRejectingDuplicate(RefundRequest.requestAfterShipment(triggerType, fundingId,
                 payment.getId(), sellerId, reasonDetail, evidenceUrls));
         long returnShippingFee = triggerType == RefundTriggerType.RETURN_CHANGE_OF_MIND
                 ? ReturnPolicy.RETURN_SHIPPING_FEE : 0L;
         return new PostShipmentRefundRequestResult(saved.getId(), saved.getStatus().name(), payment.getAmount(),
                 returnShippingFee, payment.getAmount() - returnShippingFee);
+    }
+
+    /**
+     * 위 exists 검사는 검사와 INSERT 사이에 다른 트랜잭션이 끼어들면 통과해버린다(check-then-act).
+     * 반품 승인은 반품비를 뺀 금액을 부분취소하므로 중복 접수가 두 건 승인되면 실제로 돈이 두 번
+     * 빠진다 — DB 유니크 인덱스({@code uq_refund_requests_unresolved_post_shipment}, V8)를 최종
+     * 방어선으로 두고, 그 위반을 경합에서 진 쪽에게 같은 409로 돌려준다.
+     *
+     * <p>엔티티가 {@code GenerationType.IDENTITY}라 INSERT가 {@code save()} 시점에 즉시 실행되므로
+     * 위반도 여기서 잡힌다(커밋까지 미뤄지지 않는다). 예외를 던져 트랜잭션은 그대로 롤백시킨다.
+     */
+    private RefundRequest saveRejectingDuplicate(RefundRequest refundRequest) {
+        try {
+            return refundRequestRepository.save(refundRequest);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(PaymentErrorCode.REFUND_ALREADY_REQUESTED);
+        }
     }
 
     /**

@@ -208,7 +208,7 @@
 }
 ```
 
-- **처리 절차**: 2-2와 같은 공통 가드(소유권 → 배송완료·수령 후 7일 → 중복 신청)를 통과한 뒤 `refund_requests(trigger_type='RETURN_CHANGE_OF_MIND', status='REQUESTED')`를 생성한다. 정책이 "**회수 후 환불**"이므로 **접수 시점에는 PG 취소를 하지 않는다** — 판매자가 회수를 확인하고 2-3(`PATCH /api/v1/refunds/{refundId}/decision`)으로 승인하면 반품 배송비를 뺀 금액이 부분취소된다. 승인 주체는 판매자이며 신규 승인 API는 없다.
+- **처리 절차**: 2-2와 같은 공통 가드(소유권 → 배송완료·수령 후 7일 → 중복 신청)를 통과한 뒤 `refund_requests(trigger_type='RETURN_CHANGE_OF_MIND', status='REQUESTED')`를 생성한다. 중복 신청은 응용 계층 검사와 **DB 부분 유니크 인덱스**(`uq_refund_requests_unresolved_post_shipment`, V8) 두 겹으로 막는다 — 검사와 INSERT 사이의 경합에서 진 쪽은 인덱스 위반이 같은 `REFUND_ALREADY_REQUESTED`(409)로 번역된다. 정책이 "**회수 후 환불**"이므로 **접수 시점에는 PG 취소를 하지 않는다** — 판매자가 회수를 확인하고 2-3(`PATCH /api/v1/refunds/{refundId}/decision`)으로 승인하면 반품 배송비를 뺀 금액이 부분취소된다. 승인 주체는 판매자이며 신규 승인 API는 없다.
 - **비고**: 반품 배송비는 **전 프로젝트 공통 5,000원**(`ReturnPolicy.RETURN_SHIPPING_FEE`, 정책 확정 2026-09-23)이다. 프로젝트/리워드별 반품비 정책이 생기면 project-service 조회로 바꾼다 — 그때까지 설정값으로 빼지 않는다. 성립 후 **발송 전** 단순변심 취소는 정책상 불가라 별도 경로가 없다(발송 지연일 때만 2-4로 취소 가능).
 - **주요 에러 코드**: `NOT_DELIVERED`(409), `RETURN_PERIOD_EXPIRED`(409), `REFUND_ALREADY_REQUESTED`(409), `RETURN_FEE_EXCEEDS_AMOUNT`(422, 결제액이 반품비 이하), `NOT_FOUND`(404), `FORBIDDEN`(403)
 
