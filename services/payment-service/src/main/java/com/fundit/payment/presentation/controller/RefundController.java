@@ -5,11 +5,12 @@ import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.media.MediaStorageClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
-import com.fundit.payment.application.refund.DefectRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
 import com.fundit.payment.application.refund.RefundEstimateService;
 import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
+import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.dto.DefectRefundRequest;
 import com.fundit.payment.presentation.dto.DefectRefundRequestResponse;
 import com.fundit.payment.presentation.dto.MediaUploadUrlResponse;
@@ -50,7 +51,7 @@ import java.util.UUID;
 public class RefundController {
 
     private final RefundQueryService refundQueryService;
-    private final DefectRefundRequestService defectRefundRequestService;
+    private final PostShipmentRefundRequestService postShipmentRefundRequestService;
     private final DefectRefundDecisionService defectRefundDecisionService;
     private final ShippingDelayRefundService shippingDelayRefundService;
     private final OrderFundingClient orderFundingClient;
@@ -77,8 +78,8 @@ public class RefundController {
     public ResponseEntity<DefectRefundRequestResponse> requestDefect(@LoginUser CurrentUser user,
                                                                        @Valid @RequestBody DefectRefundRequest request) {
         UUID orderId = orderFundingClient.fetchByInternalId(request.fundingId()).fundingPublicId();
-        var result = defectRefundRequestService.request(user.id(), orderId, request.toReasonDetail(),
-                request.evidenceUrls());
+        var result = postShipmentRefundRequestService.request(user.id(), orderId, RefundTriggerType.DEFECT,
+                request.toReasonDetail(), request.evidenceUrls());
         return ResponseEntity.status(HttpStatus.CREATED).body(DefectRefundRequestResponse.from(result));
     }
 
@@ -111,9 +112,16 @@ public class RefundController {
         return new MediaUploadUrlResponse(presigned.uploadUrl(), presigned.fileUrl());
     }
 
-    /** R05 — 환불 신청 전 예상 환불액 사전 계산. */
+    /**
+     * R05 — 환불 신청 전 예상 환불액 사전 계산. {@code triggerType}을 주면 그 유형의 정책이
+     * 반영된다(반품이면 반품비 차감). {@code defectType=OTHER}처럼 귀책이 불분명한 건은
+     * {@code refundAmount}를 null로 내려 화면이 확정액을 표시하지 않게 한다.
+     */
     @GetMapping("/estimate")
-    public RefundEstimateResponse estimate(@LoginUser CurrentUser user, @RequestParam UUID orderId) {
-        return RefundEstimateResponse.from(refundEstimateService.estimate(user.id(), orderId));
+    public RefundEstimateResponse estimate(@LoginUser CurrentUser user, @RequestParam UUID orderId,
+                                            @RequestParam(required = false) RefundTriggerType triggerType,
+                                            @RequestParam(required = false) DefectRefundRequest.DefectType defectType) {
+        return RefundEstimateResponse.from(refundEstimateService.estimate(user.id(), orderId, triggerType,
+                defectType == DefectRefundRequest.DefectType.OTHER));
     }
 }

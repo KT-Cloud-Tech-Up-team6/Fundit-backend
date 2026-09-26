@@ -178,13 +178,15 @@ class OrderQueryServiceUnitTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
         when(fulfillmentStatusClient.fetch(orderId))
-                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, true));
+                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true,
+                        Instant.now().minus(java.time.Duration.ofDays(2))));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
 
         // when
         OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
 
         // then
-        assertThat(detail.availableActions()).containsExactly("DEFECT_REFUND_REQUEST");
+        assertThat(detail.availableActions())
+                .containsExactly("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
     }
 }

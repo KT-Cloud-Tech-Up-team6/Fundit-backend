@@ -1,11 +1,10 @@
 package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
-import com.fundit.payment.application.refund.DefectRefundRequestService;
-import com.fundit.payment.application.refund.ExchangeRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService.PostShipmentRefundRequestResult;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
-import com.fundit.payment.application.refund.SimpleChangeOfMindRefundService;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -48,13 +47,9 @@ class RefundControllerV2Test {
     @MockitoBean
     private RefundQueryService refundQueryService;
     @MockitoBean
-    private DefectRefundRequestService defectRefundRequestService;
+    private PostShipmentRefundRequestService postShipmentRefundRequestService;
     @MockitoBean
     private ShippingDelayRefundService shippingDelayRefundService;
-    @MockitoBean
-    private SimpleChangeOfMindRefundService simpleChangeOfMindRefundService;
-    @MockitoBean
-    private ExchangeRequestService exchangeRequestService;
 
     @Test
     void 목록_조회_응답의_fundingId는_UUID로_채워진다() throws Exception {
@@ -75,8 +70,9 @@ class RefundControllerV2Test {
     @Test
     void 하자환불을_신청하면_UUID_fundingId를_그대로_전달한다() throws Exception {
         UUID memberId = UUID.randomUUID();
-        when(defectRefundRequestService.request(eq(memberId), eq(FUNDING_ID), eq("[DAMAGED] 파손"), any()))
-                .thenReturn(new DefectRefundRequestService.DefectRefundRequestResult(11L, "REQUESTED"));
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
+                eq(RefundTriggerType.DEFECT), eq("[DAMAGED] 파손"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(11L, "REQUESTED", 89_000L, 0L, 89_000L));
 
         mockMvc.perform(post("/api/v2/refunds/defect")
                         .header("X-User-Id", memberId.toString())
@@ -122,28 +118,44 @@ class RefundControllerV2Test {
     }
 
     @Test
-    void 단순변심_환불을_신청하면_UUID_fundingId를_그대로_전달한다() throws Exception {
+    void 반품을_신청하면_반품비와_예상환불액을_함께_응답한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(simpleChangeOfMindRefundService.requestCancel(memberId, FUNDING_ID))
-                .thenReturn(new SimpleChangeOfMindRefundService.SimpleChangeOfMindRefundResult(13L, "COMPLETED"));
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
+                eq(RefundTriggerType.RETURN_CHANGE_OF_MIND), eq("[CHANGE_OF_MIND] 색상이 달라요"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(13L, "REQUESTED", 23_000L, 5_000L, 18_000L));
 
         // when & then
-        mockMvc.perform(post("/api/v2/refunds/simple-change-of-mind")
+        mockMvc.perform(post("/api/v2/refunds/return")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"fundingId\":\"%s\"}".formatted(FUNDING_ID)))
+                        .content("""
+                                {"fundingId":"%s","returnReason":"CHANGE_OF_MIND","reasonDetail":"색상이 달라요"}
+                                """.formatted(FUNDING_ID)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.refundId").value(13));
+                .andExpect(jsonPath("$.refundId").value(13))
+                .andExpect(jsonPath("$.returnShippingFee").value(5000))
+                .andExpect(jsonPath("$.estimatedRefundAmount").value(18000));
+    }
+
+    @Test
+    void 폐기된_단순변심_취소_경로는_더_이상_없다() throws Exception {
+        mockMvc.perform(post("/api/v2/refunds/simple-change-of-mind")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fundingId\":\"%s\"}".formatted(FUNDING_ID)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
     void 교환을_신청하면_REQUESTED_상태로_응답한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(exchangeRequestService.request(eq(memberId), eq(FUNDING_ID), eq("사이즈 변경"), any()))
-                .thenReturn(new ExchangeRequestService.ExchangeRequestResult(14L, "REQUESTED"));
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(FUNDING_ID),
+                eq(RefundTriggerType.EXCHANGE), eq("사이즈 변경"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(14L, "REQUESTED", 89_000L, 0L, 89_000L));
 
         // when & then
         mockMvc.perform(post("/api/v2/refunds/exchange")

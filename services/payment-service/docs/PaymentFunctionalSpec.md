@@ -51,8 +51,8 @@
 - **우선순위**: MVP
 - **입력값**: 페이지네이션. 호출자 식별은 `@LoginUser CurrentUser`
 - **중분류**: 마이페이지
-- **처리 내용(기술)**: 참여취소/미달자동/하자/지연취소/시스템재조정 유형을 `trigger_type` 구분 없이 통합 조회, 상태(신청/검토/승인/진행중/완료/반려) 조회
-- **출력값**: 환불 내역 목록(금액,수단,예상처리기간,상태)
+- **처리 내용(기술)**: 참여취소/미달자동/하자/지연취소/시스템재조정/교환/반품 유형을 `trigger_type` 구분 없이 통합 조회, 상태(신청/검토/승인/진행중/완료/반려) 조회. `triggerType` 파라미터로 유형별 필터가 가능하다(발송 후 반품 `RETURN_CHANGE_OF_MIND`와 모금 중 취소 `SIMPLE_CHANGE_OF_MIND`가 구분된다). **`amount`는 결제 원금이 아니라 실 환불 금액**이다 — `payment_cancellations.cancel_amount` 합계를 쓰고 아직 취소가 없는 건은 `payments.amount`로 폴백한다(반품비 차감 부분취소 반영, 새 컬럼 없음). 반품 건은 `returnShippingFee=5000`이 함께 내려간다
+- **출력값**: 환불 내역 목록(실 환불금액, 반품배송비, 수단, 예상처리기간, 상태)
 - **트리거 방식**: API 호출
 
 ---
@@ -105,34 +105,59 @@
 - **대분류**: 소비자
 - **보안/권한 고려사항**: [S2·S4·S5] 하자 증빙 사진 업로드 시 확장자 화이트리스트·크기 제한·파일명 변경 적용(S5) / 하자 설명 텍스트 서버 검증 및 출력 인코딩(S2) / 본인 주문만 신청 가능(S4) — `@LoginUser CurrentUser`
 - **소분류**: 하자환불 신청
-- **예외 처리**: 증빙 누락 → `EVIDENCE_REQUIRED`(400)로 신청 차단 / 완료된 결제 없음 → `NOT_FOUND`(404, `FUNDING_NOT_FOUND` 코드 없음)
+- **예외 처리**: 증빙 누락 → `EVIDENCE_REQUIRED`(400)로 신청 차단 / 완료된 결제 없음 → `NOT_FOUND`(404, `FUNDING_NOT_FOUND` 코드 없음) / 배송 완료 전 → `NOT_DELIVERED`(409) / 수령 후 7일 경과 → `RETURN_PERIOD_EXPIRED`(409) / 진행 중인 신청 존재 → `REFUND_ALREADY_REQUESTED`(409)
 - **요구사항**: 수령한 리워드의 하자를 사유로 환불을 신청한다
 - **우선순위**: MVP
 - **입력값**: fundingId, 하자유형(`DEFECTIVE`/`DAMAGED`/`DIFFERENT_FROM_DESCRIPTION`), 증빙자료. 호출자 식별은 `@LoginUser CurrentUser`
 - **중분류**: 환불
-- **처리 내용(기술)**: 하자 유형 선택, 증빙(사진·설명) 첨부 후 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 접수. 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행)
+- **처리 내용(기술)**: 하자 유형 선택, 증빙(사진·설명) 첨부 후 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 접수. 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행). 접수 검증은 반품·교환과 공유하는 공통 가드를 쓴다(6-1 참고)
 - **출력값**: 신청 접수 결과(`refundId`, `status=REQUESTED`)
 - **트리거 방식**: API 호출
 
 ---
 
-## 7. PAYMENT-007 — 하자환불 검토/승인/반려
+## 6-1. 발송 후 단순변심·옵션 오류 반품 접수 (환불 정책 V.1.0)
+
+- **PRD 코드**: IA v1.3 `FL_B_MY_FUND_RT`
+- **권한**: 구매자
+- **담당 서비스**: payment-service
+- **대분류**: 소비자 / **중분류**: 환불 / **소분류**: 발송 후 반품 접수
+- **보안/권한 고려사항**: [S2·S4] 사유 텍스트 서버 검증·출력 인코딩(S2) / 본인 주문만 신청 가능 — `payment.isOwnedBy(CurrentUser.id)`로 소유권 대조(S4)
+- **요구사항**: 수령 후 7일 이내에 단순변심·옵션 선택 오류를 사유로 반품을 접수한다. 구매자가 반품 배송비 5,000원을 부담하는 조건으로 허용된다
+- **우선순위**: MVP
+- **입력값**: fundingId(UUID), `returnReason`(`CHANGE_OF_MIND`/`WRONG_OPTION`), 사유 상세(선택, 500자 이하), 증빙(**선택**)
+- **처리 내용(기술)**: `PostShipmentRefundRequestService`가 **소유권 → 배송완료·수령 후 7일 → 중복 신청 → 반품비 초과** 순으로 검증한 뒤 `refund_requests(trigger_type='RETURN_CHANGE_OF_MIND', status='REQUESTED')`를 접수한다. 정책이 "회수 후 환불"이라 **접수 시점에 PG 취소를 하지 않는다** — 판매자가 회수를 확인하고 PAYMENT-007로 승인하면 반품비를 뺀 금액이 부분취소된다
+  - **기한 기준일은 `deliveredAt`(배송 완료)**이다. `receiptConfirmedAt`(수령 확인)은 배송완료 +7일에 자동 확정되므로 그것을 기준으로 삼으면 실제 신청 기간이 14일로 늘어나 정책보다 길어진다
+  - **공통 가드**는 하자환불(PAYMENT-006)·교환과 공유한다. 중복 신청 차단은 반품비 차감 부분취소가 두 번 실행돼 실제로 돈이 두 번 빠지는 것을 막기 위한 것이라, 기존 하자환불·교환 경로에도 함께 적용된다
+  - 반품 배송비 5,000원은 **전 프로젝트 공통 도메인 상수**(`ReturnPolicy.RETURN_SHIPPING_FEE`)다. 프로젝트/리워드별 반품비 정책이 생기면 그때 project-service 조회로 바꾼다
+- **예외 처리**: 배송 완료 전 → `NOT_DELIVERED`(409) / 수령 후 7일 경과 → `RETURN_PERIOD_EXPIRED`(409) / 진행 중인 반품·교환 신청 존재 → `REFUND_ALREADY_REQUESTED`(409) / 결제액이 반품비 이하 → `RETURN_FEE_EXCEEDS_AMOUNT`(422)
+- **출력값**: 신청 접수 결과(`refundId`, `status=REQUESTED`, `paymentAmount`, `returnShippingFee`, `estimatedRefundAmount`)
+- **트리거 방식**: API 호출(`POST /api/v2/refunds/return`)
+- **검토의견(변경사항)**: 성립 후 **발송 전** 단순변심 취소(`POST /api/v2/refunds/simple-change-of-mind`)는 정책·Figma(2026-09-25) 모두 불가로 확정돼 **경로를 제거**했다. 발송 전 취소는 발송지연(PAYMENT-008) 경로만 남는다. `RefundTriggerType.SIMPLE_CHANGE_OF_MIND`는 모금 중 참여 취소(PAYMENT-004)가 계속 쓰므로 유지되며, 이후 이 값은 "모금 중 취소" 한 가지 의미만 갖는다. 교환 배송비 5,000원 별도 결제와 재발송 연동은 범위 밖이다
+
+---
+
+## 7. PAYMENT-007 — 발송 후 환불 신청 검토/승인/반려
 
 - **PRD 코드**: FL_B_RF_01_03
 - **권한**: 판매자
 - **담당 서비스**: payment-service
 - **대분류**: 판매자
 - **보안/권한 고려사항**: [S2·S4] 승인/반려 사유 텍스트 출력 시 인코딩(S2) / 해당 주문의 판매자 본인 여부 서버 검증(`OrderFundingClient`가 반환한 `sellerId`와 `CurrentUser.id` 대조), 타 판매자의 환불 건 처리 차단(S4)
-- **소분류**: 하자환불 검토/승인/반려
-- **예외 처리**: 반려 시 사유 필수 입력(`REASON_REQUIRED`)
-- **요구사항**: 판매자(또는 운영)가 하자환불 신청을 검토해 승인·반려한다
+- **소분류**: 발송 후 환불 신청 검토/승인/반려(하자환불·반품)
+- **예외 처리**: 반려 시 사유 필수 입력(`REASON_REQUIRED`) / 판매자 검토 대상 유형이 아님(`DEFECT`·`RETURN_CHANGE_OF_MIND` 외) → `INVALID_INPUT`(400)
+- **요구사항**: 판매자(또는 운영)가 하자환불·반품 신청을 검토해 승인·반려한다
 - **우선순위**: MVP
 - **입력값**: refundId, 승인/반려, 사유. 호출자 식별은 `@LoginUser CurrentUser`
 - **중분류**: 환불
-- **처리 내용(기술)**: 신청 검토 후 승인 시 **같은 요청 안에서** `pg_payment_key` 기준 토스 전액 취소 API를 호출하고, 성공하면 `refund_requests.status=COMPLETED`를 즉시 반환한다(`PROCESSING`을 응답하지 않음). **MVP는 전액 환불만 수행**한다 — 반품비 차감 등 부분취소 금액 산정이 미확정이라 `payments.amount` 전액을 취소하고 `is_full_refund=true`로 기록한다. 완료 시 `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DEFECT`, `fullRefund`=`true`, `couponIssuanceId` 포함)와 `notification.raised.v1`(완료)을 적재. 반려 시 사유 기록, `RefundCompleted`는 발행하지 않고 `notification.raised.v1`(반려)만 발행
+- **처리 내용(기술)**: 신청 검토 후 승인 시 **같은 요청 안에서** `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 `refund_requests.status=COMPLETED`를 즉시 반환한다(`PROCESSING`을 응답하지 않음). **취소 금액은 귀책에 따라 다르다**(환불 정책 V.1.0):
+  - 판매자 귀책(`DEFECT`) → `payments.amount` 전액 취소, `is_full_refund=true`, `refundReason=POST_SUCCESS_DEFECT`, `fullRefund=true`
+  - 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`) → `payments.amount - 5000`(반품 배송비 차감) 부분취소, `is_full_refund=false`, `refundReason=POST_SUCCESS_RETURN`, `fullRefund=false`. 결제 상태는 `COMPLETED`를 유지하고 에스크로 보류도 유지된다
+
+  완료 시 `refund.completed.v1`(`couponIssuanceIds` 포함)과 `notification.raised.v1`(완료)을 적재. 반려 시 사유 기록, `RefundCompleted`는 발행하지 않고 `notification.raised.v1`(반려)만 발행
 - **출력값**: 처리 결과(`status=COMPLETED` 또는 `REJECTED`)
 - **트리거 방식**: API 호출
-- **검토의견(변경사항)**: 승인 응답은 즉시 `COMPLETED`. 부분취소는 MVP 범위 밖
+- **검토의견(변경사항)**: 승인 응답은 즉시 `COMPLETED`. 반품비 차감 부분취소는 환불 정책 V.1.0으로 확정돼 구현됨(이전 "부분취소는 MVP 범위 밖" 서술을 대체한다). 교환(`EXCHANGE`)은 결제취소를 수반하지 않아 이 경로로 완료되지 않는다
 
 ---
 

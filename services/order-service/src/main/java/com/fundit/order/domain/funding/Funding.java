@@ -6,6 +6,7 @@ import com.fundit.order.domain.OrderErrorCode;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,13 @@ import java.util.UUID;
 @Getter
 @Builder(toBuilder = true)
 public class Funding {
+
+    /**
+     * 반품·교환 신청 가능 기간(환불 정책 V.1.0 "수령 후 7일 이내 신청"). 접수 가능 여부의 최종
+     * 판단은 payment-service가 하고, 여기서는 화면 버튼 노출만 맞춘다 — 같은 값이 두 서비스에
+     * 있는 것은 의도적이다(서로 다른 목적이라 계약 모듈로 끌어올리지 않는다).
+     */
+    private static final Duration RETURN_REQUEST_WINDOW = Duration.ofDays(7);
 
     private final Long id;
     private final UUID publicId;
@@ -128,7 +136,11 @@ public class Funding {
         }
     }
 
-    /** 성립 후(하자/지연) 전액 환불 완료 — payment-service RefundCompleted 이벤트 처리[가정, 위와 동일]. */
+    /**
+     * 성립 후 환불 완료 — payment-service RefundCompleted 이벤트 처리[가정, 위와 동일]. 하자·지연은
+     * 전액 환불 건만, 반품(POST_SUCCESS_RETURN)은 반품비가 차감된 부분 환불이라도 여기로 온다
+     * (반품이 완료된 주문은 "반품됨"으로 보여야 한다 — 환불 정책 V.1.0).
+     */
     public void markRefundedAfterSuccess() {
         this.status = FundingStatus.REFUNDED_AFTER_SUCCESS;
         this.decidedAt = Instant.now();
@@ -144,12 +156,16 @@ public class Funding {
      * fulfillment-service 조회 결과를 넘겨준다 — GOAL_ACHIEVED가 아니면 조회 자체를 생략하고
      * 기본값(false, false)을 넘겨도 결과가 같다.
      */
-    public List<String> availableActions(boolean isAlreadyShipped, boolean isDelivered) {
+    public List<String> availableActions(boolean isAlreadyShipped, Instant deliveredAt) {
         return switch (status) {
             case PENDING, FUNDING_IN_PROGRESS -> List.of("CANCEL");
             case GOAL_ACHIEVED -> {
-                if (isDelivered) {
-                    yield List.of("DEFECT_REFUND_REQUEST");
+                if (deliveredAt != null) {
+                    // 환불 정책 V.1.0 — 반품·교환은 수령(배송 완료) 후 7일 이내만 신청할 수 있다.
+                    // 기간이 지나면 버튼 자체를 내려주지 않는다(payment-service가 접수도 거절한다).
+                    yield Instant.now().isAfter(deliveredAt.plus(RETURN_REQUEST_WINDOW))
+                            ? List.of()
+                            : List.of("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
                 }
                 if (!isAlreadyShipped) {
                     yield List.of("SHIPPING_DELAY_REFUND_REQUEST");

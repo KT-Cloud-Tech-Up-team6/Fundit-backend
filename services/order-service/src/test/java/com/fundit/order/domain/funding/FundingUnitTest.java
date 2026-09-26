@@ -3,6 +3,7 @@ package com.fundit.order.domain.funding;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -162,7 +163,7 @@ class FundingUnitTest {
 
         @Test
         void PENDING이면_CANCEL만_가능하다() {
-            assertThat(newFunding().availableActions(false, false)).containsExactly("CANCEL");
+            assertThat(newFunding().availableActions(false, null)).containsExactly("CANCEL");
         }
 
         @Test
@@ -174,11 +175,11 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(false, false)).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+            assertThat(funding.availableActions(false, null)).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
         }
 
         @Test
-        void GOAL_ACHIEVED이고_배송완료면_하자환불요청이_가능하다() {
+        void GOAL_ACHIEVED이고_배송완료_7일_이내면_반품_교환_하자환불_요청이_가능하다() {
             // given
             Funding funding = newFunding();
 
@@ -186,7 +187,20 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(true, true)).containsExactly("DEFECT_REFUND_REQUEST");
+            assertThat(funding.availableActions(true, Instant.now().minus(Duration.ofDays(3))))
+                    .containsExactly("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
+        }
+
+        @Test
+        void 배송완료_후_7일이_지나면_반품_교환_요청이_불가하다() {
+            // given
+            Funding funding = newFunding();
+
+            // when
+            funding.markGoalAchieved();
+
+            // then — 환불 정책 V.1.0 "수령 후 7일 이내 신청"
+            assertThat(funding.availableActions(true, Instant.now().minus(Duration.ofDays(8)))).isEmpty();
         }
 
         @Test
@@ -198,7 +212,7 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(true, false)).isEmpty();
+            assertThat(funding.availableActions(true, null)).isEmpty();
         }
 
         @Test
@@ -210,7 +224,7 @@ class FundingUnitTest {
             funding.cancelByMember();
 
             // then
-            assertThat(funding.availableActions(false, false)).isEmpty();
+            assertThat(funding.availableActions(false, null)).isEmpty();
         }
     }
 }

@@ -4,6 +4,7 @@ import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
+import com.fundit.payment.domain.refund.RefundTriggerType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +47,7 @@ class RefundEstimateServiceUnitTest {
                         null, ORDER_ID, 3_000L, 2_000L));
 
         // when
-        RefundEstimateService.RefundEstimate estimate = refundEstimateService.estimate(MEMBER_ID, ORDER_ID);
+        RefundEstimateService.RefundEstimate estimate = refundEstimateService.estimate(MEMBER_ID, ORDER_ID, null, false);
 
         // then
         assertThat(estimate.orderId()).isEqualTo(ORDER_ID);
@@ -54,5 +55,43 @@ class RefundEstimateServiceUnitTest {
         assertThat(estimate.shippingFee()).isEqualTo(3_000L);
         assertThat(estimate.discountAmount()).isEqualTo(2_000L);
         assertThat(estimate.refundAmount()).isEqualTo(90_000L);
+        assertThat(estimate.returnShippingFee()).isZero();
+    }
+
+    @Test
+    void 반품_유형이면_반품비를_차감한_환불액을_반환한다() {
+        // given
+        Payment payment = Payment.create(ORDER_ID, MEMBER_ID, "fundit-1", 23_000L, "주문", null, "idem");
+        payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
+        when(paymentRepository.findCompletedByFundingId(ORDER_ID)).thenReturn(Optional.of(payment));
+        when(orderFundingClient.fetch(ORDER_ID)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "GOAL_ACHIEVED", 23_000L, "주문",
+                        null, ORDER_ID, 3_000L, 0L));
+
+        // when
+        RefundEstimateService.RefundEstimate estimate = refundEstimateService.estimate(MEMBER_ID, ORDER_ID,
+                RefundTriggerType.RETURN_CHANGE_OF_MIND, false);
+
+        // then
+        assertThat(estimate.returnShippingFee()).isEqualTo(5_000L);
+        assertThat(estimate.refundAmount()).isEqualTo(18_000L);
+    }
+
+    @Test
+    void 귀책이_불분명하면_확정액을_내려보내지_않는다() {
+        // given
+        Payment payment = Payment.create(ORDER_ID, MEMBER_ID, "fundit-1", 23_000L, "주문", null, "idem");
+        payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
+        when(paymentRepository.findCompletedByFundingId(ORDER_ID)).thenReturn(Optional.of(payment));
+        when(orderFundingClient.fetch(ORDER_ID)).thenReturn(
+                new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "GOAL_ACHIEVED", 23_000L, "주문",
+                        null, ORDER_ID, 0L, 0L));
+
+        // when — 사유 "기타"(DefectType.OTHER)로 신청하려는 경우
+        RefundEstimateService.RefundEstimate estimate = refundEstimateService.estimate(MEMBER_ID, ORDER_ID,
+                RefundTriggerType.DEFECT, true);
+
+        // then
+        assertThat(estimate.refundAmount()).isNull();
     }
 }

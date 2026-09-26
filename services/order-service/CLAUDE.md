@@ -99,5 +99,5 @@ cd services/order-service && docker compose up -d
 - **적립금(포인트) 기능의 MVP 포함 여부**: 요구사항정의서 13.2.1(정의문)엔 "쿠폰·적립금"이라 되어 있는데 13.2.3/13.2.4(실제 정책·기능정의)엔 적립금이 없습니다. payment-service의 `point_transactions` 테이블을 실제로 쓸지 PM 확인 필요(ORDER-002/PAYMENT-001 관련).
 - **재입고 알림 신청(ORDER-011) 소유권**: member-service `MvpImplementationSummary.md`의 MEMBER-008과 기능이 중복됩니다. 어느 서비스가 만들지 확정 필요.
 - **일반(GENERAL) 쿠폰도 "받기" 능동 클레임(ORDER-012)을 허용할지**: 현재는 라이브 쿠폰(16.6) 전용으로 설계했습니다.
-- **하자환불 반품비(PAYMENT-006/007) 처리 방식**: 시스템이 정산에서 차감하는 금액인지, 오프라인으로 처리되는 별개 프로세스인지 — order-service 직접 관련은 아니지만 정산 연동(쿠폰 정산 차감 계산과 유사한 구조) 설계에 영향을 줄 수 있어 참고.
+- ~~**하자환불 반품비(PAYMENT-006/007) 처리 방식**~~ — 해결(환불 정책 V.1.0, 2026-09-23). 구매자 귀책 반품만 반품비 5,000원을 **환불액에서 차감**(부분취소)하고, 판매자 귀책은 전액 환불이다. 정산 차감이나 오프라인 프로세스가 아니다. order-service 쪽 영향은 ① `RefundReason.POST_SUCCESS_RETURN` 수신 시 쿠폰 미복원 + `REFUNDED_AFTER_SUCCESS` 전이, ② ORDER-005 `availableActions`에 배송완료 7일 이내 `RETURN_REQUEST`/`EXCHANGE_REQUEST` 노출.
 - **`RewardUpdatedEvent`에 변경 전 수량(`previousQuantity`)을 추가할지**: 현재는 order-service가 `initial_quantity`를 자체 보관해 델타를 계산하지만, project-service 쪽에서 이벤트에 `previousQuantity`를 실어 보내는 대안도 있습니다. project-service 담당자와 협의해서 어느 쪽으로 확정할지 결정 필요(순수 기술 결정, PM 불필요).

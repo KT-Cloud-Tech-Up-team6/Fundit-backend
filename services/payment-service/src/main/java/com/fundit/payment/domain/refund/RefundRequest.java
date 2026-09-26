@@ -36,45 +36,37 @@ public class RefundRequest {
     private Instant processedAt;
 
     /** {@link #completeImmediately}가 허용하는 유형 — 실제 호출부(FundingLifecycleEventSyncService,
-     * PaymentReconciliationService, SimpleChangeOfMindRefundService, ShippingDelayRefundService) 기준. */
+     * PaymentReconciliationService, ShippingDelayRefundService) 기준. SIMPLE_CHANGE_OF_MIND는
+     * 모금 중 참여 취소 이벤트 경로로만 들어온다(성립 후 단순변심 취소는 정책상 불가). */
     private static final Set<RefundTriggerType> IMMEDIATE_TRIGGER_TYPES = EnumSet.of(
             RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
             RefundTriggerType.SHIPPING_DELAY, RefundTriggerType.SYSTEM_RECONCILIATION);
 
-    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — SYSTEM_RECONCILIATION은 대체계좌 대기
-     * 경로(executeFullRefundOrAwaitAlternateAccount)로 호출되지 않아 제외한다. */
+    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — 대체계좌 대기 경로
+     * (executeFullRefundOrAwaitAlternateAccount)로 실제 호출되는 두 유형만 둔다. */
     private static final Set<RefundTriggerType> ALTERNATE_ACCOUNT_TRIGGER_TYPES = EnumSet.of(
-            RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
-            RefundTriggerType.SHIPPING_DELAY);
+            RefundTriggerType.GOAL_FAILED_AUTO, RefundTriggerType.SHIPPING_DELAY);
 
-    /** PAYMENT-006 — 하자환불 신청. 증빙 누락 시 신청 자체를 차단한다. */
-    public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
-                                               List<String> evidenceUrls) {
-        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
+    /**
+     * PAYMENT-006 / 환불 정책 V.1.0 — 발송 후 신청(하자환불·교환·구매자 귀책 반품)을 판매자
+     * 검토 대기(REQUESTED)로 접수한다. 증빙은 **판매자 귀책(DEFECT)일 때만 필수**다 — 단순변심
+     * 반품·교환은 구매자 귀책이라 입증 자료를 요구하지 않는다(환불 정책 V.1.0 공통 정책 표).
+     *
+     * <p>교환(EXCHANGE)은 승인/완료(재발송)가 아직 없어 접수·조회까지만 의미가 있다.
+     */
+    public static RefundRequest requestAfterShipment(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
+                                                      UUID sellerId, String reasonDetail, List<String> evidenceUrls) {
+        if (!triggerType.isPostShipmentRequest()) {
+            throw new IllegalArgumentException(triggerType + "는 발송 후 신청 대상이 아닙니다.");
+        }
+        if (triggerType == RefundTriggerType.DEFECT && (evidenceUrls == null || evidenceUrls.isEmpty())) {
             throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
         }
         return RefundRequest.builder()
                 .fundingId(fundingId)
                 .paymentId(paymentId)
                 .sellerId(sellerId)
-                .triggerType(RefundTriggerType.DEFECT)
-                .status(RefundRequestStatus.REQUESTED)
-                .reasonDetail(reasonDetail)
-                .evidenceUrls(evidenceUrls)
-                .build();
-    }
-
-    /** 교환 신청 — 판매자 검토 대기(REQUESTED)로만 접수한다. 승인/완료(재발송)는 별도 설계 필요. */
-    public static RefundRequest requestExchange(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
-                                                 List<String> evidenceUrls) {
-        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
-            throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
-        }
-        return RefundRequest.builder()
-                .fundingId(fundingId)
-                .paymentId(paymentId)
-                .sellerId(sellerId)
-                .triggerType(RefundTriggerType.EXCHANGE)
+                .triggerType(triggerType)
                 .status(RefundRequestStatus.REQUESTED)
                 .reasonDetail(reasonDetail)
                 .evidenceUrls(evidenceUrls)

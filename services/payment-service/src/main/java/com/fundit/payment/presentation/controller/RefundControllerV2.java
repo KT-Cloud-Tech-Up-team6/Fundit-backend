@@ -2,11 +2,9 @@ package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
-import com.fundit.payment.application.refund.DefectRefundRequestService;
-import com.fundit.payment.application.refund.ExchangeRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
-import com.fundit.payment.application.refund.SimpleChangeOfMindRefundService;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.dto.DefectRefundRequestResponse;
 import com.fundit.payment.presentation.dto.DefectRefundRequestV2;
@@ -14,10 +12,10 @@ import com.fundit.payment.presentation.dto.ExchangeRequestResponse;
 import com.fundit.payment.presentation.dto.ExchangeRequestV2;
 import com.fundit.payment.presentation.dto.PageResponse;
 import com.fundit.payment.presentation.dto.RefundSummaryResponseV2;
+import com.fundit.payment.presentation.dto.ReturnRequestResponse;
+import com.fundit.payment.presentation.dto.ReturnRequestV2;
 import com.fundit.payment.presentation.dto.ShippingDelayRefundRequestV2;
 import com.fundit.payment.presentation.dto.ShippingDelayRefundResponse;
-import com.fundit.payment.presentation.dto.SimpleChangeOfMindRefundRequestV2;
-import com.fundit.payment.presentation.dto.SimpleChangeOfMindRefundResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -41,10 +39,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class RefundControllerV2 {
 
     private final RefundQueryService refundQueryService;
-    private final DefectRefundRequestService defectRefundRequestService;
+    private final PostShipmentRefundRequestService postShipmentRefundRequestService;
     private final ShippingDelayRefundService shippingDelayRefundService;
-    private final SimpleChangeOfMindRefundService simpleChangeOfMindRefundService;
-    private final ExchangeRequestService exchangeRequestService;
 
     @GetMapping
     public PageResponse<RefundSummaryResponseV2> list(@LoginUser CurrentUser user,
@@ -58,8 +54,8 @@ public class RefundControllerV2 {
     @PostMapping("/defect")
     public ResponseEntity<DefectRefundRequestResponse> requestDefect(@LoginUser CurrentUser user,
                                                                        @Valid @RequestBody DefectRefundRequestV2 request) {
-        var result = defectRefundRequestService.request(user.id(), request.fundingId(), request.toReasonDetail(),
-                request.evidenceUrls());
+        var result = postShipmentRefundRequestService.request(user.id(), request.fundingId(),
+                RefundTriggerType.DEFECT, request.toReasonDetail(), request.evidenceUrls());
         return ResponseEntity.status(HttpStatus.CREATED).body(DefectRefundRequestResponse.from(result));
     }
 
@@ -71,15 +67,19 @@ public class RefundControllerV2 {
     }
 
     /**
-     * 성립(GOAL_ACHIEVED) 이후 발송 전 단순변심 환불 — 모금 진행 중 참여 취소
-     * ({@code POST /api/v1/orders/{orderId}/cancel}, order-service ORDER-014)와는 별개 흐름이다.
-     * 이미 발송이 시작됐으면 반품 절차가 필요해 이 엔드포인트로는 처리하지 않는다(ALREADY_SHIPPED).
+     * 발송 후(수령 후) 구매자 귀책 반품 신청 — 단순변심·옵션 선택 오류(환불 정책 V.1.0). 수령 후
+     * 7일 이내만 접수하고, 판매자가 회수를 확인해 승인({@code PATCH /api/v1/refunds/{refundId}/decision})
+     * 하는 시점에 반품 배송비를 뺀 금액이 부분취소된다.
+     *
+     * <p>성립 후 **발송 전** 단순변심 취소는 정책상 불가라 별도 경로가 없다(발송 지연일 때만
+     * {@code POST /api/v2/refunds/shipping-delay}로 취소할 수 있다).
      */
-    @PostMapping("/simple-change-of-mind")
-    public ResponseEntity<SimpleChangeOfMindRefundResponse> requestSimpleChangeOfMind(
-            @LoginUser CurrentUser user, @Valid @RequestBody SimpleChangeOfMindRefundRequestV2 request) {
-        var result = simpleChangeOfMindRefundService.requestCancel(user.id(), request.fundingId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(SimpleChangeOfMindRefundResponse.from(result));
+    @PostMapping("/return")
+    public ResponseEntity<ReturnRequestResponse> requestReturn(@LoginUser CurrentUser user,
+                                                                @Valid @RequestBody ReturnRequestV2 request) {
+        var result = postShipmentRefundRequestService.request(user.id(), request.fundingId(),
+                RefundTriggerType.RETURN_CHANGE_OF_MIND, request.toReasonDetail(), request.evidenceUrls());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ReturnRequestResponse.from(result));
     }
 
     /**
@@ -90,8 +90,8 @@ public class RefundControllerV2 {
     @PostMapping("/exchange")
     public ResponseEntity<ExchangeRequestResponse> requestExchange(@LoginUser CurrentUser user,
                                                                      @Valid @RequestBody ExchangeRequestV2 request) {
-        var result = exchangeRequestService.request(user.id(), request.fundingId(), request.reasonDetail(),
-                request.evidenceUrls());
+        var result = postShipmentRefundRequestService.request(user.id(), request.fundingId(),
+                RefundTriggerType.EXCHANGE, request.reasonDetail(), request.evidenceUrls());
         return ResponseEntity.status(HttpStatus.CREATED).body(ExchangeRequestResponse.from(result));
     }
 }

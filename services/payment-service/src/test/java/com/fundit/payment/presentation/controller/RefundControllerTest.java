@@ -4,11 +4,13 @@ import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.media.MediaStorageClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
-import com.fundit.payment.application.refund.DefectRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService.PostShipmentRefundRequestResult;
 import com.fundit.payment.application.refund.RefundEstimateService;
 import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
+import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +50,7 @@ class RefundControllerTest {
     @MockitoBean
     private RefundQueryService refundQueryService;
     @MockitoBean
-    private DefectRefundRequestService defectRefundRequestService;
+    private PostShipmentRefundRequestService postShipmentRefundRequestService;
     @MockitoBean
     private DefectRefundDecisionService defectRefundDecisionService;
     @MockitoBean
@@ -86,8 +88,9 @@ class RefundControllerTest {
         when(orderFundingClient.fetchByInternalId(1024L)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(memberId, UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L, "주문", null,
                         ORDER_ID, 0L, 0L));
-        when(defectRefundRequestService.request(eq(memberId), eq(ORDER_ID), eq("[DAMAGED] 파손"), any()))
-                .thenReturn(new DefectRefundRequestService.DefectRefundRequestResult(11L, "REQUESTED"));
+        when(postShipmentRefundRequestService.request(eq(memberId), eq(ORDER_ID),
+                eq(RefundTriggerType.DEFECT), eq("[DAMAGED] 파손"), any()))
+                .thenReturn(new PostShipmentRefundRequestResult(11L, "REQUESTED", 89_000L, 0L, 89_000L));
 
         mockMvc.perform(post("/api/v1/refunds/defect")
                         .header("X-User-Id", memberId.toString())
@@ -156,8 +159,8 @@ class RefundControllerTest {
     @Test
     void 환불_예상액을_조회하면_200을_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
-        when(refundEstimateService.estimate(memberId, ORDER_ID)).thenReturn(
-                new RefundEstimateService.RefundEstimate(ORDER_ID, 89_000L, 3_000L, 2_000L, 90_000L));
+        when(refundEstimateService.estimate(memberId, ORDER_ID, null, false)).thenReturn(
+                new RefundEstimateService.RefundEstimate(ORDER_ID, 89_000L, 3_000L, 2_000L, 0L, 90_000L));
 
         mockMvc.perform(get("/api/v1/refunds/estimate")
                         .param("orderId", ORDER_ID.toString())

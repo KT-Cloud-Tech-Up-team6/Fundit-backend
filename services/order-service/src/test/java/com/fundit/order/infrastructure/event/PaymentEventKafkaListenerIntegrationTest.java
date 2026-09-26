@@ -34,7 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * payment-service가 발행하는 payment.completed.v1/refund.completed.v1을 실제 Kafka(Testcontainers)로
+ * payload의 {@code fundingId}는 내부 PK가 아니라 {@code Funding.publicId}(UUID)다 — 이전에는 이
+ * 테스트가 Long PK를 보내고 있어 실제 payload와 어긋난 계약을 통과시켰다(#159).
+ *
+ * <p>payment-service가 발행하는 payment.completed.v1/refund.completed.v1을 실제 Kafka(Testcontainers)로
  * 왕복시켜 {@link PaymentEventKafkaListener} → {@code PaymentEventSyncService}까지 실제로 동작하는지
  * end-to-end로 검증한다({@link RewardEventKafkaListenerIntegrationTest}와 동일한 형태).
  *
@@ -91,11 +94,12 @@ class PaymentEventKafkaListenerIntegrationTest {
         // given — payment-service PaymentEventTransport가 실제로 보낼 payload 형태
         Funding funding = givenPendingFunding();
         String json = """
-                {"eventId":"payment:701","fundingId":%d,"couponIssuanceIds":[]}
-                """.formatted(funding.getId());
+                {"eventId":"payment:701","fundingId":"%s","couponIssuanceIds":[]}
+                """.formatted(funding.getPublicId());
 
         // when
-        producer.send(new ProducerRecord<>(KafkaTopics.PAYMENT_COMPLETED, String.valueOf(funding.getId()), json));
+        producer.send(new ProducerRecord<>(KafkaTopics.PAYMENT_COMPLETED,
+                String.valueOf(funding.getPublicId()), json));
         producer.flush();
 
         // then — 컨슈머가 비동기로 처리하므로 폴링으로 기다린다
@@ -112,12 +116,36 @@ class PaymentEventKafkaListenerIntegrationTest {
         // given — 성립 후 하자 전액환불(POST_SUCCESS_DEFECT, fullRefund=true) 케이스
         Funding funding = givenPendingFunding();
         String json = """
-                {"eventId":"payment:702","fundingId":%d,"couponIssuanceIds":[],
+                {"eventId":"payment:702","fundingId":"%s","couponIssuanceIds":[],
                  "refundReason":"POST_SUCCESS_DEFECT","fullRefund":true}
-                """.formatted(funding.getId());
+                """.formatted(funding.getPublicId());
 
         // when
-        producer.send(new ProducerRecord<>(KafkaTopics.REFUND_COMPLETED, String.valueOf(funding.getId()), json));
+        producer.send(new ProducerRecord<>(KafkaTopics.REFUND_COMPLETED,
+                String.valueOf(funding.getPublicId()), json));
+        producer.flush();
+
+        // then
+        await().atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(fundingRepository.findById(funding.getId()))
+                        .isPresent()
+                        .get()
+                        .extracting(Funding::getStatus)
+                        .isEqualTo(FundingStatus.REFUNDED_AFTER_SUCCESS));
+    }
+
+    @Test
+    void 반품환불_이벤트는_부분환불이어도_주문_상태가_환불완료로_전환된다() {
+        // given — 발송 후 구매자 귀책 반품(POST_SUCCESS_RETURN, 반품비 차감이라 fullRefund=false)
+        Funding funding = givenPendingFunding();
+        String json = """
+                {"eventId":"payment:703","fundingId":"%s","couponIssuanceIds":[],
+                 "refundReason":"POST_SUCCESS_RETURN","fullRefund":false}
+                """.formatted(funding.getPublicId());
+
+        // when
+        producer.send(new ProducerRecord<>(KafkaTopics.REFUND_COMPLETED,
+                String.valueOf(funding.getPublicId()), json));
         producer.flush();
 
         // then

@@ -25,7 +25,9 @@
 | 3 | — | `POST /api/v1/payments/webhook/toss` | 토스 웹훅 수신(기능ID 없는 보조 엔드포인트, 서명검증만) |
 | 4 | PAYMENT-003 | `GET /api/v1/refunds` | 환불 신청/처리 통합 내역 조회 |
 | 5 | PAYMENT-006 | `POST /api/v1/refunds/defect` | 하자환불 신청 |
-| 6 | PAYMENT-007 | `PATCH /api/v1/refunds/{refundId}/decision` | 하자환불 검토/승인/반려 |
+| 5-1 | — | `POST /api/v2/refunds/return` | 발송 후 단순변심·옵션오류 반품 접수(환불 정책 V.1.0) |
+| 5-2 | — | `POST /api/v2/refunds/exchange` | 발송 후 교환 접수(접수·조회까지만, 재발송 연동은 범위 밖) |
+| 6 | PAYMENT-007 | `PATCH /api/v1/refunds/{refundId}/decision` | 발송 후 환불 신청(하자·반품) 검토/승인/반려 |
 | 7 | PAYMENT-008 | `POST /api/v1/refunds/shipping-delay` | 발송지연 결제취소 신청 |
 | 8 | PAYMENT-009 | `GET /api/v1/settlements/{settlementBatchId}` | 정산 내역서 조회 |
 | 9 | PAYMENT-010 | `GET /api/v1/settlements/{settlementBatchId}/download` | 정산 내역서 다운로드 |
@@ -58,12 +60,12 @@ public interface PaymentEventListener {
     void onPaymentCompleted(PaymentCompletedEvent event);
     void onRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(Long fundingId, List<Long> couponIssuanceIds) {}
+    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds) {}
 
     enum RefundReason {
-        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
+        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY, POST_SUCCESS_RETURN
     }
-    record RefundCompletedEvent(Long fundingId, List<Long> couponIssuanceIds, RefundReason refundReason, boolean fullRefund) {}
+    record RefundCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds, RefundReason refundReason, boolean fullRefund) {}
 }
 ```
 
@@ -77,8 +79,10 @@ public interface PaymentEventListener {
   | 참여 취소(단순변심) | `CANCELLED_BY_MEMBER` | order-service가 사실상 무시(ORDER-014에서 이미 동기로 처리)하지만 이벤트는 그대로 발행 |
   | 하자환불 | `POST_SUCCESS_DEFECT` | 전액환불일 때만 쿠폰 복원 |
   | 발송지연 취소 | `POST_SUCCESS_DELAY` | 전액환불일 때만 쿠폰 복원 |
+  | 발송 후 구매자 귀책 반품 | `POST_SUCCESS_RETURN` | 쿠폰 **복원 안 함**(구매자 귀책). `fullRefund=false`(반품비 차감 부분환불)여도 order-service가 주문을 `REFUNDED_AFTER_SUCCESS`로 전이시킨다 |
 
-- `fundingId`는 `Long`(내부 PK)입니다. `public_id`(UUID)가 아닙니다.
+- `fundingId`는 `UUID`(order-service `fundings.public_id`)입니다. 내부 PK(Long)가 아닙니다 — cross-service ID 통일(#69) 결과이며, order-service 리스너도 UUID로 받아 `findByPublicId`로 조회합니다.
+- **`POST_SUCCESS_RETURN`을 추가할 때는 order-service(컨슈머)를 먼저 배포해야 합니다.** `refundReason`이 문자열 enum이라 이 값을 모르는 컨슈머가 먼저 받으면 역직렬화가 실패합니다.
 - `FundingGoalFailed`/`FundingCancelledByMember`(이 서비스가 **구독**하는 쪽)는 **펀딩 1건당 1개씩** 발행됩니다. payload에 `paymentId`가 없으므로 이 서비스가 자기 `payments` 테이블에서 `funding_id`로 완료된 결제(`payments.completed_funding_id` 유니크 인덱스)를 직접 찾아야 합니다.
 
 > **문서 정합성 안내**: `PaymentFunctionalSpec.md`/`PaymentApiSpec.md`의 `RefundCompleted` payload는 `couponIssuanceId`를 빼는 방향으로 서술돼 있는데, 이는 order-service의 실제 코드와 다릅니다. 구현은 이 CLAUDE.md(실제 코드 기준)를 따르세요.
@@ -147,13 +151,21 @@ dependencies {
 서명 헤더 검증 실패 시 401, `@LoginUser` 요구 안 함. `PAYMENT_STATUS_CHANGED`/`CANCEL_STATUS_CHANGED` 등 보정용 — 1-2 승인 흐름을 대체하지 않음.
 
 ### PAYMENT-003 `GET /api/v1/refunds`
-본인(`@LoginUser`) `refund_requests`를 페이지네이션 조회. 참여취소/미달자동/하자/발송지연 4개 유형을 `trigger_type` 구분 없이 통합 응답(금액/수단/예상처리기간/상태).
+본인(`@LoginUser`) `refund_requests`를 페이지네이션 조회. 전 유형을 `trigger_type` 구분 없이 통합 응답(금액/수단/예상처리기간/상태)하고 `triggerType` 파라미터로 필터한다. **`amount`는 결제 원금이 아니라 실 환불액**이다 — `payment_cancellations.cancel_amount` 합계에 `payments.amount` 폴백(반품비 차감 부분취소 반영, 새 컬럼 만들지 말 것).
 
 ### PAYMENT-006 `POST /api/v1/refunds/defect`
 하자유형(불량/파손/표시광고상이) + 증빙(사진/설명) 첨부해 `refund_requests(trigger_type='DEFECT', status='REQUESTED')` 생성. 증빙 누락 시 `EVIDENCE_REQUIRED`(400). 아직 결제 취소를 실행하지 않음(판매자 승인 대기, PAYMENT-007에서 실행).
 
+### 발송 후 반품·교환 `POST /api/v2/refunds/return` / `POST /api/v2/refunds/exchange`
+하자환불과 함께 `PostShipmentRefundRequestService` **한 서비스**를 공유한다 — 세 유형이 접수 검증과 저장 골격을 전부 같이 쓰기 때문이다(유형별 서비스 클래스를 복붙하지 말 것). 공통 가드 순서는 **소유권 → 배송완료·수령 후 7일 → 중복 신청**이고, 정책값은 `ReturnPolicy`(반품비 5,000원 + 신청 기한 7일)에 모아 신청·승인·사전계산 세 곳이 같은 값을 쓴다.
+
+- **기한 기준일은 `deliveredAt`**이다. `receiptConfirmedAt`은 배송완료 +7일에 자동 확정되므로 기준으로 삼으면 실제 기간이 14일이 된다.
+- **증빙은 `DEFECT`일 때만 필수**다. 반품·교환은 구매자 귀책이라 입증 자료를 요구하지 않는다.
+- **중복 신청 차단은 세 경로 모두에 적용된다** — 없으면 반품비 차감 부분취소가 두 번 실행돼 실제로 돈이 두 번 빠진다.
+- 교환은 **접수·조회까지만** 동작한다(교환 배송비 별도 결제·재발송 연동은 범위 밖).
+
 ### PAYMENT-007 `PATCH /api/v1/refunds/{refundId}/decision`
-판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출, 반품비 차감 시 부분취소(취소금액 < `payments.amount`면 `is_full_refund=false`) → 완료 시 `RefundCompleted(fundingId, couponIssuanceIds, POST_SUCCESS_DEFECT, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
+**대상은 `DEFECT`와 `RETURN_CHANGE_OF_MIND` 두 유형**(`RefundTriggerType.isSellerDecisionTarget()`)이다 — 교환은 결제취소를 수반하지 않아 이 경로로 완료되지 않는다. 판매자 본인 소유 건인지 검증(타 판매자 403) → 승인 시 `pg_payment_key` 기준 토스 취소 API 호출. **취소 금액은 귀책에 따라 갈린다**(환불 정책 V.1.0): `DEFECT`는 `payments.amount` 전액(`is_full_refund=true`, `POST_SUCCESS_DEFECT`), `RETURN_CHANGE_OF_MIND`는 `payments.amount - 5000`(반품비 차감 부분취소, `is_full_refund=false`, `POST_SUCCESS_RETURN`). 완료 시 `RefundCompleted(fundingId, couponIssuanceIds, refundReason, isFullRefund)` 발행. 반려 시 사유 필수(`REASON_REQUIRED`), 이벤트 미발행.
 
 ### PAYMENT-008 `POST /api/v1/refunds/shipping-delay`
 `ShippingStatusClient.fetch()`로 `isAlreadyShipped`/`isDelayed`를 함께 확인한 뒤 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409). 미발송이어도 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422).
@@ -207,7 +219,7 @@ order-service가 아직 이 이벤트를 발행하지 않으므로(아래 "정�
 
 - `payment.payments` — `funding_id`(Long, FK 아님), `pg_order_id`, `pg_payment_key`, `amount`/`order_name`(PAYMENT-001 스냅샷), `coupon_issuance_ids`(JSONB 리스트, 신규 — `PaymentERD.md`에 없으니 구현 시 컬럼 추가), `status`(`PENDING`/`COMPLETED`/`FAILED`/`CANCELLED`), `completed_funding_id`(생성 컬럼, 유니크 제약으로 "펀딩당 완료 결제 1건" 강제).
 - `payment.payment_event_outbox` — `PaymentCompleted`/`RefundCompleted` 발행용 아웃박스(PAYMENT-016).
-- `refund.refund_requests` — `trigger_type`(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`, 위 매핑표로 `RefundReason` 변환), `is_full_refund`.
+- `refund.refund_requests` — `trigger_type`(`SIMPLE_CHANGE_OF_MIND`/`GOAL_FAILED_AUTO`/`DEFECT`/`SHIPPING_DELAY`/`SYSTEM_RECONCILIATION`/`EXCHANGE`/`RETURN_CHANGE_OF_MIND`, 위 매핑표로 `RefundReason` 변환), `is_full_refund`. `SIMPLE_CHANGE_OF_MIND`는 **모금 중 참여 취소 전용**이다(성립 후 단순변심 취소는 환불 정책 V.1.0에서 불가, 발송 후 단순변심은 `RETURN_CHANGE_OF_MIND`).
 - `settlement.settlement_batches`/`settlement_batch_items`/`settlement_disputes`/`settlement_holds` — 정산. `lineItems`/쿠폰 집계는 `OrderSettlementAggregateClient`로 조회(연동 완료, 위 "연동 현황" 참고).
 
 ---
@@ -253,9 +265,13 @@ public PaymentCreateResponse create(@LoginUser CurrentUser user, @Valid @Request
 | `PAYMENT_EXPIRED` | 410 | 토스 인증 후 10분 초과 |
 | `PG_CONFIRM_FAILED` / `PG_CANCEL_FAILED` | 422 | 토스 승인/취소 API 실패 |
 | `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 서명 검증 실패 |
-| `EVIDENCE_REQUIRED` / `REASON_REQUIRED` | 400 | 하자환불 신청/반려 시 필수값 누락 |
+| `EVIDENCE_REQUIRED` / `REASON_REQUIRED` | 400 | 하자환불 신청/반려 시 필수값 누락(반품·교환은 증빙 선택) |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송됨 |
 | `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음 |
+| `NOT_DELIVERED` | 409 | 배송 완료 전에 반품·교환·하자환불 신청 |
+| `RETURN_PERIOD_EXPIRED` | 409 | 수령(배송 완료) 후 7일 경과 |
+| `REFUND_ALREADY_REQUESTED` | 409 | 같은 주문에 진행 중인 발송 후 신청이 이미 있음 |
+| `RETURN_FEE_EXCEEDS_AMOUNT` | 422 | 결제액이 반품 배송비(5,000원) 이하 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 기간(7일) 경과 |
 | `UNSUPPORTED_MEDIA_TYPE` | 400 | 증빙 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반(F09) |
 | `MEDIA_TOO_LARGE` | 400 | 증빙 업로드 주소 발급 시 용량 제한(10MB) 초과(F09) |

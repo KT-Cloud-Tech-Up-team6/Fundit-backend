@@ -229,7 +229,9 @@ GET /api/v1/orders/{orderId}
 - **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산식이 같다.
 - 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceIds`(리스트)에 전부 담겨 발행되므로, 사용확정(USED)/환불복원(AVAILABLE)이 두 쿠폰 모두에 처리된다.
 - `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
-- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전(`isAlreadyShipped=false`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, 배송완료(`deliveredAt != null`) → `["DEFECT_REFUND_REQUEST"]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
+- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전(`isAlreadyShipped=false`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, **배송완료(`deliveredAt != null`) 후 7일 이내** → `["RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST"]`, **배송완료 후 7일 경과** → `[]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
+  - `RETURN_REQUEST`/`EXCHANGE_REQUEST`는 환불 정책 V.1.0 「취소·반품·교환 공통 정책」의 "수령 후 7일 이내 신청"에 대응한다(payment-service `POST /api/v2/refunds/return` / `POST /api/v2/refunds/exchange`). 기준일은 `deliveredAt`(배송 완료)이며 `receiptConfirmedAt`이 아니다 — 수령 확인은 배송완료 +7일에 자동 확정되므로 그것을 기준으로 하면 실제 기간이 14일로 늘어난다.
+  - 7일 상수는 order-service(버튼 표시)와 payment-service(접수 권한 판정)가 각각 따로 갖는다 — 목적이 달라 `modules:common`에 올릴 계약이 아니다. **접수 가능 여부의 최종 판정은 payment-service**이며, 이 목록은 화면 버튼 노출용이다.
 - 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`).
 
 ---
