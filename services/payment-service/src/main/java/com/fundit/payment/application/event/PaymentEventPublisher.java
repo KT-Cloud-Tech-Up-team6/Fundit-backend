@@ -29,7 +29,13 @@ public interface PaymentEventPublisher {
      * 이 서비스의 {@code RefundTriggerType}과의 매핑은 {@code RefundReasonMapper} 참고.
      */
     enum RefundReason {
-        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
+        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY,
+        /**
+         * 발송 후 구매자 귀책 반품(환불 정책 V.1.0). 반품비 차감 부분환불이라 {@code fullRefund=false}로
+         * 나가지만, order-service는 이 사유에서 주문을 반품 완료로 전이시킨다 — **order-service를
+         * 먼저 배포해야 한다**(이 값을 모르는 컨슈머는 역직렬화에 실패한다).
+         */
+        POST_SUCCESS_RETURN
     }
 
     record RefundCompletedEvent(UUID paymentId, UUID fundingId, List<Long> couponIssuanceIds,

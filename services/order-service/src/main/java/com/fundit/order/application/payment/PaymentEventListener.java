@@ -1,16 +1,16 @@
 package com.fundit.order.application.payment;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ORDER-015 — payment-service가 발행하는 결제완료/환불 이벤트를 구독해 이 서비스 소유
  * 테이블(coupon_issuances, 그리고 fundings.status)을 자체적으로 갱신한다(DB-per-service 원칙).
  *
- * payment-service가 아직 스캐폴딩되지 않아(루트 CLAUDE.md 착수 순서 참고) 실제 이벤트 페이로드가
- * 확정돼 있지 않다 — 이 인터페이스는 OrderDomainFunctionalSpec.md ORDER-015가 명시한 "fundingId,
- * couponIssuanceId, 환불유형, 전액환불여부"를 그대로 옮긴 것이다[가정]. payment-service 쪽 이벤트
- * 스키마가 확정되면 필드명을 맞추고, 브로커가 정해지면 이 포트를 호출하는 리스너 어댑터를
- * infrastructure/event에 추가하면 된다(ORDER-016과 동일한 "골격 우선" 접근).
+ * <p>payload의 {@code fundingId}는 내부 PK(Long)가 아니라 {@code Funding.publicId}(UUID)다 —
+ * payment-service는 cross-service ID 통일(#69) 이후 UUID만 실어 보낸다. 이 인터페이스가
+ * {@code Long fundingId}로 선언돼 있어 실제 페이로드와 맞지 않았고(역직렬화 실패) 성립 후 환불의
+ * 주문 상태 전이가 동작하지 않았다 — 필드명(= Kafka payload 키)은 그대로 두고 타입만 맞춘다.
  */
 public interface PaymentEventListener {
 
@@ -25,19 +25,21 @@ public interface PaymentEventListener {
     void onRefundCompleted(RefundCompletedEvent event);
 
     /** {@code couponIssuanceIds}는 이 주문에 적용된 쿠폰 전체(최대 2개, 플랫폼+메이커)다. */
-    record PaymentCompletedEvent(Long fundingId, List<Long> couponIssuanceIds) {
+    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds) {
     }
 
     /**
      * GOAL_FAILURE_AUTO_REFUND: 목표 미달 자동환불(쿠폰 복원) / CANCELLED_BY_MEMBER: 마감 전
      * 단순변심 취소(쿠폰 미복원 — ORDER-014 API 흐름에서 이미 별도 처리되므로 여기서는 무시) /
-     * POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY: 성립 후 하자·지연 환불(전액환불 건만 복원).
+     * POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY: 성립 후 하자·지연 환불(전액환불 건만 복원) /
+     * POST_SUCCESS_RETURN: 발송 후 구매자 귀책 반품(환불 정책 V.1.0 — 반품비가 차감된 부분
+     * 환불이라 쿠폰은 복원하지 않지만 주문은 반품 완료로 전이한다).
      */
     enum RefundReason {
-        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY
+        GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY, POST_SUCCESS_RETURN
     }
 
-    record RefundCompletedEvent(Long fundingId, List<Long> couponIssuanceIds, RefundReason refundReason,
+    record RefundCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds, RefundReason refundReason,
                                  boolean fullRefund) {
     }
 }

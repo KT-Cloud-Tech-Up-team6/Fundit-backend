@@ -5,7 +5,8 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.payment.application.funding.OrderFundingClient;
 import com.fundit.payment.application.refund.DefectRefundDecisionService;
-import com.fundit.payment.application.refund.DefectRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
+import com.fundit.payment.application.refund.PostShipmentRefundRequestService.PostShipmentRefundRequestResult;
 import com.fundit.payment.application.refund.RefundEstimateService;
 import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
@@ -44,7 +45,7 @@ class RefundControllerExceptionTest {
     @MockitoBean
     private RefundQueryService refundQueryService;
     @MockitoBean
-    private DefectRefundRequestService defectRefundRequestService;
+    private PostShipmentRefundRequestService postShipmentRefundRequestService;
     @MockitoBean
     private DefectRefundDecisionService defectRefundDecisionService;
     @MockitoBean
@@ -104,7 +105,7 @@ class RefundControllerExceptionTest {
     void 완료된_결제가_없으면_예상액_조회는_404를_반환한다() throws Exception {
         UUID memberId = UUID.randomUUID();
         UUID orderId = new UUID(2L, 1024L);
-        when(refundEstimateService.estimate(memberId, orderId))
+        when(refundEstimateService.estimate(memberId, orderId, null, false))
                 .thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/refunds/estimate")

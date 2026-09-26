@@ -35,8 +35,10 @@ class PaymentEventSyncServiceUnitTest {
     @InjectMocks
     private PaymentEventSyncService paymentEventSyncService;
 
+    private static final UUID ORDER_ID = UUID.randomUUID();
+
     private Funding funding(Long id, FundingStatus status) {
-        return Funding.builder().id(id).publicId(UUID.randomUUID()).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
+        return Funding.builder().id(id).publicId(ORDER_ID).memberId(UUID.randomUUID()).projectId(UUID.randomUUID())
                 .status(status).shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
                 .shippingFee(0L).paymentExpiresAt(Instant.now()).lineItems(List.of()).createdAt(Instant.now()).build();
     }
@@ -46,13 +48,13 @@ class PaymentEventSyncServiceUnitTest {
         // given
         Funding funding = funding(1L, FundingStatus.PENDING);
         CouponIssuance issuance = CouponIssuance.issue("WELCOME", UUID.randomUUID());
-        when(fundingRepository.findById(1L)).thenReturn(Optional.of(funding));
+        when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
         when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(couponIssuanceRepository.findById(5L)).thenReturn(Optional.of(issuance));
         when(couponIssuanceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
-        paymentEventSyncService.onPaymentCompleted(new PaymentEventListener.PaymentCompletedEvent(1L, List.of(5L)));
+        paymentEventSyncService.onPaymentCompleted(new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L)));
 
         // then
         assertThat(funding.getStatus()).isEqualTo(FundingStatus.FUNDING_IN_PROGRESS);
@@ -73,7 +75,7 @@ class PaymentEventSyncServiceUnitTest {
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
 
             // then
             assertThat(issuance.isAvailable()).isTrue();
@@ -90,7 +92,7 @@ class PaymentEventSyncServiceUnitTest {
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.GOAL_FAILURE_AUTO_REFUND, true));
 
             // then
             assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.EXPIRED);
@@ -101,7 +103,7 @@ class PaymentEventSyncServiceUnitTest {
         void 마감전_단순변심_취소는_쿠폰을_복원하지_않는다() {
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, List.of(5L), PaymentEventListener.RefundReason.CANCELLED_BY_MEMBER, true));
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.CANCELLED_BY_MEMBER, true));
 
             // then
             verify(couponIssuanceRepository, never()).findById(any());
@@ -115,12 +117,12 @@ class PaymentEventSyncServiceUnitTest {
             Funding funding = funding(1L, FundingStatus.GOAL_ACHIEVED);
             when(couponIssuanceRepository.findById(5L)).thenReturn(Optional.of(issuance));
             when(couponIssuanceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-            when(fundingRepository.findById(1L)).thenReturn(Optional.of(funding));
+            when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
             when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, true));
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, true));
 
             // then
             assertThat(issuance.isAvailable()).isTrue();
@@ -128,14 +130,30 @@ class PaymentEventSyncServiceUnitTest {
         }
 
         @Test
+        void 반품환불은_부분환불이어도_펀딩상태를_REFUNDED_AFTER_SUCCESS로_바꾸고_쿠폰은_복원하지_않는다() {
+            // given — 반품비가 차감된 부분 환불(환불 정책 V.1.0)
+            Funding funding = funding(1L, FundingStatus.GOAL_ACHIEVED);
+            when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
+            when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            // when
+            paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_RETURN, false));
+
+            // then
+            assertThat(funding.getStatus()).isEqualTo(FundingStatus.REFUNDED_AFTER_SUCCESS);
+            verify(couponIssuanceRepository, never()).findById(any());
+        }
+
+        @Test
         void 성립후_하자환불이_부분환불이면_쿠폰을_복원하지않고_펀딩상태도_바꾸지않는다() {
             // when
             paymentEventSyncService.onRefundCompleted(new PaymentEventListener.RefundCompletedEvent(
-                    1L, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, false));
+                    ORDER_ID, List.of(5L), PaymentEventListener.RefundReason.POST_SUCCESS_DEFECT, false));
 
             // then
             verify(couponIssuanceRepository, never()).findById(any());
-            verify(fundingRepository, never()).findById(any());
+            verify(fundingRepository, never()).findByPublicId(any());
         }
     }
 }

@@ -46,7 +46,7 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
             if (response == null) {
                 throw new DependencyFailureException(new IllegalStateException("fulfillment-service 응답 본문 없음"));
             }
-            return new FulfillmentStatus(response.isAlreadyShipped(), response.deliveredAt() != null);
+            return new FulfillmentStatus(response.isAlreadyShipped(), response.deliveredAt());
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
@@ -70,7 +70,7 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
                 return Map.of();
             }
             return response.stream().collect(Collectors.toMap(InternalBatchStatusResponse::fundingId,
-                    r -> new FulfillmentStatus(r.isAlreadyShipped(), r.deliveredAt() != null)));
+                    r -> new FulfillmentStatus(r.isAlreadyShipped(), r.deliveredAt())));
         } catch (RestClientException e) {
             log.warn("fulfillment-service 배치 조회 실패(가능 액션/배지 없이 진행)", e);
             return Map.of();

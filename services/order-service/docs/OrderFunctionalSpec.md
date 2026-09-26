@@ -290,12 +290,12 @@
 - **예외 처리**: 복원 시점에 이미 만료된 쿠폰 → 복원 불가 안내
 - **요구사항**: 결제 완료 시 쿠폰을 사용완료 처리하고, 환불 발생 시 유형별 규칙에 따라 복원한다
 - **우선순위**: P1
-- **입력값**: `PaymentCompleted`/`RefundCompleted` 이벤트(fundingId Long, couponIssuanceId, 환불유형, 전액환불여부) — **현재는 소비되지 않음**
+- **입력값**: `PaymentCompleted`/`RefundCompleted` 이벤트(`fundingId` **UUID**(=`fundings.public_id`), `couponIssuanceIds`, 환불유형, 전액환불여부)
 - **중분류**: 쿠폰
-- **처리 내용(기술)**: `PaymentEventSyncService`에 로직은 구현됨 — 결제성공→쿠폰 사용완료 + `PENDING`→`FUNDING_IN_PROGRESS` / 미달자동환불→쿠폰 복원 / 마감전 단순변심취소→미복원 / 성립후 하자·지연환불→전액환불 건만 복원(+ `REFUNDED_AFTER_SUCCESS`). 이미 `EXPIRED`면 복원하지 않음. **그러나 `@KafkaListener`가 없어 `payment.completed.v1`/`refund.completed.v1`을 구독하지 않는다(미배선)**
-- **출력값**: 처리 결과(배선 후)
-- **트리거 방식**: 이벤트 구독 예정(`payment.completed.v1`/`refund.completed.v1`) — **현재 미구현 배선**
-- **검토의견(변경사항)**: 이관 — 기능명세서_전체.xlsx 원본의 PAYMENT-012(쿠폰 사용처리/복원)는 담당 서비스가 payment-service였으나, 실제로 갱신하는 테이블(`coupons`,`coupon_issuances`,`funding_coupon_applications`)이 전부 order-service DB에 있어 DB-per-service 원칙과 충돌. 이미 확립된 "쿠폰 상태 업데이트는 order-service 소유" 컨벤션에 맞춰 이관. (참고: 원본에서 정산 차감을 다루던 PAYMENT-013은 번호가 당겨져 지금의 PAYMENT-012 "쿠폰 정산 차감"이 됨 — 이름은 비슷해 보여도 서로 다른 기능). **구현 현황**: 애플리케이션 서비스는 있으나 Kafka 리스너가 없어 PaymentCompleted를 소비한다고 문서화하면 안 됨
+- **처리 내용(기술)**: `PaymentEventSyncService` — 결제성공→쿠폰 사용완료 + `PENDING`→`FUNDING_IN_PROGRESS` / 미달자동환불→쿠폰 복원 / 마감전 단순변심취소→미복원 / 성립후 하자·지연환불→전액환불 건만 복원(+ `REFUNDED_AFTER_SUCCESS`) / **발송 후 반품(`POST_SUCCESS_RETURN`)→쿠폰 미복원(구매자 귀책)이지만 부분환불이어도 `REFUNDED_AFTER_SUCCESS`로 전이**(반품 완료된 주문은 "반품됨"으로 보여야 한다 — 환불 정책 V.1.0). 이미 `EXPIRED`면 복원하지 않음. 주문 조회는 `findByPublicId`로 한다 — payment-service가 UUID를 실어 보내는데 이 리스너가 `Long fundingId`로 선언돼 있어 역직렬화가 실패하던 결함을 함께 고쳤다(#159)
+- **출력값**: 처리 결과
+- **트리거 방식**: 이벤트 구독(`payment.completed.v1`/`refund.completed.v1`, `PaymentEventKafkaListener`)
+- **검토의견(변경사항)**: 이관 — 기능명세서_전체.xlsx 원본의 PAYMENT-012(쿠폰 사용처리/복원)는 담당 서비스가 payment-service였으나, 실제로 갱신하는 테이블(`coupons`,`coupon_issuances`,`funding_coupon_applications`)이 전부 order-service DB에 있어 DB-per-service 원칙과 충돌. 이미 확립된 "쿠폰 상태 업데이트는 order-service 소유" 컨벤션에 맞춰 이관. (참고: 원본에서 정산 차감을 다루던 PAYMENT-013은 번호가 당겨져 지금의 PAYMENT-012 "쿠폰 정산 차감"이 됨 — 이름은 비슷해 보여도 서로 다른 기능). **구현 현황**: 애플리케이션 서비스 + Kafka 리스너(`PaymentEventKafkaListener`) 모두 배선 완료
 
 ---
 

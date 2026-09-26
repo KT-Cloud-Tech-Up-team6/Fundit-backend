@@ -57,7 +57,7 @@ public class OrderQueryService {
             FulfillmentStatusClient.FulfillmentStatus fulfillmentStatus = fulfillmentStatuses.get(funding.getPublicId());
             List<String> availableActions = funding.availableActions(
                     fulfillmentStatus != null && fulfillmentStatus.isAlreadyShipped(),
-                    fulfillmentStatus != null && fulfillmentStatus.isDelivered());
+                    fulfillmentStatus == null ? null : fulfillmentStatus.deliveredAt());
             long discountAmount = discountByFundingId.getOrDefault(funding.getId(), 0L);
             return new OrderListItem(funding, summaries.get(funding.getProjectId()), discountAmount, availableActions);
         });
@@ -108,10 +108,10 @@ public class OrderQueryService {
     /** GOAL_ACHIEVED가 아니면 배송 상태와 무관하게 결과가 같아 fulfillment-service 조회를 생략한다. */
     private List<String> resolveAvailableActions(Funding funding) {
         if (funding.getStatus() != FundingStatus.GOAL_ACHIEVED) {
-            return funding.availableActions(false, false);
+            return funding.availableActions(false, null);
         }
         FulfillmentStatusClient.FulfillmentStatus status = fulfillmentStatusClient.fetch(funding.getPublicId());
-        return funding.availableActions(status.isAlreadyShipped(), status.isDelivered());
+        return funding.availableActions(status.isAlreadyShipped(), status.deliveredAt());
     }
 
     /** {@code projectSummary}는 project-service 조회 실패 시 null일 수 있다(부가 정보, degrade). */

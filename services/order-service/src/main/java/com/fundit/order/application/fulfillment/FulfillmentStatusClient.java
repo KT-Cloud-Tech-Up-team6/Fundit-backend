@@ -1,5 +1,6 @@
 package com.fundit.order.application.fulfillment;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,6 +17,14 @@ public interface FulfillmentStatusClient {
     /** ORDER-004 목록(V03/V06)용 배치 조회 — 건별 호출(N+1)을 피한다. 조회 실패한 건은 결과에서 빠진다. */
     Map<UUID, FulfillmentStatus> fetchBatch(List<UUID> orderIds);
 
-    record FulfillmentStatus(boolean isAlreadyShipped, boolean isDelivered) {
+    /**
+     * {@code deliveredAt}은 배송 완료 시각이며 완료 전이면 null이다 — 반품·교환 신청 기한
+     * ("수령 후 7일", 환불 정책 V.1.0)을 판정하는 기준일이라 boolean으로 줄이지 않는다.
+     */
+    record FulfillmentStatus(boolean isAlreadyShipped, Instant deliveredAt) {
+
+        public boolean isDelivered() {
+            return deliveredAt != null;
+        }
     }
 }
