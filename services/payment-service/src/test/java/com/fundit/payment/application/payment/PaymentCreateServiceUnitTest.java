@@ -28,12 +28,14 @@ class PaymentCreateServiceUnitTest {
     private OrderFundingClient orderFundingClient;
     @Mock
     private PaymentRepository paymentRepository;
+    @Mock
+    private PgOrderIdIssuer pgOrderIdIssuer;
 
     private PaymentCreateService paymentCreateService;
 
     @BeforeEach
     void setUp() {
-        paymentCreateService = new PaymentCreateService(orderFundingClient, paymentRepository);
+        paymentCreateService = new PaymentCreateService(orderFundingClient, paymentRepository, pgOrderIdIssuer);
     }
 
     @Test
@@ -43,7 +45,7 @@ class PaymentCreateServiceUnitTest {
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(MEMBER_ID, UUID.randomUUID(), "PENDING", 89_000L, "테스트 주문", null,
                         FUNDING_ID, 0L, 0L));
-        when(paymentRepository.existsByPgOrderId(any())).thenReturn(false);
+        when(pgOrderIdIssuer.issue()).thenReturn("fundit-generated-1");
         when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
@@ -52,7 +54,7 @@ class PaymentCreateServiceUnitTest {
         // then
         assertThat(result.amount()).isEqualTo(89_000L);
         assertThat(result.orderName()).isEqualTo("테스트 주문");
-        assertThat(result.pgOrderId()).startsWith("fundit-");
+        assertThat(result.pgOrderId()).isEqualTo("fundit-generated-1");
 
         ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository).save(captor.capture());

@@ -1,6 +1,7 @@
 package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.payment.application.refund.ExchangeFeePaymentService;
 import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
 import com.fundit.payment.application.refund.PostShipmentRefundRequestService.PostShipmentRefundRequestResult;
 import com.fundit.payment.application.refund.RefundQueryService;
@@ -50,6 +51,8 @@ class RefundControllerV2Test {
     private PostShipmentRefundRequestService postShipmentRefundRequestService;
     @MockitoBean
     private ShippingDelayRefundService shippingDelayRefundService;
+    @MockitoBean
+    private ExchangeFeePaymentService exchangeFeePaymentService;
 
     @Test
     void 목록_조회_응답의_fundingId는_UUID로_채워진다() throws Exception {
@@ -230,5 +233,24 @@ class RefundControllerV2Test {
                 .andExpect(jsonPath("$.content[0].reasonType").value("CHANGE_OF_MIND"))
                 .andExpect(jsonPath("$.content[0].reasonDetail").value("색상이 달라요"))
                 .andExpect(jsonPath("$.content[0].additionalPaymentAmount").value(5_000));
+    }
+
+    @Test
+    void 교환비_결제를_시작하면_위젯에_넘길_결제정보를_반환한다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        when(exchangeFeePaymentService.create(memberId, 55L)).thenReturn(
+                new ExchangeFeePaymentService.ExchangeFeePaymentResult(paymentId, "fundit-fee-1", 5_000L, "교환 배송비"));
+
+        // when & then
+        mockMvc.perform(post("/api/v2/refunds/55/exchange-fee")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.paymentId").value(paymentId.toString()))
+                .andExpect(jsonPath("$.pgOrderId").value("fundit-fee-1"))
+                .andExpect(jsonPath("$.amount").value(5_000))
+                .andExpect(jsonPath("$.orderName").value("교환 배송비"));
     }
 }

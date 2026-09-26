@@ -20,6 +20,7 @@ public class PaymentCreateService {
 
     private final OrderFundingClient orderFundingClient;
     private final PaymentRepository paymentRepository;
+    private final PgOrderIdIssuer pgOrderIdIssuer;
 
     @Transactional
     public PaymentCreateResult create(UUID accountId, UUID orderId) {
@@ -57,18 +58,10 @@ public class PaymentCreateService {
         }
 
         // ④ Payment(PENDING) 생성 — finalAmount/orderName/couponIssuanceIds를 스냅샷으로 고정
-        Payment payment = Payment.create(orderId, accountId, generateUniquePgOrderId(),
+        Payment payment = Payment.create(orderId, accountId, pgOrderIdIssuer.issue(),
                 snapshot.finalAmount(), snapshot.orderName(), snapshot.couponIssuanceIds(),
                 UUID.randomUUID().toString());
         return PaymentCreateResult.from(paymentRepository.save(payment));
-    }
-
-    private String generateUniquePgOrderId() {
-        String candidate;
-        do {
-            candidate = PgOrderIdGenerator.generate();
-        } while (paymentRepository.existsByPgOrderId(candidate));
-        return candidate;
     }
 
     public record PaymentCreateResult(UUID paymentId, String pgOrderId, long amount, String orderName,

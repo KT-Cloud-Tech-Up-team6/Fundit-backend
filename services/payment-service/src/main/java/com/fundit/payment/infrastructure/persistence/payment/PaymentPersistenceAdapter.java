@@ -1,6 +1,7 @@
 package com.fundit.payment.infrastructure.persistence.payment;
 
 import com.fundit.payment.domain.payment.Payment;
+import com.fundit.payment.domain.payment.PaymentPurpose;
 import com.fundit.payment.domain.payment.PaymentRepository;
 import com.fundit.payment.domain.payment.PaymentStatus;
 import lombok.RequiredArgsConstructor;
@@ -44,12 +45,14 @@ public class PaymentPersistenceAdapter implements PaymentRepository {
 
     @Override
     public Optional<Payment> findCompletedByFundingId(UUID fundingId) {
-        return jpaRepository.findByCompletedFundingOrderId(fundingId).map(mapper::toDomain);
+        return jpaRepository.findByCompletedFundingOrderIdAndPurpose(fundingId, PaymentPurpose.REWARD.name())
+                .map(mapper::toDomain);
     }
 
     @Override
     public Optional<Payment> findCompletedOrCancelledByFundingId(UUID fundingId) {
-        return jpaRepository.findFirstByFundingOrderIdAndStatusInOrderByCreatedAtDesc(fundingId,
+        return jpaRepository.findFirstByFundingOrderIdAndPurposeAndStatusInOrderByCreatedAtDesc(fundingId,
+                        PaymentPurpose.REWARD.name(),
                         List.of(PaymentStatus.COMPLETED.name(), PaymentStatus.CANCELLED.name()))
                 .map(mapper::toDomain);
     }
@@ -63,8 +66,14 @@ public class PaymentPersistenceAdapter implements PaymentRepository {
 
     @Override
     public Optional<Payment> findPendingByFundingId(UUID fundingId) {
-        return jpaRepository.findFirstByFundingOrderIdAndStatusOrderByCreatedAtDesc(fundingId, PaymentStatus.PENDING.name())
+        return jpaRepository.findFirstByFundingOrderIdAndPurposeAndStatusOrderByCreatedAtDesc(fundingId,
+                        PaymentPurpose.REWARD.name(), PaymentStatus.PENDING.name())
                 .map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<Payment> findLatestExchangeFeeByRefundRequestId(Long refundRequestId) {
+        return jpaRepository.findFirstByRefundRequestIdOrderByCreatedAtDesc(refundRequestId).map(mapper::toDomain);
     }
 
     @Override

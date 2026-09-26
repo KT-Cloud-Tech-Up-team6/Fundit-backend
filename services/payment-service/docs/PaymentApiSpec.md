@@ -244,8 +244,39 @@
 }
 ```
 
-- `additionalPaymentAmount`는 구매자가 실제로 내야 하는 금액이다 — 판매자 귀책·기타는 `0`이다. FE가 교환비를 직접 계산하지 않도록 반품 접수(2-2b)와 대칭으로 내려준다.
-- **범위 밖**: 교환 배송비 5,000원의 **실제 수납**과 재발송 연동(신규 결제 생성 + fulfillment 트리거)은 이번 범위가 아니다. 수납 방식은 **판매자 승인 시점에 토스 결제위젯 신규 결제**로 정해졌고(사유별 귀책이 승인에서 확정되므로 접수 시점에 받지 않는다), 구현은 교환 승인 흐름과 함께 한다 — 같은 펀딩의 두 번째 완료 결제를 막는 `uq_payments_completed_funding`을 `payments.purpose`(`REWARD`/`EXCHANGE_FEE`) 기준으로 바꾸는 작업이 선행돼야 한다. 지금 교환은 **접수·조회와 금액 안내까지만** 동작하며 2-3 승인 경로로 완료되지 않는다(`RefundTriggerType.EXCHANGE.toOrderServiceReason()`이 예외를 던진다).
+- `additionalPaymentAmount`는 구매자가 실제로 내야 하는 금액이다 — 판매자 귀책·기타는 `0`이다. FE가 교환비를 직접 계산하지 않도록 반품 접수(2-2b)와 대칭으로 내려준다. 실제 수납은 판매자 승인 후이므로(2-3 → 2-2d) 접수 시점에는 금액만 알려준다.
+- **교환 처리 흐름**
+
+```
+REQUESTED ──판매자 승인(2-3)──┬─ 구매자 귀책 → APPROVED ──교환비 결제(2-2d + 1-2)──> PROCESSING
+                              └─ 판매자 귀책·기타(0원) ─────────────────────────────> PROCESSING
+PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMPLETED
+```
+
+- **범위 밖**: 교환 신청의 구매자 취소, 승인 후 미결제 방치 건의 자동 만료(기한 스케줄러)는 아직 없다. 교환은 결제취소를 수반하지 않아 `RefundCompleted` 이벤트를 발행하지 않는다(`RefundTriggerType.EXCHANGE.toOrderServiceReason()`이 예외를 던진다) — 쿠폰 복원·주문 상태 전이 대상이 아니기 때문이다.
+
+---
+
+### 2-2d. POST `/api/v2/refunds/{refundId}/exchange-fee` — 교환 배송비 결제 시도 생성
+
+- **권한**: 구매자(해당 교환 신청의 원 결제 소유자만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Request Body**: 없음(금액은 정책 상수, 경로의 `refundId`로 대상을 정한다)
+- **Response 201 Created**
+
+```json
+{
+  "paymentId": "018f9a1b-....",
+  "pgOrderId": "fundit-Xy7Zq...",
+  "amount": 5000,
+  "orderName": "교환 배송비"
+}
+```
+
+- **처리 절차**: 교환 신청이 `APPROVED`(판매자 승인 완료)인지, 사유가 구매자 귀책인지 확인한 뒤 `payments(purpose='EXCHANGE_FEE', status='PENDING')`를 만든다. 이미 발급된 PENDING 시도가 있으면 재사용한다(PAYMENT-001과 같은 규칙). 응답값으로 **결제위젯을 띄우고 승인은 리워드 결제와 같은 1-2(`POST /api/v2/payments/confirm`)를 쓴다** — 승인되면 서버가 fulfillment에 재발송을 요청하고 신청이 `PROCESSING`으로 넘어간다.
+- **금액**: `ReturnPolicy.EXCHANGE_SHIPPING_FEE`(5,000원) 고정. 주문 금액과 무관한 별도 결제라 order-service 스냅샷을 쓰지 않지만, 승인 시 대조하는 값은 이 시점에 저장된 `payments.amount`다(금액 재계산 금지 원칙 유지).
+- **리워드 결제와 다른 점**: 교환비 결제는 승인 시 `PaymentCompleted`를 발행하지 않고(주문 결제가 아니다) 정산 보류(`settlement_holds`)도 열지 않는다. 환불·정산의 펀딩 단위 조회는 모두 `purpose='REWARD'`만 본다 — 같은 펀딩에 두 결제가 공존하므로 이 필터가 빠지면 환불이 5,000원만 취소한다.
+- **주요 에러 코드**: `EXCHANGE_NOT_APPROVED`(409, 판매자 승인 전), `EXCHANGE_FEE_NOT_REQUIRED`(409, 판매자 귀책·기타라 추가 결제 없음), `EXCHANGE_FEE_ALREADY_PAID`(409), `NOT_FOUND`(404), `FORBIDDEN`(403)
 
 ---
 
@@ -277,7 +308,8 @@
 { "refundId": 501, "status": "COMPLETED" }
 ```
 
-- **대상**: 판매자 검토가 필요한 유형만이다 — 하자환불(`DEFECT`)과 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`). 그 외 유형은 `400 INVALID_INPUT`("판매자 검토 대상 신청이 아닙니다.")로 거부한다. 교환은 결제취소를 수반하지 않아 이 경로로 완료되지 않는다.
+- **대상**: 판매자 검토가 필요한 유형만이다 — 하자환불(`DEFECT`), 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`), 교환(`EXCHANGE`). 그 외(즉시처리 유형)는 `400 INVALID_INPUT`("판매자 검토 대상 신청이 아닙니다.")로 거부한다.
+- **승인 후가 유형별로 갈린다**: 하자환불은 전액, 반품은 반품비를 뺀 금액을 PG 취소한다(응답 `status=COMPLETED`). **교환은 결제취소가 없다** — 구매자 귀책이면 교환비 결제 대기(`status=APPROVED`, 구매자가 2-2d로 결제), 판매자 귀책·기타면 즉시 fulfillment 재발송 요청(`status=PROCESSING`)이다. 반려는 세 유형이 동일하다(`status=REJECTED`, 사유 필수, 이벤트 미발행).
 - **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **취소 금액은 귀책에 따라 다르다**(환불 정책 V.1.0):
   - 판매자 귀책(`DEFECT`) → `payments.amount` **전액 취소**, `is_full_refund=true`
   - 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`) → `payments.amount - 5000`(반품 배송비 차감) **부분취소**, `is_full_refund=false`. 결제 상태는 `COMPLETED`를 유지하고(전액취소 아님) 에스크로 보류도 유지된다.
@@ -545,6 +577,9 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 | `NOT_DELIVERED` | 409 | 배송 완료 전에 반품·교환·하자환불을 신청함(`deliveredAt=null`) |
 | `RETURN_PERIOD_EXPIRED` | 409 | 수령(배송 완료) 후 7일 경과 — FE "반품·교환 가능 기간이 지났어요"가 이 코드에 매핑된다 |
 | `REFUND_ALREADY_REQUESTED` | 409 | 같은 주문에 진행 중인 반품·교환·하자환불 신청이 이미 있음(부분취소 중복 실행 방지) |
+| `EXCHANGE_NOT_APPROVED` | 409 | 판매자 승인 전에 교환 배송비 결제를 시작함 |
+| `EXCHANGE_FEE_NOT_REQUIRED` | 409 | 판매자 귀책·기타 교환(추가 결제 0원)에 교환비 결제를 시작함 |
+| `EXCHANGE_FEE_ALREADY_PAID` | 409 | 교환 배송비가 이미 결제됨 |
 | `RETURN_FEE_EXCEEDS_AMOUNT` | 422 | 결제 금액이 반품 배송비(5,000원) 이하라 차감 후 환불액이 남지 않음 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 가능 기간(7일) 경과 |
 

@@ -2,6 +2,7 @@ package com.fundit.payment.infrastructure.persistence.payment;
 
 import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
+import com.fundit.payment.domain.payment.PaymentPurpose;
 import com.fundit.payment.domain.payment.PaymentStatus;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,8 @@ class PaymentMapper {
                 .pgSecret(entity.getPgSecret())
                 .amount(entity.getAmount())
                 .orderName(entity.getOrderName())
+                .purpose(PaymentPurpose.valueOf(entity.getPurpose()))
+                .refundRequestId(entity.getRefundRequestId())
                 .couponIssuanceIds(entity.getCouponIssuanceIds())
                 .paymentMethod(entity.getPaymentMethod() == null ? null : PaymentMethod.valueOf(entity.getPaymentMethod()))
                 .easyPayProvider(entity.getEasyPayProvider())
@@ -39,6 +42,8 @@ class PaymentMapper {
                 .pgSecret(domain.getPgSecret())
                 .amount(domain.getAmount())
                 .orderName(domain.getOrderName())
+                .purpose(domain.getPurpose().name())
+                .refundRequestId(domain.getRefundRequestId())
                 .couponIssuanceIds(domain.getCouponIssuanceIds())
                 .paymentMethod(domain.getPaymentMethod() == null ? null : domain.getPaymentMethod().name())
                 .easyPayProvider(domain.getEasyPayProvider())

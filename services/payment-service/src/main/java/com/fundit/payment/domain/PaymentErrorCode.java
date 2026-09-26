@@ -27,6 +27,9 @@ public enum PaymentErrorCode implements ErrorCode {
     RETURN_PERIOD_EXPIRED(409, "반품·교환 가능 기간이 지났습니다."),
     REFUND_ALREADY_REQUESTED(409, "이미 접수된 반품·교환 신청이 있습니다."),
     RETURN_FEE_EXCEEDS_AMOUNT(422, "결제 금액이 반품 배송비보다 적어 신청할 수 없습니다."),
+    EXCHANGE_NOT_APPROVED(409, "판매자 승인 후에 교환 배송비를 결제할 수 있습니다."),
+    EXCHANGE_FEE_NOT_REQUIRED(409, "추가 결제가 필요한 교환 신청이 아닙니다."),
+    EXCHANGE_FEE_ALREADY_PAID(409, "교환 배송비가 이미 결제되었습니다."),
     DISPUTE_PERIOD_EXPIRED(409, "정산 이의신청 가능 기간이 지났습니다."),
     UNSUPPORTED_MEDIA_TYPE(400, "지원하지 않는 파일 형식입니다."),
     MEDIA_TOO_LARGE(400, "파일 용량이 허용 범위를 초과했습니다.");

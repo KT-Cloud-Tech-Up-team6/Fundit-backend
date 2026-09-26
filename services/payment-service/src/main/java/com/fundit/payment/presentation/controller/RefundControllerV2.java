@@ -2,12 +2,14 @@ package com.fundit.payment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.payment.application.refund.ExchangeFeePaymentService;
 import com.fundit.payment.application.refund.PostShipmentRefundRequestService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.dto.DefectRefundRequestResponse;
 import com.fundit.payment.presentation.dto.DefectRefundRequestV2;
+import com.fundit.payment.presentation.dto.ExchangeFeePaymentResponse;
 import com.fundit.payment.presentation.dto.ExchangeRequestResponse;
 import com.fundit.payment.presentation.dto.ExchangeRequestV2;
 import com.fundit.payment.presentation.dto.PageResponse;
@@ -23,6 +25,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,6 +44,7 @@ public class RefundControllerV2 {
     private final RefundQueryService refundQueryService;
     private final PostShipmentRefundRequestService postShipmentRefundRequestService;
     private final ShippingDelayRefundService shippingDelayRefundService;
+    private final ExchangeFeePaymentService exchangeFeePaymentService;
 
     @GetMapping
     public PageResponse<RefundSummaryResponseV2> list(@LoginUser CurrentUser user,
@@ -80,6 +84,21 @@ public class RefundControllerV2 {
         var result = postShipmentRefundRequestService.request(user.id(), request.fundingId(),
                 RefundTriggerType.RETURN_CHANGE_OF_MIND, request.toReasonDetail(), request.evidenceUrls());
         return ResponseEntity.status(HttpStatus.CREATED).body(ReturnRequestResponse.from(result));
+    }
+
+    /**
+     * 구매자 귀책 교환의 교환 배송비 결제 시도 생성 — 판매자 승인(`PATCH /api/v1/refunds/{refundId}/decision`)
+     * 으로 신청이 APPROVED가 된 뒤에만 호출할 수 있다. 응답값으로 결제위젯을 띄우고, 승인은
+     * 리워드 결제와 같은 `POST /api/v2/payments/confirm`을 쓴다 — 승인되면 서버가 재발송을
+     * 요청하고 신청이 PROCESSING으로 넘어간다.
+     *
+     * <p>판매자 귀책·기타 교환은 추가 결제가 없어 이 경로를 쓰지 않는다(승인 즉시 재발송 요청).
+     */
+    @PostMapping("/{refundId}/exchange-fee")
+    public ResponseEntity<ExchangeFeePaymentResponse> createExchangeFeePayment(@LoginUser CurrentUser user,
+                                                                                @PathVariable Long refundId) {
+        var result = exchangeFeePaymentService.create(user.id(), refundId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ExchangeFeePaymentResponse.from(result));
     }
 
     /**

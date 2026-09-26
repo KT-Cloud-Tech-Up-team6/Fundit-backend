@@ -121,6 +121,51 @@ public class RefundRequest {
         this.processedAt = Instant.now();
     }
 
+    /**
+     * 교환 승인(구매자 귀책) — 교환 배송비를 구매자가 별도 결제해야 하므로 결제 대기 상태로 둔다.
+     * 결제가 완료되면 {@link #startExchangeReshipment()}로 재발송 단계로 넘어간다.
+     */
+    public void approveExchangeAwaitingFee() {
+        assertExchange();
+        assertDecidable();
+        this.status = RefundRequestStatus.APPROVED;
+    }
+
+    /**
+     * 교환 재발송 요청 완료 — 판매자 귀책(교환비 0원)은 승인 즉시, 구매자 귀책은 교환비 결제
+     * 완료 직후 호출된다. 결제취소가 없어 {@code isFullRefund}는 채우지 않는다.
+     */
+    public void startExchangeReshipment() {
+        assertExchange();
+        if (status != RefundRequestStatus.REQUESTED && status != RefundRequestStatus.UNDER_REVIEW
+                && status != RefundRequestStatus.APPROVED) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "재발송을 시작할 수 있는 상태가 아닙니다.");
+        }
+        this.status = RefundRequestStatus.PROCESSING;
+    }
+
+    /**
+     * 교환 완료 — 재발송분의 배송이 끝난 시점(fulfillment 배송완료 이벤트)에 종료 처리한다.
+     * 이벤트는 중복 수신될 수 있어 이미 완료된 건은 그대로 둔다(멱등).
+     */
+    public void completeExchange() {
+        assertExchange();
+        if (status == RefundRequestStatus.COMPLETED) {
+            return;
+        }
+        if (status != RefundRequestStatus.PROCESSING) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "재발송 진행 중인 교환 신청이 아닙니다.");
+        }
+        this.status = RefundRequestStatus.COMPLETED;
+        this.processedAt = Instant.now();
+    }
+
+    private void assertExchange() {
+        if (triggerType != RefundTriggerType.EXCHANGE) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "교환 신청이 아닙니다.");
+        }
+    }
+
     /** PAYMENT-007 — 판매자 반려. 사유 필수. */
     public void reject(String reason) {
         if (reason == null || reason.isBlank()) {

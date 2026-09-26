@@ -27,6 +27,12 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("GET", "/internal/fundings/id/{fundingId}/fulfillment-status");
     }
 
+    /** payment-service 교환 승인·교환비 결제 후 재발송 착수 요청. */
+    @Bean
+    public InternalEndpoint exchangeReshipmentEndpoint() {
+        return new InternalEndpoint("POST", "/internal/fundings/{fundingId}/reshipments");
+    }
+
     /** order-service 주문 목록(V03/V06)이 배치로 호출하는 배송 상태 조회. */
     @Bean
     public InternalEndpoint fulfillmentStatusBatchEndpoint() {

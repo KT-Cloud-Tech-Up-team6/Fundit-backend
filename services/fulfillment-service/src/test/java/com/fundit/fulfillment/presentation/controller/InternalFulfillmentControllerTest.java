@@ -1,6 +1,7 @@
 package com.fundit.fulfillment.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.fulfillment.application.shipment.ExchangeReshipmentService;
 import com.fundit.fulfillment.application.shipment.FulfillmentStatusInternalService;
 import com.fundit.fulfillment.application.shipment.FulfillmentStatusInternalService.FulfillmentStatusView;
 import com.fundit.fulfillment.infrastructure.security.InternalEndpointConfig;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,6 +37,8 @@ class InternalFulfillmentControllerTest {
 
     @MockitoBean
     private FulfillmentStatusInternalService fulfillmentStatusInternalService;
+    @MockitoBean
+    private ExchangeReshipmentService exchangeReshipmentService;
 
     @Test
     void 내부_키가_있으면_UUID_경로로_배송상태를_반환한다() throws Exception {
@@ -66,6 +71,31 @@ class InternalFulfillmentControllerTest {
     @Test
     void 내부_키가_없으면_401을_반환한다() throws Exception {
         mockMvc.perform(get("/internal/fundings/" + ORDER_ID + "/fulfillment-status"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 재발송_요청은_PREPARING과_누적_횟수를_반환한다() throws Exception {
+        // given
+        when(exchangeReshipmentService.startReshipment(ORDER_ID, 77L))
+                .thenReturn(new ExchangeReshipmentService.ReshipmentResult("PREPARING", 1));
+
+        // when & then
+        mockMvc.perform(post("/internal/fundings/" + ORDER_ID + "/reshipments")
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refundRequestId\":77}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PREPARING"))
+                .andExpect(jsonPath("$.reshipmentCount").value(1));
+    }
+
+    @Test
+    void 재발송_요청도_내부_키가_없으면_401이다() throws Exception {
+        // when & then
+        mockMvc.perform(post("/internal/fundings/" + ORDER_ID + "/reshipments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refundRequestId\":77}"))
                 .andExpect(status().isUnauthorized());
     }
 }

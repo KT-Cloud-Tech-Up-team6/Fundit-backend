@@ -29,6 +29,10 @@ public class Payment {
     private String pgSecret;
     private final long amount;
     private final String orderName;
+    /** 리워드 결제인지 교환 배송비 결제인지 — 환불·정산·이벤트 발행은 REWARD만 대상이다. */
+    private final PaymentPurpose purpose;
+    /** {@link PaymentPurpose#EXCHANGE_FEE}일 때 그 교환 신청(refund_requests.id), 그 외 null. */
+    private final Long refundRequestId;
     /**
      * order-service {@code coupon_issuances.id} 참조, FK 아님. 최대 2개(플랫폼+메이커),
      * 쿠폰 미적용 주문이면 빈 리스트.
@@ -52,6 +56,29 @@ public class Payment {
                 .amount(amount)
                 .orderName(orderName)
                 .couponIssuanceIds(couponIssuanceIds == null ? List.of() : couponIssuanceIds)
+                .purpose(PaymentPurpose.REWARD)
+                .status(PaymentStatus.PENDING)
+                .idempotencyKey(idempotencyKey)
+                .build();
+    }
+
+    /**
+     * 구매자 귀책 교환의 교환 배송비 결제 시도(환불 정책 V.1.0). 금액은 정책 상수이고 쿠폰이
+     * 적용되지 않으므로 order-service 스냅샷을 쓰지 않는다 — 리워드 결제와 달리 승인 시
+     * PaymentCompleted를 발행하지 않고(주문 결제가 아니다) 정산 보류도 열지 않는다.
+     */
+    public static Payment createExchangeFee(UUID fundingId, UUID memberId, String pgOrderId, long amount,
+                                             String orderName, Long refundRequestId, String idempotencyKey) {
+        return Payment.builder()
+                .id(UUID.randomUUID())
+                .fundingId(fundingId)
+                .memberId(memberId)
+                .pgOrderId(pgOrderId)
+                .amount(amount)
+                .orderName(orderName)
+                .couponIssuanceIds(List.of())
+                .purpose(PaymentPurpose.EXCHANGE_FEE)
+                .refundRequestId(refundRequestId)
                 .status(PaymentStatus.PENDING)
                 .idempotencyKey(idempotencyKey)
                 .build();
@@ -96,8 +123,16 @@ public class Payment {
         this.status = PaymentStatus.CANCELLED;
     }
 
+    public boolean isExchangeFee() {
+        return purpose == PaymentPurpose.EXCHANGE_FEE;
+    }
+
     public boolean isCompleted() {
         return status == PaymentStatus.COMPLETED;
+    }
+
+    public boolean isPending() {
+        return status == PaymentStatus.PENDING;
     }
 
     public boolean isOwnedBy(UUID accountId) {

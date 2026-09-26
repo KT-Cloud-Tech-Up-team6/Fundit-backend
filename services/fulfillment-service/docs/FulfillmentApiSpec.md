@@ -406,6 +406,39 @@ REST로 노출되지 않는 이벤트/스케줄러 기반 기능(FULFILLMENT-001
 | FULFILLMENT-007 | 스케줄러 | `status='SHIPPED'`이고 `shipped_at` **달력 3일**[정책값] 경과한 건을 `DELIVERED`로 전이(택배사 미연동 목업)하고 `shipping.completed.v1` 발행. payment-service PAYMENT-014가 구독 |
 | FULFILLMENT-010 | 스케줄러 | `status='DELIVERED'`이고 `delivered_at` 7일[정책값] 경과한 건을 `RECEIPT_CONFIRMED`(자동확정)로 전이, 구매자에게 `notification.raised.v1` 발행(`notifType=SHIPPING_UPDATE`) |
 
+### 8-3. 교환 재발송 착수(payment-service 연동)
+
+```
+POST /internal/fundings/{fundingId}/reshipments
+```
+
+**Auth Required**: 내부 전용(`InternalEndpoint` 빈 + `InternalGatewaySecretFilter` — `X-Internal-Api-Key` 검증)
+
+**Request Body**
+
+```json
+{ "refundRequestId": 1234 }
+```
+
+**호출 주체**: payment-service — 교환을 판매자가 승인한 직후(판매자 귀책·기타, 추가 결제 없음) 또는 구매자의 교환 배송비 결제가 승인된 직후.
+
+**Response Body**
+
+```json
+{ "status": "PREPARING", "reshipmentCount": 1 }
+```
+
+**Validation / Business Rules**
+
+- 배송을 **새 사이클로 되돌린다** — `status`를 `PREPARING`으로 내리고 `carrier`/`tracking_number`/`shipped_at`/`delivered_at`/`receipt_confirmed_at`을 비우며 `reshipment_count`를 1 올린다(V7). 판매자는 **기존 발송정보 등록(#5)** 으로 새 운송장을 올리면 되고, 그 시점에 `shipment.shipped.v1`이 다시 발행된다(payment-service가 이 이벤트로 교환을 완료 처리한다).
+- `shipments`는 펀딩당 1행(`uq_shipments_funding_order`)이라 행을 추가하지 않는다 — 이전 사이클의 운송장 이력은 남지 않는다. 이력이 필요해지면 별도 테이블로 분리할 것.
+- **같은 `refundRequestId`로 재호출되면 아무것도 바꾸지 않는다**(`last_reshipment_refund_request_id` 멱등키, `reshipmentCount`도 그대로). 내부 호출 재시도가 판매자가 이미 등록한 새 운송장을 지우면 안 된다.
+- **배송이 끝난 건만 대상**이다(`DELIVERED`/`RECEIPT_CONFIRMED`). 그 외 상태면 `409 RESHIPMENT_NOT_ALLOWED` — 교환은 정책상 수령 후 7일 이내에만 접수되므로 다른 상태로 오는 요청은 잘못된 호출이다.
+- 발송 이력(`shipments` 행)이 없으면 `404 NOT_FOUND`.
+- 교환 정책(누가 교환비를 부담하는지, 승인 여부)은 **판단하지 않는다** — payment-service 소관이고 이 API는 "배송을 다시 시작한다"만 한다.
+
+---
+
 ### `shipping.completed.v1` (발행)
 
 FULFILLMENT-007이 배송완료 전이와 같은 트랜잭션에서 아웃박스에 적재한다. payment-service PAYMENT-014(최종정산)가 구독한다.
