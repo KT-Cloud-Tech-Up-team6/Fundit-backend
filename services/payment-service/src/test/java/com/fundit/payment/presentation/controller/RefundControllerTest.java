@@ -180,12 +180,14 @@ class RefundControllerTest {
 
     @Test
     void 교환_사유를_주면_추가_결제_금액을_반환한다() throws Exception {
+        // given
         UUID memberId = UUID.randomUUID();
         when(refundEstimateService.estimate(memberId, ORDER_ID, RefundTriggerType.EXCHANGE, null,
                 ExchangeReason.CHANGE_OF_MIND)).thenReturn(
                 new RefundEstimateService.RefundEstimate(ORDER_ID, 23_000L, 20_000L, 3_000L, 0L, 0L, 5_000L,
                         null, true));
 
+        // when & then
         mockMvc.perform(get("/api/v1/refunds/estimate")
                         .param("orderId", ORDER_ID.toString())
                         .param("triggerType", "EXCHANGE")
