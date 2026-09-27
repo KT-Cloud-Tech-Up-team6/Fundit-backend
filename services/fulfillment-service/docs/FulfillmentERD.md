@@ -10,7 +10,7 @@
 2. **`shipments` 상태 컬럼 신규**: 원안에는 `shipped_at` 이후 상태가 없었다. "배송완료"·"수령확인"이 마이페이지 상태 표시와 payment-service PAYMENT-006(하자환불 신청기간 판정)의 근거가 되므로 `status`/`delivered_at`/`receipt_confirmed_at`/`receipt_auto_confirmed`를 추가했다.
 3. **`stage`/`reason_type` CHECK 보완**: `fulfillment_stage_details`/`fulfillment_schedule_changes`에 화이트리스트 CHECK가 누락돼 있어 추가했다.
 4. **`shipments.project_id` FK화**: 같은 DB 안의 `fulfillment_trackers.project_id`를 참조하므로(비정규화 값이 아니라) FK로 정합성을 보장한다. 타 서비스(catalog-service/order-service) 참조는 FK를 걸지 않는다 — "같은 DB냐"가 FK 여부의 기준이다.
-5. **`shipments.funding_id` UNIQUE**: 재배송·분할배송(하자 교환 등)은 이번 범위 밖으로 가정한다. 지원이 필요해지면 이 제약부터 완화해야 한다 — 정책 확인 필요.
+5. **`shipments.funding_id` UNIQUE**: 분할배송은 이번 범위 밖이다. **교환 재발송은 지원한다(V7)** — 제약을 완화하는 대신 같은 행의 `status`를 `PREPARING`으로 되돌리고 `reshipment_count`/`last_reshipment_requested_at`/`last_reshipment_refund_request_id`를 기록하는 방식을 택했다(payment-service 교환 승인·교환비 결제 후 내부 API 호출, `FulfillmentApiSpec.md` 8-3). 대가는 이전 사이클의 운송장 이력이 남지 않는다는 것이고, 이력이 화면에 필요해지면 그때 별도 테이블로 분리한다.
 6. **인덱스 보강**: 미갱신 트래커 배치(FULFILLMENT-004)용 부분 인덱스, 단계별 최신 상세내용 조회(`updated_at DESC` 포함), 발송 지연 판정(FULFILLMENT-008)이 반복 조회하는 `SHIPPING_OUT` 단계 `planned_end_at` 부분 인덱스를 추가했다.
 
 ## DDL
@@ -108,7 +108,11 @@ CREATE TABLE shipments (
     CONSTRAINT fk_shipments_tracker_project FOREIGN KEY (project_id)
         REFERENCES fulfillment_trackers (project_id)  -- [검토의견 4, 신규] 같은 DB이므로 FK로 정합성 보장(기존엔 비정규화 값으로만 저장)
 );
-CREATE UNIQUE INDEX uq_shipments_funding ON shipments (funding_id);  -- [검토의견 5, 수정] 비고유 INDEX → UNIQUE (재배송/분할배송은 범위 밖으로 가정, 정책 확인 필요)
+CREATE UNIQUE INDEX uq_shipments_funding ON shipments (funding_id);  -- [검토의견 5, 수정] 비고유 INDEX → UNIQUE (분할배송은 범위 밖. 교환 재발송은 행 추가 없이 상태 리셋으로 처리 — V7)
+-- V7(교환 재발송) 추가 컬럼:
+--   reshipment_count                  INT NOT NULL DEFAULT 0   -- 교환으로 다시 보낸 횟수
+--   last_reshipment_requested_at      TIMESTAMPTZ
+--   last_reshipment_refund_request_id BIGINT                   -- payment-service refund_requests.id(멱등키), FK 아님
 CREATE TRIGGER trg_shipments_updated_at
     BEFORE UPDATE ON shipments
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();

@@ -41,12 +41,16 @@ class DefectRefundDecisionServiceUnitTest {
     @Mock
     private PaymentNotificationPublisher paymentNotificationPublisher;
 
+    @Mock
+    private ExchangeService exchangeService;
+
     private DefectRefundDecisionService defectRefundDecisionService;
 
     @BeforeEach
     void setUp() {
         defectRefundDecisionService = new DefectRefundDecisionService(refundRequestRepository, paymentRepository,
-                orderFundingClient, refundExecutionService, paymentNotificationPublisher);
+                orderFundingClient, refundExecutionService, exchangeService,
+                paymentNotificationPublisher);
     }
 
     private RefundRequest defectRequest(UUID paymentId) {

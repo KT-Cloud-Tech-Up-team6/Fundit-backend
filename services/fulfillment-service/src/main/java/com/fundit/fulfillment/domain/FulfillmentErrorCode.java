@@ -14,7 +14,8 @@ public enum FulfillmentErrorCode implements ErrorCode {
 
     ALREADY_SHIPPED(409, "이미 발송 처리된 건입니다."),
     NOT_YET_DELIVERED(422, "아직 배송완료 전입니다."),
-    INVALID_STAGE_TRANSITION(422, "이미 지난 단계입니다.");
+    INVALID_STAGE_TRANSITION(422, "이미 지난 단계입니다."),
+    RESHIPMENT_NOT_ALLOWED(409, "배송이 완료된 건만 교환 재발송을 시작할 수 있습니다.");
 
     private final int httpStatus;
     private final String message;

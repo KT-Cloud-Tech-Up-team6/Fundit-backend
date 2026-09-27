@@ -75,6 +75,10 @@ public class RefundRequestJpaEntity {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    /** 교환 재발송을 fulfillment-service에 요청한 시각 — null이면 재시도 대상(V10). */
+    @Column(name = "reshipment_requested_at")
+    private Instant reshipmentRequestedAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.requestedAt == null) {

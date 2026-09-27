@@ -1,5 +1,6 @@
 package com.fundit.payment.domain.refund;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,4 +15,16 @@ public interface RefundRequestRepository {
      * 않으면 반품비 차감 부분취소가 두 번 실행될 수 있다.
      */
     boolean existsUnresolvedPostShipmentRequest(UUID fundingId);
+
+    /**
+     * 재발송 요청까지 끝나 배송을 기다리는 교환 신청(PROCESSING). 재발송분의 배송완료 이벤트로
+     * 교환을 종료하기 위해 쓴다 — 펀딩당 미처리 발송 후 신청은 1건이라 최대 1건이다.
+     */
+    Optional<RefundRequest> findReshippingExchangeByFundingId(UUID fundingId);
+
+    /**
+     * 재발송 요청이 아직 성공하지 못한 교환 건(PROCESSING + {@code reshipment_requested_at} null).
+     * 교환비는 이미 결제된 상태라 요청이 유실되면 안 되므로 워커가 이 목록을 다시 보낸다.
+     */
+    List<RefundRequest> findExchangesAwaitingReshipmentRequest(int limit);
 }

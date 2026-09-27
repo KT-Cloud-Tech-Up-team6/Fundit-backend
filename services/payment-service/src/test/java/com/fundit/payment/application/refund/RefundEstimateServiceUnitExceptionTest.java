@@ -43,7 +43,7 @@ class RefundEstimateServiceUnitExceptionTest {
     void 완료된_결제가_없으면_NOT_FOUND다() {
         when(paymentRepository.findCompletedByFundingId(ORDER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> refundEstimateService.estimate(MEMBER_ID, ORDER_ID, null, false))
+        assertThatThrownBy(() -> refundEstimateService.estimate(MEMBER_ID, ORDER_ID, null, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
         verifyNoInteractions(orderFundingClient);
@@ -55,7 +55,7 @@ class RefundEstimateServiceUnitExceptionTest {
         payment.markCompleted("pay_key", "secret", PaymentMethod.CARD, null, Instant.now());
         when(paymentRepository.findCompletedByFundingId(ORDER_ID)).thenReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> refundEstimateService.estimate(MEMBER_ID, ORDER_ID, null, false))
+        assertThatThrownBy(() -> refundEstimateService.estimate(MEMBER_ID, ORDER_ID, null, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
         verifyNoInteractions(orderFundingClient);

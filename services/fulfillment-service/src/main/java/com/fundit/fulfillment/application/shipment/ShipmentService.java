@@ -49,7 +49,8 @@ public class ShipmentService {
                 .orElseGet(() -> Shipment.create(fundingId, projectId));
         shipment.registerShipment(carrier, trackingNumber);
         Shipment saved = shipmentRepository.save(shipment);
-        domainEventPublisher.publishShipmentShipped(new ShipmentShippedEvent(fundingId, projectId));
+        domainEventPublisher.publishShipmentShipped(new ShipmentShippedEvent(fundingId, projectId,
+                saved.getLastReshipmentRefundRequestId()));
         return saved;
     }
 

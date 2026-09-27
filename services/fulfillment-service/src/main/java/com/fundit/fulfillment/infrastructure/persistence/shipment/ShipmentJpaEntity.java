@@ -65,6 +65,16 @@ public class ShipmentJpaEntity {
     @Column(name = "receipt_auto_confirmed", nullable = false)
     private boolean receiptAutoConfirmed;
 
+    @Column(name = "reshipment_count", nullable = false)
+    private int reshipmentCount;
+
+    @Column(name = "last_reshipment_requested_at")
+    private Instant lastReshipmentRequestedAt;
+
+    /** payment-service refund_requests.id 참조, FK 아님 — 재발송 요청 멱등 판정용. */
+    @Column(name = "last_reshipment_refund_request_id")
+    private Long lastReshipmentRefundRequestId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -36,13 +36,16 @@ class PaymentConfirmServiceUnitExceptionTest {
     private SettlementHoldService settlementHoldService;
     @Mock
     private PaymentFailureRecorder paymentFailureRecorder;
+    @Mock
+    private ExchangeFeePaymentListener exchangeFeePaymentListener;
 
     private PaymentConfirmService paymentConfirmService;
 
     @BeforeEach
     void setUp() {
         paymentConfirmService = new PaymentConfirmService(paymentRepository, tossPaymentsClient,
-                paymentEventPublisher, settlementHoldService, paymentFailureRecorder);
+                paymentEventPublisher, settlementHoldService, paymentFailureRecorder,
+                exchangeFeePaymentListener);
     }
 
     @Test

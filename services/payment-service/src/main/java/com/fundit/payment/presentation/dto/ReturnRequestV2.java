@@ -1,5 +1,6 @@
 package com.fundit.payment.presentation.dto;
 
+import com.fundit.payment.domain.refund.RefundReasonTag;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -23,6 +24,6 @@ public record ReturnRequestV2(
 
     /** DEFECT와 동일하게 사유 유형을 태그로 앞에 붙여 저장한다(별도 컬럼 없음). */
     public String toReasonDetail() {
-        return "[" + returnReason + "] " + (reasonDetail == null ? "" : reasonDetail);
+        return RefundReasonTag.format(returnReason, reasonDetail);
     }
 }

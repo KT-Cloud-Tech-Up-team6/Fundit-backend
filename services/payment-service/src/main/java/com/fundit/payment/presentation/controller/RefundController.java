@@ -10,6 +10,8 @@ import com.fundit.payment.application.refund.RefundEstimateService;
 import com.fundit.payment.application.refund.RefundEvidenceUploadService;
 import com.fundit.payment.application.refund.RefundQueryService;
 import com.fundit.payment.application.refund.ShippingDelayRefundService;
+import com.fundit.payment.domain.refund.DefectType;
+import com.fundit.payment.domain.refund.ExchangeReason;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.presentation.dto.DefectRefundRequest;
 import com.fundit.payment.presentation.dto.DefectRefundRequestResponse;
@@ -113,15 +115,16 @@ public class RefundController {
     }
 
     /**
-     * R05 — 환불 신청 전 예상 환불액 사전 계산. {@code triggerType}을 주면 그 유형의 정책이
-     * 반영된다(반품이면 반품비 차감). {@code defectType=OTHER}처럼 귀책이 불분명한 건은
-     * {@code refundAmount}를 null로 내려 화면이 확정액을 표시하지 않게 한다.
+     * R05 — 환불·교환 신청 전 금액 사전 계산. {@code triggerType}을 주면 그 유형의 정책이
+     * 반영된다(반품이면 반품비 차감, 교환이면 사유에 따른 추가 결제액). 귀책이 검토로 정해지는
+     * 건은 {@code confirmed=false}이고, 확정액이 없는 건은 {@code refundAmount}가 null이다.
      */
     @GetMapping("/estimate")
     public RefundEstimateResponse estimate(@LoginUser CurrentUser user, @RequestParam UUID orderId,
                                             @RequestParam(required = false) RefundTriggerType triggerType,
-                                            @RequestParam(required = false) DefectRefundRequest.DefectType defectType) {
-        return RefundEstimateResponse.from(refundEstimateService.estimate(user.id(), orderId, triggerType,
-                defectType == DefectRefundRequest.DefectType.OTHER));
+                                            @RequestParam(required = false) DefectType defectType,
+                                            @RequestParam(required = false) ExchangeReason exchangeReason) {
+        return RefundEstimateResponse.from(
+                refundEstimateService.estimate(user.id(), orderId, triggerType, defectType, exchangeReason));
     }
 }
