@@ -23,7 +23,8 @@
 | 1 | PAYMENT-001 | `POST /api/v1/payments` | 결제 시도 생성(결제위젯 렌더링 준비) |
 | 2 | PAYMENT-002 | `POST /api/v1/payments/confirm` | 결제 승인 처리 |
 | 3 | — | `POST /api/v1/payments/webhook/toss` | 토스 웹훅 수신(기능ID 없는 보조 엔드포인트, 서명검증만) |
-| 4 | PAYMENT-003 | `GET /api/v1/refunds` | 환불 신청/처리 통합 내역 조회 |
+| 4 | PAYMENT-003 | `GET /api/v1/refunds` | 환불 신청/처리 통합 내역 조회(v2는 `triggerType` 다중값 필터) |
+| 4-1 | — | `GET /internal/refunds/statuses` | 주문별 신청 이력 배치 조회(내부 전용, order-service 펀딩 내역 연동) |
 | 5 | PAYMENT-006 | `POST /api/v1/refunds/defect` | 하자환불 신청 |
 | 5-1 | — | `POST /api/v2/refunds/return` | 발송 후 단순변심·옵션오류 반품 접수(환불 정책 V.1.0) |
 | 5-2 | — | `POST /api/v2/refunds/exchange` | 발송 후 교환 접수 |
@@ -61,7 +62,7 @@ public interface PaymentEventListener {
     void onPaymentCompleted(PaymentCompletedEvent event);
     void onRefundCompleted(RefundCompletedEvent event);
 
-    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds) {}
+    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds, Instant paidAt) {}
 
     enum RefundReason {
         GOAL_FAILURE_AUTO_REFUND, CANCELLED_BY_MEMBER, POST_SUCCESS_DEFECT, POST_SUCCESS_DELAY, POST_SUCCESS_RETURN
@@ -71,6 +72,7 @@ public interface PaymentEventListener {
 ```
 
 **이 서비스가 반드시 지켜야 할 것:**
+- `PaymentCompleted`의 **`paidAt`(결제 완료 시각)도 반드시 실어 보냅니다.** order-service 펀딩 내역의 "결제일"이 이 값으로만 채워집니다(그쪽은 결제 시각을 알 방법이 없어 응답이 계속 null이었습니다). 아웃박스 payload에는 예전부터 저장돼 있었고, `PaymentCompletedTransportEvent`에서 빠져 전송되지 않던 것을 실어 보냅니다 — 값이 없는 구버전 행은 null로 보내면 됩니다(구독자가 기존 값을 덮지 않습니다).
 - `PaymentCompleted`/`RefundCompleted` 이벤트에는 **`couponIssuanceIds`(리스트)를 이 서비스가 직접 채워서 보내야 합니다.** 한 주문에 플랫폼+메이커 쿠폰이 함께 적용될 수 있어(최대 2개) 전부 담아 보내야 order-service가 전부 사용확정/복원 처리합니다 — 첫 번째 것만 보내면 두 번째 쿠폰은 영영 USED/복원되지 않습니다. 이 값은 order-service의 `funding_coupon_applications`에만 있는 값이라, 이 서비스가 결제 시도 생성 시점(PAYMENT-001)에 order-service로부터 함께 받아서 `payments` 테이블에 같이 저장해뒀다가, 이벤트 발행 시 그대로 실어 보내야 합니다. 쿠폰이 적용 안 된 주문이면 빈 리스트.
 - `RefundCompleted`의 `refundReason`은 order-service가 이미 정의한 enum 4종 이름 그대로 매핑해서 보내야 합니다:
 
@@ -209,7 +211,7 @@ PROCESSING ─재발송분 발송(shipment.shipped.v1)→ COMPLETED
 - **구독(Consumer, PAYMENT-004/005/017)**: 비즈니스 로직은 "이벤트 레코드를 입력받는 애플리케이션 서비스 메서드"로 완전히 구현하고 단위 테스트도 이 메서드를 직접 호출해서 짭니다(`GoalFailedAutoRefundService.handle(FundingGoalFailedEvent event)`처럼). 실제로 이 메서드를 누가 호출하는지(Kafka 리스너/REST 콜백/기타)는 브로커가 정해지면 그때 얇은 어댑터 하나만 추가하면 됩니다 — 지금은 그 어댑터를 만들지 않고 비워둬도 되고, 골격만 원한다면 `FundingEventSubscriber` 인터페이스(예: `onGoalFailed`, `onCancelledByMember`)를 만들고 아직 아무도 구현하지 않은 상태로 둬도 무방합니다. **핵심은 서비스 레이어(트랜잭션/멱등성/이벤트 발행까지 포함한 전체 로직)를 완성하는 것이지, 브로커 배선이 아닙니다.**
 
 ### PAYMENT-004 — 이벤트 구독(`FundingCancelledByMember`)
-payload: `(fundingId, projectId, memberId)`. `funding_id`로 완료 결제 조회 → 토스 전액 취소 → `refund_requests(trigger_type='SIMPLE_CHANGE_OF_MIND', status='COMPLETED', is_full_refund=true)` 즉시 생성(중간 단계 없음) → `RefundCompleted(..., CANCELLED_BY_MEMBER, true)` 발행. 중복 수신 시 이미 `CANCELLED` 상태면 토스 API 재호출 없이 무시(멱등).
+payload: `(fundingId, projectId, memberId, orderId, cancelReason, cancelReasonDetail)`. `cancelReason`/`cancelReasonDetail`은 구매자가 고른 참여 취소 사유(선택값)로, 값이 있으면 `RefundReasonTag.format`으로 `"[ETC] 상세"` 형태로 `reason_detail`에 남긴다 — 취소 내역 화면이 이 서비스의 환불 목록을 보기 때문이다. 없으면 기존 고정 문구("구매자 단순변심 참여 취소")를 쓴다. `funding_id`로 완료 결제 조회 → 토스 전액 취소 → `refund_requests(trigger_type='SIMPLE_CHANGE_OF_MIND', status='COMPLETED', is_full_refund=true)` 즉시 생성(중간 단계 없음) → `RefundCompleted(..., CANCELLED_BY_MEMBER, true)` 발행. 중복 수신 시 이미 `CANCELLED` 상태면 토스 API 재호출 없이 무시(멱등).
 
 ### PAYMENT-005 — 이벤트 구독(`FundingGoalFailed`)
 payload: `(fundingId, projectId)`. **펀딩 1건당 1개**이므로 "일괄 처리"로 짜지 말 것. 완료 결제 조회 → 토스 전액 취소(환불비 미부과) → `refund_requests(trigger_type='GOAL_FAILED_AUTO', is_full_refund=true)` → `RefundCompleted(..., GOAL_FAILURE_AUTO_REFUND, true)` 발행. 원 결제수단 환불 불가 시 `alternate_refund_account` 입력 플로우로 전환(즉시 실패 처리 금지).

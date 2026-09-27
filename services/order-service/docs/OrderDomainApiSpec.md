@@ -171,11 +171,17 @@ GET /api/v1/orders
     {
       "orderId": "018f9a1b-....",
       "projectId": "018f2c1a-....", "projectTitle": "세상에 없는 프라이팬",
-      "status": "FUNDING_IN_PROGRESS", "discountAmount": 3000, "finalAmount": 39000,
-      "createdAt": "2026-09-07T10:00:00Z",
+      "status": "FUNDING_IN_PROGRESS", "progressStage": "FUNDING_IN_PROGRESS",
+      "discountAmount": 3000, "finalAmount": 39000,
+      "createdAt": "2026-09-07T10:00:00Z", "paidAt": "2026-09-07T10:01:12Z",
       "sellerDisplayName": "메이커", "thumbnailUrl": "https://cdn.fundit.example/x.png",
       "rewardSummary": "얼리버드 패키지 외 1건", "totalQuantity": 3,
-      "availableActions": ["CANCEL"]
+      "lineItems": [
+        { "rewardId": 1, "rewardName": "얼리버드 패키지", "quantity": 2, "unitPrice": 18000,
+          "options": [{ "optionGroupId": 10, "optionGroupName": "색상", "optionValueId": 100, "optionValue": "블랙" }] }
+      ],
+      "availableActions": ["CANCEL"],
+      "refundRequests": []
     }
   ],
   "page": 0, "size": 20, "totalElements": 3, "totalPages": 1, "hasNext": false
@@ -191,6 +197,11 @@ GET /api/v1/orders
 - `sellerDisplayName`/`thumbnailUrl`은 project-service 내부 배치 API(`GET /internal/projects/summaries`)로 페이지 단위 1회 조회해 채운다(건별 재호출 없음, V03). 조회 실패 시 둘 다 null. `sellerDisplayName`은 project-service의 `SellerProfileClient`가 아직 member-service 연동 전 스텁이라 현재는 항상 null이다(project-service CLAUDE.md 참고).
 - `rewardSummary`는 주문에 담긴 첫 리워드명 기준 `"{첫 리워드명}"` 또는(2건 이상) `"{첫 리워드명} 외 N건"`. `totalQuantity`는 라인아이템 수량 합계.
 - `availableActions`는 아래 상세 API(`GET /api/v1/orders/{orderId}`) 설명의 `availableActions` 규칙과 동일하다. 다만 `GOAL_ACHIEVED` 건의 배송 상태는 fulfillment-service 내부 배치 API(`GET /internal/fundings/fulfillment-statuses`)로 페이지 단위 1회 조회한다(상세 API는 단건 API `.../fulfillment-status`를 쓴다).
+  - **발송 지연 여부는 경로가 하나 더 있다.** 배치 응답에는 `isDelayed`가 없어(발송 전 건은 프로젝트 단위 판정) `GET /internal/projects/shipping-delays?projectIds=...`(FULFILLMENT-008, 8-3)를 페이지 단위 1회 더 호출해 합친다. 두 조회 중 어느 쪽이 실패하든 목록 자체는 내려가고, 그 경우 "미발송·지연 아님"으로 간주해 취소 버튼을 내리지 않는다.
+- **`progressStage`**(신규, FE 요청)는 화면 배지용 파생값이며 `status`(주문 상태)를 대체하지 않는다. 값: `FUNDING_IN_PROGRESS`(PENDING 포함) / `FUNDING_SUCCEEDED` / `SHIPPING_DELAYED` / `SHIPPING` / `DELIVERED` / `GOAL_FAILED` / `CANCELLED` / `PAYMENT_EXPIRED` / `REFUNDED`. 성립(`GOAL_ACHIEVED`) 건은 배송 상태(발송·배송완료·지연)로 갈린다.
+- **`paidAt`**(신규)은 payment-service `payment.completed.v1`의 결제 완료 시각을 저장한 값이다(`fundings.paid_at`). 결제 전이거나 이 필드가 이벤트에 실리기 전에 결제된 과거 주문은 null(백필 없음).
+- **`lineItems`**(신규)는 상세 API와 같은 구조다 — 카드의 옵션 줄을 채우는 용도로, `rewardSummary`("리워드명 외 N건")만으로는 만들 수 없다. 이미 조회한 애그리게이트 값이라 추가 쿼리는 없다.
+- **`refundRequests`**(신규)는 그 주문의 취소·반품·교환 신청 이력(최신순)이다. payment-service 내부 배치 API(`GET /internal/refunds/statuses?fundingIds=...`)로 페이지 단위 1회 조회하며, 신청이 없거나 조회가 실패하면 빈 배열이다. 각 항목은 `{ refundId, triggerType, status, requestedAt }`(값은 payment-service enum 이름).
 
 ---
 
@@ -229,7 +240,7 @@ GET /api/v1/orders/{orderId}
 - **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산식이 같다.
 - 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceIds`(리스트)에 전부 담겨 발행되므로, 사용확정(USED)/환불복원(AVAILABLE)이 두 쿠폰 모두에 처리된다.
 - `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
-- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전(`isAlreadyShipped=false`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`, **배송완료(`deliveredAt != null`) 후 7일 이내** → `["RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST"]`, **배송완료 후 7일 경과** → `[]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
+- `availableActions`는 `status`에 따라 계산: `PENDING`/`FUNDING_IN_PROGRESS` → `["CANCEL"]`. `GOAL_ACHIEVED`는 fulfillment-service(FULFILLMENT-008, `GET /internal/fundings/{fundingId}/fulfillment-status`) 조회 결과로 세분화 — 배송 시작 전이고 **발송 예정일이 지난 경우만**(`isAlreadyShipped=false && isDelayed=true`) → `["SHIPPING_DELAY_REFUND_REQUEST"]`(지연 전에 신청하면 payment-service가 `422 NOT_YET_DELAYED`로 거절한다 — 누를 수 없는 버튼을 내리지 않는다), 발송 전이지만 예정일 이내 → `[]`, **배송완료(`deliveredAt != null`) 후 7일 이내** → `["RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST"]`, **배송완료 후 7일 경과** → `[]`, 그 사이(발송됐지만 미배송) → `[]`. 그 외 상태(`PAYMENT_EXPIRED`/`CANCELLED_BY_MEMBER`/`GOAL_FAILED_REFUNDED`/`REFUNDED_AFTER_SUCCESS`) → `[]`.
   - `RETURN_REQUEST`/`EXCHANGE_REQUEST`는 환불 정책 V.1.0 「취소·반품·교환 공통 정책」의 "수령 후 7일 이내 신청"에 대응한다(payment-service `POST /api/v2/refunds/return` / `POST /api/v2/refunds/exchange`). 기준일은 `deliveredAt`(배송 완료)이며 `receiptConfirmedAt`이 아니다 — 수령 확인은 배송완료 +7일에 자동 확정되므로 그것을 기준으로 하면 실제 기간이 14일로 늘어난다.
   - 7일 상수는 order-service(버튼 표시)와 payment-service(접수 권한 판정)가 각각 따로 갖는다 — 목적이 달라 `modules:common`에 올릴 계약이 아니다. **접수 가능 여부의 최종 판정은 payment-service**이며, 이 목록은 화면 버튼 노출용이다.
 - 불가능한 액션 시도 시(예: 마감 후 취소) → `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`).
@@ -254,6 +265,11 @@ POST /api/v1/orders/{orderId}/cancel
 
 **Validation / Business Rules**
 
+- **Request Body(선택)**: `{ "cancelReason": "SIMPLE_CHANGE_OF_MIND" | "PAYMENT_INFO_ERROR" | "OPTION_SELECTION_ERROR" | "ETC", "reasonDetail": "100자 이내" }`
+  - 본문 자체가 선택값이다 — 사유를 보내지 않는 클라이언트도 그대로 취소된다(사유만 저장되지 않음, FE 배포 순서 무관).
+  - `cancelReason=ETC`면 `reasonDetail` 필수(누락 시 `400 INVALID_INPUT`), 100자 초과도 `400`.
+  - 저장 위치는 `fundings.cancel_reason`/`cancel_reason_detail`(V12)이며, 취소 가능 여부 판정에는 영향이 없다(기록용).
+  - 같은 값을 `funding.cancelled-by-member.v1` payload에도 실어 보내, payment-service가 취소 내역(`refund_requests.reason_detail`)에 고정 문구가 아니라 실제 사유를 남긴다(`"[ETC] 상세"` 포맷 — 환불 목록 v2가 `reasonType`/`reasonDetail`로 나눠 내려준다).
 - `fundings.status`가 `PENDING` 또는 `FUNDING_IN_PROGRESS`(=펀딩 진행중, 마감 전)인지 검증 → `status='PAYMENT_EXPIRED'`이면 `410 RESOURCE_EXPIRED`("이미 만료된 주문입니다"), 그 외(성립/미달 판정 이후 상태)는 `422 BUSINESS_RULE_VIOLATION`(`ORDER_NOT_CANCELLABLE`, "펀딩이 종료되어 취소할 수 없습니다").
 - 검증 통과 시 `status=CANCELLED_BY_MEMBER`로 전이하고 차감했던 `available_stock`을 원복, `funding.cancelled-by-member.v1` 이벤트 발행(payment-service가 구독해 실제 결제취소·환불 실행, ORDER-014/PAYMENT-004 참고).
 - 실제 환불 완료 여부는 이 응답에 포함하지 않음(비동기) — 환불 상태는 payment-service의 환불 내역 조회 API로 확인.

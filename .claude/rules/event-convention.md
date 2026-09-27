@@ -53,8 +53,8 @@ reward.create.v1           ❌  과거형 아님
 | `reward.updated.v1` | project | order (재고 동기화) | `rewardId` |
 | `funding.succeeded.v1` | order | payment (정산), fulfillment | `fundingId` |
 | `funding.goal-failed.v1` | order | payment (환불) | `fundingId` |
-| `funding.cancelled-by-member.v1` | order | payment (환불) | `fundingId` |
-| `payment.completed.v1` | payment | order (쿠폰) | `fundingId` |
+| `funding.cancelled-by-member.v1` | order | payment (환불, 취소 사유) | `fundingId` |
+| `payment.completed.v1` | payment | order (쿠폰, 결제일) | `fundingId` |
 | `refund.completed.v1` | payment | order (쿠폰) | `fundingId` |
 | `project.funding-deadline-reached.v1` | project | order | `projectId` |
 | `project.funding-reward-stats-updated.v1` | order | project (판매자 펀딩현황 rewardStats) | `projectId` |

@@ -38,4 +38,10 @@ public class InternalEndpointConfig {
     public InternalEndpoint fulfillmentStatusBatchEndpoint() {
         return new InternalEndpoint("GET", "/internal/fundings/fulfillment-statuses");
     }
+
+    /** order-service 주문 목록(V03)이 배치로 호출하는 프로젝트 단위 발송지연 판정. */
+    @Bean
+    public InternalEndpoint projectShippingDelayBatchEndpoint() {
+        return new InternalEndpoint("GET", "/internal/projects/shipping-delays");
+    }
 }

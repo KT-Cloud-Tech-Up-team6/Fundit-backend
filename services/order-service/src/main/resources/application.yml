@@ -48,6 +48,11 @@ order:
       # ORDER-005 availableActions() 판단용(V07) — project-service 클라이언트와 동일 패턴.
       connect-timeout-ms: 2000
       read-timeout-ms: 3000
+    payment-service:
+      # 펀딩 내역의 "신청 여부"(취소·반품·교환 신청 유무) 표시용 — 목록 부가 정보라 실패하면
+      # 그 값 없이 목록을 내린다. fulfillment 연동과 동일한 타임아웃.
+      connect-timeout-ms: 2000
+      read-timeout-ms: 3000
     live-service:
       # 라이브 주문 꼬리표(fundings.live_session_id)·LIVE 쿠폰 검증용. 위 두 연동(2000/3000)보다
       # 짧은 이유: 이 호출은 주문 생성 경로에 물린다 — 라이브ID는 부가 정보라 느려질 바엔 포기한다.

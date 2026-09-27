@@ -1,5 +1,6 @@
 package com.fundit.order.infrastructure.persistence.funding;
 
+import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingLineItemOption;
@@ -83,12 +84,13 @@ class FundingPersistenceAdapterIntegrationTest {
         Funding loaded = fundingRepository.findByPublicId(saved.getPublicId()).orElseThrow();
 
         // when
-        loaded.cancelByMember();
+        loaded.cancelByMember(CancelReason.PAYMENT_INFO_ERROR, null);
         fundingRepository.save(loaded);
 
         // then
         Funding reloaded = fundingRepository.findByPublicId(saved.getPublicId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
+        assertThat(reloaded.getCancelReason()).isEqualTo(CancelReason.PAYMENT_INFO_ERROR);
         assertThat(reloaded.getLineItems()).hasSize(1);
     }
 

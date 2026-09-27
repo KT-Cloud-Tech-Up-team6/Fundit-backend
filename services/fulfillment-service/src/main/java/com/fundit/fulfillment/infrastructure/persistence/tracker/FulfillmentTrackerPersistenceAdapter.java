@@ -33,6 +33,14 @@ public class FulfillmentTrackerPersistenceAdapter implements FulfillmentTrackerR
     }
 
     @Override
+    public List<FulfillmentTracker> findByProjectIdIn(List<UUID> projectIds) {
+        if (projectIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByProjectPublicIdIn(projectIds).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
     public List<FulfillmentTracker> findStale(Instant threshold) {
         return jpaRepository.findStale(threshold).stream().map(mapper::toDomain).toList();
     }

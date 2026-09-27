@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -107,13 +108,31 @@ class RefundControllerV2Test {
     void 목록_조회는_유형과_진행여부_쿼리파라미터를_서비스에_그대로_전달한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(refundQueryService.listMyRefunds(eq(memberId), eq(RefundTriggerType.DEFECT), eq(true), any()))
+        when(refundQueryService.listMyRefunds(eq(memberId), eq(List.of(RefundTriggerType.DEFECT)), eq(true), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         // when & then
         mockMvc.perform(get("/api/v2/refunds")
                         .param("triggerType", "DEFECT")
                         .param("inProgress", "true")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void 목록_조회는_유형을_여러번_받아_목록으로_전달한다() throws Exception {
+        // given — 화면의 "반품" 한 칸이 두 트리거를 묶는다(LIVE /lives/mine의 status와 같은 방식).
+        UUID memberId = UUID.randomUUID();
+        when(refundQueryService.listMyRefunds(eq(memberId),
+                eq(List.of(RefundTriggerType.DEFECT, RefundTriggerType.RETURN_CHANGE_OF_MIND)), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        // when & then
+        mockMvc.perform(get("/api/v2/refunds")
+                        .param("triggerType", "DEFECT")
+                        .param("triggerType", "RETURN_CHANGE_OF_MIND")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())

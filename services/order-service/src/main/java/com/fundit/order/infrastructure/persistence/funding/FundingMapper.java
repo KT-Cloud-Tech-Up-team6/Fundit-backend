@@ -1,5 +1,6 @@
 package com.fundit.order.infrastructure.persistence.funding;
 
+import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingLineItemOption;
@@ -30,7 +31,11 @@ public class FundingMapper {
                 .shippingAddress(toShippingAddressDomain(entity.getShippingAddress()))
                 .shippingFee(entity.getShippingFee())
                 .paymentExpiresAt(entity.getPaymentExpiresAt())
+                .paidAt(entity.getPaidAt())
                 .decidedAt(entity.getDecidedAt())
+                .cancelReason(entity.getCancelReason() == null
+                        ? null : CancelReason.valueOf(entity.getCancelReason()))
+                .cancelReasonDetail(entity.getCancelReasonDetail())
                 .shippedAt(entity.getShippedAt())
                 .lineItems(lineItems)
                 .createdAt(entity.getCreatedAt())
@@ -51,7 +56,10 @@ public class FundingMapper {
                 .shippingAddress(toShippingAddressJson(domain.getShippingAddress()))
                 .shippingFee(domain.getShippingFee())
                 .paymentExpiresAt(domain.getPaymentExpiresAt())
+                .paidAt(domain.getPaidAt())
                 .decidedAt(domain.getDecidedAt())
+                .cancelReason(domain.getCancelReason() == null ? null : domain.getCancelReason().name())
+                .cancelReasonDetail(domain.getCancelReasonDetail())
                 .shippedAt(domain.getShippedAt())
                 .createdAt(domain.getCreatedAt())
                 .idempotencyKey(domain.getIdempotencyKey())

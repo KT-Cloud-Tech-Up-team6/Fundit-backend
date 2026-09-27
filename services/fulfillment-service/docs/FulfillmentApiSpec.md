@@ -25,6 +25,7 @@
 | 8 | GET | `/internal/fundings/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(UUID orderId) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 8-1 | GET | `/internal/fundings/id/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(레거시 Long PK) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 8-2 | GET | `/internal/fundings/fulfillment-statuses` | 배송 상태 배치 내부 조회(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 8-3 | GET | `/internal/projects/shipping-delays` | 발송지연 배치 판정(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 9 | GET | `/api/v2/projects/{projectId}/fulfillment` | 제작·배송 진행 현황 조회(UUID) | X (공통) | FULFILLMENT-003 |
 | 10 | PATCH | `/api/v2/projects/{projectId}/fulfillment/stage` | 단계 전환(UUID) | O (판매자) | FULFILLMENT-002 |
 | 11 | POST | `/api/v2/projects/{projectId}/fulfillment/stage-details` | 단계별 예상일정·상세 진행 내용 등록(UUID) | O (판매자) | FULFILLMENT-002 |
@@ -393,6 +394,30 @@ GET /internal/fundings/fulfillment-statuses?fundingIds={orderId1},{orderId2},...
 - 존재하지 않는 `fundingId`도 에러 없이 같은 기본값으로 응답한다(배치 API는 부분 실패를 허용하지 않고 항상 요청한 개수만큼 응답).
 
 ---
+
+### 8-3. 발송지연 배치 판정(order-service 주문 목록 연동)
+
+```
+GET /internal/projects/shipping-delays?projectIds={projectId1},{projectId2},...
+```
+
+**Auth**: 내부 전용(`X-Internal-Api-Key`)
+
+**Response**: `200 OK`
+
+```json
+[
+  { "projectId": "018f2c1a-....", "isDelayed": true },
+  { "projectId": "018f2c1b-....", "isDelayed": false }
+]
+```
+
+**Validation / Business Rules**
+
+- 판정 기준은 단건 조회(8-1)와 같다 — `SHIPPING_OUT` 단계 상세의 최신 `plannedEndAt`이 현재 시각보다 이전이면 지연이다.
+- **왜 펀딩이 아니라 프로젝트 단위인가**: 발송 전 건은 `shipments` 행이 없어 지연 판정에 `projectId`가 필요하고, 그 값은 order-service가 주문마다 이미 들고 있다. 펀딩 id로 받으면 이쪽이 order-service를 되짚어 배치 조회해야 해서(order → fulfillment → order) 왕복이 한 번 더 생긴다.
+- 트래커가 없거나 발송 예정일이 등록되지 않은 프로젝트는 `isDelayed=false`다(지연으로 단정하지 않는다). 응답 순서는 요청 순서와 같다.
+- "미발송"까지 합친 최종 판정은 호출부(order-service)가 한다 — 발송 여부는 펀딩 단위라 8-2가 내려준다.
 
 ## 이벤트 발행/구독
 

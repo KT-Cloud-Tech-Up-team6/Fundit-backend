@@ -4,6 +4,7 @@ import com.fundit.fulfillment.application.shipment.ExchangeReshipmentService;
 import com.fundit.fulfillment.application.shipment.FulfillmentStatusInternalService;
 import com.fundit.fulfillment.presentation.dto.FulfillmentBatchStatusResponse;
 import com.fundit.fulfillment.presentation.dto.FulfillmentStatusInternalResponse;
+import com.fundit.fulfillment.presentation.dto.ProjectShippingDelayResponse;
 import com.fundit.fulfillment.presentation.dto.ReshipmentInternalRequest;
 import com.fundit.fulfillment.presentation.dto.ReshipmentInternalResponse;
 import jakarta.validation.Valid;
@@ -52,6 +53,17 @@ public class InternalFulfillmentController {
                                                        @Valid @RequestBody ReshipmentInternalRequest request) {
         return ReshipmentInternalResponse.from(
                 exchangeReshipmentService.startReshipment(fundingId, request.refundRequestId()));
+    }
+
+    /**
+     * order-service 주문 목록(V03)의 발송지연 배지·가능액션 판정용 배치 조회. 발송 여부는 펀딩
+     * 단위지만 지연은 프로젝트 단위(SHIPPING_OUT 발송 예정일 경과) 판정이라 경로가 따로 있다.
+     */
+    @GetMapping("/internal/projects/shipping-delays")
+    public List<ProjectShippingDelayResponse> getShippingDelays(@RequestParam List<UUID> projectIds) {
+        return fulfillmentStatusInternalService.getShippingDelays(projectIds).stream()
+                .map(ProjectShippingDelayResponse::from)
+                .toList();
     }
 
     /** order-service 주문 목록(V03/V06) 배치 조회 — 건별 호출(N+1) 방지용. */

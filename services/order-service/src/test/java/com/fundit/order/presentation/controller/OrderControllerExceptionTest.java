@@ -77,7 +77,7 @@ class OrderControllerExceptionTest {
         // given
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orderCancelService.cancel(memberId, orderId)).thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
+        when(orderCancelService.cancel(memberId, orderId, null, null)).thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel")
@@ -91,7 +91,7 @@ class OrderControllerExceptionTest {
         // given
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orderCancelService.cancel(memberId, orderId))
+        when(orderCancelService.cancel(memberId, orderId, null, null))
                 .thenThrow(new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE));
 
         // when & then

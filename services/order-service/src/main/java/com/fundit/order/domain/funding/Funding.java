@@ -41,6 +41,8 @@ public class Funding {
     private final ShippingAddress shippingAddress;
     private final long shippingFee;
     private final Instant paymentExpiresAt;
+    /** 결제 완료 시각 — payment-service {@code payment.completed.v1}의 {@code paidAt}으로만 채워진다. */
+    private Instant paidAt;
     private Instant decidedAt;
     /**
      * #129 — fulfillment-service {@code shipment.shipped.v1} 구독으로만 채워진다(조건부 UPDATE,
@@ -50,6 +52,10 @@ public class Funding {
     private final Instant shippedAt;
     private final List<FundingLineItem> lineItems;
     private final Instant createdAt;
+    /** 참여 취소 시 구매자가 고른 사유(ORDER-014, 선택값 — 본문 없이 취소한 과거 건은 null). */
+    private CancelReason cancelReason;
+    /** 취소 사유 상세({@code ETC}일 때 필수, 100자 이내). */
+    private String cancelReasonDetail;
     /** ORDER-003 멱등 키(Idempotency-Key 헤더, 선택값) — 회원 범위 유니크. */
     private final String idempotencyKey;
     /** 같은 키로 다른 요청 본문이 오는 것을 구분하기 위한 요청 해시. idempotencyKey가 없으면 null. */
@@ -86,8 +92,13 @@ public class Funding {
         return status == FundingStatus.PENDING || status == FundingStatus.FUNDING_IN_PROGRESS;
     }
 
-    /** ORDER-014 — 참여 취소(단순변심). 마감 전(PENDING/FUNDING_IN_PROGRESS)에만 가능하다. */
-    public void cancelByMember() {
+    /**
+     * ORDER-014 — 참여 취소(단순변심). 마감 전(PENDING/FUNDING_IN_PROGRESS)에만 가능하다.
+     *
+     * <p>사유는 선택값이다 — 본문 없이 호출하는 기존 클라이언트를 계속 받아야 해서(FE 배포 순서
+     * 무관) null이면 저장만 생략하고 취소 자체는 그대로 진행한다.
+     */
+    public void cancelByMember(CancelReason cancelReason, String cancelReasonDetail) {
         if (status == FundingStatus.PAYMENT_EXPIRED) {
             throw new BusinessException(CommonErrorCode.RESOURCE_EXPIRED, "이미 만료된 주문입니다.");
         }
@@ -96,6 +107,8 @@ public class Funding {
         }
         this.status = FundingStatus.CANCELLED_BY_MEMBER;
         this.decidedAt = Instant.now();
+        this.cancelReason = cancelReason;
+        this.cancelReasonDetail = cancelReasonDetail;
     }
 
     /**
@@ -130,9 +143,13 @@ public class Funding {
      * PENDING에 머무르게 되어 필요한 전이다[가정 — ORDER-015(쿠폰 사용확정) 이벤트 처리와
      * 같은 이벤트를 트리거로 공유]. 이미 다른 상태면 무시한다(idempotent).
      */
-    public void markPaymentCompleted() {
+    public void markPaymentCompleted(Instant paidAt) {
         if (status == FundingStatus.PENDING) {
             this.status = FundingStatus.FUNDING_IN_PROGRESS;
+        }
+        // 이벤트에 결제 시각이 없는 구버전 메시지(또는 재전달)에서 이미 채운 값을 지우지 않는다.
+        if (paidAt != null) {
+            this.paidAt = paidAt;
         }
     }
 
@@ -156,7 +173,7 @@ public class Funding {
      * fulfillment-service 조회 결과를 넘겨준다 — GOAL_ACHIEVED가 아니면 조회 자체를 생략하고
      * 기본값(false, false)을 넘겨도 결과가 같다.
      */
-    public List<String> availableActions(boolean isAlreadyShipped, Instant deliveredAt) {
+    public List<String> availableActions(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt) {
         return switch (status) {
             case PENDING, FUNDING_IN_PROGRESS -> List.of("CANCEL");
             case GOAL_ACHIEVED -> {
@@ -167,12 +184,38 @@ public class Funding {
                             ? List.of()
                             : List.of("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
                 }
-                if (!isAlreadyShipped) {
+                // 성립 후 단순변심 취소는 정책상 불가하고, 발송 예정일을 넘긴 미발송만 취소 대상이다
+                // (payment-service PAYMENT-008이 isDelayed=false면 NOT_YET_DELAYED 422로 거절한다 —
+                // 지연 여부를 안 보고 버튼을 내리면 누를 수 없는 버튼을 보여주는 셈이다).
+                if (!isAlreadyShipped && isDelayed) {
                     yield List.of("SHIPPING_DELAY_REFUND_REQUEST");
                 }
                 yield List.of();
             }
             default -> List.of();
+        };
+    }
+
+    /**
+     * 화면 배지용 진행 단계(FE 요청). {@link #availableActions}와 같은 입력을 쓰므로 호출부가
+     * fulfillment-service 조회 결과를 한 번만 받아 둘을 함께 만든다.
+     */
+    public FundingProgressStage progressStage(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt) {
+        return switch (status) {
+            case PENDING, FUNDING_IN_PROGRESS -> FundingProgressStage.FUNDING_IN_PROGRESS;
+            case GOAL_ACHIEVED -> {
+                if (deliveredAt != null) {
+                    yield FundingProgressStage.DELIVERED;
+                }
+                if (isAlreadyShipped) {
+                    yield FundingProgressStage.SHIPPING;
+                }
+                yield isDelayed ? FundingProgressStage.SHIPPING_DELAYED : FundingProgressStage.FUNDING_SUCCEEDED;
+            }
+            case GOAL_FAILED_REFUNDED -> FundingProgressStage.GOAL_FAILED;
+            case CANCELLED_BY_MEMBER -> FundingProgressStage.CANCELLED;
+            case PAYMENT_EXPIRED -> FundingProgressStage.PAYMENT_EXPIRED;
+            case REFUNDED_AFTER_SUCCESS -> FundingProgressStage.REFUNDED;
         };
     }
 }

@@ -1,5 +1,6 @@
 package com.fundit.order.application.payment;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,8 +25,13 @@ public interface PaymentEventListener {
     /** 환불 완료 — 환불 유형에 따라 쿠폰 복원 여부와 Funding 상태를 함께 반영한다. */
     void onRefundCompleted(RefundCompletedEvent event);
 
-    /** {@code couponIssuanceIds}는 이 주문에 적용된 쿠폰 전체(최대 2개, 플랫폼+메이커)다. */
-    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds) {
+    /**
+     * {@code couponIssuanceIds}는 이 주문에 적용된 쿠폰 전체(최대 2개, 플랫폼+메이커)다.
+     *
+     * <p>{@code paidAt}은 펀딩 내역의 "결제일"에 쓴다 — 결제 시각은 payment-service만 알아서
+     * 이 이벤트로 받는 것 외에 알 방법이 없다. 필드가 추가되기 전에 발행된 메시지는 null로 온다.
+     */
+    record PaymentCompletedEvent(UUID fundingId, List<Long> couponIssuanceIds, Instant paidAt) {
     }
 
     /**

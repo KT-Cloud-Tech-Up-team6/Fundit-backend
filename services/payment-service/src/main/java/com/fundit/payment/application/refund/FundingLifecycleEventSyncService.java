@@ -1,5 +1,6 @@
 package com.fundit.payment.application.refund;
 
+import com.fundit.payment.domain.refund.RefundReasonTag;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -22,7 +23,19 @@ public class FundingLifecycleEventSyncService implements FundingLifecycleEventLi
             return;
         }
         refundExecutionService.executeFullRefund(event.orderId(), RefundTriggerType.SIMPLE_CHANGE_OF_MIND,
-                "구매자 단순변심 참여 취소");
+                cancelReasonDetail(event));
+    }
+
+    /**
+     * 사유가 실려 오면 발송 후 신청 3종과 같은 태그 포맷으로 저장한다 — 환불 목록(v2)이
+     * {@code reasonType}/{@code reasonDetail}로 나눠 내려줘 FE가 문자열을 파싱하지 않아도 된다.
+     * 사유 없이 취소한 건(구버전 클라이언트·구버전 메시지)은 기존 고정 문구를 그대로 쓴다.
+     */
+    private String cancelReasonDetail(FundingCancelledByMemberEvent event) {
+        if (event.cancelReason() == null) {
+            return "구매자 단순변심 참여 취소";
+        }
+        return RefundReasonTag.format(event.cancelReason(), event.cancelReasonDetail());
     }
 
     @Override

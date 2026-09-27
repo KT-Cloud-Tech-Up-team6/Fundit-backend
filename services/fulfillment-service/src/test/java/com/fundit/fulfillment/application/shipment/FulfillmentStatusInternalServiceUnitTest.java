@@ -168,4 +168,59 @@ class FulfillmentStatusInternalServiceUnitTest {
         // then
         assertThat(result).isEmpty();
     }
+
+    @Test
+    void 프로젝트_배치_조회는_발송예정일이_지난_프로젝트만_지연으로_내려준다() {
+        // given
+        UUID delayed = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+        UUID onTime = UUID.fromString("00000000-0000-0000-0000-0000000000a2");
+        UUID noTracker = UUID.fromString("00000000-0000-0000-0000-0000000000a3");
+        FulfillmentTracker delayedTracker = FulfillmentTracker.create(delayed).toBuilder().id(1L).build();
+        FulfillmentTracker onTimeTracker = FulfillmentTracker.create(onTime).toBuilder().id(2L).build();
+        when(trackerRepository.findByProjectIdIn(List.of(delayed, onTime, noTracker)))
+                .thenReturn(List.of(delayedTracker, onTimeTracker));
+        when(stageDetailJpaRepository.findByTrackerIdInAndStageOrderByUpdatedAtDesc(List.of(1L, 2L), "SHIPPING_OUT"))
+                .thenReturn(List.of(
+                        // 트래커별 최신 1건만 본다(정렬이 updatedAt 내림차순) — 뒤의 오래된 행은 무시돼야 한다.
+                        stageDetail(1L, Instant.now().minus(1, ChronoUnit.DAYS), Instant.now()),
+                        stageDetail(1L, Instant.now().plus(5, ChronoUnit.DAYS), Instant.now().minus(3, ChronoUnit.DAYS)),
+                        stageDetail(2L, Instant.now().plus(1, ChronoUnit.DAYS), Instant.now())));
+
+        // when
+        var views = service.getShippingDelays(List.of(delayed, onTime, noTracker));
+
+        // then — 요청한 순서대로, 트래커·예정일이 없는 프로젝트는 지연 아님
+        assertThat(views).extracting(
+                        FulfillmentStatusInternalService.ProjectShippingDelayView::projectId,
+                        FulfillmentStatusInternalService.ProjectShippingDelayView::isDelayed)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(delayed, true),
+                        org.assertj.core.groups.Tuple.tuple(onTime, false),
+                        org.assertj.core.groups.Tuple.tuple(noTracker, false));
+    }
+
+    @Test
+    void 트래커가_하나도_없으면_단계조회_없이_전부_지연_아님이다() {
+        // given — 빈 트래커 목록으로 in (:빈컬렉션) 쿼리를 만들지 않는다.
+        UUID a = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+        UUID b = UUID.fromString("00000000-0000-0000-0000-0000000000b2");
+        when(trackerRepository.findByProjectIdIn(List.of(a, b))).thenReturn(List.of());
+
+        // when
+        var views = service.getShippingDelays(List.of(a, b));
+
+        // then
+        assertThat(views).extracting(FulfillmentStatusInternalService.ProjectShippingDelayView::isDelayed)
+                .containsExactly(false, false);
+    }
+
+    @Test
+    void 프로젝트_배치_조회에_빈_목록을_주면_DB를_보지_않는다() {
+        assertThat(service.getShippingDelays(List.of())).isEmpty();
+    }
+
+    private FulfillmentStageDetailJpaEntity stageDetail(Long trackerId, Instant plannedEndAt, Instant updatedAt) {
+        return FulfillmentStageDetailJpaEntity.builder().trackerId(trackerId).stage("SHIPPING_OUT")
+                .plannedEndAt(plannedEndAt).updatedAt(updatedAt).detailText("d").build();
+    }
 }

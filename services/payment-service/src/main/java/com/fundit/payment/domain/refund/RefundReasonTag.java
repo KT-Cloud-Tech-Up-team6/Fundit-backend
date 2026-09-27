@@ -17,7 +17,12 @@ public final class RefundReasonTag {
 
     /** {@code "[" + 유형 + "] " + 상세} — 상세가 없으면 태그만 남는다(기존 저장 포맷 그대로다). */
     public static String format(Enum<?> reasonType, String detail) {
-        return "[" + reasonType.name() + "] " + (detail == null ? "" : detail);
+        return format(reasonType.name(), detail);
+    }
+
+    /** 유형이 이 서비스의 enum이 아닐 때(order-service 취소 사유처럼 이벤트로 받은 이름) 쓰는 형태. */
+    public static String format(String reasonType, String detail) {
+        return "[" + reasonType + "] " + (detail == null ? "" : detail);
     }
 
     /**

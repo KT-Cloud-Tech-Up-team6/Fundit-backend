@@ -54,7 +54,7 @@ class FundingLineItemJpaRepositoryIntegrationTest {
         Funding countable = fundingRepository.save(Funding.create(UUID.randomUUID(), countableProjectId, "프로젝트A",
                 new ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 어딘가", null),
                 0L, List.of(lineItem), Instant.now().plusSeconds(3600), null, null, null));
-        countable.markPaymentCompleted();
+        countable.markPaymentCompleted(null);
         fundingRepository.save(countable);
 
         fundingRepository.save(Funding.create(UUID.randomUUID(), pendingOnlyProjectId, "프로젝트B",
@@ -80,7 +80,7 @@ class FundingLineItemJpaRepositoryIntegrationTest {
                 new ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 어딘가", null),
                 0L, List.of(lineItem), Instant.now().plusSeconds(3600), null, null, null);
         Funding saved = fundingRepository.save(funding);
-        saved.markPaymentCompleted();
+        saved.markPaymentCompleted(null);
         fundingRepository.save(saved);
 
         // when

@@ -33,7 +33,7 @@ public class PaymentEventSyncService implements PaymentEventListener {
             return;
         }
         Funding funding = found.get();
-        funding.markPaymentCompleted();
+        funding.markPaymentCompleted(event.paidAt());
         fundingRepository.save(funding);
 
         for (Long couponIssuanceId : orEmpty(event.couponIssuanceIds())) {

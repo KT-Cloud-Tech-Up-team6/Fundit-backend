@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +59,8 @@ public class PaymentEventOutboxWorker {
         Map<String, Object> payload = event.getPayload();
         switch (event.getEventType()) {
             case PaymentEventOutboxJpaEntity.TYPE_PAYMENT_COMPLETED -> transport.sendPaymentCompleted(
-                    new PaymentCompletedTransportEvent(event.getFundingId(), toLongList(payload.get("couponIssuanceIds"))),
+                    new PaymentCompletedTransportEvent(event.getFundingId(),
+                            toLongList(payload.get("couponIssuanceIds")), toInstant(payload.get("paidAt"))),
                     event.getId());
             case PaymentEventOutboxJpaEntity.TYPE_REFUND_COMPLETED -> transport.sendRefundCompleted(
                     new RefundCompletedTransportEvent(event.getFundingId(), toLongList(payload.get("couponIssuanceIds")),
@@ -66,6 +68,11 @@ public class PaymentEventOutboxWorker {
                     event.getId());
             default -> throw new IllegalStateException("알 수 없는 결제 이벤트 타입: " + event.getEventType());
         }
+    }
+
+    /** 아웃박스 payload는 JSONB라 시각이 문자열(ISO-8601)로 들어 있다. 구버전 행에는 아예 없다. */
+    private Instant toInstant(Object value) {
+        return value == null ? null : Instant.parse(value.toString());
     }
 
     /** JSONB 역직렬화 시 리스트 원소 숫자가 Integer/Long/Double 중 무엇으로 오든 안전하게 Long으로 변환한다. */

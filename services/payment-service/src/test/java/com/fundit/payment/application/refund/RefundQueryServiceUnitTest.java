@@ -1,5 +1,6 @@
 package com.fundit.payment.application.refund;
 
+import com.fundit.payment.infrastructure.persistence.refund.RefundRequestJpaEntity;
 import com.fundit.payment.infrastructure.persistence.refund.RefundRequestJpaRepository;
 import com.fundit.payment.infrastructure.persistence.refund.query.RefundSummaryProjection;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,16 +142,75 @@ class RefundQueryServiceUnitTest {
         // given
         UUID memberId = UUID.randomUUID();
         PageRequest pageable = PageRequest.of(0, 20);
-        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, "DEFECT",
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, List.of("DEFECT"),
                 List.of("REQUESTED", "UNDER_REVIEW", "APPROVED", "PROCESSING"), pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         // when
-        var page = refundQueryService.listMyRefunds(memberId, com.fundit.payment.domain.refund.RefundTriggerType.DEFECT,
-                true, pageable);
+        var page = refundQueryService.listMyRefunds(memberId,
+                List.of(com.fundit.payment.domain.refund.RefundTriggerType.DEFECT), true, pageable);
 
         // then
         assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 유형을_여러개_주면_그_목록이_그대로_전달된다() {
+        // given — 화면의 "반품" 한 칸이 하자·구매자귀책반품 두 트리거를 묶는다.
+        UUID memberId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId,
+                List.of("DEFECT", "RETURN_CHANGE_OF_MIND"), null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        // when
+        var page = refundQueryService.listMyRefunds(memberId,
+                List.of(com.fundit.payment.domain.refund.RefundTriggerType.DEFECT,
+                        com.fundit.payment.domain.refund.RefundTriggerType.RETURN_CHANGE_OF_MIND), null, pageable);
+
+        // then
+        assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 빈_유형목록은_필터_없음과_같게_null로_전달된다() {
+        // given — JPQL in (:빈목록)은 프로바이더에 따라 깨져서 정규화가 필요하다.
+        UUID memberId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(refundRequestJpaRepository.findSummariesByMemberId(memberId, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        // when
+        var page = refundQueryService.listMyRefunds(memberId, List.of(), null, pageable);
+
+        // then
+        assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 주문별_신청이력을_내부조회용으로_돌려준다() {
+        // given
+        UUID fundingId = new UUID(0L, 77L);
+        when(refundRequestJpaRepository.findByFundingOrderIdInOrderByRequestedAtDesc(List.of(fundingId)))
+                .thenReturn(List.of(RefundRequestJpaEntity.builder().id(9L).fundingOrderId(fundingId)
+                        .paymentId(UUID.randomUUID()).triggerType("EXCHANGE").status("REQUESTED")
+                        .requestedAt(Instant.parse("2026-09-01T00:00:00Z")).build()));
+
+        // when
+        var statuses = refundQueryService.listByFundingIds(List.of(fundingId));
+
+        // then
+        assertThat(statuses).singleElement().satisfies(status -> {
+            assertThat(status.fundingId()).isEqualTo(fundingId);
+            assertThat(status.refundId()).isEqualTo(9L);
+            assertThat(status.triggerType()).isEqualTo("EXCHANGE");
+            assertThat(status.status()).isEqualTo("REQUESTED");
+        });
+    }
+
+    @Test
+    void 조회할_주문이_없으면_payment_조회_없이_빈_목록이다() {
+        assertThat(refundQueryService.listByFundingIds(List.of())).isEmpty();
     }
 
     @Test

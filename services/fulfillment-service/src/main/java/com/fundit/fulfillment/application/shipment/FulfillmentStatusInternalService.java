@@ -6,6 +6,7 @@ import com.fundit.fulfillment.domain.shipment.Shipment;
 import com.fundit.fulfillment.domain.shipment.ShipmentRepository;
 import com.fundit.fulfillment.domain.shipment.ShipmentStatus;
 import com.fundit.fulfillment.domain.tracker.FulfillmentStage;
+import com.fundit.fulfillment.domain.tracker.FulfillmentTracker;
 import com.fundit.fulfillment.domain.tracker.FulfillmentTrackerRepository;
 import com.fundit.fulfillment.infrastructure.persistence.stagedetail.FulfillmentStageDetailJpaEntity;
 import com.fundit.fulfillment.infrastructure.persistence.stagedetail.FulfillmentStageDetailJpaRepository;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -86,8 +88,54 @@ public class FulfillmentStatusInternalService {
                 .toList();
     }
 
+    /**
+     * order-service 주문 목록(V03)의 발송지연 배지·가능액션 판정용 — 프로젝트 단위로 묻는다.
+     * 지연은 원래 프로젝트 단위 판정(SHIPPING_OUT 단계의 발송 예정일 경과)이고, order-service는
+     * 주문마다 projectId를 이미 들고 있다. 펀딩 단위로 받으면 이쪽이 order-service에 projectId를
+     * 다시 배치로 물어봐야 해(order → fulfillment → order) 왕복이 한 번 더 생긴다.
+     *
+     * <p>"미발송"까지 합쳐 판정하는 것은 호출부 몫이다 — 발송 여부는 펀딩 단위(shipments)라
+     * 배치 상태 조회({@link #getStatuses})가 이미 내려주고 있다.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectShippingDelayView> getShippingDelays(List<UUID> projectIds) {
+        if (projectIds.isEmpty()) {
+            return List.of();
+        }
+        List<FulfillmentTracker> trackers = trackerRepository.findByProjectIdIn(projectIds);
+        Map<Long, UUID> projectIdByTrackerId = trackers.stream()
+                .collect(Collectors.toMap(FulfillmentTracker::getId, FulfillmentTracker::getProjectId));
+        if (projectIdByTrackerId.isEmpty()) {
+            return notDelayed(projectIds);
+        }
+
+        Instant now = Instant.now();
+        Map<UUID, Boolean> delayedByProjectId = new LinkedHashMap<>();
+        // 정렬이 updatedAt 내림차순이라 트래커별 첫 행이 최신 상세다(putIfAbsent로 그 첫 행만 쓴다).
+        for (FulfillmentStageDetailJpaEntity detail : stageDetailJpaRepository
+                .findByTrackerIdInAndStageOrderByUpdatedAtDesc(List.copyOf(projectIdByTrackerId.keySet()),
+                        FulfillmentStage.SHIPPING_OUT.name())) {
+            UUID projectId = projectIdByTrackerId.get(detail.getTrackerId());
+            delayedByProjectId.putIfAbsent(projectId,
+                    detail.getPlannedEndAt() != null && now.isAfter(detail.getPlannedEndAt()));
+        }
+
+        return projectIds.stream()
+                .map(projectId -> new ProjectShippingDelayView(projectId,
+                        delayedByProjectId.getOrDefault(projectId, false)))
+                .toList();
+    }
+
+    private List<ProjectShippingDelayView> notDelayed(List<UUID> projectIds) {
+        return projectIds.stream().map(projectId -> new ProjectShippingDelayView(projectId, false)).toList();
+    }
+
     public record FulfillmentStatusView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,
                                          Instant receiptConfirmedAt) {
+    }
+
+    /** 발송 예정일이 없거나 트래커가 없는 프로젝트는 {@code isDelayed=false}다(지연으로 단정하지 않는다). */
+    public record ProjectShippingDelayView(UUID projectId, boolean isDelayed) {
     }
 
     public record FulfillmentBatchStatusView(UUID fundingId, boolean isAlreadyShipped, Instant deliveredAt) {

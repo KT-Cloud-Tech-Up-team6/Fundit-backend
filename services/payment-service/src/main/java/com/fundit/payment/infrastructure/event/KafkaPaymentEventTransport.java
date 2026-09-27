@@ -41,6 +41,9 @@ public class KafkaPaymentEventTransport implements PaymentEventTransport {
         payload.put("eventId", SERVICE_NAME + ":" + outboxId);
         payload.put("fundingId", event.fundingId());
         payload.put("couponIssuanceIds", event.couponIssuanceIds());
+        // order-service 펀딩 내역의 "결제일" — 이 서비스만 아는 값이라 이벤트로 넘긴다(필드 추가라
+        // 이 값을 모르는 구독자에게는 영향이 없다).
+        payload.put("paidAt", event.paidAt());
         send(KafkaTopics.PAYMENT_COMPLETED, String.valueOf(event.fundingId()), payload);
     }
 

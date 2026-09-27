@@ -7,14 +7,17 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * paidAt은 payment-service 소관(결제 완료 시각)이라 order-service는 값을 알지 못해 항상 null이다
- * — application.yml의 non_null 직렬화 설정 덕에 응답 JSON에서는 필드 자체가 생략된다.
+ * {@code paidAt}은 payment-service가 발행하는 {@code payment.completed.v1}의 결제 완료 시각을
+ * 이 서비스가 저장해 둔 값이다 — 결제 전이거나, 이 필드가 이벤트에 실리기 전에 결제된 과거 주문은
+ * null이다(application.yml의 non_null 직렬화 설정 덕에 응답 JSON에서는 필드가 생략된다).
+ *
+ * <p>{@code progressStage}는 화면 배지용 파생값이고 {@code status}(주문 상태)를 대체하지 않는다.
  */
 public record OrderDetailResponse(
-        UUID orderId, String projectTitle, String thumbnailUrl, String status,
+        UUID orderId, String projectTitle, String thumbnailUrl, String status, String progressStage,
         List<OrderLineItemDetailResponse> lineItems, long shippingFee, long discountAmount, long finalAmount,
         ShippingAddressResponse shippingAddress, java.time.Instant paidAt, java.time.Instant paymentExpiresAt,
-        List<String> availableActions
+        List<String> availableActions, List<RefundRequestStatusResponse> refundRequests
 ) {
 
     public static OrderDetailResponse from(OrderQueryService.FundingDetail detail) {
@@ -23,9 +26,11 @@ public record OrderDetailResponse(
         return new OrderDetailResponse(
                 funding.getPublicId(), funding.getProjectTitle(),
                 projectSummary == null ? null : projectSummary.thumbnailUrl(), funding.getStatus().name(),
+                detail.progressStage().name(),
                 funding.getLineItems().stream().map(OrderLineItemDetailResponse::from).toList(),
                 funding.getShippingFee(), detail.discountAmount(), detail.finalAmount(),
-                ShippingAddressResponse.from(funding.getShippingAddress()), null, funding.getPaymentExpiresAt(),
-                detail.availableActions());
+                ShippingAddressResponse.from(funding.getShippingAddress()), funding.getPaidAt(),
+                funding.getPaymentExpiresAt(), detail.availableActions(),
+                detail.refundRequests().stream().map(RefundRequestStatusResponse::from).toList());
     }
 }
