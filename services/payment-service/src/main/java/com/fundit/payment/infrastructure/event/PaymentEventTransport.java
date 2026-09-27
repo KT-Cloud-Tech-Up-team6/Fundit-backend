@@ -1,5 +1,6 @@
 package com.fundit.payment.infrastructure.event;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,7 +16,7 @@ public interface PaymentEventTransport {
 
     void sendRefundCompleted(RefundCompletedTransportEvent event, Long outboxId);
 
-    record PaymentCompletedTransportEvent(UUID fundingId, List<Long> couponIssuanceIds) {
+    record PaymentCompletedTransportEvent(UUID fundingId, List<Long> couponIssuanceIds, Instant paidAt) {
     }
 
     record RefundCompletedTransportEvent(UUID fundingId, List<Long> couponIssuanceIds, String refundReason,

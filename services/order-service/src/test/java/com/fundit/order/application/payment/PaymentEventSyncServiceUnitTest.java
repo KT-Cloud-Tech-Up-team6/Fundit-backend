@@ -54,10 +54,13 @@ class PaymentEventSyncServiceUnitTest {
         when(couponIssuanceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
-        paymentEventSyncService.onPaymentCompleted(new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L)));
+        Instant paidAt = Instant.now();
+        paymentEventSyncService.onPaymentCompleted(
+                new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L), paidAt));
 
         // then
         assertThat(funding.getStatus()).isEqualTo(FundingStatus.FUNDING_IN_PROGRESS);
+        assertThat(funding.getPaidAt()).isEqualTo(paidAt);
         assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.USED);
         assertThat(issuance.getUsedFundingId()).isEqualTo(1L);
     }

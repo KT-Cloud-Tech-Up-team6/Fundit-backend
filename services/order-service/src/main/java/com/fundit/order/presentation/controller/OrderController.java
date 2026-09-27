@@ -12,6 +12,7 @@ import com.fundit.order.application.order.OrderQueryService;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
+import com.fundit.order.presentation.dto.OrderCancelRequest;
 import com.fundit.order.presentation.dto.OrderCancelResponse;
 import com.fundit.order.presentation.dto.OrderCreateResponse;
 import com.fundit.order.presentation.dto.OrderDetailResponse;
@@ -150,10 +151,15 @@ public class OrderController {
         return OrderDetailResponse.from(orderQueryService.getDetail(user.id(), orderId));
     }
 
-    /** ORDER-014 — 참여 취소(단순변심). */
+    /**
+     * ORDER-014 — 참여 취소(단순변심). 요청 본문(취소 사유)은 선택값이다 — 사유를 보내지 않는
+     * 기존 클라이언트도 그대로 취소된다(사유만 저장되지 않는다).
+     */
     @PostMapping("/{orderId}/cancel")
-    public OrderCancelResponse cancel(@LoginUser CurrentUser user, @PathVariable UUID orderId) {
-        return OrderCancelResponse.from(orderCancelService.cancel(user.id(), orderId));
+    public OrderCancelResponse cancel(@LoginUser CurrentUser user, @PathVariable UUID orderId,
+                                       @Valid @RequestBody(required = false) OrderCancelRequest request) {
+        return OrderCancelResponse.from(orderCancelService.cancel(user.id(), orderId, request == null
+                ? null : request.cancelReason(), request == null ? null : request.reasonDetail()));
     }
 
     private List<OrderLineItemRequest> toLineItems(List<OrderLineItemRequestDto> dtos) {

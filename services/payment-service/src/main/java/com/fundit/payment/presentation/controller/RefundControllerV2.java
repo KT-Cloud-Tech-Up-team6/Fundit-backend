@@ -32,6 +32,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * PAYMENT-003/006/008 v2 — fundingId를 order-service publicId(UUID)로 그대로 받는다/돌려준다.
  * 하자환불 결정({@code PATCH /{refundId}/decision})은 path의 refundId만 쓰므로 v1에 둔다.
@@ -46,9 +48,14 @@ public class RefundControllerV2 {
     private final ShippingDelayRefundService shippingDelayRefundService;
     private final ExchangeFeePaymentService exchangeFeePaymentService;
 
+    /**
+     * {@code triggerType}은 여러 번 올 수 있다({@code ?triggerType=DEFECT&triggerType=EXCHANGE}) —
+     * 화면의 유형 한 칸이 트리거 여러 개를 묶기 때문이다(LIVE {@code GET /api/v1/lives/mine}의
+     * {@code status}와 같은 방식). 생략하면 전체.
+     */
     @GetMapping
     public PageResponse<RefundSummaryResponseV2> list(@LoginUser CurrentUser user,
-                                                       @RequestParam(required = false) RefundTriggerType triggerType,
+                                                       @RequestParam(required = false) List<RefundTriggerType> triggerType,
                                                        @RequestParam(required = false) Boolean inProgress,
                                                        @PageableDefault(size = 20) Pageable pageable) {
         return PageResponse.from(refundQueryService.listMyRefunds(user.id(), triggerType, inProgress, pageable)

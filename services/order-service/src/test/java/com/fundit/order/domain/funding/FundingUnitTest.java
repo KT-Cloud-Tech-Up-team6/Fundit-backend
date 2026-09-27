@@ -48,7 +48,7 @@ class FundingUnitTest {
             Funding funding = newFunding();
 
             // when
-            funding.cancelByMember();
+            funding.cancelByMember(null, null);
 
             // then
             assertThat(funding.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
@@ -59,10 +59,10 @@ class FundingUnitTest {
         void FUNDING_IN_PROGRESS면_취소된다() {
             // given
             Funding funding = newFunding();
-            funding.markPaymentCompleted();
+            funding.markPaymentCompleted(null);
 
             // when
-            funding.cancelByMember();
+            funding.cancelByMember(null, null);
 
             // then
             assertThat(funding.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
@@ -89,7 +89,7 @@ class FundingUnitTest {
         void PENDING이_아니면_아무것도_하지않고_false를_반환한다() {
             // given
             Funding funding = newFunding();
-            funding.markPaymentCompleted();
+            funding.markPaymentCompleted(null);
 
             // when
             boolean expired = funding.expireIfPending();
@@ -138,7 +138,7 @@ class FundingUnitTest {
             Funding funding = newFunding();
 
             // when
-            funding.markPaymentCompleted();
+            funding.markPaymentCompleted(null);
 
             // then
             assertThat(funding.getStatus()).isEqualTo(FundingStatus.FUNDING_IN_PROGRESS);
@@ -148,10 +148,10 @@ class FundingUnitTest {
         void PENDING이_아니면_무시한다() {
             // given
             Funding funding = newFunding();
-            funding.cancelByMember();
+            funding.cancelByMember(null, null);
 
             // when
-            funding.markPaymentCompleted();
+            funding.markPaymentCompleted(null);
 
             // then
             assertThat(funding.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
@@ -163,11 +163,11 @@ class FundingUnitTest {
 
         @Test
         void PENDING이면_CANCEL만_가능하다() {
-            assertThat(newFunding().availableActions(false, null)).containsExactly("CANCEL");
+            assertThat(newFunding().availableActions(false, false, null)).containsExactly("CANCEL");
         }
 
         @Test
-        void GOAL_ACHIEVED이고_발송전이면_배송지연환불요청이_가능하다() {
+        void GOAL_ACHIEVED이고_발송전이며_발송예정일이_지났으면_배송지연환불요청이_가능하다() {
             // given
             Funding funding = newFunding();
 
@@ -175,7 +175,20 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(false, null)).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+            assertThat(funding.availableActions(false, true, null))
+                    .containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+        }
+
+        @Test
+        void GOAL_ACHIEVED이고_발송전이어도_발송예정일_이내면_가능한_액션이_없다() {
+            // given
+            Funding funding = newFunding();
+
+            // when
+            funding.markGoalAchieved();
+
+            // then — 지연 전에는 신청해도 payment-service가 NOT_YET_DELAYED(422)로 막는다.
+            assertThat(funding.availableActions(false, false, null)).isEmpty();
         }
 
         @Test
@@ -187,7 +200,7 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(true, Instant.now().minus(Duration.ofDays(3))))
+            assertThat(funding.availableActions(true, false, Instant.now().minus(Duration.ofDays(3))))
                     .containsExactly("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
         }
 
@@ -200,7 +213,7 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then — 환불 정책 V.1.0 "수령 후 7일 이내 신청"
-            assertThat(funding.availableActions(true, Instant.now().minus(Duration.ofDays(8)))).isEmpty();
+            assertThat(funding.availableActions(true, false, Instant.now().minus(Duration.ofDays(8)))).isEmpty();
         }
 
         @Test
@@ -212,7 +225,7 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.availableActions(true, null)).isEmpty();
+            assertThat(funding.availableActions(true, false, null)).isEmpty();
         }
 
         @Test
@@ -221,10 +234,94 @@ class FundingUnitTest {
             Funding funding = newFunding();
 
             // when
-            funding.cancelByMember();
+            funding.cancelByMember(null, null);
 
             // then
-            assertThat(funding.availableActions(false, null)).isEmpty();
+            assertThat(funding.availableActions(false, false, null)).isEmpty();
+        }
+    }
+
+    @Nested
+    class 진행_단계 {
+
+        @Test
+        void PENDING과_모금중은_펀딩_진행중이다() {
+            Funding funding = newFunding();
+            assertThat(funding.progressStage(false, false, null))
+                    .isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
+
+            funding.markPaymentCompleted(Instant.now());
+
+            assertThat(funding.progressStage(false, false, null))
+                    .isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
+        }
+
+        @Test
+        void 성립_후_배송상태에_따라_성공_지연_배송중_완료로_갈린다() {
+            // given
+            Funding funding = newFunding();
+            funding.markGoalAchieved();
+
+            // then
+            assertThat(funding.progressStage(false, false, null)).isEqualTo(FundingProgressStage.FUNDING_SUCCEEDED);
+            assertThat(funding.progressStage(false, true, null)).isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
+            assertThat(funding.progressStage(true, false, null)).isEqualTo(FundingProgressStage.SHIPPING);
+            assertThat(funding.progressStage(true, false, Instant.now())).isEqualTo(FundingProgressStage.DELIVERED);
+        }
+
+        @Test
+        void 목표미달과_취소는_각각의_단계를_돌려준다() {
+            Funding failed = newFunding();
+            failed.markGoalFailed();
+            assertThat(failed.progressStage(false, false, null)).isEqualTo(FundingProgressStage.GOAL_FAILED);
+
+            Funding cancelled = newFunding();
+            cancelled.cancelByMember(null, null);
+            assertThat(cancelled.progressStage(false, false, null)).isEqualTo(FundingProgressStage.CANCELLED);
+        }
+    }
+
+    @Nested
+    class 결제일과_취소사유 {
+
+        @Test
+        void 결제완료_시각을_저장한다() {
+            // given
+            Funding funding = newFunding();
+            Instant paidAt = Instant.now();
+
+            // when
+            funding.markPaymentCompleted(paidAt);
+
+            // then
+            assertThat(funding.getPaidAt()).isEqualTo(paidAt);
+        }
+
+        @Test
+        void 결제일이_없는_이벤트는_기존_값을_덮지_않는다() {
+            // given
+            Funding funding = newFunding();
+            Instant paidAt = Instant.now();
+            funding.markPaymentCompleted(paidAt);
+
+            // when — 구버전 메시지 재전달
+            funding.markPaymentCompleted(null);
+
+            // then
+            assertThat(funding.getPaidAt()).isEqualTo(paidAt);
+        }
+
+        @Test
+        void 취소_사유를_저장한다() {
+            // given
+            Funding funding = newFunding();
+
+            // when
+            funding.cancelByMember(CancelReason.ETC, "배송지를 잘못 입력했어요");
+
+            // then
+            assertThat(funding.getCancelReason()).isEqualTo(CancelReason.ETC);
+            assertThat(funding.getCancelReasonDetail()).isEqualTo("배송지를 잘못 입력했어요");
         }
     }
 }

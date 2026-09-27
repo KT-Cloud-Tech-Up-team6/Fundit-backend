@@ -140,6 +140,27 @@
 - **`returnShippingFee`**는 `triggerType=RETURN_CHANGE_OF_MIND`일 때만 `5000`이고 그 외 유형은 null이다(반품비는 전 프로젝트 공통 고정액이라 조회 시 상수로 채운다).
 - **v2(`GET /api/v2/refunds`)는 사유를 나눠 내려준다** — `reasonType`(사유 유형 enum 이름, 유형 없는 사유는 null)과 `reasonDetail`(구매자가 쓴 상세만, 태그 제거)이다. 저장은 `"[DAMAGED] 배송 중 파손되어..."` 한 문자열이지만 FE가 이 문자열을 파싱하지 않도록 응답에서 분리한다(`RefundReasonTag`). 교환 건은 사유에 따른 `additionalPaymentAmount`(구매자 귀책 5000, 그 외 0)도 채워진다. **v1 응답은 기존 계약 유지** — `reasonDetail`에 태그가 포함된 원문이 그대로 내려가고 `reasonType`/`additionalPaymentAmount` 필드가 없다.
 - **필터**: `triggerType` 쿼리 파라미터로 유형별 필터가 가능하다 — 발송 후 반품은 `RETURN_CHANGE_OF_MIND`, 모금 중 참여 취소는 `SIMPLE_CHANGE_OF_MIND`로 구분된다.
+- **v2의 `triggerType`은 여러 번 올 수 있다**(`?triggerType=DEFECT&triggerType=RETURN_CHANGE_OF_MIND` — LIVE `GET /api/v1/lives/mine`의 `status`와 같은 방식). 화면의 "유형" 한 칸이 트리거 여러 개를 묶기 때문이다(취소 = `SIMPLE_CHANGE_OF_MIND`·`SHIPPING_DELAY`·`GOAL_FAILED_AUTO`, 반품 = `DEFECT`·`RETURN_CHANGE_OF_MIND`, 교환 = `EXCHANGE`). 여러 값은 합집합(OR)이고 `inProgress`와는 AND, 생략하거나 빈 값이면 전체다. **묶음의 정의는 FE가 조립한다** — 서버에 그룹 enum을 두지 않는다(화면이 바뀔 때마다 서버가 바뀌는 것을 피한다). v1(`GET /api/v1/refunds`)은 필터 없는 기존 계약 그대로다.
+- 여기서 "발송 전 단순변심"은 목록에 나타날 수 없다 — 환불 정책 V.1.0에서 성립 후 발송 전 단순변심 취소는 불가하고(발송 지연일 때만 `POST /api/v2/refunds/shipping-delay`), `SIMPLE_CHANGE_OF_MIND`는 모금 중 참여 취소 전용이다.
+
+### 2-1-1. GET `/internal/refunds/statuses` — 주문별 신청 이력 배치 조회(내부 전용)
+
+```
+GET /internal/refunds/statuses?fundingIds={orderId1},{orderId2},...
+```
+
+- **권한**: 내부 전용(`X-Internal-Api-Key`, `InternalEndpointConfig`에 등록). 게이트웨이 라우트에는 `/api/**`만 있어 외부에서 들어올 수 없다.
+- **호출 주체**: order-service 펀딩 내역(ORDER-004/005) — 카드 버튼이 신청 후 "취소 내역"·"반품·교환 내역"으로 바뀌어야 하는데, order-service는 환불 **완료** 이벤트만 구독해 진행 중(`REQUESTED`/`UNDER_REVIEW`/`APPROVED`/`PROCESSING`) 신청을 알 수 없다. 페이지 단위로 한 번만 호출해 N+1을 피한다.
+- **Response 200 OK**
+
+```json
+[
+  { "fundingId": "018f9a1b-....", "refundId": 501, "triggerType": "DEFECT", "status": "REQUESTED",
+    "requestedAt": "2026-09-01T10:00:00Z" }
+]
+```
+
+- 한 주문에 이력이 여러 건이면 최신순으로 모두 내려준다(재신청 흐름 — 반려된 하자환불을 반품으로 다시 접수하는 경우 등). 신청이 없는 주문은 응답에 나타나지 않는다.
 
 ---
 
@@ -537,6 +558,8 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
   "fullRefund": true
 }
 ```
+
+`payment.completed.v1` payload에는 `paidAt`(결제 완료 시각, ISO-8601)이 함께 실린다 — order-service 펀딩 내역의 "결제일"에 쓰이며, 결제 시각은 이 서비스만 아는 값이다. 필드 추가라 이 값을 모르는 구독자에게는 영향이 없다(아웃박스 payload에는 이전부터 저장돼 있었고, 전송 이벤트에서 빠져 있던 것을 실어 보낸다).
 
 `refundReason`은 order-service `PaymentEventListener.RefundReason` 이름과 일치한다: `GOAL_FAILURE_AUTO_REFUND` / `CANCELLED_BY_MEMBER` / `POST_SUCCESS_DEFECT` / `POST_SUCCESS_DELAY` / `POST_SUCCESS_RETURN`. 필드명은 `refundReason`/`fullRefund`이다(`triggerType`/`isFullRefund`가 아님).
 

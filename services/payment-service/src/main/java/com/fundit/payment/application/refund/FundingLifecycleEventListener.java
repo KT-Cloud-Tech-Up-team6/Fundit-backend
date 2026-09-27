@@ -15,7 +15,13 @@ public interface FundingLifecycleEventListener {
     /** PAYMENT-005 — 펀딩 1건당 1개씩 발행된다. 프로젝트 단위 일괄 처리로 짜지 않는다. */
     void onFundingGoalFailed(FundingGoalFailedEvent event);
 
-    record FundingCancelledByMemberEvent(Long fundingId, Long projectId, UUID memberId, UUID orderId) {
+    /**
+     * {@code cancelReason}/{@code cancelReasonDetail}은 구매자가 고른 참여 취소 사유다(선택값 —
+     * 사유 없이 취소한 건과 이 필드가 추가되기 전 메시지는 null). 취소 내역 화면이 이 서비스의
+     * 환불 목록을 보므로, 값이 있으면 {@code reason_detail}에 그대로 남긴다.
+     */
+    record FundingCancelledByMemberEvent(Long fundingId, Long projectId, UUID memberId, UUID orderId,
+                                          String cancelReason, String cancelReasonDetail) {
     }
 
     record FundingGoalFailedEvent(Long fundingId, Long projectId, UUID orderId) {

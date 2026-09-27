@@ -15,6 +15,8 @@ public interface FulfillmentTrackerJpaRepository extends JpaRepository<Fulfillme
 
     Optional<FulfillmentTrackerJpaEntity> findByProjectPublicId(UUID projectPublicId);
 
+    List<FulfillmentTrackerJpaEntity> findByProjectPublicIdIn(List<UUID> projectPublicIds);
+
     @Query("SELECT t FROM FulfillmentTrackerJpaEntity t WHERE t.currentStage <> 'DELIVERY' "
             + "AND (t.lastUpdatedAt IS NULL OR t.lastUpdatedAt < :threshold)")
     List<FulfillmentTrackerJpaEntity> findStale(@Param("threshold") Instant threshold);

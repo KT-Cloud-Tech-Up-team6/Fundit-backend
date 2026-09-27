@@ -5,7 +5,9 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.catalog.ProjectSummaryClient;
 import com.fundit.order.application.fulfillment.FulfillmentStatusClient;
+import com.fundit.order.application.refund.RefundStatusClient;
 import com.fundit.order.domain.funding.Funding;
+import com.fundit.order.domain.funding.FundingProgressStage;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.SellerOrderShippingCounts;
@@ -18,8 +20,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /** ORDER-004(내 펀딩 참여 목록)/ORDER-005(개별 참여 상세) 조회 전용. */
@@ -31,6 +35,7 @@ public class OrderQueryService {
     private final FundingRepository fundingRepository;
     private final FundingCouponApplicationJpaRepository couponApplicationJpaRepository;
     private final FulfillmentStatusClient fulfillmentStatusClient;
+    private final RefundStatusClient refundStatusClient;
     private final ProjectSummaryClient projectSummaryClient;
     private final ProjectOwnershipClient projectOwnershipClient;
 
@@ -44,9 +49,14 @@ public class OrderQueryService {
 
         Map<UUID, ProjectSummaryClient.ProjectSummary> summaries = projectSummaryClient.getSummaries(
                 fundings.stream().map(Funding::getProjectId).distinct().toList());
+        List<Funding> achieved = fundings.stream().filter(f -> f.getStatus() == FundingStatus.GOAL_ACHIEVED).toList();
         Map<UUID, FulfillmentStatusClient.FulfillmentStatus> fulfillmentStatuses = fulfillmentStatusClient.fetchBatch(
-                fundings.stream().filter(f -> f.getStatus() == FundingStatus.GOAL_ACHIEVED)
-                        .map(Funding::getPublicId).toList());
+                achieved.stream().map(Funding::getPublicId).toList());
+        // 발송지연은 프로젝트 단위 판정이라 위 배치(펀딩 단위)와 경로가 다르다.
+        Set<UUID> delayedProjectIds = fulfillmentStatusClient.fetchDelayedProjectIds(
+                achieved.stream().map(Funding::getProjectId).distinct().toList());
+        Map<UUID, List<RefundStatusClient.RefundStatus>> refundStatuses = refundStatusClient.fetchBatch(
+                fundings.stream().map(Funding::getPublicId).toList());
         Map<Long, Long> discountByFundingId = couponApplicationJpaRepository
                 .sumDiscountAmountByFundingIdIn(fundings.stream().map(Funding::getId).toList()).stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -54,12 +64,12 @@ public class OrderQueryService {
                         FundingCouponApplicationJpaRepository.FundingDiscountProjection::getTotalDiscount));
 
         return page.map(funding -> {
-            FulfillmentStatusClient.FulfillmentStatus fulfillmentStatus = fulfillmentStatuses.get(funding.getPublicId());
-            List<String> availableActions = funding.availableActions(
-                    fulfillmentStatus != null && fulfillmentStatus.isAlreadyShipped(),
-                    fulfillmentStatus == null ? null : fulfillmentStatus.deliveredAt());
+            FulfillmentView view = FulfillmentView.of(fulfillmentStatuses.get(funding.getPublicId()),
+                    delayedProjectIds.contains(funding.getProjectId()));
             long discountAmount = discountByFundingId.getOrDefault(funding.getId(), 0L);
-            return new OrderListItem(funding, summaries.get(funding.getProjectId()), discountAmount, availableActions);
+            return new OrderListItem(funding, summaries.get(funding.getProjectId()), discountAmount,
+                    view.availableActions(funding), view.progressStage(funding),
+                    refundStatuses.getOrDefault(funding.getPublicId(), List.of()));
         });
     }
 
@@ -99,24 +109,50 @@ public class OrderQueryService {
         long discountAmount = couponApplicationJpaRepository.findByFundingId(funding.getId()).stream()
                 .mapToLong(FundingCouponApplicationJpaEntity::getDiscountAmount)
                 .sum();
-        List<String> availableActions = resolveAvailableActions(funding);
+        FulfillmentView view = resolveFulfillmentView(funding);
         ProjectSummaryClient.ProjectSummary projectSummary = projectSummaryClient
                 .getSummaries(List.of(funding.getProjectId())).get(funding.getProjectId());
-        return new FundingDetail(funding, discountAmount, availableActions, projectSummary);
+        return new FundingDetail(funding, discountAmount, view.availableActions(funding),
+                view.progressStage(funding), projectSummary,
+                refundStatusClient.fetchBatch(List.of(orderId)).getOrDefault(orderId, List.of()));
     }
 
-    /** GOAL_ACHIEVED가 아니면 배송 상태와 무관하게 결과가 같아 fulfillment-service 조회를 생략한다. */
-    private List<String> resolveAvailableActions(Funding funding) {
+    /**
+     * GOAL_ACHIEVED가 아니면 배송 상태와 무관하게 결과가 같아 fulfillment-service 조회를 생략한다.
+     * 목록과 달리 단건 API는 지연 여부까지 한 번에 내려주므로 프로젝트 단위 조회가 필요 없다.
+     */
+    private FulfillmentView resolveFulfillmentView(Funding funding) {
         if (funding.getStatus() != FundingStatus.GOAL_ACHIEVED) {
-            return funding.availableActions(false, null);
+            return new FulfillmentView(false, false, null);
         }
         FulfillmentStatusClient.FulfillmentStatus status = fulfillmentStatusClient.fetch(funding.getPublicId());
-        return funding.availableActions(status.isAlreadyShipped(), status.deliveredAt());
+        return new FulfillmentView(status.isAlreadyShipped(), status.isDelayed(), status.deliveredAt());
+    }
+
+    /** 가능 액션과 진행 단계가 같은 입력(배송 상태)을 쓰므로 한 번 모아서 두 곳에 넘긴다. */
+    private record FulfillmentView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt) {
+
+        /** 조회 실패(값 없음)는 "미발송·지연 아님"으로 본다 — 누를 수 없는 버튼을 보여주지 않는 쪽. */
+        static FulfillmentView of(FulfillmentStatusClient.FulfillmentStatus status, boolean projectDelayed) {
+            boolean shipped = status != null && status.isAlreadyShipped();
+            return new FulfillmentView(shipped, !shipped && projectDelayed,
+                    status == null ? null : status.deliveredAt());
+        }
+
+        List<String> availableActions(Funding funding) {
+            return funding.availableActions(isAlreadyShipped, isDelayed, deliveredAt);
+        }
+
+        FundingProgressStage progressStage(Funding funding) {
+            return funding.progressStage(isAlreadyShipped, isDelayed, deliveredAt);
+        }
     }
 
     /** {@code projectSummary}는 project-service 조회 실패 시 null일 수 있다(부가 정보, degrade). */
     public record FundingDetail(Funding funding, long discountAmount, List<String> availableActions,
-                                 ProjectSummaryClient.ProjectSummary projectSummary) {
+                                 FundingProgressStage progressStage,
+                                 ProjectSummaryClient.ProjectSummary projectSummary,
+                                 List<RefundStatusClient.RefundStatus> refundRequests) {
 
         public long finalAmount() {
             return funding.totalRewardAmount() + funding.getShippingFee() - discountAmount;
@@ -125,6 +161,8 @@ public class OrderQueryService {
 
     /** {@code projectSummary}는 project-service 조회 실패 시 null일 수 있다(부가 정보, degrade). */
     public record OrderListItem(Funding funding, ProjectSummaryClient.ProjectSummary projectSummary,
-                                 long discountAmount, List<String> availableActions) {
+                                 long discountAmount, List<String> availableActions,
+                                 FundingProgressStage progressStage,
+                                 List<RefundStatusClient.RefundStatus> refundRequests) {
     }
 }

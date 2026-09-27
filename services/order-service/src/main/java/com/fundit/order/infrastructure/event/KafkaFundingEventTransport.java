@@ -68,6 +68,12 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         payload.put("fundingId", event.fundingId());
         payload.put("projectId", event.projectId());
         payload.put("memberId", event.memberId());
+        // 취소 사유(선택값)를 실어 payment-service가 취소 내역(refund_requests.reason_detail)에
+        // 고정 문구가 아니라 구매자가 고른 사유를 남기게 한다 — 그 목록이 화면의 "취소 내역"이다.
+        fundingRepository.findById(event.fundingId()).ifPresent(funding -> {
+            payload.put("cancelReason", funding.getCancelReason() == null ? null : funding.getCancelReason().name());
+            payload.put("cancelReasonDetail", funding.getCancelReasonDetail());
+        });
         enrichPublicIds(payload, event.fundingId());
         send(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, String.valueOf(event.fundingId()), payload);
     }

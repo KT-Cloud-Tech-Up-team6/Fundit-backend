@@ -68,6 +68,10 @@ public class FundingJpaEntity {
     @Column(name = "payment_expires_at", nullable = false)
     private Instant paymentExpiresAt;
 
+    /** payment-service payment.completed.v1의 결제 완료 시각(V12). 결제 전·구버전 이벤트 건은 NULL. */
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
     @Column(name = "decided_at")
     private Instant decidedAt;
 
@@ -77,6 +81,13 @@ public class FundingJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** ORDER-014 취소 사유(V12) — 본문 없이 취소한 건은 NULL. */
+    @Column(name = "cancel_reason", length = 30)
+    private String cancelReason;
+
+    @Column(name = "cancel_reason_detail", length = 100)
+    private String cancelReasonDetail;
 
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;

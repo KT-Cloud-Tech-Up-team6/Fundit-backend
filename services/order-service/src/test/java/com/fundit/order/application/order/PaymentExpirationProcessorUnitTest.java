@@ -62,7 +62,7 @@ class PaymentExpirationProcessorUnitTest {
     void 이미_다른_상태로_전이됐으면_아무일도_하지않는다() {
         // given
         Funding funding = pendingFunding();
-        funding.cancelByMember();
+        funding.cancelByMember(null, null);
         when(fundingRepository.findById(1L)).thenReturn(Optional.of(funding));
 
         // when

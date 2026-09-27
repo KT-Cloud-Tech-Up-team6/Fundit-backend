@@ -64,6 +64,7 @@ cd services/order-service && docker compose up -d
 ### 인증/서비스 간 통신
 - **인증 헤더는 게이트웨이가 검증했다는 전제로만 신뢰한다**: `X-Account-Id`/`X-Account-Role`은 게이트웨이(`platform:gateway-service`)가 JWT를 검증한 뒤 주입한 값이라는 전제로 신뢰하고, order-service가 서명을 다시 검증하지 않는다(member-service `CurrentMemberArgumentResolver`와 동일 패턴). 다만 **소유권 검증(리소스가 진짜 이 계정 것인지)은 반드시 서버에서 한다** — 헤더 값을 신뢰하는 것과 소유권을 대조하는 것은 별개다(`security.md` S4).
 - **서비스 간 이벤트는 아웃박스 + Transport 인터페이스로 발행한다**: 메시징 브로커(Kafka/RabbitMQ)가 아직 미확정이므로, project-service의 `RewardEventOutboxWorker`/`RewardEventTransport` 패턴을 그대로 따른다. `FundingGoalFailed`/`FundingSucceeded`(ORDER-006), `FundingCancelledByMember`(ORDER-014)는 같은 트랜잭션에서 아웃박스 테이블에 적재하고, 별도 워커가 `Transport` 구현체로 전달을 시도한다. 브로커가 없는 동안은 `UnconfiguredFundingEventTransport`가 예외를 던져 재시도 상태로 남긴다 — 로깅만 하고 성공으로 취급하지 않는다.
+- **펀딩 내역의 파생 값(진행 단계·발송 지연·신청 여부)은 배치 조회로만 채운다**: 목록(ORDER-004)은 페이지 단위로 fulfillment-service 두 경로(`/internal/fundings/fulfillment-statuses` = 발송·배송완료, `/internal/projects/shipping-delays` = 발송 예정일 경과)와 payment-service 한 경로(`/internal/refunds/statuses` = 취소·반품·교환 신청 이력)를 각각 1회씩 호출한다. 건별 호출로 바꾸지 말 것. 이 값들은 전부 부가 정보라 **조회 실패 시에도 목록은 내려가고**, 지연은 "아님"으로 취급한다(누를 수 없는 취소 버튼을 보여주지 않는 쪽). 발송 지연이 프로젝트 단위 경로인 이유는 발송 전 건에는 `shipments` 행이 없고 projectId는 이 서비스가 이미 들고 있기 때문이다.
 - **project-service용 재고 조회는 동기 API로, 재고 변경 통지는 비동기 이벤트로**: 잔여재고 "조회"(`GET /api/v1/inventories/{rewardId}`)는 project-service가 즉시 필요로 하니 동기 HTTP로 제공하되, 반대 방향(project-service→order-service, 리워드 생성/수정 통지)은 최종적 일관성을 유지하는 이벤트로만 받는다 — 동기 호출로 강결합하지 않는다.
 
 ## 에러 코드
