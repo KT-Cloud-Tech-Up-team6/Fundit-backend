@@ -70,7 +70,8 @@ public class FulfillmentDomainEventOutboxWorker {
                         sellerId, event.getCreatedAt(), event.getId());
             }
             case FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPMENT_SHIPPED -> transport.sendShipmentShipped(
-                    new ShipmentShippedEvent(event.getFundingOrderId(), event.getProjectPublicId()),
+                    new ShipmentShippedEvent(event.getFundingOrderId(), event.getProjectPublicId(),
+                            event.getReshipmentRefundRequestId()),
                     event.getCreatedAt(), event.getId());
             default -> throw new IllegalStateException("알 수 없는 도메인 이벤트 타입: " + event.getEventType());
         }

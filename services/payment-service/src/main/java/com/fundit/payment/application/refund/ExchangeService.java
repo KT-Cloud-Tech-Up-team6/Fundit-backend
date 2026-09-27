@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,12 +65,12 @@ public class ExchangeService implements ExchangeFeePaymentListener {
      *
      * <p>재발송 호출은 <b>결제 커밋 이후</b>에 한다. 승인 트랜잭션 안에서 부르면 fulfillment
      * 장애가 이미 토스에서 승인된 결제를 롤백시켜, 돈은 빠졌는데 결제 기록이 PENDING으로 남는다
-     * (재시도하면 토스가 이미 승인된 건이라 거절한다). 상태 전이(PROCESSING)는 결제와 같은
-     * 트랜잭션에서 커밋하고, 호출 실패는 로그만 남긴다 — fulfillment 쪽이 refundRequestId로
-     * 멱등이라 같은 요청을 다시 보내면 된다.
+     * (재시도하면 토스가 이미 승인된 건이라 거절한다).
      *
-     * <p>ponytail: 재시도는 아직 수동이다(PROCESSING인 교환 건에 같은 내부 API를 다시 호출).
-     * 실패가 실제로 관측되면 아웃박스(payment_event_outbox와 같은 패턴)로 옮길 것.
+     * <p>호출이 실패해도 요청은 유실되지 않는다 — 상태 전이(PROCESSING)는 결제와 같은 트랜잭션에서 커밋되고
+     * {@code reshipment_requested_at}이 null로 남아 {@link #retryPendingReshipmentRequests}가
+     * 같은 요청을 다시 보낸다(fulfillment는 refundRequestId로 멱등). 별도 아웃박스 테이블을 두지
+     * 않은 이유는 이 행 자체가 이미 작업 단위이기 때문이다(V10 주석).
      */
     @Override
     @Transactional
@@ -78,26 +79,53 @@ public class ExchangeService implements ExchangeFeePaymentListener {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         refundRequest.startExchangeReshipment();
         RefundRequest saved = refundRequestRepository.save(refundRequest);
-        afterCommit(() -> requestReshipmentQuietly(saved));
+        afterCommit(() -> requestReshipmentQuietly(saved.getId()));
+    }
+
+    /**
+     * 재발송 요청이 성공하지 못한 교환 건을 다시 보낸다(스케줄러가 주기적으로 호출). 교환비는
+     * 이미 결제됐으므로 요청이 유실되면 구매자가 돈만 낸 상태로 멈춘다 — 그래서 로그 경고로
+     * 끝내지 않고 이 경로로 계속 재시도한다. 한 건이 실패해도 나머지는 계속 처리한다.
+     */
+    public int retryPendingReshipmentRequests(int limit) {
+        List<RefundRequest> pending = refundRequestRepository.findExchangesAwaitingReshipmentRequest(limit);
+        int requested = 0;
+        for (RefundRequest refundRequest : pending) {
+            if (requestReshipmentQuietly(refundRequest.getId())) {
+                requested++;
+            }
+        }
+        return requested;
     }
 
     /**
      * 재발송분이 발송되면(판매자가 새 운송장을 등록해 PREPARING→SHIPPED) 교환 신청을 종료한다.
-     * 최초 발송은 교환 신청 전에 이미 지나갔으므로, 재발송 요청 상태(PROCESSING)로 남아 있는
-     * 교환 건에 도착한 발송 이벤트는 재발송분의 것이다. 해당 교환 건이 없으면 아무것도 하지
-     * 않는다(일반 주문의 최초 발송 이벤트).
+     *
+     * <p>이벤트가 들고 오는 {@code reshipmentRefundRequestId}(fulfillment의
+     * {@code shipments.last_reshipment_refund_request_id})가 이 교환 건의 id와 같을 때만 완료
+     * 처리한다. 값이 없으면(최초 발송) 또는 다른 교환 건의 재발송이면 무시한다 — Kafka는
+     * at-least-once라서 최초 발송 이벤트가 나중에 재전달되면 교환이 실제 재발송 전에 완료로
+     * 넘어갈 수 있다.
      *
      * <p>완료 기준을 배송완료가 아니라 발송으로 두는 이유: {@code shipping.completed.v1}은 아직
      * 발행 주체가 없고 payload가 레거시 Long fundingId다({@code ShippingCompletionListener} 주석).
      * ponytail: 그 이벤트가 UUID로 실제 발행되면 완료 기준을 배송완료로 옮길 수 있다.
      */
     @Transactional
-    public void onReshipmentShipped(UUID orderId) {
+    public void onReshipmentShipped(UUID orderId, Long reshipmentRefundRequestId) {
+        if (reshipmentRefundRequestId == null) {
+            return;
+        }
         Optional<RefundRequest> inProgress = refundRequestRepository.findReshippingExchangeByFundingId(orderId);
         if (inProgress.isEmpty()) {
             return;
         }
         RefundRequest refundRequest = inProgress.get();
+        if (!reshipmentRefundRequestId.equals(refundRequest.getId())) {
+            log.warn("재발송 식별자가 진행 중인 교환 건과 다르다 — 무시한다. orderId={}, 이벤트={}, 교환신청={}",
+                    orderId, reshipmentRefundRequestId, refundRequest.getId());
+            return;
+        }
         refundRequest.completeExchange();
         refundRequestRepository.save(refundRequest);
     }
@@ -110,16 +138,28 @@ public class ExchangeService implements ExchangeFeePaymentListener {
         refundRequest.startExchangeReshipment();
         RefundRequest saved = refundRequestRepository.save(refundRequest);
         exchangeReshipmentClient.request(saved.getFundingId(), saved.getId());
-        return saved;
+        saved.markReshipmentRequested();
+        return refundRequestRepository.save(saved);
     }
 
-    private void requestReshipmentQuietly(RefundRequest refundRequest) {
+    /**
+     * 실패를 삼키되 {@code reshipment_requested_at}을 채우지 않아 재시도 대상으로 남긴다.
+     * 이 경로는 결제 커밋 이후(또는 재시도 스케줄러)에서 돌아 바깥 트랜잭션이 없고, 조회·저장이
+     * 각각 리포지토리 자체 트랜잭션으로 커밋된다(한 행 저장이라 원자성을 더 묶을 게 없다).
+     */
+    private boolean requestReshipmentQuietly(Long refundRequestId) {
+        RefundRequest refundRequest = refundRequestRepository.findById(refundRequestId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         try {
             exchangeReshipmentClient.request(refundRequest.getFundingId(), refundRequest.getId());
         } catch (RuntimeException e) {
-            log.error("교환 재발송 요청 실패 — 교환비 결제는 완료됐으므로 재시도가 필요하다. refundRequestId={}, orderId={}",
+            log.error("교환 재발송 요청 실패 — 교환비 결제는 완료됐으므로 다음 주기에 재시도한다. refundRequestId={}, orderId={}",
                     refundRequest.getId(), refundRequest.getFundingId(), e);
+            return false;
         }
+        refundRequest.markReshipmentRequested();
+        refundRequestRepository.save(refundRequest);
+        return true;
     }
 
     /** 트랜잭션이 없으면(단위 테스트 등) 그대로 실행한다. */

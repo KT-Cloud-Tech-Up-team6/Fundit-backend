@@ -49,6 +49,10 @@ public class FulfillmentDomainEventOutboxJpaEntity {
     @Column(name = "project_public_id")
     private UUID projectPublicId;
 
+    /** SHIPMENT_SHIPPED가 교환 재발송분일 때의 payment-service 교환 신청 id(V8). 최초 발송이면 null. */
+    @Column(name = "reshipment_refund_request_id")
+    private Long reshipmentRefundRequestId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

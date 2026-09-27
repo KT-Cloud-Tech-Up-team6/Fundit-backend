@@ -21,10 +21,13 @@ public class ShipmentShippedEventKafkaListener {
 
     @KafkaListener(topics = KafkaTopics.SHIPMENT_SHIPPED, groupId = "payment-service")
     public void onShipmentShipped(ShipmentShippedEvent event) {
-        exchangeService.onReshipmentShipped(event.fundingId());
+        exchangeService.onReshipmentShipped(event.fundingId(), event.reshipmentRefundRequestId());
     }
 
-    /** fulfillment-service {@code FulfillmentDomainEventPublisher.ShipmentShippedEvent}와 같은 JSON 계약. */
-    public record ShipmentShippedEvent(UUID fundingId, UUID projectId) {
+    /**
+     * fulfillment-service {@code FulfillmentDomainEventPublisher.ShipmentShippedEvent}와 같은 JSON 계약.
+     * {@code reshipmentRefundRequestId}는 교환 재발송분의 발송일 때만 채워진다(최초 발송이면 null).
+     */
+    public record ShipmentShippedEvent(UUID fundingId, UUID projectId, Long reshipmentRefundRequestId) {
     }
 }

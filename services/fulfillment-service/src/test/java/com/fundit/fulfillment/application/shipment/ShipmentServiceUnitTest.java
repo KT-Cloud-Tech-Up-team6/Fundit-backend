@@ -65,7 +65,8 @@ class ShipmentServiceUnitTest {
         assertThat(result.getStatus()).isEqualTo(ShipmentStatus.SHIPPED);
         assertThat(result.getCarrier()).isEqualTo("CJ대한통운");
         verify(domainEventPublisher).publishShipmentShipped(new ShipmentShippedEvent(
-                UUID.fromString("00000000-0000-0000-0000-000000001024"), UUID.fromString("00000000-0000-0000-0000-000000000123")));
+                UUID.fromString("00000000-0000-0000-0000-000000001024"),
+                UUID.fromString("00000000-0000-0000-0000-000000000123"), null));
     }
 
     @Test

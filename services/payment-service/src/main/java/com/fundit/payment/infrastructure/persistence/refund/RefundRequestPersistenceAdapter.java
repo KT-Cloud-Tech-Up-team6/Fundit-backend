@@ -5,6 +5,7 @@ import com.fundit.payment.domain.refund.RefundRequestRepository;
 import com.fundit.payment.domain.refund.RefundRequestStatus;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -38,6 +39,14 @@ public class RefundRequestPersistenceAdapter implements RefundRequestRepository 
         return jpaRepository.findFirstByFundingOrderIdAndTriggerTypeAndStatusOrderByRequestedAtDesc(fundingId,
                         RefundTriggerType.EXCHANGE.name(), RefundRequestStatus.PROCESSING.name())
                 .map(mapper::toDomain);
+    }
+
+    @Override
+    public List<RefundRequest> findExchangesAwaitingReshipmentRequest(int limit) {
+        return jpaRepository.findByTriggerTypeAndStatusAndReshipmentRequestedAtIsNullOrderByIdAsc(
+                        RefundTriggerType.EXCHANGE.name(), RefundRequestStatus.PROCESSING.name(),
+                        PageRequest.of(0, limit))
+                .stream().map(mapper::toDomain).toList();
     }
 
     @Override

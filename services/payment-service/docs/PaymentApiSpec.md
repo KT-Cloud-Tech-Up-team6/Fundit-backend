@@ -253,6 +253,9 @@ REQUESTED ──판매자 승인(2-3)──┬─ 구매자 귀책 → APPROVED 
 PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMPLETED
 ```
 
+- **재발송 요청의 내구성**: 교환비 결제 승인은 커밋된 뒤에 fulfillment 재발송을 호출한다(결제 트랜잭션 안에서 부르면 fulfillment 장애가 이미 승인된 결제를 롤백시킨다). 호출이 실패하면 `refund_requests.reshipment_requested_at`이 비어 있어 재시도 스케줄러가 같은 요청을 다시 보낸다 — 요청은 `refundRequestId` 기준 멱등이라 재발송이 두 번 일어나지 않는다.
+- **완료 판정**: `shipment.shipped.v1`의 `reshipmentRefundRequestId`가 그 교환 신청 id와 같을 때만 COMPLETED로 전이한다(최초 발송 이벤트 재전달로 조기 완료되는 것을 막는다).
+
 - **범위 밖**: 교환 신청의 구매자 취소, 승인 후 미결제 방치 건의 자동 만료(기한 스케줄러)는 아직 없다. 교환은 결제취소를 수반하지 않아 `RefundCompleted` 이벤트를 발행하지 않는다(`RefundTriggerType.EXCHANGE.toOrderServiceReason()`이 예외를 던진다) — 쿠폰 복원·주문 상태 전이 대상이 아니기 때문이다.
 
 ---

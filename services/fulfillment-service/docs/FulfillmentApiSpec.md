@@ -430,6 +430,7 @@ POST /internal/fundings/{fundingId}/reshipments
 
 **Validation / Business Rules**
 
+- 재발송 이후 판매자가 새 운송장을 등록하면 발행되는 `shipment.shipped.v1` payload에 **`reshipmentRefundRequestId`**(이 재발송을 유발한 교환 신청 id)가 함께 실린다 — payment-service가 그 값으로 자기 교환 신청과 대조해 완료 처리한다(최초 발송이면 null). 전이 시점의 값을 남기려고 아웃박스 행에 저장한다(V8).
 - 배송을 **새 사이클로 되돌린다** — `status`를 `PREPARING`으로 내리고 `carrier`/`tracking_number`/`shipped_at`/`delivered_at`/`receipt_confirmed_at`을 비우며 `reshipment_count`를 1 올린다(V7). 판매자는 **기존 발송정보 등록(#5)** 으로 새 운송장을 올리면 되고, 그 시점에 `shipment.shipped.v1`이 다시 발행된다(payment-service가 이 이벤트로 교환을 완료 처리한다).
 - `shipments`는 펀딩당 1행(`uq_shipments_funding_order`)이라 행을 추가하지 않는다 — 이전 사이클의 운송장 이력은 남지 않는다. 이력이 필요해지면 별도 테이블로 분리할 것.
 - **같은 `refundRequestId`로 재호출되면 아무것도 바꾸지 않는다**(`last_reshipment_refund_request_id` 멱등키, `reshipmentCount`도 그대로). 내부 호출 재시도가 판매자가 이미 등록한 새 운송장을 지우면 안 된다.

@@ -34,6 +34,11 @@ public class RefundRequest {
     private AlternateRefundAccount alternateRefundAccount;
     private final Instant requestedAt;
     private Instant processedAt;
+    /**
+     * 교환 재발송을 fulfillment-service에 실제로 요청한 시각. 교환이 PROCESSING인데 이 값이
+     * null이면 요청이 아직(또는 실패해서) 안 된 것이고, 재시도 워커가 그 행을 집어 다시 보낸다.
+     */
+    private Instant reshipmentRequestedAt;
 
     /** {@link #completeImmediately}가 허용하는 유형 — 실제 호출부(FundingLifecycleEventSyncService,
      * PaymentReconciliationService, ShippingDelayRefundService) 기준. SIMPLE_CHANGE_OF_MIND는
@@ -158,6 +163,12 @@ public class RefundRequest {
         }
         this.status = RefundRequestStatus.COMPLETED;
         this.processedAt = Instant.now();
+    }
+
+    /** fulfillment 재발송 요청이 실제로 성공했음을 기록한다 — 재시도 워커의 대상에서 빠진다. */
+    public void markReshipmentRequested() {
+        assertExchange();
+        this.reshipmentRequestedAt = Instant.now();
     }
 
     private void assertExchange() {

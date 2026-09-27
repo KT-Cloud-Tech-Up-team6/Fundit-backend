@@ -60,6 +60,9 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
     Optional<RefundRequestJpaEntity> findFirstByFundingOrderIdAndTriggerTypeAndStatusOrderByRequestedAtDesc(
             UUID fundingOrderId, String triggerType, String status);
 
+    List<RefundRequestJpaEntity> findByTriggerTypeAndStatusAndReshipmentRequestedAtIsNullOrderByIdAsc(
+            String triggerType, String status, Pageable pageable);
+
     boolean existsByFundingOrderIdAndTriggerTypeInAndStatusIn(UUID fundingOrderId, List<String> triggerTypes,
                                                               List<String> statuses);
 }

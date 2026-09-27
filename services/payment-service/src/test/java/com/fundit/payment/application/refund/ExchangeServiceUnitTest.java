@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -31,6 +32,7 @@ class ExchangeServiceUnitTest {
 
     private static final UUID ORDER_ID = new UUID(0L, 1024L);
     private static final UUID PAYMENT_ID = UUID.randomUUID();
+    private static final Long REFUND_ID = 77L;
 
     @Mock
     private RefundRequestRepository refundRequestRepository;
@@ -67,7 +69,7 @@ class ExchangeServiceUnitTest {
             // given
             RefundRequest request = exchangeRequest(ExchangeReason.WRONG_DELIVERY);
             when(refundRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-            when(exchangeReshipmentClient.request(ORDER_ID, null))
+            when(exchangeReshipmentClient.request(ORDER_ID, REFUND_ID))
                     .thenReturn(new ExchangeReshipmentClient.ReshipmentResult("PREPARING", 1));
 
             // when
@@ -76,7 +78,7 @@ class ExchangeServiceUnitTest {
             // then
             assertThat(result.status()).isEqualTo(RefundRequestStatus.PROCESSING.name());
             assertThat(result.additionalPaymentAmount()).isZero();
-            verify(exchangeReshipmentClient).request(ORDER_ID, null);
+            verify(exchangeReshipmentClient).request(ORDER_ID, REFUND_ID);
         }
     }
 
@@ -86,10 +88,10 @@ class ExchangeServiceUnitTest {
         RefundRequest request = exchangeRequest(ExchangeReason.CHANGE_OF_MIND);
         request.approveExchangeAwaitingFee();
         Payment feePayment = Payment.createExchangeFee(ORDER_ID, UUID.randomUUID(), "fundit-fee", 5_000L,
-                "교환 배송비", 77L, "idem");
-        when(refundRequestRepository.findById(77L)).thenReturn(Optional.of(request));
+                "교환 배송비", REFUND_ID, "idem");
+        when(refundRequestRepository.findById(REFUND_ID)).thenReturn(Optional.of(request));
         when(refundRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(exchangeReshipmentClient.request(ORDER_ID, null))
+        when(exchangeReshipmentClient.request(ORDER_ID, REFUND_ID))
                 .thenReturn(new ExchangeReshipmentClient.ReshipmentResult("PREPARING", 1));
 
         // when
@@ -97,7 +99,7 @@ class ExchangeServiceUnitTest {
 
         // then
         assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.PROCESSING);
-        verify(exchangeReshipmentClient).request(ORDER_ID, null);
+        verify(exchangeReshipmentClient).request(ORDER_ID, REFUND_ID);
     }
 
     @Nested
@@ -113,7 +115,7 @@ class ExchangeServiceUnitTest {
             when(refundRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
-            exchangeService.onReshipmentShipped(ORDER_ID);
+            exchangeService.onReshipmentShipped(ORDER_ID, REFUND_ID);
 
             // then
             assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);
@@ -122,20 +124,48 @@ class ExchangeServiceUnitTest {
 
         @Test
         void 교환_건이_없으면_아무것도_하지_않는다() {
-            // given — 일반 주문의 최초 발송 이벤트
+            // given — 일반 주문의 발송 이벤트(재발송 식별자는 있지만 진행 중인 교환이 없다)
             when(refundRequestRepository.findReshippingExchangeByFundingId(ORDER_ID)).thenReturn(Optional.empty());
 
             // when
-            exchangeService.onReshipmentShipped(ORDER_ID);
+            exchangeService.onReshipmentShipped(ORDER_ID, REFUND_ID);
 
             // then
             verify(refundRequestRepository).findReshippingExchangeByFundingId(ORDER_ID);
         }
+
+        /** Kafka는 at-least-once — 최초 발송 이벤트가 나중에 재전달돼도 교환을 완료시키면 안 된다. */
+        @Test
+        void 재발송_식별자가_없는_최초_발송_이벤트는_무시한다() {
+            // when
+            exchangeService.onReshipmentShipped(ORDER_ID, null);
+
+            // then — 조회조차 하지 않는다
+            verifyNoInteractions(refundRequestRepository);
+        }
+
+        @Test
+        void 다른_교환_건의_재발송_식별자면_무시한다() {
+            // given
+            RefundRequest request = exchangeRequest(ExchangeReason.CHANGE_OF_MIND);
+            request.approveExchangeAwaitingFee();
+            request.startExchangeReshipment();
+            when(refundRequestRepository.findReshippingExchangeByFundingId(ORDER_ID)).thenReturn(Optional.of(request));
+
+            // when — 이전 교환 건(99L)의 재발송 이벤트가 늦게 도착
+            exchangeService.onReshipmentShipped(ORDER_ID, 99L);
+
+            // then
+            assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.PROCESSING);
+            verify(refundRequestRepository, never()).save(any());
+        }
     }
 
+    /** 저장된 신청처럼 id를 가진 교환 건 — 재발송 식별자 대조에 id가 필요하다. */
     private static RefundRequest exchangeRequest(ExchangeReason reason) {
         return RefundRequest.requestAfterShipment(RefundTriggerType.EXCHANGE, ORDER_ID, PAYMENT_ID,
-                UUID.randomUUID(), RefundReasonTag.format(reason, "상세"), List.of());
+                        UUID.randomUUID(), RefundReasonTag.format(reason, "상세"), List.of())
+                .toBuilder().id(REFUND_ID).build();
     }
 
     /** 결제는 이미 승인됐으므로 fulfillment 호출 실패가 결제/상태 전이를 되돌리면 안 된다. */
@@ -145,10 +175,10 @@ class ExchangeServiceUnitTest {
         RefundRequest request = exchangeRequest(ExchangeReason.CHANGE_OF_MIND);
         request.approveExchangeAwaitingFee();
         Payment feePayment = Payment.createExchangeFee(ORDER_ID, UUID.randomUUID(), "fundit-fee", 5_000L,
-                "교환 배송비", 77L, "idem");
-        when(refundRequestRepository.findById(77L)).thenReturn(Optional.of(request));
+                "교환 배송비", REFUND_ID, "idem");
+        when(refundRequestRepository.findById(REFUND_ID)).thenReturn(Optional.of(request));
         when(refundRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(exchangeReshipmentClient.request(ORDER_ID, null))
+        when(exchangeReshipmentClient.request(ORDER_ID, REFUND_ID))
                 .thenThrow(new DependencyFailureException(new IllegalStateException("fulfillment 장애")));
 
         // when
@@ -156,5 +186,48 @@ class ExchangeServiceUnitTest {
 
         // then
         assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.PROCESSING);
+    }
+
+    @Nested
+    class 재발송_요청_재시도 {
+
+        @Test
+        void 요청이_성공하면_시각이_기록되어_대상에서_빠진다() {
+            // given
+            RefundRequest request = exchangeRequest(ExchangeReason.CHANGE_OF_MIND);
+            request.approveExchangeAwaitingFee();
+            request.startExchangeReshipment();
+            when(refundRequestRepository.findExchangesAwaitingReshipmentRequest(50)).thenReturn(List.of(request));
+            when(refundRequestRepository.findById(REFUND_ID)).thenReturn(Optional.of(request));
+            when(refundRequestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(exchangeReshipmentClient.request(ORDER_ID, REFUND_ID))
+                    .thenReturn(new ExchangeReshipmentClient.ReshipmentResult("PREPARING", 1));
+
+            // when
+            int requested = exchangeService.retryPendingReshipmentRequests(50);
+
+            // then
+            assertThat(requested).isEqualTo(1);
+            assertThat(request.getReshipmentRequestedAt()).isNotNull();
+        }
+
+        @Test
+        void 요청이_또_실패하면_시각이_비어_다음_주기에_다시_대상이_된다() {
+            // given
+            RefundRequest request = exchangeRequest(ExchangeReason.CHANGE_OF_MIND);
+            request.approveExchangeAwaitingFee();
+            request.startExchangeReshipment();
+            when(refundRequestRepository.findExchangesAwaitingReshipmentRequest(50)).thenReturn(List.of(request));
+            when(refundRequestRepository.findById(REFUND_ID)).thenReturn(Optional.of(request));
+            when(exchangeReshipmentClient.request(ORDER_ID, REFUND_ID))
+                    .thenThrow(new DependencyFailureException(new IllegalStateException("fulfillment 장애")));
+
+            // when
+            int requested = exchangeService.retryPendingReshipmentRequests(50);
+
+            // then
+            assertThat(requested).isZero();
+            assertThat(request.getReshipmentRequestedAt()).isNull();
+        }
     }
 }

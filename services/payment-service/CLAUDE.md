@@ -179,7 +179,8 @@ PROCESSING ─재발송분 발송(shipment.shipped.v1)→ COMPLETED
 - **`payments.purpose`(`REWARD`/`EXCHANGE_FEE`)로 두 결제를 구분한다**(V9). 펀딩 단위 조회(`findCompletedByFundingId`/`findPendingByFundingId`/`findCompletedOrCancelledByFundingId`)는 **전부 `REWARD`만** 본다 — 이 필터가 빠지면 환불이 5,000원 교환비 결제를 원 결제로 착각해 그 금액만 취소한다. 유니크 제약도 용도별로 나뉘어 있다(리워드는 펀딩당 1건, 교환비는 교환 신청당 1건).
 - **교환비 결제는 `PaymentCompleted`를 발행하지 않고 정산 보류도 열지 않는다**(주문 결제가 아니다). order-service에 알리면 쿠폰 사용확정/주문 상태 전이가 잘못 일어난다. 승인 분기는 `PaymentConfirmService`가 하고, 교환 흐름 인계는 `ExchangeFeePaymentListener` 포트로 넘긴다(application.payment → application.refund 역방향 의존 방지).
 - **재발송은 fulfillment-service 소관이다** — `ExchangeReshipmentClient`(포트) → `POST /internal/fundings/{fundingId}/reshipments`. fulfillment는 `shipments` 행을 PREPARING으로 되돌리고(운송장·배송완료·수령확인 초기화, `reshipment_count` 증가) 판매자의 새 운송장 등록을 기다린다. 같은 `refundRequestId` 재요청은 멱등 무시된다. 이 서비스가 다른 서비스 테이블을 직접 고치지 않는 원칙은 그대로다.
-- **완료 기준은 "재발송분의 발송"**이다(`shipment.shipped.v1` 구독). 배송완료(`shipping.completed.v1`)를 쓰지 않는 이유는 그 이벤트가 아직 발행 주체가 없고 payload가 레거시 `Long fundingId`이기 때문이다.
+- **완료 기준은 "재발송분의 발송"**이다(`shipment.shipped.v1` 구독). 배송완료(`shipping.completed.v1`)를 쓰지 않는 이유는 그 이벤트가 아직 발행 주체가 없고 payload가 레거시 `Long fundingId`이기 때문이다. **이벤트의 `reshipmentRefundRequestId`가 그 교환 신청 id와 일치할 때만 완료 처리한다** — Kafka는 at-least-once라서 최초 발송 이벤트가 재전달되면 실제 재발송 전에 교환이 완료로 넘어갈 수 있다. 값이 없으면(최초 발송) 무시한다.
+- **재발송 요청은 유실되지 않는다.** 교환비 결제는 이미 승인된 상태라 호출 실패를 로그로 끝낼 수 없다 — 상태 전이(PROCESSING)는 결제와 같은 트랜잭션에서 커밋하고 `refund_requests.reshipment_requested_at`(V10)을 요청 성공 시에만 채운다. `(EXCHANGE, PROCESSING, reshipment_requested_at IS NULL)` 행이 곧 재시도 작업 목록이고 `ExchangeReshipmentRetryScheduler`가 주기적으로 다시 보낸다(fulfillment가 refundRequestId로 멱등). **별도 아웃박스 테이블을 두지 않은 이유**: 이 행 자체가 이미 작업 단위여서 테이블을 하나 더 만들면 같은 상태를 두 곳에 두게 된다.
 - **미구현(후속)**: 승인 후 구매자가 교환비를 결제하지 않고 방치한 건의 기한 만료 처리, 구매자의 교환 신청 취소. 그동안 그 주문은 미처리 신청이 남아 다른 발송 후 신청을 접수할 수 없다.
 
 ### PAYMENT-007 `PATCH /api/v1/refunds/{refundId}/decision`
