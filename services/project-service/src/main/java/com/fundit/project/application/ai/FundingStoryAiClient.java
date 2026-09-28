@@ -6,6 +6,8 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmResponse
 import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryContext;
 import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
@@ -31,6 +33,12 @@ public interface FundingStoryAiClient {
     ConfirmResponse confirmSession(UUID projectId, UUID sessionId, ConfirmRequest request);
 
     RunAcceptedResponse createRun(UUID projectId, RunCreateRequest request);
+
+    PageSummaryRunResponse createPageSummaryRun(UUID projectId, PageSummaryRunCreateRequest request);
+
+    PageSummaryRunResponse getPageSummaryRun(UUID projectId, UUID runId);
+
+    PageSummaryRunResponse retryPageSummaryRun(UUID projectId, UUID runId);
 
     record ChatEventStream(InputStream body, Runnable onClose) implements AutoCloseable {
         @Override
