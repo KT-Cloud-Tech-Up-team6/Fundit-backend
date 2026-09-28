@@ -231,7 +231,18 @@ public class ProjectController {
                         fundingStatus.fundingDeadline()),
                 view.hasLiveVerification(),
                 new SellerSummaryResponse(view.seller().sellerId(), view.seller().displayName()),
-                view.categoryMajor(), view.categoryMinor(), view.businessType());
+                view.categoryMajor(), view.categoryMinor(), view.businessType(),
+                toPageSummaryResponse(view.pageSummary()));
+    }
+
+    private ProjectDetailResponse.PageSummaryResponse toPageSummaryResponse(
+            ProjectQueryService.PageSummaryView view) {
+        if (view == null) return null;
+        List<ProjectDetailResponse.SectionResponse> sections = view.sections() == null ? null
+                : view.sections().stream()
+                        .map(s -> new ProjectDetailResponse.SectionResponse(s.role(), s.headline(), s.description()))
+                        .toList();
+        return new ProjectDetailResponse.PageSummaryResponse(view.status(), sections);
     }
 
     private List<IntroContentBlockResponse> toIntroContentResponse(List<IntroContentBlock> blocks) {

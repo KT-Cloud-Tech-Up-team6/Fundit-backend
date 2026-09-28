@@ -35,6 +35,11 @@ class ProjectQueryServiceUnitExceptionTest {
     @Mock
     private SellerProfileClient sellerProfileClient;
 
+    @Mock
+
+    private com.fundit.project.domain.pagesummary.PageSummaryRepository pageSummaryRepository;
+
+
     @InjectMocks
     private ProjectQueryService projectQueryService;
 

@@ -209,7 +209,7 @@ class ProjectControllerTest {
         UUID publicId = UUID.randomUUID();
         var view = new ProjectQueryService.ProjectDetailView(publicId, "제목", "DRAFT", 1_000_000L, null, List.of(),
                 new ProjectQueryService.FundingStatusView(0, 0, 0, null, null), false,
-                new ProjectQueryService.SellerView(sellerId, null), "패션", "의류", "GENERAL");
+                new ProjectQueryService.SellerView(sellerId, null), "패션", "의류", "GENERAL", null);
         when(projectQueryService.getPreview(sellerId, publicId)).thenReturn(view);
 
         // when & then
@@ -228,7 +228,10 @@ class ProjectControllerTest {
                         com.fundit.project.domain.project.IntroContentType.TEXT, "소개 본문")),
                 new ProjectQueryService.FundingStatusView(320000, 64, 128, 5L,
                         java.time.Instant.parse("2026-09-15T14:59:00Z")), true,
-                new ProjectQueryService.SellerView(UUID.randomUUID(), null), "패션", "의류", "GENERAL");
+                new ProjectQueryService.SellerView(UUID.randomUUID(), null), "패션", "의류", "GENERAL",
+                new ProjectQueryService.PageSummaryView("SUCCEEDED", List.of(
+                        new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "무엇", "무엇 설명"),
+                        new com.fundit.project.domain.pagesummary.PageSummarySection("WHY", "왜", "왜 설명"))));
         when(projectQueryService.getPublicDetail(publicId)).thenReturn(view);
 
         // when & then
@@ -241,7 +244,10 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.coverImageUrl").value("https://example.com/cover.png"))
                 .andExpect(jsonPath("$.introContent[0].value").value("소개 본문"))
                 .andExpect(jsonPath("$.categoryMajor").value("패션"))
-                .andExpect(jsonPath("$.categoryMinor").value("의류"));
+                .andExpect(jsonPath("$.categoryMinor").value("의류"))
+                .andExpect(jsonPath("$.pageSummary.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.pageSummary.sections[1].role").value("WHY"))
+                .andExpect(jsonPath("$.pageSummary.sections[1].headline").value("왜"));
     }
 
     @Test

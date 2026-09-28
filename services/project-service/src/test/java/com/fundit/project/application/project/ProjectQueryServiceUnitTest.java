@@ -38,6 +38,11 @@ class ProjectQueryServiceUnitTest {
     @Mock
     private SellerProfileClient sellerProfileClient;
 
+    @Mock
+
+    private com.fundit.project.domain.pagesummary.PageSummaryRepository pageSummaryRepository;
+
+
     @InjectMocks
     private ProjectQueryService projectQueryService;
 
@@ -94,6 +99,33 @@ class ProjectQueryServiceUnitTest {
         assertThat(result.introContent().get(0).value()).isEqualTo("소개 본문");
         assertThat(result.categoryMajor()).isEqualTo("패션");
         assertThat(result.categoryMinor()).isEqualTo("의류");
+        assertThat(result.pageSummary()).isNull();
+    }
+
+    @Test
+    void 상세_AI_요약은_성공이면_내용을_생성중이면_상태만_실패면_생략한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(project(UUID.randomUUID(), publicId, ProjectStatus.ONGOING)));
+        var base = com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L).dirtyAt(java.time.Instant.now());
+        var sections = java.util.List.of(new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "h", "d"));
+        when(pageSummaryRepository.findByProjectId(1L)).thenReturn(
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.SUCCEEDED).sections(sections).build()),
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.REQUESTED).sections(null).build()),
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.FAILED).build()));
+
+        // when
+        var succeeded = projectQueryService.getPublicDetail(publicId).pageSummary();
+        var generating = projectQueryService.getPublicDetail(publicId).pageSummary();
+        var failed = projectQueryService.getPublicDetail(publicId).pageSummary();
+
+        // then
+        assertThat(succeeded.status()).isEqualTo("SUCCEEDED");
+        assertThat(succeeded.sections()).isEqualTo(sections);
+        assertThat(generating.status()).isEqualTo("GENERATING");
+        assertThat(generating.sections()).isNull();
+        assertThat(failed).isNull();
     }
 
     @Test
