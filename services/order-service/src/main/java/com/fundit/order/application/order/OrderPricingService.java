@@ -201,7 +201,9 @@ public class OrderPricingService {
         }
 
         // 자동 추천은 사용자가 고른 쿠폰이 아니라 탈락분을 unavailable에 넣지 않는다(위 주석과 같은 원칙).
-        List<AppliedCoupon> applied = bestPayableCombination(candidatesByIssuer.values(), rewardAmount + shippingFee);
+        List<AppliedCoupon> applied = bestPayableCombination(
+                candidatesByIssuer.getOrDefault(IssuerType.PLATFORM, List.of()),
+                candidatesByIssuer.getOrDefault(IssuerType.MAKER, List.of()), rewardAmount + shippingFee);
         long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
         return new CouponResolution(applied, List.of(), totalDiscount);
     }
@@ -209,31 +211,32 @@ public class OrderPricingService {
     /**
      * 발급주체마다 최대 1장(또는 안 씀)을 골라, 결제 금액이 1원 이상 남는 조합 중 할인 합계가 가장 큰 것을 찾는다.
      * 발급주체별 최대 할인만 먼저 고르면 그 쿠폰이 주문 금액을 넘을 때 쓸 수 있는 차선 쿠폰까지 놓친다.
-     * ponytail: 전수 조합(발급주체 2종 × 보유 쿠폰 수)이라 보유 쿠폰이 수백 장이 되면 발급주체별 상위 N장으로 자를 것.
+     * 플랫폼 후보(안 씀 포함)마다 남은 한도 안에서 가장 큰 메이커 쿠폰을 짝지어 전부 비교하므로 최적 조합을 놓치지 않는다.
      */
-    private static List<AppliedCoupon> bestPayableCombination(Collection<List<AppliedCoupon>> candidatesByIssuer,
+    private static List<AppliedCoupon> bestPayableCombination(List<AppliedCoupon> platform, List<AppliedCoupon> maker,
                                                                long orderAmount) {
-        List<List<AppliedCoupon>> combos = List.of(List.of());
-        for (List<AppliedCoupon> candidates : candidatesByIssuer) {
-            List<List<AppliedCoupon>> next = new ArrayList<>(combos);
-            for (List<AppliedCoupon> combo : combos) {
-                for (AppliedCoupon candidate : candidates) {
-                    List<AppliedCoupon> extended = new ArrayList<>(combo);
-                    extended.add(candidate);
-                    if (orderAmount - discountSum(extended) >= 1) {
-                        next.add(extended);
-                    }
-                }
-            }
-            combos = next;
-        }
-        return combos.stream()
-                .max(java.util.Comparator.comparingLong(OrderPricingService::discountSum))
-                .orElse(List.of());
-    }
+        List<AppliedCoupon> makerByDiscountDesc = new ArrayList<>(maker);
+        makerByDiscountDesc.sort(java.util.Comparator.comparingLong(AppliedCoupon::discountAmount).reversed());
+        List<AppliedCoupon> platformOrNone = new ArrayList<>(platform);
+        platformOrNone.add(null);
 
-    private static long discountSum(List<AppliedCoupon> coupons) {
-        return coupons.stream().mapToLong(AppliedCoupon::discountAmount).sum();
+        List<AppliedCoupon> best = List.of();
+        long bestSum = 0;
+        for (AppliedCoupon p : platformOrNone) {
+            long platformDiscount = p == null ? 0 : p.discountAmount();
+            long limit = orderAmount - 1 - platformDiscount;
+            if (limit < 0) {
+                continue;
+            }
+            AppliedCoupon m = makerByDiscountDesc.stream()
+                    .filter(c -> c.discountAmount() <= limit).findFirst().orElse(null);
+            long sum = platformDiscount + (m == null ? 0 : m.discountAmount());
+            if (sum > bestSum) {
+                bestSum = sum;
+                best = java.util.stream.Stream.of(p, m).filter(java.util.Objects::nonNull).toList();
+            }
+        }
+        return best;
     }
 
     /** CATEGORY/MAKER 스코프 쿠폰 후보가 있을 때만 project-service를 조회한다(불필요한 호출 회피). */

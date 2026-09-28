@@ -403,6 +403,36 @@ class OrderPricingServiceUnitTest {
         }
 
         @Test
+        void 결제_금액이_남는_조합_중_할인_합계가_가장_큰_조합을_고른다() {
+            // given — 주문 금액 13,000. 9,000+5,000은 넘치고 9,000+3,500(12,500)이 최대다
+            Coupon platformHigh = couponBase("PLAT-9000", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(9_000).build();
+            Coupon platformLow = couponBase("PLAT-3000", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(3_000).build();
+            Coupon makerHigh = couponBase("MAKER-5000", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(5_000).build();
+            Coupon makerLow = couponBase("MAKER-3500", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(3_500).build();
+            when(couponIssuanceRepository.findByOwnerId(MEMBER_ID, CouponIssuanceStatus.AVAILABLE, Pageable.unpaged()))
+                    .thenReturn(new PageImpl<>(List.of(
+                            CouponIssuance.issue("PLAT-9000", MEMBER_ID),
+                            CouponIssuance.issue("PLAT-3000", MEMBER_ID),
+                            CouponIssuance.issue("MAKER-5000", MEMBER_ID),
+                            CouponIssuance.issue("MAKER-3500", MEMBER_ID))));
+            when(couponRepository.findByCouponCodeIn(any()))
+                    .thenReturn(List.of(platformHigh, platformLow, makerHigh, makerLow));
+
+            // when
+            OrderPricingService.PricingResult result = service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), null, true);
+
+            // then
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactlyInAnyOrder("PLAT-9000", "MAKER-3500");
+            assertThat(result.finalAmount()).isEqualTo(500L);
+        }
+
+        @Test
         void 보유쿠폰이_없으면_할인없이_계산된다() {
             // given
             when(couponIssuanceRepository.findByOwnerId(MEMBER_ID, CouponIssuanceStatus.AVAILABLE, Pageable.unpaged()))
