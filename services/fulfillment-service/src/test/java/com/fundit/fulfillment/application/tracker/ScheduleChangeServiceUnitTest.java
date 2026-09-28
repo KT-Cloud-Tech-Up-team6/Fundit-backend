@@ -61,7 +61,8 @@ class ScheduleChangeServiceUnitTest {
         when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
                 .thenReturn(Optional.of(FulfillmentStageDetailJpaEntity.builder()
                         .id(10L).trackerId(1L).stage("SHIPPING_OUT").plannedEndAt(oldPlannedDate)
-                        .detailText("포장 완료").updatedAt(oldPlannedDate).build()));
+                        .detailText("포장 완료").photoUrls(java.util.List.of("https://img/1.png"))
+                        .updatedAt(oldPlannedDate).build()));
         when(scheduleChangeJpaRepository.save(any())).thenAnswer(inv -> {
             FulfillmentScheduleChangeJpaEntity e = inv.getArgument(0);
             return FulfillmentScheduleChangeJpaEntity.builder()
@@ -86,9 +87,32 @@ class ScheduleChangeServiceUnitTest {
         verify(stageDetailJpaRepository).save(detailCaptor.capture());
         assertThat(detailCaptor.getValue().getPlannedEndAt()).isEqualTo(newPlannedDate);
         assertThat(detailCaptor.getValue().getDetailText()).isEqualTo("포장 완료");
+        // 조회는 단계별 최신 1행만 보므로 사진을 이어받지 않으면 사라진다
+        assertThat(detailCaptor.getValue().getPhotoUrls()).containsExactly("https://img/1.png");
 
         verify(notificationPublisher).publishScheduleChanged(
                 new ScheduleChangedEvent(UUID.fromString("00000000-0000-0000-0000-000000000123"), FulfillmentStage.SHIPPING_OUT, ScheduleChangeReasonType.STOCK_SHORTAGE,
                         newPlannedDate));
+    }
+
+    @Test
+    void 기록이_없던_단계는_enum_원문이_아니라_한글_사유로_채운다() {
+        // given
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        FulfillmentTracker tracker = FulfillmentTracker.create(projectId).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(projectId)).thenReturn(Optional.of(tracker));
+        when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
+                .thenReturn(Optional.empty());
+        when(scheduleChangeJpaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when — 상세 사유 없이 착수 지연
+        service.registerScheduleChange(projectId, sellerId, FulfillmentStage.SHIPPING_OUT,
+                ScheduleChangeReasonType.START_DELAY, "", Instant.parse("2026-09-10T00:00:00Z"));
+
+        // then — "[일정 변경] START_DELAY:"가 아니다
+        ArgumentCaptor<FulfillmentStageDetailJpaEntity> detailCaptor =
+                ArgumentCaptor.forClass(FulfillmentStageDetailJpaEntity.class);
+        verify(stageDetailJpaRepository).save(detailCaptor.capture());
+        assertThat(detailCaptor.getValue().getDetailText()).isEqualTo("[일정 변경] 착수 지연");
     }
 }

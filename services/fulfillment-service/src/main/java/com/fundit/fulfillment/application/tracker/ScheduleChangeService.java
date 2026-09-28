@@ -68,12 +68,20 @@ public class ScheduleChangeService {
                 .plannedStartAt(latest.map(FulfillmentStageDetailJpaEntity::getPlannedStartAt).orElse(null))
                 .plannedEndAt(newPlannedDate)
                 .detailText(latest.map(FulfillmentStageDetailJpaEntity::getDetailText)
-                        .orElse("[일정 변경] " + reasonType.name() + (reasonDetail != null ? ": " + reasonDetail : "")))
+                        .orElse(fallbackDetailText(reasonType, reasonDetail)))
+                // 조회는 단계별 최신 1행만 보므로 사진을 넘겨주지 않으면 일정 변경마다 진행 사진이 사라진다.
+                .photoUrls(latest.map(FulfillmentStageDetailJpaEntity::getPhotoUrls).orElse(null))
                 .build());
 
         notificationPublisher.publishScheduleChanged(new ScheduleChangedEvent(projectId, stage, reasonType, newPlannedDate));
 
         return change;
+    }
+
+    /** 기록이 없던 단계에 남기는 상세내용 — enum 원문(START_DELAY) 대신 한글 사유, 상세 사유가 있을 때만 덧붙인다. */
+    private static String fallbackDetailText(ScheduleChangeReasonType reasonType, String reasonDetail) {
+        String text = "[일정 변경] " + reasonType.label();
+        return reasonDetail == null || reasonDetail.isBlank() ? text : text + ": " + reasonDetail.trim();
     }
 
     private void verifyOwnership(UUID projectId, UUID sellerId) {
