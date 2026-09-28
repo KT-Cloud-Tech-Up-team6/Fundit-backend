@@ -35,6 +35,7 @@ cd services/project-service && docker compose up -d
 - reward_option_groups/reward_option_values — has_option=true인 리워드에만 존재하는 2단 구조(그룹: 색상 등 / 값: 화이트·블랙 등).
 - community_posts/community_answers — post_type(QUESTION/CHEER). 답변은 게시글당 1개(uq_community_answers_post 유니크) — 답변 등록 API는 생성이 아니라 UPSERT로 구현.
 - project_notices/project_notice_comments — 새소식(공지)과 댓글. 댓글은 500자 제한, 소프트 딜리트.
+- project_page_summaries — 상세 페이지 AI 요약(#169). 프로젝트당 1행(project_id PK). `dirty_at`은 쓰기 경로의 upsert만, 나머지(revision·run·상태·sections jsonb)는 `PageSummaryWorker`만 쓴다 — 워커 저장이 동시에 들어온 수정 신호를 덮지 않게 JPA에서 `dirty_at`을 읽기 전용으로 매핑했다.
 
 스키마에서 제외/보류:
 - project_follows — SQL 상에는 존재하나(프로젝트 단위 팔로우), 기능명세서(PROJECT-XXX)상 "메이커 팔로우/언팔로우"는 MEMBER-007로 member-service 담당으로 명시되어 있어 소유권이 서로 다르게 되어 있음. 재검토 전까지 이 테이블을 사용하는 API는 만들지 않는다.

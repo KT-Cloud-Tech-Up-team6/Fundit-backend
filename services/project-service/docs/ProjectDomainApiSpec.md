@@ -310,7 +310,9 @@ PATCH /api/v1/projects/{projectId}/story
 - `title` 40자 제한(DB 컬럼 제약과 동일).
 - `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
 - `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
-- `type=TEXT`의 `value`는 굵게/색상(`color`, hex)/정렬(`text-align`)/글자굵기(`font-weight`) 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 허용 태그(`b/strong/i/em/u/p/br/span/div/ul/ol/li`)와 위 4종 CSS 선언만 남기고 나머지(스크립트, 이벤트 속성, 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다.
+- `type=TEXT`의 `value`는 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 아래 허용 목록만 남기고 나머지(스크립트, 이벤트 속성, `url()` 등 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다. AI Funding Story 완료 결과의 TEXT 블록도 같은 정제를 거친다(#153).
+  - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
+  - 허용 CSS 선언: `color`(hex) · `text-align`(left/center/right/justify) · `font-weight`(bold/normal/100~900) · `font-size`(px) · `line-height`(단위 없는 숫자 또는 px) · `border`(`0` 또는 `Npx solid #hex`) · `border-top`/`border-left`(`Npx solid #hex`) · `padding-left`(px) · `margin`(0·px 값 1~4개)
 - 임시저장 겸용이며 부분 필드만 전달해도 저장 가능.
 - 프로젝트가 이미 공개 상태이면 저장 후 `project.updated.v1`을 발행한다(#4와 동일 조건). 스토리 GET API는 별도로 두지 않는다.
 
@@ -922,6 +924,7 @@ POST /api/v1/community/posts/{postId}/answer
 - `ai_funding_story_sessions`는 세션/run 식별·상태·Core fingerprint 추적에 재사용한다.
 - 별도 Funding Story 테이블·자산 테이블·DB migration·ERD 변경은 없다.
 - DTO 필드와 SSE/callback 형식은 DTO 계약, 호출 순서는 통합 인터페이스 명세를 따른다.
+- 세션 응답(`SessionResponse`)과 최신 세션 응답은 값이 없는 필드도 키를 유지한다 — `confirmed_revision`·`summary`·`active_chat_id`는 `null`로, 세션이 없으면 `{"session": null}`로 내려간다(서비스 기본값 `non_null`의 예외, #152).
 
 ---
 
@@ -957,7 +960,7 @@ GET /api/v1/projects/{projectId}/preview
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
-- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`/`businessType`다. **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
+- 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`/`businessType`/`pageSummary`다(`pageSummary`는 #26과 같다 — `DRAFT`는 요약 대상이 아니라 없다). **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
 - 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
 - `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
@@ -987,7 +990,14 @@ GET /api/v1/projects/{projectId}
   "hasLiveVerification": true,
   "seller": { "sellerId": "...", "displayName": null },
   "categoryMajor": "패션", "categoryMinor": "의류",
-  "businessType": "GENERAL"
+  "businessType": "GENERAL",
+  "pageSummary": {
+    "status": "SUCCEEDED",
+    "sections": [
+      { "role": "WHAT", "headline": "좁은 공간을 위한 무선 청소기", "description": "약 1.3kg 본체와 틈새 노즐로 구성된 얼리버드 리워드" },
+      { "role": "WHY", "headline": "좁은 공간의 청소 부담 완화", "description": "좁은 공간을 자주 청소하는 사용자를 위해 준비한 프로젝트" }
+    ]
+  }
 }
 ```
 
@@ -998,6 +1008,14 @@ GET /api/v1/projects/{projectId}
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
 - `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
 - **[2026-09-18 추가]** `categoryMajor`/`categoryMinor`는 order-service의 CATEGORY 스코프 쿠폰 매칭(ORDER-010)이 이 값을 조회해 쓴다 — 공개 계약이니 필드명을 바꾸면 그쪽 연동이 깨진다.
+- **[#169 추가] `pageSummary`** — 상세 상단 AI 요약(WHAT: 무엇을, WHY: 왜).
+  - `SUCCEEDED`: 현재 내용으로 만든 `sections` 2개(`headline` ≤120자, `description` ≤400자, 일반 텍스트).
+  - `GENERATING`: 생성 중(`sections` 없음). 요약 입력이 바뀐 직후부터 새 결과가 나올 때까지이며, 이전 결과는 내리지 않는다.
+  - 필드 없음: 생성 실패 또는 대상 아님. 요약이 실패해도 상세 조회는 정상 응답한다. 표시 방식(숨김/자리 표시)은 FE와 협의 중이다.
+  - 생성 흐름(BE 내부): 공개 전환·기본정보·스토리·AI 스토리 반영·리워드 등록/수정/삭제 때 `project_page_summaries.dirty_at`만 올린다. `PageSummaryWorker`(5초 주기)가 요약 입력(제목·카테고리·리워드·본문) 해시가 바뀐 경우에만 AI `POST /api/v1/ai/page-summary-runs`로 새 `source_revision`을 요청하고 결과를 폴링한다.
+    - 본문은 순서대로 TEXT·IMAGE만 보낸다(영상 제외, GIF 건너뜀). IMAGE는 `value`=fileUrl, `read_url`=60분 서명 URL(`page-summary.read-url-ttl-minutes`).
+    - 이미지 읽기 URL 만료(`IMAGE_READ_URL_EXPIRED`)는 같은 revision·새 `idempotency_key`(`{projectId}:{revision}:{attempt}`)로 재접수한다.
+    - `retryable` 실패는 30초·60초 뒤 최대 2회 `/retry`를 호출한다. 30분 안에 결과가 없으면 실패로 닫는다.
 
 ---
 
