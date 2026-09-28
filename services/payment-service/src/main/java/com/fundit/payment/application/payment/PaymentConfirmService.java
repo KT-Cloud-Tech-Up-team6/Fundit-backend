@@ -91,11 +91,9 @@ public class PaymentConfirmService {
             return findApproved(paymentKey, orderId, amount).orElseThrow(() -> e);
         } catch (TossApiException e) {
             if (e.isAlreadyProcessed()) {
-                // 결과 불명 뒤 재확정 — 이미 승인된 결제면 완료로 맞춘다.
-                var approved = findApproved(paymentKey, orderId, amount);
-                if (approved.isPresent()) {
-                    return approved.get();
-                }
+                // 결과 불명 뒤 재확정 — 이미 승인된 결제면 완료로 맞춘다. 조회로 확인하지 못하면 토스에선 승인됐을 수
+                // 있으니 FAILED로 굳히지 않고 결과 불명(503)으로 던진다(PENDING 유지, 재확정 가능).
+                return findApproved(paymentKey, orderId, amount).orElseThrow(() -> new DependencyFailureException(e));
             }
             // ⑥ 실패: Payment(FAILED)만 기록하고 Funding.status는 손대지 않는다(order-service가 PENDING 유지).
             // 이 예외가 던져지면 confirm()의 트랜잭션 전체가 롤백되므로, FAILED 기록은 별도 트랜잭션에서 커밋한다.
