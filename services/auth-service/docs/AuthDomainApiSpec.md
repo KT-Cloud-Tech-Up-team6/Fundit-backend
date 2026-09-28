@@ -22,6 +22,7 @@
 | POST | `/api/v1/auth/reset-password/confirm` | X | 재설정 링크로 비밀번호 변경 |
 | POST | `/api/v1/auth/reset-password/confirm` | X (재설정 토큰이 인증 수단) | 재설정 토큰으로 비밀번호 설정 |
 | PATCH | `/api/v1/auth/password` | O | 비밀번호 변경(마이페이지, 로그인 상태) |
+| GET | `/api/v1/auth/me` | O | 내 계정 이메일 조회(마이페이지) |
 | GET | `/api/v1/auth/jwks` | X | 토큰 서명 검증용 공개키(JWKS) — 게이트웨이 전용 |
 
 > 회원가입 관련 두 엔드포인트를 하나로 합치지 않은 이유는 회원 도메인 문서 참고. 로그인은 "아이디" 없이 이메일 단일 식별자로 통일한다(요구사항정의서 확인, `accounts.login_id` 컬럼 제거).
@@ -532,6 +533,29 @@ Validation / Business Rules
 
 ---
 
+### 내 계정 이메일 조회 (AUTH-015, 신규)
+
+```
+GET /api/v1/auth/me
+```
+
+Auth Required: **O**
+
+Response Body
+
+```json
+{ "email": "user@example.com" }
+```
+
+Validation / Business Rules
+
+- **본인 계정만** 조회한다 — Access Token의 계정 ID로만 찾고 경로·파라미터로 ID를 받지 않는다(S4).
+- 이메일은 **마스킹하지 않는다**(PM-8 확정: 마이페이지 이름 아래 줄에 그대로 노출).
+- 이메일은 auth-service만 갖고 있어 여기서 내려준다. 이름·닉네임·전화번호는 member-service `GET /api/v1/members/me`가 준다 — 마이페이지는 두 API를 함께 호출한다.
+- 토큰 없음 → 401, 계정 없음 → 404(`NOT_FOUND`).
+
+---
+
 ### 공개키 조회 (JWKS, 신규)
 
 `GET /api/v1/auth/jwks`
@@ -606,6 +630,8 @@ Validation / Business Rules
 - **[확정] 소셜 로그인 미가입 처리**: `needsSignup` + `signupToken` 패턴. `POST /api/v1/auth/signup/social`에 `signupToken` 필드 추가.
 - **[확정] 계정 잠금**: 5회 실패 시 30분 고정 자동 잠금. 셀프 해제(이메일/SMS)는 P2로 보류.
 - **[확정] 비밀번호 변경 강제**: `accounts.must_change_password` 컬럼 신규 추가(SQL 반영 완료), 로그인 응답에 `mustChangePassword` 플래그 포함, `PATCH /api/v1/auth/password` 신규 엔드포인트 추가.
+
+- **[확정, 2026-09-28 #174] 내 계정 이메일 조회**: 마이페이지 이메일 표시(PM-8)용 `GET /api/v1/auth/me` 신설. 이메일을 member에 복사하지 않고 소유 서비스인 auth가 직접 내려준다.
 
 - **[확정] JWT 서명 RS256 전환 + JWKS 엔드포인트 신설**(2026.09.08): 게이트웨이 도입 초기에는 HS256 대칭키를 게이트웨이와 공유했으나(게이트웨이가 유출되면 토큰 위조까지 가능), 게이트웨이를 어디에도 배포하기 전에 RS256으로 전환. 개인키는 auth-service만 갖고 게이트웨이는 `GET /api/v1/auth/jwks`로 공개키만 가져가 검증한다. 공개키는 개인키에서 유도하므로 운영이 관리할 시크릿은 `JWT_PRIVATE_KEY` 하나다. **클라이언트 계약은 바뀌지 않았다** — 토큰 클레임(`sub`/`role`/`typ`/`iat`/`exp`)은 그대로고 `alg`와 `kid` 헤더만 달라져 프론트가 고칠 건 없다(단, 전환 시점에 기존 발급 토큰은 전부 무효화되어 재로그인이 필요하다).
 
