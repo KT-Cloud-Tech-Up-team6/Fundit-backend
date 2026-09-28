@@ -1,5 +1,7 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.common.error.DependencyFailureException;
 import com.fundit.order.application.live.LiveStatusClient;
 import com.fundit.order.application.order.LiveOrderStatsService;
@@ -10,6 +12,7 @@ import com.fundit.order.application.order.OrderPreviewService;
 import com.fundit.order.application.order.OrderPricingService;
 import com.fundit.order.application.order.OrderQueryService;
 import com.fundit.order.domain.funding.FundingStatus;
+import com.fundit.order.domain.funding.MemberOrderFilter;
 import com.fundit.common.webmvc.auth.CurrentUser;
 import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.order.presentation.dto.OrderCancelRequest;
@@ -28,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +44,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -136,12 +142,28 @@ public class OrderController {
         return LiveOrderStatsResponse.from(liveId, liveOrderStatsService.getStats(user.id(), liveId));
     }
 
-    /** ORDER-004 — 내 펀딩 참여 목록 조회. */
+    /** 참여일(from·to)은 한국 날짜로 받는다 — 화면의 기간 필터가 한국 기준 날짜다. */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    /**
+     * ORDER-004 — 내 펀딩 참여 목록 조회. 필터는 모두 선택값이다: {@code status}(여러 개 가능, 기존 단일 값 호출도
+     * 그대로 동작), {@code q}(프로젝트명 부분 일치), {@code from}·{@code to}(참여일, 양 끝 날짜 포함).
+     * 최신 참여순으로 내린다.
+     */
     @GetMapping
     public PageResponse<OrderSummaryResponse> list(@LoginUser CurrentUser user,
-                                                     @RequestParam(required = false) FundingStatus status,
+                                                     @RequestParam(required = false) List<FundingStatus> status,
+                                                     @RequestParam(required = false) String q,
+                                                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                                      @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(orderQueryService.listMyOrders(user.id(), status, pageable)
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "기간 시작일이 종료일보다 늦습니다.");
+        }
+        MemberOrderFilter filter = new MemberOrderFilter(status, q,
+                from == null ? null : from.atStartOfDay(KST).toInstant(),
+                to == null ? null : to.plusDays(1).atStartOfDay(KST).toInstant());
+        return PageResponse.from(orderQueryService.listMyOrders(user.id(), filter, pageable)
                 .map(OrderSummaryResponse::from));
     }
 

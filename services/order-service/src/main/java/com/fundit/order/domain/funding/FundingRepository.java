@@ -22,7 +22,8 @@ public interface FundingRepository {
 
     Funding save(Funding funding);
 
-    Page<Funding> findByMemberId(UUID memberId, FundingStatus status, Pageable pageable);
+    /** ORDER-004 — 내 펀딩 목록(상태·프로젝트명·참여일 필터, 최신 참여순). */
+    Page<Funding> findByMemberId(UUID memberId, MemberOrderFilter filter, Pageable pageable);
 
     /** ORDER-013 배치 대상 조회 — payment_expires_at이 threshold 이전인 PENDING 건. */
     List<Funding> findPendingExpiredBefore(Instant threshold);

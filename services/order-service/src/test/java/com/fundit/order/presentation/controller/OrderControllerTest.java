@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -237,6 +238,36 @@ class OrderControllerTest {
     }
 
     @Test
+    void 목록_필터의_참여일은_한국_날짜_양끝을_포함해_변환된다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        when(orderQueryService.listMyOrders(eq(memberId), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        // when
+        mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .param("status", "PENDING", "CANCELLED_BY_MEMBER")
+                        .param("q", "청소기").param("from", "2026-09-01").param("to", "2026-09-30"))
+                .andExpect(status().isOk());
+
+        // then — 9/1 00:00 KST(=8/31 15:00Z) 이상, 10/1 00:00 KST 미만
+        var captor = org.mockito.ArgumentCaptor.forClass(com.fundit.order.domain.funding.MemberOrderFilter.class);
+        org.mockito.Mockito.verify(orderQueryService).listMyOrders(eq(memberId), captor.capture(), any());
+        assertThat(captor.getValue().statuses()).containsExactly(FundingStatus.PENDING, FundingStatus.CANCELLED_BY_MEMBER);
+        assertThat(captor.getValue().q()).isEqualTo("청소기");
+        assertThat(captor.getValue().from()).isEqualTo(Instant.parse("2026-08-31T15:00:00Z"));
+        assertThat(captor.getValue().to()).isEqualTo(Instant.parse("2026-09-30T15:00:00Z"));
+    }
+
+    @Test
+    void 목록_필터의_시작일이_종료일보다_늦으면_400이다() throws Exception {
+        mockMvc.perform(get("/api/v1/orders").header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .param("from", "2026-09-30").param("to", "2026-09-01"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 참여_상세를_조회한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
@@ -252,7 +283,8 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.projectTitle").value("프로젝트"))
-                .andExpect(jsonPath("$.paymentExpiresAt").value(funding.getPaymentExpiresAt().toString()));
+                .andExpect(jsonPath("$.paymentExpiresAt").value(funding.getPaymentExpiresAt().toString()))
+                .andExpect(jsonPath("$.createdAt").value(funding.getCreatedAt().toString()));
     }
 
     @Test
