@@ -41,7 +41,7 @@ public class FundingEventOutboxJpaEntity {
     @Column(name = "funding_id", nullable = false)
     private Long fundingId;
 
-    @Column(name = "project_id", nullable = false)
+    @Column(name = "project_id")
     private Long projectId;
 
     @Column(name = "member_id")

@@ -58,6 +58,21 @@ class FundingEventOutboxIntegrationTest {
     }
 
     @Test
+    void 레거시_projectId가_없는_취소_조정_이벤트도_아웃박스에_남긴다() {
+        // when — UUID 전환 뒤 새 주문에는 Long projectId가 없어 null로 적재된다
+        fundingEventPublisher.publishFundingCancelledByMember(
+                new FundingEventPublisher.FundingCancelledByMemberEvent(4L, null, UUID.randomUUID()));
+        fundingEventPublisher.publishPaymentReconciliationRequired(
+                new FundingEventPublisher.PaymentReconciliationRequiredEvent(5L));
+
+        // then
+        var unpublished = outboxRepository.findByPublishedAtIsNullOrderByIdAsc(PageRequest.of(0, 10));
+        assertThat(unpublished).extracting(FundingEventOutboxJpaEntity::getEventType).containsExactly(
+                FundingEventOutboxJpaEntity.TYPE_CANCELLED_BY_MEMBER,
+                FundingEventOutboxJpaEntity.TYPE_PAYMENT_RECONCILIATION_REQUIRED);
+    }
+
+    @Test
     void 워커가_발행에_성공하면_published_at이_채워진다() {
         // given
         fundingEventPublisher.publishFundingGoalFailed(new FundingEventPublisher.FundingGoalFailedEvent(11L, 10L));
