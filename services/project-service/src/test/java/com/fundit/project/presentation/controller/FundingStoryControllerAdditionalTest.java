@@ -127,6 +127,7 @@ class FundingStoryControllerAdditionalTest {
     @Test
     void 세션_응답의_null_필드는_생략하지_않고_null로_내려준다() throws Exception {
         // #152 — 전역 non_null 설정 때문에 AI 계약의 null 필드가 사라지면 안 된다.
+        // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
@@ -134,6 +135,7 @@ class FundingStoryControllerAdditionalTest {
         when(fundingStoryService.getSession(sellerId, projectId, sessionId)).thenReturn(session);
         when(fundingStoryService.getLatestSession(sellerId, projectId)).thenReturn(new LatestSessionResponse(null));
 
+        // when & then — 세션 조회: null 필드도 키로 남는다
         mockMvc.perform(get("/api/v1/ai/sessions/{sessionId}", sessionId)
                         .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId)
@@ -144,6 +146,7 @@ class FundingStoryControllerAdditionalTest {
                         org.hamcrest.Matchers.hasEntry("summary", null),
                         org.hamcrest.Matchers.hasEntry("active_chat_id", null))));
 
+        // when & then — 최신 세션 없음: 빈 객체가 아니라 session: null
         mockMvc.perform(get("/api/v1/ai/sessions/latest")
                         .header("X-User-Id", sellerId)
                         .header("X-Project-Id", projectId)
