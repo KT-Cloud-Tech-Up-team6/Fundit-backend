@@ -96,8 +96,14 @@ public class ProjectQueryService {
                         .orElse(null));
     }
 
-    /** 결과는 현재 내용으로 만든 것만 내린다(새 revision이 열리면 sections가 비워진다). 실패면 필드를 생략한다. */
+    /**
+     * 결과는 현재 내용으로 만든 것만 내린다. 수정 뒤 워커가 확인하기 전(dirty)에는 이전 결과가 현재 내용과
+     * 다를 수 있어 생성 중으로 본다. 실패면 필드를 생략한다.
+     */
     private static PageSummaryView toPageSummaryView(PageSummary summary) {
+        if (summary.isDirty()) {
+            return new PageSummaryView("GENERATING", null);
+        }
         if (summary.isSucceeded()) {
             return new PageSummaryView("SUCCEEDED", summary.getSections());
         }

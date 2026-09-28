@@ -108,7 +108,9 @@ class ProjectQueryServiceUnitTest {
         UUID publicId = UUID.randomUUID();
         when(projectRepository.findByPublicId(publicId))
                 .thenReturn(Optional.of(project(UUID.randomUUID(), publicId, ProjectStatus.ONGOING)));
-        var base = com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L).dirtyAt(java.time.Instant.now());
+        java.time.Instant dirtyAt = java.time.Instant.now();
+        var base = com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L)
+                .dirtyAt(dirtyAt).handledDirtyAt(dirtyAt);
         var sections = java.util.List.of(new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "h", "d"));
         when(pageSummaryRepository.findByProjectId(1L)).thenReturn(
                 Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.SUCCEEDED).sections(sections).build()),
@@ -126,6 +128,28 @@ class ProjectQueryServiceUnitTest {
         assertThat(generating.status()).isEqualTo("GENERATING");
         assertThat(generating.sections()).isNull();
         assertThat(failed).isNull();
+    }
+
+    @Test
+    void 요약_입력이_수정된_뒤_워커가_처리하기_전이면_이전_성공_결과를_내리지_않는다() {
+        // given — 수정으로 dirty_at이 올라갔고 아직 새 revision이 열리지 않았다
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(project(UUID.randomUUID(), publicId, ProjectStatus.ONGOING)));
+        java.time.Instant handled = java.time.Instant.now().minusSeconds(60);
+        when(pageSummaryRepository.findByProjectId(1L)).thenReturn(Optional.of(
+                com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L)
+                        .dirtyAt(handled.plusSeconds(30)).handledDirtyAt(handled)
+                        .status(com.fundit.project.domain.pagesummary.PageSummaryStatus.SUCCEEDED)
+                        .sections(java.util.List.of(new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "h", "d")))
+                        .build()));
+
+        // when
+        var summary = projectQueryService.getPublicDetail(publicId).pageSummary();
+
+        // then
+        assertThat(summary.status()).isEqualTo("GENERATING");
+        assertThat(summary.sections()).isNull();
     }
 
     @Test
