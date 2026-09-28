@@ -216,6 +216,7 @@ class OrderPricingServiceUnitTest {
 
         /** 주문 금액 = 리워드 10,000 + 배송비 3,000 = 13,000. */
         private OrderPricingService.PricingResult calculateWith(long platformDiscount, long makerDiscount) {
+            // given
             Coupon platform = couponBase("PLAT", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
                     .discountValue((int) platformDiscount).build();
             Coupon maker = couponBase("MAKER", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
@@ -373,6 +374,32 @@ class OrderPricingServiceUnitTest {
                     .containsExactlyInAnyOrder("PLAT-HIGH", "MAKER");
             assertThat(result.discountAmount()).isEqualTo(2_200L);
             assertThat(result.unavailableCoupons()).isEmpty();
+        }
+
+        @Test
+        void 최대_할인_쿠폰이_주문_금액을_넘으면_같은_발급주체의_차선_쿠폰을_고른다() {
+            // given — 주문 금액 13,000. PLAT-ALL(13,000)은 결제 금액을 0원으로 만든다
+            Coupon platformAll = couponBase("PLAT-ALL", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(13_000).build();
+            Coupon platformMid = couponBase("PLAT-MID", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(5_000).build();
+            Coupon maker = couponBase("MAKER", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(700).build();
+            when(couponIssuanceRepository.findByOwnerId(MEMBER_ID, CouponIssuanceStatus.AVAILABLE, Pageable.unpaged()))
+                    .thenReturn(new PageImpl<>(List.of(
+                            CouponIssuance.issue("PLAT-ALL", MEMBER_ID),
+                            CouponIssuance.issue("PLAT-MID", MEMBER_ID),
+                            CouponIssuance.issue("MAKER", MEMBER_ID))));
+            when(couponRepository.findByCouponCodeIn(any())).thenReturn(List.of(platformAll, platformMid, maker));
+
+            // when
+            OrderPricingService.PricingResult result = service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), null, true);
+
+            // then
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactlyInAnyOrder("PLAT-MID", "MAKER");
+            assertThat(result.finalAmount()).isEqualTo(7_300L);
         }
 
         @Test
