@@ -15,6 +15,7 @@ import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -169,5 +170,39 @@ class TossPaymentsHttpClientUnitTest {
         // when & then
         assertThatThrownBy(() -> client.lookup("pay_1"))
                 .isInstanceOf(DependencyFailureException.class);
+    }
+
+    @Test
+    void 주문번호로_조회하면_결제_상태를_매핑한다() {
+        // given
+        server.expect(requestTo("http://localhost/v1/payments/orders/fundit-1"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"paymentKey":"pay_1","orderId":"fundit-1","status":"DONE","method":"카드",
+                         "approvedAt":"2026-09-08T14:23:11+09:00","totalAmount":89000,"secret":"secret_1"}
+                        """, MediaType.APPLICATION_JSON));
+
+        // when
+        var lookup = client.lookupByOrderId("fundit-1");
+
+        // then
+        assertThat(lookup).hasValueSatisfying(l -> {
+            assertThat(l.isDone()).isTrue();
+            assertThat(l.payment().paymentKey()).isEqualTo("pay_1");
+        });
+        server.verify();
+    }
+
+    @Test
+    void 주문번호_조회에서_결제가_없으면_빈_값이다() {
+        // given — 결제 인증 전
+        server.expect(requestTo("http://localhost/v1/payments/orders/fundit-1"))
+                .andExpect(method(GET))
+                .andRespond(withResourceNotFound().body("""
+                        {"code":"NOT_FOUND_PAYMENT","message":"존재하지 않는 결제 정보 입니다."}
+                        """).contentType(MediaType.APPLICATION_JSON));
+
+        // when & then
+        assertThat(client.lookupByOrderId("fundit-1")).isEmpty();
     }
 }

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -15,6 +16,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 토스페이먼츠 결제위젯 승인/취소 API 연동 구현체.
@@ -63,6 +65,25 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
                 throw new DependencyFailureException(new IllegalStateException("토스 결제 조회 응답 본문이 없습니다."));
             }
             return new TossPaymentLookup(response.status(), toResult(response));
+        } catch (RestClientException e) {
+            throw new DependencyFailureException(e);
+        }
+    }
+
+    @Override
+    public Optional<TossPaymentLookup> lookupByOrderId(String orderId) {
+        try {
+            TossPaymentResponse response = tossPaymentsRestClient.get()
+                    .uri("/v1/payments/orders/{orderId}", orderId)
+                    .retrieve()
+                    .body(TossPaymentResponse.class);
+            if (response == null) {
+                throw new DependencyFailureException(new IllegalStateException("토스 결제 조회 응답 본문이 없습니다."));
+            }
+            return Optional.of(new TossPaymentLookup(response.status(), toResult(response)));
+        } catch (HttpClientErrorException.NotFound e) {
+            // 결제 인증 전이라 토스에 결제 자체가 없다 — 승인될 수 없는 상태다.
+            return Optional.empty();
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }

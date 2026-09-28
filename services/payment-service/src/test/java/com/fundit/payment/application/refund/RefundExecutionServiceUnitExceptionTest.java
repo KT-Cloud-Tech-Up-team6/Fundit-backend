@@ -111,4 +111,20 @@ class RefundExecutionServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
+
+    @Test
+    void 대기_결제의_토스_조회가_실패하면_FAILED로_닫지_않고_예외가_발생한다() {
+        // given
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+        when(tossPaymentsClient.lookupByOrderId("fundit-order-1"))
+                .thenThrow(new com.fundit.common.error.DependencyFailureException(new RuntimeException("timeout")));
+
+        // when & then — 토스에선 승인됐을 수 있어 PENDING으로 둔다
+        assertThatThrownBy(() -> refundExecutionService.executeFullRefund(FUNDING_ID,
+                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유"))
+                .isInstanceOf(com.fundit.common.error.DependencyFailureException.class);
+        assertThat(pending.getStatus()).isEqualTo(com.fundit.payment.domain.payment.PaymentStatus.PENDING);
+    }
 }

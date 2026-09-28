@@ -1,6 +1,7 @@
 package com.fundit.payment.application.payment;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * 토스페이먼츠 결제위젯 서버-투-서버 연동 아웃바운드 포트(승인/취소).
@@ -22,6 +23,12 @@ public interface TossPaymentsClient {
      * 이미 처리된 결제라는 응답) 토스에 실제로 승인됐는지 대조하는 데만 쓴다.
      */
     TossPaymentLookup lookup(String paymentKey);
+
+    /**
+     * 주문번호로 결제 조회({@code GET /v1/payments/orders/{orderId}}). 결제 키가 아직 없는 대기 결제가 토스에서
+     * 실제로 승인됐는지 확인할 때 쓴다. 토스에 결제가 없으면(인증 전) 빈 값이다.
+     */
+    Optional<TossPaymentLookup> lookupByOrderId(String orderId);
 
     /**
      * @param secret 웹훅 유효성 검증용 값(Payment 객체 secret 필드). 응답에 항상 포함되는지는
