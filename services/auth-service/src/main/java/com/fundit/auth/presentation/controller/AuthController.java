@@ -1,5 +1,6 @@
 package com.fundit.auth.presentation.controller;
 
+import com.fundit.auth.application.account.AccountQueryService;
 import com.fundit.auth.application.email.EmailAvailabilityService;
 import com.fundit.auth.application.email.EmailFindService;
 import com.fundit.auth.application.identity.IdentityVerificationService;
@@ -19,6 +20,7 @@ import com.fundit.auth.presentation.dto.FindEmailResponse;
 import com.fundit.auth.presentation.dto.IdentityVerificationRequest;
 import com.fundit.auth.presentation.dto.IdentityVerificationResponse;
 import com.fundit.auth.presentation.dto.MessageResponse;
+import com.fundit.auth.presentation.dto.MyAccountResponse;
 import com.fundit.auth.presentation.dto.PasswordResetConfirmRequest;
 import com.fundit.auth.presentation.dto.PasswordResetRequest;
 import com.fundit.auth.presentation.dto.RevealEmailRequest;
@@ -74,6 +76,7 @@ public class AuthController {
     private final SocialLinkService socialLinkService;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
     private final TokenLogoutService tokenLogoutService;
+    private final AccountQueryService accountQueryService;
 
     @GetMapping("/check-email")
     public CheckEmailResponse checkEmail(@RequestParam @NotBlank @Email String email) {
@@ -195,6 +198,12 @@ public class AuthController {
             @Valid @RequestBody PasswordChangeRequest request) {
         passwordChangeService.changePassword(accountId, request.currentPassword(), request.newPassword());
         return new MessageResponse("비밀번호가 변경되었습니다.");
+    }
+
+    /** 본인 계정만 조회한다 — 경로·파라미터로 ID를 받지 않는다(S4). 인증은 SecurityConfig의 anyRequest().authenticated()가 강제한다. */
+    @GetMapping("/me")
+    public MyAccountResponse me(@AuthenticationPrincipal UUID accountId) {
+        return new MyAccountResponse(accountQueryService.getEmail(accountId));
     }
 
     private ResponseEntity.BodyBuilder withRefreshTokenCookie(String refreshToken) {

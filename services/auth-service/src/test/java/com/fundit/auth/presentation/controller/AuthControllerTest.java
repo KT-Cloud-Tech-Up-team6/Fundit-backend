@@ -96,6 +96,8 @@ class AuthControllerTest {
     @MockitoBean
     private PasswordChangeService passwordChangeService;
     @MockitoBean
+    private com.fundit.auth.application.account.AccountQueryService accountQueryService;
+    @MockitoBean
     private PasswordResetService passwordResetService;
 
     @Test
@@ -252,6 +254,20 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void 유효한_access_token으로_내_이메일을_조회한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        String accessToken = jwtTokenProvider.issueAccessToken(accountId, Role.MEMBER);
+        when(accountQueryService.getEmail(accountId)).thenReturn("test@fundit.com");
+
+        // when & then — 토큰의 계정 ID로만 조회한다(경로·파라미터로 받지 않음)
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("test@fundit.com"));
     }
 
     @Test

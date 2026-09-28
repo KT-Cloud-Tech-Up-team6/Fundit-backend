@@ -89,6 +89,8 @@ class AuthControllerExceptionTest {
     @MockitoBean
     private PasswordChangeService passwordChangeService;
     @MockitoBean
+    private com.fundit.auth.application.account.AccountQueryService accountQueryService;
+    @MockitoBean
     private PasswordResetService passwordResetService;
 
     @Test
@@ -160,6 +162,30 @@ class AuthControllerExceptionTest {
                                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void 인증토큰_없이_내_이메일을_조회하면_401_UNAUTHORIZED를_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(get("/api/v1/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void 계정이_없으면_내_이메일_조회는_404_NOT_FOUND를_반환한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        String accessToken = new JwtTokenProvider(JwtTestKeys.properties(JwtTestKeys.PRIVATE_KEY, Duration.ofMinutes(5)))
+                .issueAccessToken(accountId, com.fundit.auth.domain.account.Role.MEMBER);
+        when(accountQueryService.getEmail(accountId))
+                .thenThrow(new BusinessException(com.fundit.common.error.CommonErrorCode.NOT_FOUND));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test
