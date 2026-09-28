@@ -188,7 +188,8 @@ POST /api/v1/projects/{projectId}/fulfillment/schedule-changes
 **Validation / Business Rules**
 
 - `reasonType`은 `START_DELAY`\|`STOCK_SHORTAGE`\|`INSPECTION_DELAY`\|`SHIPPING_DELAY`\|`OTHER` 화이트리스트 검증(400). `OTHER`이면 `reasonDetail` 필수.
-- 저장 시 해당 단계의 기존 예상일정을 `oldPlannedDate`로 스냅샷하고, `fulfillment_stage_details`의 예상일정도 함께 갱신.
+- 저장 시 해당 단계의 기존 예상일정을 `oldPlannedDate`로 스냅샷하고, `fulfillment_stage_details`의 예상일정도 함께 갱신. 새 기록은 직전 기록의 상세내용과 **진행 사진(`photoUrls`)을 이어받는다**(조회는 단계별 최신 1행만 본다).
+- 그 단계에 기록이 없었다면 상세내용을 `[일정 변경] 착수 지연`처럼 한글 사유로 채운다(`START_DELAY` 등 enum 원문을 쓰지 않는다). 상세 사유가 있으면 `: 사유`를 덧붙인다.
 - 저장과 동시에 `notification.raised.v1`을 참여자에게 발행한다(`notifType=SHIPPING_UPDATE`, 파티션 키 `memberId`).
 - 소유권 검증(S4, `@LoginUser`), `reasonDetail` 출력 인코딩(S2).
 
@@ -225,7 +226,7 @@ POST /api/v1/projects/{projectId}/fundings/{fundingId}/shipment
 
 - 소유권 검증: `@LoginUser`로 본인 소유 프로젝트(path의 `projectId`)인지 확인(S4). `fundingId`가 실제로 그 프로젝트 소속인지는 order-service 내부 API로 교차 검증[가정].
 - 이미 `SHIPPED` 이상 상태인 건 재등록 시도 → `409 CONFLICT`(`ALREADY_SHIPPED`).
-- `carrier`·`trackingNumber` 누락 → `400 INVALID_INPUT`.
+- `carrier`·`trackingNumber` 누락, 또는 길이 초과(`carrier` 50자, `trackingNumber` 100자 — DB 컬럼과 같은 한도) → `400 INVALID_INPUT`.
 - 응답은 #6·#7과 동일한 `ShipmentResponse` 전체 필드다. 발송 직후 `deliveredAt`/`receiptConfirmedAt`은 null이라 생략되고, `canConfirmReceipt`는 `false`.
 - 요구사항정의서 8.3.3에 따라 실제 택배사 배송추적 API 연동은 하지 않음(목업) — 이후 배송완료 전환은 FULFILLMENT-007 배치가 처리.
 - 발송 전에 #16으로 임시저장해 둔 값이 있으면 이 API가 그 위에 덮어쓰고 `SHIPPED`로 전이한다.

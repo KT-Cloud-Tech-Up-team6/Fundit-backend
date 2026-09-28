@@ -113,7 +113,9 @@ POST /api/v1/orders/preview
 - 쿠폰의 `targetScope`(대상)가 `CATEGORY`/`MAKER`면 project-service를 조회해 실제로 프로젝트 카테고리/판매자와 일치하는지 검증한다(`PROJECT`/`ALL`은 조회 없이 판단). 불일치하면 `NOT_APPLICABLE`.
 - 금액 계산은 항상 서버에서 수행(리워드 단가·배송비·쿠폰 할인율 모두 서버 조회값 사용), 클라이언트가 보낸 금액을 신뢰하지 않는다(S4).
 - 리워드금액 합산 + **배송비 고정 3,000원**(`order.policy.default-shipping-fee`) + 쿠폰 할인(`FREE_SHIPPING`은 배송비 한도 내에서 할인, `coupons.max_discount_amount` 설정 시 그 한도까지) 반영. 프로젝트/리워드별 배송비 정책은 아직 없어 고정값이다.
-- 쿠폰이 최소 펀딩금액 미달·만료·본인 미보유 등으로 적용 불가능하면 해당 쿠폰은 `appliedCoupons`에 넣지 않고 `unavailableCoupons`에 사유 코드로 안내한다(예: `MIN_AMOUNT_NOT_MET`, `EXPIRED`, `NOT_OWNED`, `ALREADY_USED`, `NOT_FOUND`, `BUDGET_EXCEEDED`, `NOT_APPLICABLE`). preview 자체는 422를 내지 않는다.
+- 쿠폰이 최소 펀딩금액 미달·만료·본인 미보유 등으로 적용 불가능하면 해당 쿠폰은 `appliedCoupons`에 넣지 않고 `unavailableCoupons`에 사유 코드로 안내한다(예: `MIN_AMOUNT_NOT_MET`, `EXPIRED`, `NOT_OWNED`, `ALREADY_USED`, `NOT_FOUND`, `BUDGET_EXCEEDED`, `NOT_APPLICABLE`, `EXCEEDS_ORDER_AMOUNT`). preview 자체는 422를 내지 않는다.
+- **결제 금액은 1원 이상 남아야 한다**(PM 결정 09-28). 쿠폰 할인 합계가 주문 금액(리워드 금액 + 배송비) 이상이 되면 결제 금액이 0원 이하라 PG로 결제할 수 없다 — 할인이 큰 쿠폰부터 적용하고, 결제 금액을 0원 이하로 만드는 쿠폰은 적용하지 않고 `EXCEEDS_ORDER_AMOUNT`로 안내한다(FE 문구: "최소 결제금액보다 낮아 이 쿠폰을 사용할 수 없습니다"). 자동 적용도 결제 금액이 남는 조합만 고른다.
+- **얼리버드 리워드는 할인가로 계산한다**(PM 결정 09-28). 리워드 조회(project-service)의 `earlyBirdDiscountedPrice`를 `unitPrice`로 쓴다 — 화면의 리워드 카드·주문서 금액과 결제 금액이 같다.
 - **[해결됨, 2026-09-21] 쿠폰 2개(플랫폼+메이커) 동시 적용도 결제완료/환불 이벤트가 전부 반영한다.** `payment.completed.v1`/`refund.completed.v1` payload가 `couponIssuanceIds`(리스트)로 바뀌어, `funding_coupon_applications`에 있는 적용 쿠폰 전부가 사용확정(USED)/환불복원(AVAILABLE) 처리된다(`FundingInternalQueryService.toSnapshot()` 참고).
 
 ---
@@ -144,6 +146,7 @@ POST /api/v1/orders
 - 하나의 트랜잭션으로 `inventories.available_stock`을 대상으로 재고 검증 및 조건부 UPDATE(낙관적 락, `version` 컬럼)로 차감 → `fundings`(status=`PENDING`, `payment_expires_at` = 생성시각 + **30분**, `order.policy.payment-expiry-minutes`) + `funding_line_items` (+ 옵션 스냅샷 `funding_line_item_options`) 생성. `project_title`은 project-service에서 조회해 스냅샷으로 저장한다.
 - **`reserved_stock`은 사용하지 않는다.** 차감·원복은 `available_stock`만 건드리고, `reserved_stock`은 생성 시 0으로 두고 이후에도 갱신하지 않는다.
 - 재고 부족 시 `409 CONFLICT`(`INSUFFICIENT_STOCK`), 트랜잭션 롤백(재고 변경 없음) — 부족한 `rewardId`는 메시지에 포함한다(`ErrorResponse.detail`은 null).
+- **지정한 쿠폰을 쓸 수 없으면 주문을 만들지 않는다**(재고 차감 전). 미리보기와 생성 사이에 쿠폰이 소진·만료되면 할인 없이 주문되던 문제를 막는다. 예산 소진은 `422 COUPON_BUDGET_EXCEEDED`, 그 외(만료·미보유·조건 미달·`EXCEEDS_ORDER_AMOUNT` 등)는 `422 COUPON_NOT_APPLICABLE`. `detail`에 `{ "couponCode": ..., "reason": ... }`(미리보기 `unavailableCoupons`와 같은 사유 코드). FE는 이 코드를 받으면 금액을 다시 불러온다.
 - 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupons.used_budget_amount` 갱신. `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행할 예정 — 현재 리스너 미배선).
 - 금액은 서버에서 재검증(클라이언트 전달값 불신, S4), 재고 차감 쿼리는 바인딩 변수 사용(S1).
 - 응답의 `orderId`는 `fundings.public_id`(UUID), `projectId`는 project-service publicId(UUID). 이후 결제 요청은 payment-service의 `POST /api/v2/payments`(`fundingId`=이 `orderId`)로 이어진다.
@@ -161,7 +164,16 @@ GET /api/v1/orders
 
 **Auth Required**: O (구매자)
 
-**Request**: Query Parameter: `status`(선택, `FundingStatus` enum), `page`, `size`(선택, 기본 0/20)
+**Request**: Query Parameter(모두 선택)
+
+| 필드 | 설명 |
+| --- | --- |
+| `status` | `FundingStatus`. 여러 번 보낼 수 있다(`?status=PENDING&status=CANCELLED_BY_MEMBER`, OR). 기존 단일 값 호출도 그대로 동작 |
+| `q` | 프로젝트명 부분 일치(대소문자 무시, `%`·`_`는 글자 그대로) |
+| `from`·`to` | 참여일(`yyyy-MM-dd`, 한국 날짜, 양 끝 포함). `from`이 `to`보다 늦으면 400 |
+| `page`·`size` | 기본 0/20 |
+
+최신 참여순으로 내린다. "배송 완료·발송 지연" 같은 진행 단계는 order DB에 없는 값이라 필터로 제공하지 않는다(응답의 `progressStage`로 표시).
 
 **Response Body**
 
@@ -237,6 +249,7 @@ GET /api/v1/orders/{orderId}
 **Validation / Business Rules**
 
 - `orderId`(public_id) 소유권 서버 검증 — 타인 주문 접근 시 `403 FORBIDDEN`(S4). 없으면 `404 NOT_FOUND`.
+- `createdAt`은 참여일(주문 생성 시각)이다.
 - **`finalAmount`는 쿠폰을 적용한다.** `totalRewardAmount + shippingFee - discountAmount`. 목록 API와 계산식이 같다.
 - 주문에 플랫폼+메이커 쿠폰이 같이 있어도 `payment.completed.v1`/`refund.completed.v1`의 `couponIssuanceIds`(리스트)에 전부 담겨 발행되므로, 사용확정(USED)/환불복원(AVAILABLE)이 두 쿠폰 모두에 처리된다.
 - `paidAt`은 payment-service 소관이라 order-service는 값을 알지 못해 항상 null이고, `non_null` 직렬화 설정으로 JSON에서 필드가 생략된다.
