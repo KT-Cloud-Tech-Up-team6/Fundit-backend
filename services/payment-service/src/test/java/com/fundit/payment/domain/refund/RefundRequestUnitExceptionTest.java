@@ -48,14 +48,14 @@ class RefundRequestUnitExceptionTest {
     @Test
     void DEFECT는_즉시처리로_생성할_수_없다() {
         // when & then
-        assertThatThrownBy(() -> RefundRequest.completeImmediately(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, true))
+        assertThatThrownBy(() -> RefundRequest.completeImmediately(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, true, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 대체계좌를_입력하면_값_객체로_보관한다() {
         RefundRequest request = RefundRequest.awaitingAlternateAccount(
-                RefundTriggerType.GOAL_FAILED_AUTO, FUNDING_ID, PAYMENT_ID);
+                RefundTriggerType.GOAL_FAILED_AUTO, FUNDING_ID, PAYMENT_ID, null);
         request.useAlternateAccount(new AlternateRefundAccount("국민", "홍길동", "123"));
         org.assertj.core.api.Assertions.assertThat(request.getAlternateRefundAccount().accountNumber()).isEqualTo("123");
         org.assertj.core.api.Assertions.assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REQUESTED);

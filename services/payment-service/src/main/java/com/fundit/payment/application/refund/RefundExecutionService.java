@@ -53,8 +53,10 @@ public class RefundExecutionService {
     @Transactional
     public RefundExecutionResult executeFullRefund(UUID fundingId, RefundTriggerType triggerType,
                                                      String cancelReason) {
-        Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));
+        Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId).orElse(null);
+        if (payment == null) {
+            return failPendingPayment(fundingId);
+        }
 
         if (payment.getStatus() == PaymentStatus.CANCELLED) {
             log.info("이미 취소 처리된 결제입니다(멱등 무시). fundingId={} paymentId={}", fundingId, payment.getId());
@@ -62,6 +64,19 @@ public class RefundExecutionService {
         }
 
         return execute(payment, payment.getAmount(), triggerType, cancelReason, null);
+    }
+
+    /**
+     * 환불할 완료 결제가 없다 — 결제 전에 참여를 취소한 경우다. 대기 중인 결제가 남아 있으면 FAILED로 닫아
+     * 결제창에서 뒤늦게 확정되지 않게 한다(돈이 빠지고 주문은 취소로 남는 사고 방지). 대기 결제도 없으면 기존처럼 404.
+     */
+    private RefundExecutionResult failPendingPayment(UUID fundingId) {
+        Payment pending = paymentRepository.findPendingByFundingId(fundingId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));
+        pending.markFailed();
+        paymentRepository.save(pending);
+        log.info("결제 전 참여 취소 — 대기 결제를 실패 처리했습니다. fundingId={} paymentId={}", fundingId, pending.getId());
+        return RefundExecutionResult.pendingPaymentClosed();
     }
 
     /**
@@ -86,7 +101,7 @@ public class RefundExecutionService {
                 throw e;
             }
             log.warn("원 결제수단 환불 실패 — 대체 계좌 입력 대기 상태로 전환합니다. fundingId={}", fundingId, e);
-            refundRequestRepository.save(RefundRequest.awaitingAlternateAccount(triggerType, fundingId, payment.getId()));
+            refundRequestRepository.save(RefundRequest.awaitingAlternateAccount(triggerType, fundingId, payment.getId(), cancelReason));
             paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
                     fundingId, payment.getMemberId(), RefundNotificationStatus.AWAITING_ALTERNATE_ACCOUNT));
             return RefundExecutionResult.awaitingAlternateAccount();
@@ -130,7 +145,8 @@ public class RefundExecutionService {
                 .build());
 
         RefundRequest completed = existingRequest == null
-                ? RefundRequest.completeImmediately(triggerType, payment.getFundingId(), payment.getId(), isFullRefund)
+                ? RefundRequest.completeImmediately(triggerType, payment.getFundingId(), payment.getId(), isFullRefund,
+                        cancelReason)
                 : approveExisting(existingRequest, isFullRefund);
         RefundRequest saved = refundRequestRepository.save(completed);
 
@@ -155,6 +171,10 @@ public class RefundExecutionService {
 
         static RefundExecutionResult awaitingAlternateAccount() {
             return new RefundExecutionResult(null, "AWAITING_ALTERNATE_ACCOUNT", true);
+        }
+
+        static RefundExecutionResult pendingPaymentClosed() {
+            return new RefundExecutionResult(null, "PENDING_PAYMENT_CLOSED", false);
         }
     }
 }

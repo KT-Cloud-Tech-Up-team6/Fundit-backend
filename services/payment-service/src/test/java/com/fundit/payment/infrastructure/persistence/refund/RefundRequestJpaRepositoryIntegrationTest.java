@@ -104,6 +104,21 @@ class RefundRequestJpaRepositoryIntegrationTest {
     }
 
     @Test
+    void 교환_건의_amount는_환불이_없으므로_0이다() {
+        // given — 교환은 결제를 취소하지 않는다(취소 이력 없음)
+        UUID memberId = UUID.randomUUID();
+        PaymentJpaEntity payment = givenCompletedPayment(memberId, 23_000L);
+        saveRequest(payment, "EXCHANGE", "COMPLETED");
+
+        // when
+        var page = refundRequestJpaRepository.findSummariesByMemberId(memberId, null, null, PageRequest.of(0, 20));
+
+        // then — 결제 원금으로 폴백하지 않는다
+        assertThat(page.getContent()).extracting("triggerType", "amount")
+                .containsExactly(tuple("EXCHANGE", 0L));
+    }
+
+    @Test
     void 미처리_발송후_신청이_있으면_중복_접수를_막는다() {
         // given
         UUID fundingId = UUID.randomUUID();

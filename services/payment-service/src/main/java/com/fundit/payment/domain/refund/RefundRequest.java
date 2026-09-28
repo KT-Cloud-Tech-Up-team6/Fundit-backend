@@ -82,8 +82,9 @@ public class RefundRequest {
      * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 처리되는 유형(단순변심/미달자동/
      * 발송지연/시스템 재조정). 토스 취소가 이미 성공했다는 전제로 곧바로 COMPLETED로 기록한다.
      */
+    /** @param reasonDetail 취소 사유(참여 취소 사유 태그 포함). 취소 내역의 {@code reasonType}·{@code reasonDetail}이 여기서 나온다. 없으면 null */
     public static RefundRequest completeImmediately(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
-                                                      boolean isFullRefund) {
+                                                      boolean isFullRefund, String reasonDetail) {
         if (!IMMEDIATE_TRIGGER_TYPES.contains(triggerType)) {
             throw new IllegalArgumentException(triggerType + "는 즉시 처리 대상이 아닙니다.");
         }
@@ -94,6 +95,7 @@ public class RefundRequest {
                 .triggerType(triggerType)
                 .status(RefundRequestStatus.COMPLETED)
                 .isFullRefund(isFullRefund)
+                .reasonDetail(reasonDetail)
                 .requestedAt(now)
                 .processedAt(now)
                 .build();
@@ -105,7 +107,7 @@ public class RefundRequest {
      * {@code REQUESTED}로 남겨 재처리 대상임을 표시한다.
      */
     public static RefundRequest awaitingAlternateAccount(RefundTriggerType triggerType, UUID fundingId,
-                                                           UUID paymentId) {
+                                                           UUID paymentId, String reasonDetail) {
         if (!ALTERNATE_ACCOUNT_TRIGGER_TYPES.contains(triggerType)) {
             throw new IllegalArgumentException(triggerType + "는 대체 계좌 대기 대상이 아닙니다.");
         }
@@ -114,6 +116,7 @@ public class RefundRequest {
                 .paymentId(paymentId)
                 .triggerType(triggerType)
                 .status(RefundRequestStatus.REQUESTED)
+                .reasonDetail(reasonDetail)
                 .requestedAt(Instant.now())
                 .build();
     }

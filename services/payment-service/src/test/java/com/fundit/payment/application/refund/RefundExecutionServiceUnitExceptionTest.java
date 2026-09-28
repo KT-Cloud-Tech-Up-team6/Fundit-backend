@@ -67,7 +67,7 @@ class RefundExecutionServiceUnitExceptionTest {
     }
 
     @Test
-    void 완료된_결제가_없으면_NOT_FOUND_예외가_발생한다() {
+    void 완료된_결제도_대기_결제도_없으면_NOT_FOUND_예외가_발생한다() {
         // given
         when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
 

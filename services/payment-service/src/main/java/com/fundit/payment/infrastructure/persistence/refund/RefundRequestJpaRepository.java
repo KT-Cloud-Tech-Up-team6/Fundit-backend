@@ -26,11 +26,13 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
      *
      * <p>{@code amount}는 화면의 "실 환불 금액"이라 결제 원금이 아니라 실제 취소된 금액이어야
      * 한다(반품비 차감 부분취소 대응). 실행 이력은 {@code payment_cancellations}에 남으므로 그
-     * 합계를 쓰고, 아직 취소가 없는 건(신청 중·반려)은 결제 원금으로 폴백한다.
+     * 합계를 쓰고, 아직 취소가 없는 건(신청 중·반려)은 결제 원금으로 폴백한다. 교환은 환불이 없으므로 0이다
+     * (원금으로 폴백하면 교환 카드에 결제 원금이 환불액처럼 보인다).
      */
     @Query(value = "select r.id as id, r.fundingOrderId as fundingId, r.triggerType as triggerType, "
-            + "r.status as status, coalesce((select sum(c.cancelAmount) from PaymentCancellationJpaEntity c "
-            + "where c.refundRequestId = r.id), p.amount) as amount, r.requestedAt as requestedAt, "
+            + "r.status as status, case when r.triggerType = 'EXCHANGE' then 0L else "
+            + "coalesce((select sum(c.cancelAmount) from PaymentCancellationJpaEntity c "
+            + "where c.refundRequestId = r.id), p.amount) end as amount, r.requestedAt as requestedAt, "
             + "r.reasonDetail as reasonDetail, r.rejectedReason as rejectedReason, r.processedAt as processedAt "
             + "from RefundRequestJpaEntity r, PaymentJpaEntity p "
             + "where p.id = r.paymentId and p.memberId = :memberId "
@@ -50,8 +52,9 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
      * 재조회 없음). seller_id가 null인 유형(즉시처리 트리거)은 애초에 판매자 검토 대상이 아니라 제외된다.
      */
     @Query(value = "select r.id as id, r.fundingOrderId as fundingId, r.triggerType as triggerType, "
-            + "r.status as status, coalesce((select sum(c.cancelAmount) from PaymentCancellationJpaEntity c "
-            + "where c.refundRequestId = r.id), p.amount) as amount, r.requestedAt as requestedAt, "
+            + "r.status as status, case when r.triggerType = 'EXCHANGE' then 0L else "
+            + "coalesce((select sum(c.cancelAmount) from PaymentCancellationJpaEntity c "
+            + "where c.refundRequestId = r.id), p.amount) end as amount, r.requestedAt as requestedAt, "
             + "r.reasonDetail as reasonDetail, r.rejectedReason as rejectedReason, r.processedAt as processedAt "
             + "from RefundRequestJpaEntity r, PaymentJpaEntity p "
             + "where p.id = r.paymentId and r.sellerId = :sellerId order by r.requestedAt desc",

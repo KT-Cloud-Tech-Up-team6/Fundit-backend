@@ -95,6 +95,43 @@ class RefundExecutionServiceUnitTest {
     }
 
     @Test
+    void 전액취소하면_취소_사유가_환불_내역에도_저장된다() {
+        // given
+        Payment payment = completedPayment();
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(tossPaymentsClient.cancel("pay_key_1", 89_000L, "[CHANGE_OF_MIND] 다른 상품 구매"))
+                .thenReturn(new TossPaymentsClient.TossCancelResult("tx_1", Instant.now(), 89_000L));
+        when(refundRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND,
+                "[CHANGE_OF_MIND] 다른 상품 구매");
+
+        // then — 취소 내역(refund_requests)이 읽는 reason_detail이 채워진다
+        ArgumentCaptor<com.fundit.payment.domain.refund.RefundRequest> captor =
+                ArgumentCaptor.forClass(com.fundit.payment.domain.refund.RefundRequest.class);
+        verify(refundRequestRepository).save(captor.capture());
+        assertThat(captor.getValue().getReasonDetail()).isEqualTo("[CHANGE_OF_MIND] 다른 상품 구매");
+    }
+
+    @Test
+    void 결제_전에_참여를_취소하면_대기_결제를_실패_처리하고_토스는_호출하지_않는다() {
+        // given
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then — 결제창에서 뒤늦게 확정되지 않는다
+        assertThat(pending.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(result.status()).isEqualTo("PENDING_PAYMENT_CLOSED");
+        verify(paymentRepository).save(pending);
+        org.mockito.Mockito.verifyNoInteractions(tossPaymentsClient, refundRequestRepository, paymentEventPublisher);
+    }
+
+    @Test
     void 이미_취소된_결제면_토스를_다시_호출하지_않고_멱등_처리한다() {
         // given
         Payment payment = completedPayment();
