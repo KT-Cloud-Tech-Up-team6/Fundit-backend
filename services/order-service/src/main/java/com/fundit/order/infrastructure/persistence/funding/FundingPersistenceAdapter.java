@@ -9,6 +9,7 @@ import com.fundit.order.domain.funding.SellerOrderShippingCounts;
 import com.fundit.order.domain.funding.ShippingFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
@@ -72,8 +73,10 @@ public class FundingPersistenceAdapter implements FundingRepository {
         List<String> statuses = allStatuses
                 ? List.of(FundingStatus.PENDING.name())
                 : filter.statuses().stream().map(FundingStatus::name).toList();
+        // 정렬은 쿼리에 고정돼 있다(최신 참여순). 클라이언트 sort를 넘기면 엔티티 속성명이 네이티브 SQL에 붙어 500이 난다.
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
         return fundingJpaRepository.findMemberOrders(memberId, allStatuses, statuses, escapeLikePattern(filter.q()),
-                filter.from(), filter.to(), pageable).map(this::hydrate);
+                filter.from(), filter.to(), unsorted).map(this::hydrate);
     }
 
     @Override

@@ -109,6 +109,21 @@ class FundingPersistenceAdapterIntegrationTest {
         assertThat(page.getTotalElements()).isEqualTo(2);
     }
 
+    @Test
+    void 클라이언트_정렬이_붙어도_오류_없이_최신_참여순으로_조회한다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        fundingRepository.save(titled(memberId, "예전", FundingStatus.PENDING, Instant.parse("2026-09-01T00:00:00Z")));
+        fundingRepository.save(titled(memberId, "최근", FundingStatus.PENDING, Instant.parse("2026-09-20T00:00:00Z")));
+
+        // when — FE가 ?sort=createdAt,asc를 보낸 경우
+        var page = fundingRepository.findByMemberId(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
+                PageRequest.of(0, 20, org.springframework.data.domain.Sort.by("createdAt").ascending()));
+
+        // then
+        assertThat(page.getContent()).extracting(Funding::getProjectTitle).containsExactly("최근", "예전");
+    }
+
     private Funding titled(UUID memberId, String title, FundingStatus status, Instant createdAt) {
         Funding base = newFunding(memberId, UUID.randomUUID(), status, Instant.now().plusSeconds(1800));
         return base.toBuilder().projectTitle(title).createdAt(createdAt).build();
