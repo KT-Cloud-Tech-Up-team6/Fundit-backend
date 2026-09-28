@@ -2,6 +2,8 @@ package com.fundit.project.application.ai;
 
 import com.fundit.project.application.media.MediaStorageClient;
 import com.fundit.project.domain.project.BusinessType;
+import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.domain.reward.Reward;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,7 +33,7 @@ class FundingStoryContextFactoryUnitTest {
 
     @BeforeEach
     void setUp() {
-        factory = new FundingStoryContextFactory(storageClient, 15L);
+        factory = new FundingStoryContextFactory(storageClient, 15L, 60L);
     }
 
     @Test
@@ -78,6 +81,64 @@ class FundingStoryContextFactoryUnitTest {
         // then
         assertThat(first).isEqualTo(second).hasSize(64);
         assertThat(changed).isNotEqualTo(first);
+    }
+
+    @Test
+    void 요약_입력은_본문_순서대로_TEXT와_IMAGE만_담고_GIF는_건너뛴다() {
+        // given
+        Project project = validProject(UUID.randomUUID(), null).toBuilder()
+                .introContent(List.of(
+                        new IntroContentBlock(IntroContentType.TEXT, "<p>첫 문단</p>"),
+                        new IntroContentBlock(IntroContentType.IMAGE, "https://bucket.example/body.png"),
+                        new IntroContentBlock(IntroContentType.VIDEO_URL, "https://youtube.example/v"),
+                        new IntroContentBlock(IntroContentType.IMAGE, "https://bucket.example/anim.gif"),
+                        new IntroContentBlock(IntroContentType.TEXT, " "),
+                        new IntroContentBlock(IntroContentType.TEXT, "<p>끝 문단</p>")))
+                .build();
+        when(storageClient.extractKey(any())).thenAnswer(invocation ->
+                Optional.of(invocation.getArgument(0, String.class).substring("https://bucket.example/".length())));
+        when(storageClient.headObject("body.png"))
+                .thenReturn(Optional.of(new MediaStorageClient.StoredObject(256L, "image/png")));
+        when(storageClient.headObject("anim.gif"))
+                .thenReturn(Optional.of(new MediaStorageClient.StoredObject(256L, "image/gif")));
+        when(storageClient.presignGet(eq("body.png"), eq(java.time.Duration.ofMinutes(60))))
+                .thenReturn("https://signed.example/body");
+
+        // when
+        FundingStoryAiContracts.ProjectSnapshot snapshot = factory.pageSummarySnapshot(project, List.of(reward(1L, null)));
+
+        // then
+        assertThat(snapshot.title()).isEqualTo("프로젝트");
+        assertThat(snapshot.category()).isEqualTo("테크/가전");
+        assertThat(snapshot.rewards()).containsExactly(
+                new FundingStoryAiContracts.PageSummaryReward("리워드 1", "리워드 설명", 10_000L));
+        assertThat(snapshot.story_content()).extracting("type", "value").containsExactly(
+                org.assertj.core.groups.Tuple.tuple("TEXT", "<p>첫 문단</p>"),
+                org.assertj.core.groups.Tuple.tuple("IMAGE", "https://bucket.example/body.png"),
+                org.assertj.core.groups.Tuple.tuple("TEXT", "<p>끝 문단</p>"));
+        FundingStoryAiContracts.StoryContentBlock image = snapshot.story_content().get(1);
+        assertThat(image.read_url()).isEqualTo("https://signed.example/body");
+        assertThat(image.content_type()).isEqualTo("image/png");
+        assertThat(image.file_size()).isEqualTo(256L);
+        assertThat(image.expires_at()).isAfter(java.time.Instant.now().plusSeconds(59 * 60));
+    }
+
+    @Test
+    void 요약_해시는_입력이_같으면_같고_본문이_바뀌면_달라진다() {
+        // given
+        Project project = validProject(UUID.randomUUID(), null).toBuilder()
+                .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "본문"))).build();
+        Project edited = project.toBuilder()
+                .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "수정 본문"))).build();
+        Project goalChanged = project.toBuilder().goalAmount(9_000_000L).build();
+
+        // when
+        String hash = factory.pageSummaryHash(project, List.of(reward(1L, null)));
+
+        // then — 요약 입력이 아닌 목표금액 변경은 해시를 바꾸지 않는다
+        assertThat(hash).hasSize(64)
+                .isEqualTo(factory.pageSummaryHash(goalChanged, List.of(reward(1L, null))))
+                .isNotEqualTo(factory.pageSummaryHash(edited, List.of(reward(1L, null))));
     }
 
     Project validProject(UUID publicId, String coverImageUrl) {
