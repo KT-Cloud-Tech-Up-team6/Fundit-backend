@@ -86,6 +86,11 @@ class FundingStoryServiceUnitTest {
     @Spy
     RichTextSanitizer richTextSanitizer = new RichTextSanitizer();
 
+    @Mock
+
+    private com.fundit.project.application.pagesummary.PageSummaryService pageSummaryService;
+
+
     @InjectMocks
     private FundingStoryService fundingStoryService;
 

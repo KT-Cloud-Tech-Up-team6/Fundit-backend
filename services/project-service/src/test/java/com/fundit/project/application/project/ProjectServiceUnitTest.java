@@ -53,6 +53,11 @@ class ProjectServiceUnitTest {
     @Mock
     private RichTextSanitizer richTextSanitizer;
 
+    @Mock
+
+    private com.fundit.project.application.pagesummary.PageSummaryService pageSummaryService;
+
+
     @InjectMocks
     private ProjectService projectService;
 
@@ -166,6 +171,7 @@ class ProjectServiceUnitTest {
 
             // then — SEARCH-011: 이미 공개된 프로젝트는 수정 시 색인 갱신 이벤트를 발행한다.
             verify(projectIndexEventPublisher).publishProjectUpdated(any());
+            verify(pageSummaryService).markDirtyIfPublic(project);
         }
     }
 
@@ -284,6 +290,8 @@ class ProjectServiceUnitTest {
             assertThat(result.getFundingStartAt()).isNotNull();
             assertThat(result.getFundingDeadline()).isNotNull();
             verify(projectIndexEventPublisher).publishProjectApproved(any());
+            // 상세 AI 요약 생성 대상으로 올린다(#169)
+            verify(pageSummaryService).markDirtyIfPublic(result);
         }
     }
 }

@@ -53,6 +53,14 @@ funding-story:
     upload-url-ttl-minutes: ${FUNDING_STORY_AI_UPLOAD_URL_TTL_MINUTES:5}
     run-callback-timeout-minutes: ${FUNDING_STORY_AI_RUN_CALLBACK_TIMEOUT_MINUTES:30}
 
+# 상세 페이지 AI 요약(#169) — 같은 AI 서버·토큰(funding-story.ai.*)을 쓴다.
+# read-url-ttl-minutes: 본문 이미지 서명 URL 유효기간. 대기+폴링+재시도(최대 30분)보다 길어야 한다(AI팀 합의 60분).
+page-summary:
+  worker-enabled: true
+  poll-interval-ms: 5000
+  batch-size: 20
+  read-url-ttl-minutes: 60
+
 # 컨트롤러 8개가 대표 도메인을 공유하지 않아(다수가 @RequestMapping("/api/v1")만 두고
 # 세부 경로를 메서드에서 지정) auth/member처럼 "그 서비스의 단일 리소스" 경로를 쓸 수 없다.
 # 서비스명이자 가장 먼저 생기는 리소스인 projects를 대표로 삼는다.

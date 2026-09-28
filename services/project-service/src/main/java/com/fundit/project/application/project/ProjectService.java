@@ -2,6 +2,7 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.application.pagesummary.PageSummaryService;
 import com.fundit.project.application.media.MediaCategory;
 import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.application.project.ProjectIndexEventPublisher.ProjectIndexedEvent;
@@ -60,6 +61,7 @@ public class ProjectService {
     private final ProjectIndexEventPublisher projectIndexEventPublisher;
     private final SellerProfileClient sellerProfileClient;
     private final RichTextSanitizer richTextSanitizer;
+    private final PageSummaryService pageSummaryService;
 
     /** statuses가 비어있으면 전체 상태를 대상으로 한다. */
     @Transactional(readOnly = true)
@@ -162,6 +164,7 @@ public class ProjectService {
                 command.title(), command.goalAmount());
         Project saved = projectRepository.save(project);
         publishIndexUpdateIfPublic(saved);
+        pageSummaryService.markDirtyIfPublic(saved);
         return saved;
     }
 
@@ -176,6 +179,7 @@ public class ProjectService {
         project.updateStory(command.title(), command.coverImageUrl(), introContent);
         Project saved = projectRepository.save(project);
         publishIndexUpdateIfPublic(saved);
+        pageSummaryService.markDirtyIfPublic(saved);
         return saved;
     }
 
@@ -252,6 +256,8 @@ public class ProjectService {
                 saved.getId(), saved.getPublicId(), saved.getSellerId(), sellerDisplayName,
                 saved.getTitle(), saved.getCoverImageUrl(), saved.getCategoryMajor(), saved.getCategoryMinor(),
                 saved.getGoalAmount(), saved.getFundingStartAt(), saved.getFundingDeadline(), saved.getCreatedAt()));
+        // 상세 AI 요약도 공개 시점부터 만든다(#169).
+        pageSummaryService.markDirtyIfPublic(saved);
         return saved;
     }
 

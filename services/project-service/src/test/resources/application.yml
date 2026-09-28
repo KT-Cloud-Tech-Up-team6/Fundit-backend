@@ -25,3 +25,7 @@ media:
 # 컨트롤러 테스트는 이 값을 헤더에 그대로 사용한다(개별 @TestPropertySource 대신 여기 한 곳에서 통일).
 internal-api:
   key: test-only-internal-api-key
+
+# 상세 AI 요약 워커 — 테스트 중 로컬 AI 주소로 폴링하지 않게 끈다.
+page-summary:
+  worker-enabled: false

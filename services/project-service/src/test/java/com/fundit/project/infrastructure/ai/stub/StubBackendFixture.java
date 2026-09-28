@@ -57,7 +57,8 @@ final class StubBackendFixture implements AutoCloseable {
         });
         service = new FundingStoryService(projects, null, runs, null, null, storage,
                 mock(ProjectIndexEventPublisher.class), mock(SellerProfileClient.class),
-                new com.fundit.project.infrastructure.content.RichTextSanitizer());
+                new com.fundit.project.infrastructure.content.RichTextSanitizer(),
+                mock(com.fundit.project.application.pagesummary.PageSummaryService.class));
         server.createContext("/", exchange -> {
             try (exchange) {
                 try {
