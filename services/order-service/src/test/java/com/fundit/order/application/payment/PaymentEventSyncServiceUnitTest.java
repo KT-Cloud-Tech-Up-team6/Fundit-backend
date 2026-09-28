@@ -99,6 +99,34 @@ class PaymentEventSyncServiceUnitTest {
         verify(fundingEventPublisher).publishPaymentReconciliationRequired(any());
     }
 
+    @Test
+    void 결제를_반영한_뒤_성립된_주문에_같은_결제완료가_재전달되면_무시한다() {
+        // given
+        Funding funding = funding(1L, FundingStatus.GOAL_ACHIEVED).toBuilder().paidAt(Instant.now()).build();
+        when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
+
+        // when
+        paymentEventSyncService.onPaymentCompleted(
+                new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L), Instant.now()));
+
+        // then — 정상 주문을 환불하면 안 된다
+        verifyNoInteractions(fundingEventPublisher, couponIssuanceRepository);
+    }
+
+    @Test
+    void 결제_후_참여_취소된_주문에_결제완료가_재전달되면_무시한다() {
+        // given — 결제 후 취소는 취소 이벤트로 이미 환불된다
+        Funding funding = funding(1L, FundingStatus.CANCELLED_BY_MEMBER).toBuilder().paidAt(Instant.now()).build();
+        when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
+
+        // when
+        paymentEventSyncService.onPaymentCompleted(
+                new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(), Instant.now()));
+
+        // then
+        verifyNoInteractions(fundingEventPublisher);
+    }
+
     @Nested
     class 환불_처리 {
 

@@ -36,6 +36,12 @@ public class PaymentEventSyncService implements PaymentEventListener {
         }
         Funding funding = found.get();
         if (!funding.acceptsPaymentCompletion()) {
+            if (!funding.needsPaymentReconciliation()) {
+                // 이미 결제를 반영한 뒤 성립·취소 등으로 넘어간 주문 — 같은 결제 완료의 재전달이라 무시한다.
+                log.info("이미 반영된 결제완료 이벤트라 무시합니다. fundingId={} status={}",
+                        event.fundingId(), funding.getStatus());
+                return;
+            }
             // 만료·취소된 주문에 결제가 완료됐다 — 쿠폰을 사용 처리하지 않고 전액 환불을 요청한다.
             log.warn("결제를 받을 수 없는 주문에 결제가 완료돼 조정 환불을 요청합니다. fundingId={} status={}",
                     event.fundingId(), funding.getStatus());
