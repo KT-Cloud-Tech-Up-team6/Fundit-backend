@@ -1,6 +1,8 @@
 package com.fundit.project.application.pagesummary;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.error.ErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiClient;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ArtifactError;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ArtifactView;
@@ -37,6 +39,8 @@ public class PageSummaryService {
     private static final Set<String> ROLES = Set.of("WHAT", "WHY");
     private static final int MAX_HEADLINE = 120;
     private static final int MAX_DESCRIPTION = 400;
+    private static final Set<ErrorCode> RETRY_NEXT_CYCLE =
+            Set.of(CommonErrorCode.TOO_MANY_REQUESTS, CommonErrorCode.UNAUTHORIZED);
 
     private final PageSummaryRepository pageSummaryRepository;
     private final ProjectRepository projectRepository;
@@ -53,7 +57,8 @@ public class PageSummaryService {
 
     /**
      * 한 프로젝트를 한 단계 진행한다. AI 5xx·타임아웃은 그대로 던져 롤백하고 다음 주기에 다시 시도한다.
-     * AI가 4xx로 거절하면 같은 요청을 반복해도 결과가 같아 실패로 닫는다.
+     * AI가 4xx로 거절하면 같은 요청을 반복해도 결과가 같아 실패로 닫는다. 단 429(호출 제한)·401(토큰 설정)은
+     * 요청 내용과 무관하게 나중에 풀리므로 5xx처럼 던져 다음 주기에 다시 시도한다.
      */
     @Transactional
     public void process(Long projectId) {
@@ -70,6 +75,9 @@ public class PageSummaryService {
             try {
                 advance(summary, project, now);
             } catch (BusinessException e) {
+                if (RETRY_NEXT_CYCLE.contains(e.getErrorCode())) {
+                    throw e;
+                }
                 summary.fail("AI_REQUEST_REJECTED", now);
             }
         }

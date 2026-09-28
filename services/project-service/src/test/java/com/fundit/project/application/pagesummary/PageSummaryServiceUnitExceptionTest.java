@@ -104,6 +104,19 @@ class PageSummaryServiceUnitExceptionTest {
         assertThat(saved().isDirty()).isFalse();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = CommonErrorCode.class, names = {"TOO_MANY_REQUESTS", "UNAUTHORIZED"})
+    void AI_호출_제한이나_인증_오류는_실패로_닫지_않고_다음_주기에_다시_시도한다(CommonErrorCode code) {
+        // given — 429는 일시 제한, 401은 토큰 설정 문제라 같은 요청이 나중에 성공할 수 있다
+        givenPublicProject();
+        when(contextFactory.pageSummaryHash(any(), any())).thenReturn("h");
+        when(aiClient.createPageSummaryRun(any(), any())).thenThrow(new BusinessException(code));
+
+        // when & then
+        assertThatThrownBy(() -> service.process(PROJECT_ID)).isInstanceOf(BusinessException.class);
+        verify(pageSummaryRepository, never()).save(any());
+    }
+
     @Test
     void 공개가_아닌_프로젝트는_요청하지_않고_닫는다() {
         // given
