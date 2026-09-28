@@ -82,8 +82,12 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
             }
             return Optional.of(new TossPaymentLookup(response.status(), toResult(response)));
         } catch (HttpClientErrorException.NotFound e) {
-            // 결제 인증 전이라 토스에 결제 자체가 없다 — 승인될 수 없는 상태다.
-            return Optional.empty();
+            // 결제 인증 전이라 토스에 결제 자체가 없다 — 승인될 수 없는 상태다. 코드가 다른 404(경로 오류 등)를
+            // "결제 없음"으로 믿으면 승인된 결제를 FAILED로 닫을 수 있어 의존성 실패로 둔다.
+            if (TossApiException.NOT_FOUND_PAYMENT.equals(toTossApiException(e).getTossErrorCode())) {
+                return Optional.empty();
+            }
+            throw new DependencyFailureException(e);
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }

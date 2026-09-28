@@ -205,4 +205,16 @@ class TossPaymentsHttpClientUnitTest {
         // when & then
         assertThat(client.lookupByOrderId("fundit-1")).isEmpty();
     }
+
+    @Test
+    void 주문번호_조회의_404가_결제_없음_코드가_아니면_의존성_실패다() {
+        // given
+        server.expect(requestTo("http://localhost/v1/payments/orders/fundit-1"))
+                .andExpect(method(GET))
+                .andRespond(withResourceNotFound().body("not-json").contentType(MediaType.TEXT_PLAIN));
+
+        // when & then — 결제가 없다고 단정하면 승인된 결제를 FAILED로 닫을 수 있다
+        assertThatThrownBy(() -> client.lookupByOrderId("fundit-1"))
+                .isInstanceOf(DependencyFailureException.class);
+    }
 }
