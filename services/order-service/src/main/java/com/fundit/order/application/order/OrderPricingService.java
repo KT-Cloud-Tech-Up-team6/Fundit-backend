@@ -61,8 +61,9 @@ public class OrderPricingService {
     }
 
     /**
-     * @param autoApplyBestCoupon true면 {@code couponCodes}를 무시하고 회원이 보유한 쿠폰 중
-     *                            발급주체(플랫폼/메이커)별로 할인액이 가장 큰 것을 자동 적용한다(ORDER-010 최적 추천).
+     * @param autoApplyBestCoupon true면 {@code couponCodes}를 무시하고 회원이 보유한 쿠폰 중 발급주체(플랫폼/메이커)마다
+     *                            최대 1장씩, 결제 금액이 1원 이상 남는 조합 중 할인 합계가 가장 큰 조합을 자동 적용한다
+     *                            (ORDER-010 최적 추천).
      */
     public PricingResult calculate(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
                                     List<String> couponCodes, boolean autoApplyBestCoupon) {
@@ -169,8 +170,8 @@ public class OrderPricingService {
     }
 
     /**
-     * ORDER-010 최적 쿠폰 추천 — 회원이 보유한(AVAILABLE) 쿠폰 전부를 후보로 놓고, 적용 가능한
-     * 것 중 발급주체(issuer_type)별로 할인액이 가장 큰 것 하나씩만(최대 플랫폼 1 + 메이커 1) 채택한다.
+     * ORDER-010 최적 쿠폰 추천 — 회원이 보유한(AVAILABLE) 쿠폰 전부를 후보로 놓고, 적용 가능한 것 중
+     * 발급주체(issuer_type)마다 최대 1장씩(최대 플랫폼 1 + 메이커 1) 결제 금액이 남는 최적 조합을 채택한다.
      * 후보에서 탈락한 쿠폰은 사용자가 직접 지정한 적이 없어 unavailableCoupons에 넣지 않는다.
      */
     private CouponResolution autoResolveCoupons(UUID memberId, UUID projectId, long rewardAmount, long shippingFee) {

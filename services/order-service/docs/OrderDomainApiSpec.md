@@ -109,7 +109,7 @@ POST /api/v1/orders/preview
 - 입력은 `projectId` + `lineItems`(rewardId/quantity/optionValueIds) + `shippingAddress` + 선택 `couponCodes`. `fundingId`를 받지 않는다. `shippingAddress`는 DTO에서 필수(`@NotNull`)이나 미리보기 계산에는 사용하지 않는다(배송비는 고정값).
 - `couponCodes`를 생략하면 할인 없이 계산(ORDER-002 단독 동작), 포함하면 해당 쿠폰들을 적용해 재계산(ORDER-010 동작을 겸함).
 - `couponCodes`는 **최대 2개, 그것도 `issuer_type`이 서로 달라야 함**(플랫폼쿠폰 1개 + 메이커쿠폰 1개까지만 — 16.3.3). 같은 issuer_type을 2개 보내면 `400 INVALID_INPUT`, 3개 이상 보내면 `400 INVALID_INPUT`.
-- **`autoApplyBestCoupon: true`(16.3.4 최적 쿠폰 추천)**면 `couponCodes`를 무시하고, 회원이 보유한(AVAILABLE) 쿠폰 중 조건을 만족하는 것에서 발급주체(플랫폼/메이커)별로 할인액이 가장 큰 것 하나씩만(최대 2개) 자동 적용한다. FE가 코드를 나열할 필요가 없다. 이 경로에서 탈락한 후보는 사용자가 직접 요청한 적이 없어 `unavailableCoupons`에 나열하지 않는다(applied만 채워짐). 기본값은 `false`(생략 시 기존 명시적 적용 동작 그대로).
+- **`autoApplyBestCoupon: true`(16.3.4 최적 쿠폰 추천)**면 `couponCodes`를 무시하고, 회원이 보유한(AVAILABLE) 쿠폰 중 조건을 만족하는 것에서 발급주체(플랫폼/메이커)마다 최대 1장씩(최대 2개), 결제 금액이 1원 이상 남는 조합 중 할인 합계가 가장 큰 조합을 자동 적용한다(발급주체별 최대 할인 쿠폰이 주문 금액을 넘으면 같은 발급주체의 차선 쿠폰을 고른다). FE가 코드를 나열할 필요가 없다. 이 경로에서 탈락한 후보는 사용자가 직접 요청한 적이 없어 `unavailableCoupons`에 나열하지 않는다(applied만 채워짐). 기본값은 `false`(생략 시 기존 명시적 적용 동작 그대로).
 - 쿠폰의 `targetScope`(대상)가 `CATEGORY`/`MAKER`면 project-service를 조회해 실제로 프로젝트 카테고리/판매자와 일치하는지 검증한다(`PROJECT`/`ALL`은 조회 없이 판단). 불일치하면 `NOT_APPLICABLE`.
 - 금액 계산은 항상 서버에서 수행(리워드 단가·배송비·쿠폰 할인율 모두 서버 조회값 사용), 클라이언트가 보낸 금액을 신뢰하지 않는다(S4).
 - 리워드금액 합산 + **배송비 고정 3,000원**(`order.policy.default-shipping-fee`) + 쿠폰 할인(`FREE_SHIPPING`은 배송비 한도 내에서 할인, `coupons.max_discount_amount` 설정 시 그 한도까지) 반영. 프로젝트/리워드별 배송비 정책은 아직 없어 고정값이다.
@@ -769,6 +769,20 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 }
 ```
 
+**`payment.reconciliation-required.v1`** (PAYMENT-017 트리거. 결제를 한 번도 받지 않은 채 만료·취소된 주문에 결제 완료가 도착했을 때 1건. 쿠폰은 사용 처리하지 않고 payment-service가 전액 환불한다. 결제를 반영한 뒤 성립·취소된 주문에 같은 결제 완료가 재전달되면 발행하지 않는다)
+
+```json
+{
+  "eventId": "order:48",
+  "fundingId": 1027,
+  "paymentId": null,
+  "orderId": "0199a1b2-....",
+  "projectPublicId": "018f9a1b-...."
+}
+```
+
+`paymentId`는 order가 모르는 값이라 항상 null이다 — payment-service는 `orderId`로 완료 결제를 찾는다.
+
 **`project.funding-reward-stats-updated.v1`** (PROJECT-015, 1일 배치. 파티션 키=`projectId` 내부 Long. 전체 교체)
 
 ```json
@@ -778,9 +792,12 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
   "rewardStats": [
     { "rewardId": 1, "optionValueId": 100, "purchasedQuantity": 2, "purchasedAmount": 78000 },
     { "rewardId": 1, "optionValueId": null, "purchasedQuantity": 1, "purchasedAmount": 39000 }
-  ]
+  ],
+  "participantCount": 38
 }
 ```
+
+`participantCount`는 진행 중·목표 달성 펀딩에 참여한 회원 수(중복 제외)다(필드 추가 — 구버전 소비자는 무시한다).
 
 `optionValueId`가 null이면 옵션 없는 리워드 합계, 있으면 해당 옵션값 한정. 라인에 옵션이 여러 개면 옵션값마다 같은 수량/금액을 잡는다.
 
