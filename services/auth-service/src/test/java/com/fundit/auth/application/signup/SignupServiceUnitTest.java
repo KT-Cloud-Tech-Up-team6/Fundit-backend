@@ -62,5 +62,7 @@ class SignupServiceUnitTest {
         assertThat(result.memberId()).isEqualTo(memberId);
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshToken()).isEqualTo("refresh-token");
+        // 중복 판정은 요청값이 아니라 본인인증 결과로 한다(#150)
+        org.mockito.Mockito.verify(accountRepository).findByNameAndPhone("홍길동", "01012345678");
     }
 }

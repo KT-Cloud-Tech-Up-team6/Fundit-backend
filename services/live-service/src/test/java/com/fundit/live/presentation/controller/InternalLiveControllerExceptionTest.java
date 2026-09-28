@@ -46,6 +46,15 @@ class InternalLiveControllerExceptionTest {
             """;
 
     @Test
+    void 내부_키가_없으면_세션_상태를_조회할_수_없다() throws Exception {
+        // given & when & then — 외부에서 방송 존재·판매자 id를 캐낼 수 없어야 한다(S4)
+        mockMvc.perform(get("/internal/v1/lives/sessions/{sessionId}/status", 42L))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/internal/v1/lives/by-project/{projectId}/active-status", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void 내부_키가_없으면_적재할_수_없다() throws Exception {
         // given & when & then — 열려 있으면 임의 채팅 주입이 가능하다(security.md S4)
         mockMvc.perform(post("/internal/v1/lives/chat/messages")

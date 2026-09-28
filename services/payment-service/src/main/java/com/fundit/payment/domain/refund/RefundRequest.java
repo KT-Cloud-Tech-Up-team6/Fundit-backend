@@ -34,47 +34,44 @@ public class RefundRequest {
     private AlternateRefundAccount alternateRefundAccount;
     private final Instant requestedAt;
     private Instant processedAt;
+    /**
+     * 교환 재발송을 fulfillment-service에 실제로 요청한 시각. 교환이 PROCESSING인데 이 값이
+     * null이면 요청이 아직(또는 실패해서) 안 된 것이고, 재시도 워커가 그 행을 집어 다시 보낸다.
+     */
+    private Instant reshipmentRequestedAt;
 
     /** {@link #completeImmediately}가 허용하는 유형 — 실제 호출부(FundingLifecycleEventSyncService,
-     * PaymentReconciliationService, SimpleChangeOfMindRefundService, ShippingDelayRefundService) 기준. */
+     * PaymentReconciliationService, ShippingDelayRefundService) 기준. SIMPLE_CHANGE_OF_MIND는
+     * 모금 중 참여 취소 이벤트 경로로만 들어온다(성립 후 단순변심 취소는 정책상 불가). */
     private static final Set<RefundTriggerType> IMMEDIATE_TRIGGER_TYPES = EnumSet.of(
             RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
             RefundTriggerType.SHIPPING_DELAY, RefundTriggerType.SYSTEM_RECONCILIATION);
 
-    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — SYSTEM_RECONCILIATION은 대체계좌 대기
-     * 경로(executeFullRefundOrAwaitAlternateAccount)로 호출되지 않아 제외한다. */
+    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — 대체계좌 대기 경로
+     * (executeFullRefundOrAwaitAlternateAccount)로 실제 호출되는 두 유형만 둔다. */
     private static final Set<RefundTriggerType> ALTERNATE_ACCOUNT_TRIGGER_TYPES = EnumSet.of(
-            RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
-            RefundTriggerType.SHIPPING_DELAY);
+            RefundTriggerType.GOAL_FAILED_AUTO, RefundTriggerType.SHIPPING_DELAY);
 
-    /** PAYMENT-006 — 하자환불 신청. 증빙 누락 시 신청 자체를 차단한다. */
-    public static RefundRequest requestDefect(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
-                                               List<String> evidenceUrls) {
-        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
+    /**
+     * PAYMENT-006 / 환불 정책 V.1.0 — 발송 후 신청(하자환불·교환·구매자 귀책 반품)을 판매자
+     * 검토 대기(REQUESTED)로 접수한다. 증빙은 **판매자 귀책(DEFECT)일 때만 필수**다 — 단순변심
+     * 반품·교환은 구매자 귀책이라 입증 자료를 요구하지 않는다(환불 정책 V.1.0 공통 정책 표).
+     *
+     * <p>교환(EXCHANGE)은 승인/완료(재발송)가 아직 없어 접수·조회까지만 의미가 있다.
+     */
+    public static RefundRequest requestAfterShipment(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
+                                                      UUID sellerId, String reasonDetail, List<String> evidenceUrls) {
+        if (!triggerType.isPostShipmentRequest()) {
+            throw new IllegalArgumentException(triggerType + "는 발송 후 신청 대상이 아닙니다.");
+        }
+        if (triggerType == RefundTriggerType.DEFECT && (evidenceUrls == null || evidenceUrls.isEmpty())) {
             throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
         }
         return RefundRequest.builder()
                 .fundingId(fundingId)
                 .paymentId(paymentId)
                 .sellerId(sellerId)
-                .triggerType(RefundTriggerType.DEFECT)
-                .status(RefundRequestStatus.REQUESTED)
-                .reasonDetail(reasonDetail)
-                .evidenceUrls(evidenceUrls)
-                .build();
-    }
-
-    /** 교환 신청 — 판매자 검토 대기(REQUESTED)로만 접수한다. 승인/완료(재발송)는 별도 설계 필요. */
-    public static RefundRequest requestExchange(UUID fundingId, UUID paymentId, UUID sellerId, String reasonDetail,
-                                                 List<String> evidenceUrls) {
-        if (evidenceUrls == null || evidenceUrls.isEmpty()) {
-            throw new BusinessException(PaymentErrorCode.EVIDENCE_REQUIRED);
-        }
-        return RefundRequest.builder()
-                .fundingId(fundingId)
-                .paymentId(paymentId)
-                .sellerId(sellerId)
-                .triggerType(RefundTriggerType.EXCHANGE)
+                .triggerType(triggerType)
                 .status(RefundRequestStatus.REQUESTED)
                 .reasonDetail(reasonDetail)
                 .evidenceUrls(evidenceUrls)
@@ -127,6 +124,57 @@ public class RefundRequest {
         this.status = RefundRequestStatus.COMPLETED;
         this.isFullRefund = isFullRefund;
         this.processedAt = Instant.now();
+    }
+
+    /**
+     * 교환 승인(구매자 귀책) — 교환 배송비를 구매자가 별도 결제해야 하므로 결제 대기 상태로 둔다.
+     * 결제가 완료되면 {@link #startExchangeReshipment()}로 재발송 단계로 넘어간다.
+     */
+    public void approveExchangeAwaitingFee() {
+        assertExchange();
+        assertDecidable();
+        this.status = RefundRequestStatus.APPROVED;
+    }
+
+    /**
+     * 교환 재발송 요청 완료 — 판매자 귀책(교환비 0원)은 승인 즉시, 구매자 귀책은 교환비 결제
+     * 완료 직후 호출된다. 결제취소가 없어 {@code isFullRefund}는 채우지 않는다.
+     */
+    public void startExchangeReshipment() {
+        assertExchange();
+        if (status != RefundRequestStatus.REQUESTED && status != RefundRequestStatus.UNDER_REVIEW
+                && status != RefundRequestStatus.APPROVED) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "재발송을 시작할 수 있는 상태가 아닙니다.");
+        }
+        this.status = RefundRequestStatus.PROCESSING;
+    }
+
+    /**
+     * 교환 완료 — 재발송분의 배송이 끝난 시점(fulfillment 배송완료 이벤트)에 종료 처리한다.
+     * 이벤트는 중복 수신될 수 있어 이미 완료된 건은 그대로 둔다(멱등).
+     */
+    public void completeExchange() {
+        assertExchange();
+        if (status == RefundRequestStatus.COMPLETED) {
+            return;
+        }
+        if (status != RefundRequestStatus.PROCESSING) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "재발송 진행 중인 교환 신청이 아닙니다.");
+        }
+        this.status = RefundRequestStatus.COMPLETED;
+        this.processedAt = Instant.now();
+    }
+
+    /** fulfillment 재발송 요청이 실제로 성공했음을 기록한다 — 재시도 워커의 대상에서 빠진다. */
+    public void markReshipmentRequested() {
+        assertExchange();
+        this.reshipmentRequestedAt = Instant.now();
+    }
+
+    private void assertExchange() {
+        if (triggerType != RefundTriggerType.EXCHANGE) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "교환 신청이 아닙니다.");
+        }
     }
 
     /** PAYMENT-007 — 판매자 반려. 사유 필수. */

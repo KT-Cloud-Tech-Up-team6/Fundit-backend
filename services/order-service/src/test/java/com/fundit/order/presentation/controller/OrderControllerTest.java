@@ -1,5 +1,7 @@
 package com.fundit.order.presentation.controller;
 
+import com.fundit.order.application.live.LiveStatusClient;
+import com.fundit.order.application.order.LiveOrderStatsService;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -7,8 +9,10 @@ import com.fundit.order.application.order.OrderPricingService;
 import com.fundit.order.application.order.OrderQueryService;
 import com.fundit.order.domain.coupon.DiscountType;
 import com.fundit.order.domain.coupon.IssuerType;
+import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
+import com.fundit.order.domain.funding.FundingProgressStage;
 import com.fundit.order.domain.funding.FundingLineItemOption;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
@@ -21,14 +25,20 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fundit.common.error.DependencyFailureException;
+import com.fundit.order.infrastructure.persistence.funding.query.LiveOrderStatsProjection;
+
 import java.time.Instant;
+import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +73,10 @@ class OrderControllerTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
+    @MockitoBean
+    private LiveOrderStatsService liveOrderStatsService;
+    @MockitoBean
+    private LiveStatusClient liveStatusClient;
 
     private Funding funding(UUID memberId, UUID publicId, FundingStatus status) {
         return Funding.builder().id(1L).publicId(publicId).memberId(memberId).projectId(PROJECT_ID).projectTitle("프로젝트")
@@ -167,7 +181,7 @@ class OrderControllerTest {
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
-        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false), any(), any()))
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false), any(), any(), any()))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
 
         // when & then
@@ -188,7 +202,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
-                eq("retry-key-1"), any()))
+                eq("retry-key-1"), any(), any()))
                 .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, true));
 
         // when & then
@@ -206,15 +220,19 @@ class OrderControllerTest {
     void 내_참여_목록을_조회하면_projectId가_UUID로_채워진다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING).toBuilder()
+                .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 2, 10_000L, List.of()))).build();
         when(orderQueryService.listMyOrders(eq(memberId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, 0L, List.of("CANCEL")))));
+                .thenReturn(new PageImpl<>(List.of(new OrderQueryService.OrderListItem(funding, null, 0L,
+                        List.of("CANCEL"), FundingProgressStage.FUNDING_IN_PROGRESS, List.of()))));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.content[0].progressStage").value("FUNDING_IN_PROGRESS"))
+                .andExpect(jsonPath("$.content[0].lineItems[0].rewardName").value("리워드"))
                 .andExpect(jsonPath("$.content[0].projectId").value(PROJECT_ID.toString()));
     }
 
@@ -225,7 +243,8 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         Funding funding = funding(memberId, orderId, FundingStatus.PENDING);
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"), null));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"),
+                        FundingProgressStage.FUNDING_IN_PROGRESS, null, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
@@ -248,7 +267,8 @@ class OrderControllerTest {
         var projectSummary = new com.fundit.order.application.catalog.ProjectSummaryClient.ProjectSummary(
                 "프로젝트", "https://cdn/x.png", "메이커");
         when(orderQueryService.getDetail(memberId, orderId))
-                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"), projectSummary));
+                .thenReturn(new OrderQueryService.FundingDetail(funding, 0L, List.of("CANCEL"),
+                        FundingProgressStage.FUNDING_IN_PROGRESS, projectSummary, List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/orders/" + orderId).header("X-User-Id", memberId.toString())
@@ -263,10 +283,10 @@ class OrderControllerTest {
 
     @Test
     void 참여를_취소한다() throws Exception {
-        // given
+        // given — 본문 없는 기존 호출도 그대로 취소된다(사유만 저장되지 않는다).
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orderCancelService.cancel(memberId, orderId))
+        when(orderCancelService.cancel(memberId, orderId, null, null))
                 .thenReturn(funding(memberId, orderId, FundingStatus.CANCELLED_BY_MEMBER));
 
         // when & then
@@ -274,5 +294,112 @@ class OrderControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED_BY_MEMBER"));
+    }
+
+    @Test
+    void 참여_취소시_사유를_함께_받는다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(orderCancelService.cancel(memberId, orderId, CancelReason.ETC, "배송지를 잘못 입력했어요"))
+                .thenReturn(funding(memberId, orderId, FundingStatus.CANCELLED_BY_MEMBER));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"ETC\",\"reasonDetail\":\"배송지를 잘못 입력했어요\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED_BY_MEMBER"));
+    }
+
+    @Test
+    void 기타_사유인데_상세가_없으면_400이다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"ETC\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 방송중이면_주문에_세션ID를_실어_넘긴다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
+        when(liveStatusClient.findActiveByProject(PROJECT_ID)).thenReturn(
+                Optional.of(new LiveStatusClient.LiveStatus(UUID.randomUUID(), 42L, "LIVE", UUID.randomUUID())));
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
+                any(), any(), eq(42L)))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void live_조회에_실패해도_주문은_생성된다() throws Exception {
+        // given — 라이브ID는 꼬리표라 못 달아도 본 거래를 막지 않는다(확정 계약 5번)
+        UUID memberId = UUID.randomUUID();
+        Funding funding = funding(memberId, UUID.randomUUID(), FundingStatus.PENDING);
+        when(liveStatusClient.findActiveByProject(PROJECT_ID))
+                .thenThrow(new DependencyFailureException(new IllegalStateException("timeout")));
+        when(orderCreateService.create(eq(memberId), eq(PROJECT_ID), any(), any(), any(), eq(false),
+                any(), any(), isNull()))
+                .thenReturn(new OrderCreateService.OrderCreateResult(funding, 13_000L, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void 방송_집계를_조회하면_건수와_금액을_반환한다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        when(liveOrderStatsService.getStats(memberId, liveId)).thenReturn(new LiveOrderStatsProjection() {
+            public long getPaidCount() {
+                return 12;
+            }
+
+            public long getPaidAmount() {
+                return 480_000;
+            }
+
+            public long getPendingCount() {
+                return 3;
+            }
+
+            public long getPendingAmount() {
+                return 90_000;
+            }
+        });
+
+        // when & then
+        mockMvc.perform(get("/api/v1/orders/live-stats")
+                        .param("liveId", liveId.toString())
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liveId").value(liveId.toString()))
+                .andExpect(jsonPath("$.paidCount").value(12))
+                .andExpect(jsonPath("$.paidAmount").value(480000))
+                .andExpect(jsonPath("$.pendingCount").value(3))
+                .andExpect(jsonPath("$.pendingAmount").value(90000));
     }
 }

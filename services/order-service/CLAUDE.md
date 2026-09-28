@@ -64,6 +64,7 @@ cd services/order-service && docker compose up -d
 ### 인증/서비스 간 통신
 - **인증 헤더는 게이트웨이가 검증했다는 전제로만 신뢰한다**: `X-Account-Id`/`X-Account-Role`은 게이트웨이(`platform:gateway-service`)가 JWT를 검증한 뒤 주입한 값이라는 전제로 신뢰하고, order-service가 서명을 다시 검증하지 않는다(member-service `CurrentMemberArgumentResolver`와 동일 패턴). 다만 **소유권 검증(리소스가 진짜 이 계정 것인지)은 반드시 서버에서 한다** — 헤더 값을 신뢰하는 것과 소유권을 대조하는 것은 별개다(`security.md` S4).
 - **서비스 간 이벤트는 아웃박스 + Transport 인터페이스로 발행한다**: 메시징 브로커(Kafka/RabbitMQ)가 아직 미확정이므로, project-service의 `RewardEventOutboxWorker`/`RewardEventTransport` 패턴을 그대로 따른다. `FundingGoalFailed`/`FundingSucceeded`(ORDER-006), `FundingCancelledByMember`(ORDER-014)는 같은 트랜잭션에서 아웃박스 테이블에 적재하고, 별도 워커가 `Transport` 구현체로 전달을 시도한다. 브로커가 없는 동안은 `UnconfiguredFundingEventTransport`가 예외를 던져 재시도 상태로 남긴다 — 로깅만 하고 성공으로 취급하지 않는다.
+- **펀딩 내역의 파생 값(진행 단계·발송 지연·신청 여부)은 배치 조회로만 채운다**: 목록(ORDER-004)은 페이지 단위로 fulfillment-service 두 경로(`/internal/fundings/fulfillment-statuses` = 발송·배송완료, `/internal/projects/shipping-delays` = 발송 예정일 경과)와 payment-service 한 경로(`/internal/refunds/statuses` = 취소·반품·교환 신청 이력)를 각각 1회씩 호출한다. 건별 호출로 바꾸지 말 것. 이 값들은 전부 부가 정보라 **조회 실패 시에도 목록은 내려가고**, 지연은 "아님"으로 취급한다(누를 수 없는 취소 버튼을 보여주지 않는 쪽). 발송 지연이 프로젝트 단위 경로인 이유는 발송 전 건에는 `shipments` 행이 없고 projectId는 이 서비스가 이미 들고 있기 때문이다.
 - **project-service용 재고 조회는 동기 API로, 재고 변경 통지는 비동기 이벤트로**: 잔여재고 "조회"(`GET /api/v1/inventories/{rewardId}`)는 project-service가 즉시 필요로 하니 동기 HTTP로 제공하되, 반대 방향(project-service→order-service, 리워드 생성/수정 통지)은 최종적 일관성을 유지하는 이벤트로만 받는다 — 동기 호출로 강결합하지 않는다.
 
 ## 에러 코드
@@ -99,5 +100,5 @@ cd services/order-service && docker compose up -d
 - **적립금(포인트) 기능의 MVP 포함 여부**: 요구사항정의서 13.2.1(정의문)엔 "쿠폰·적립금"이라 되어 있는데 13.2.3/13.2.4(실제 정책·기능정의)엔 적립금이 없습니다. payment-service의 `point_transactions` 테이블을 실제로 쓸지 PM 확인 필요(ORDER-002/PAYMENT-001 관련).
 - **재입고 알림 신청(ORDER-011) 소유권**: member-service `MvpImplementationSummary.md`의 MEMBER-008과 기능이 중복됩니다. 어느 서비스가 만들지 확정 필요.
 - **일반(GENERAL) 쿠폰도 "받기" 능동 클레임(ORDER-012)을 허용할지**: 현재는 라이브 쿠폰(16.6) 전용으로 설계했습니다.
-- **하자환불 반품비(PAYMENT-006/007) 처리 방식**: 시스템이 정산에서 차감하는 금액인지, 오프라인으로 처리되는 별개 프로세스인지 — order-service 직접 관련은 아니지만 정산 연동(쿠폰 정산 차감 계산과 유사한 구조) 설계에 영향을 줄 수 있어 참고.
+- ~~**하자환불 반품비(PAYMENT-006/007) 처리 방식**~~ — 해결(환불 정책 V.1.0, 2026-09-23). 구매자 귀책 반품만 반품비 5,000원을 **환불액에서 차감**(부분취소)하고, 판매자 귀책은 전액 환불이다. 정산 차감이나 오프라인 프로세스가 아니다. order-service 쪽 영향은 ① `RefundReason.POST_SUCCESS_RETURN` 수신 시 쿠폰 미복원 + `REFUNDED_AFTER_SUCCESS` 전이, ② ORDER-005 `availableActions`에 배송완료 7일 이내 `RETURN_REQUEST`/`EXCHANGE_REQUEST` 노출.
 - **`RewardUpdatedEvent`에 변경 전 수량(`previousQuantity`)을 추가할지**: 현재는 order-service가 `initial_quantity`를 자체 보관해 델타를 계산하지만, project-service 쪽에서 이벤트에 `previousQuantity`를 실어 보내는 대안도 있습니다. project-service 담당자와 협의해서 어느 쪽으로 확정할지 결정 필요(순수 기술 결정, PM 불필요).

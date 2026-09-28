@@ -17,12 +17,15 @@ public interface FulfillmentDomainEventPublisher {
      * FULFILLMENT-006 — 발송정보 등록(PREPARING→SHIPPED) 시점, order-service 판매자 발송목록의
      * 발송상태 필터·건수 캐시 갱신 트리거. {@link #publishShippingCompleted}(SHIPPED→DELIVERED)와는
      * 다른 전이 시점이다.
+     *
+     * <p>교환 재발송분의 발송이면 {@code reshipmentRefundRequestId}가 채워진다 — payment-service가
+     * 이 값으로 자기 교환 신청과 대조해 완료 처리한다(최초 발송이면 null).
      */
     void publishShipmentShipped(ShipmentShippedEvent event);
 
     record ShippingCompletedEvent(UUID fundingId, UUID projectId) {
     }
 
-    record ShipmentShippedEvent(UUID fundingId, UUID projectId) {
+    record ShipmentShippedEvent(UUID fundingId, UUID projectId, Long reshipmentRefundRequestId) {
     }
 }

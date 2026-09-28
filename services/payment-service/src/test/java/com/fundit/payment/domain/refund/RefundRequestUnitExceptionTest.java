@@ -17,7 +17,7 @@ class RefundRequestUnitExceptionTest {
     @Test
     void 증빙자료가_없으면_하자환불_신청시_예외가_발생한다() {
         // when & then
-        assertThatThrownBy(() -> RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of()))
+        assertThatThrownBy(() -> RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> org.assertj.core.api.Assertions.assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(PaymentErrorCode.EVIDENCE_REQUIRED));
@@ -26,7 +26,7 @@ class RefundRequestUnitExceptionTest {
     @Test
     void 반려사유가_없으면_반려시_예외가_발생한다() {
         // given
-        RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
+        RefundRequest request = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
 
         // when & then
         assertThatThrownBy(() -> request.reject(" "))
@@ -38,7 +38,7 @@ class RefundRequestUnitExceptionTest {
     @Test
     void 이미_처리된_신청은_다시_승인할_수_없다() {
         // given
-        RefundRequest request = RefundRequest.requestDefect(FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
+        RefundRequest request = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
         request.approve(true);
 
         // when & then

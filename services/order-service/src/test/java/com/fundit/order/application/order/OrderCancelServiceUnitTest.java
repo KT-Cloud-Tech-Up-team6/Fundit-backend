@@ -1,6 +1,7 @@
 package com.fundit.order.application.order;
 
 import com.fundit.order.application.funding.FundingEventPublisher;
+import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
@@ -55,10 +56,11 @@ class OrderCancelServiceUnitTest {
         when(fundingRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // when
-        Funding result = orderCancelService.cancel(memberId, orderId);
+        Funding result = orderCancelService.cancel(memberId, orderId, CancelReason.OPTION_SELECTION_ERROR, null);
 
         // then
         assertThat(result.getStatus()).isEqualTo(FundingStatus.CANCELLED_BY_MEMBER);
+        assertThat(result.getCancelReason()).isEqualTo(CancelReason.OPTION_SELECTION_ERROR);
         verify(inventoryRepository).increaseStock(5L, 3);
         // projectId(Long)는 cross-service ID 통일(#69) 이후 Funding이 더 이상 추적하지 않아 null로 발행한다.
         verify(fundingEventPublisher).publishFundingCancelledByMember(

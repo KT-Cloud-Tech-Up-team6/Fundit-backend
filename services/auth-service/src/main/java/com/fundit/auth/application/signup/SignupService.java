@@ -44,6 +44,14 @@ public class SignupService {
                 || !verifiedIdentity.name().equals(command.name())) {
             throw new BusinessException(CommonErrorCode.TOKEN_INVALID);
         }
+        // 1인 1계정(#150, PM 확정): 이메일만 바꿔 재가입하는 것을 본인인증한 이름+전화번호로 막는다.
+        // 본인인증 뒤에 검사한다 — 앞에서 하면 인증 없이 이름+번호만 넣어 가입 여부를 캐낼 수 있다.
+        // 번호를 바꾼 뒤 재가입은 PM이 예외로 봤다(막지 않음).
+        // ponytail: 앱 레벨 검사라 같은 사람이 본인인증 2건으로 동시에 가입하면 둘 다 통과할 수 있다.
+        // 기존 dev 중복 계정 때문에 UNIQUE 인덱스를 못 건다 — 운영 오픈 전 정리 후 (name_hash, phone_hash) 부분 UNIQUE로 올린다.
+        if (accountRepository.findByNameAndPhone(verifiedIdentity.name(), verifiedIdentity.phoneNumber()).isPresent()) {
+            throw new BusinessException(AuthErrorCode.ACCOUNT_ALREADY_EXISTS);
+        }
 
         VerifiedAccount created = createVerifiedAccount(command.email(), command.password(),
                 verifiedIdentity.name(), verifiedIdentity.phoneNumber(), command.nickname(),

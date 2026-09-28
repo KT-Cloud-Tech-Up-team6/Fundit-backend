@@ -39,7 +39,8 @@ class KafkaPaymentEventTransportUnitTest {
         // given
         setUp();
         UUID fundingId = new UUID(0L, 1024L);
-        var event = new PaymentEventTransport.PaymentCompletedTransportEvent(fundingId, List.of(7L));
+        var event = new PaymentEventTransport.PaymentCompletedTransportEvent(fundingId, List.of(7L),
+                java.time.Instant.parse("2026-09-01T10:00:00Z"));
 
         // when
         transport.sendPaymentCompleted(event, 42L);
@@ -51,6 +52,8 @@ class KafkaPaymentEventTransportUnitTest {
         assertThat(payload.get("eventId")).isEqualTo("payment:42");
         assertThat(payload.get("fundingId")).isEqualTo(fundingId);
         assertThat(payload.get("couponIssuanceIds")).isEqualTo(List.of(7L));
+        // order-service 펀딩 내역의 "결제일" — 이 값이 빠지면 그쪽 응답이 영영 null이다.
+        assertThat(payload.get("paidAt")).isEqualTo(java.time.Instant.parse("2026-09-01T10:00:00Z"));
     }
 
     @SuppressWarnings("unchecked")

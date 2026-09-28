@@ -60,6 +60,24 @@ class SignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 본인인증한_이름과_전화번호로_이미_계정이_있으면_409이고_계정을_만들지_않는다() {
+        // given — 이메일만 바꿔 재가입하는 경우(#150)
+        when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(
+                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", null)));
+        when(accountRepository.findByNameAndPhone("홍길동", "01012345678"))
+                .thenReturn(Optional.of(Account.builder().build()));
+
+        // when & then
+        assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
+                "other@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), Map.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(AuthErrorCode.ACCOUNT_ALREADY_EXISTS);
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
     void 본인인증_토큰이_만료됐거나_존재하지_않으면_예외가_발생한다() {
         // given
         when(identityVerificationStore.consume("expired-token")).thenReturn(Optional.empty());

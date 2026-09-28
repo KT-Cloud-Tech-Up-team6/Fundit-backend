@@ -56,6 +56,8 @@ class PaymentEventOutboxWorkerUnitTest {
         verify(transport).sendPaymentCompleted(captor.capture(), any());
         assertThat(captor.getValue().fundingId()).isEqualTo(new UUID(0L, 1024L));
         assertThat(captor.getValue().couponIssuanceIds()).containsExactly(7L);
+        // payload에 문자열로 담긴 결제 시각이 전송 이벤트까지 실려야 order-service가 결제일을 채운다.
+        assertThat(captor.getValue().paidAt()).isEqualTo(java.time.Instant.parse("2026-09-08T14:23:11Z"));
         assertThat(event.getPublishedAt()).isNotNull();
     }
 

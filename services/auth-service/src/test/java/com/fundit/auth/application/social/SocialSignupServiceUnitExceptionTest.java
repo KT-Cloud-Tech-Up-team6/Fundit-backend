@@ -1,6 +1,5 @@
 package com.fundit.auth.application.social;
 
-import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.signup.MemberServiceClient;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.AuthErrorCode;
@@ -17,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,15 +35,13 @@ class SocialSignupServiceUnitExceptionTest {
     @Mock
     private SocialTokenStore signupTokenStore;
     @Mock
-    private IdentityVerificationStore identityVerificationStore;
-    @Mock
     private MemberServiceClient memberServiceClient;
     @Mock
     private TokenIssuer tokenIssuer;
 
     private SocialSignupService service() {
         return new SocialSignupService(accountRepository, new EmailConflictChecker(accountRepository),
-                signupTokenStore, identityVerificationStore, memberServiceClient, tokenIssuer);
+                signupTokenStore, memberServiceClient, tokenIssuer);
     }
 
     @Test
@@ -80,8 +76,6 @@ class SocialSignupServiceUnitExceptionTest {
         // given — accounts.email이 NOT NULL이라 이메일 없이는 계정을 만들 수 없다
         when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
                 new SocialTokenStore.PendingSocialSignup(SocialProvider.KAKAO, "kakao-1", null, null)));
-        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
-                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
         when(accountRepository.findBySocial(SocialProvider.KAKAO, "kakao-1")).thenReturn(Optional.empty());
 
         // when & then
@@ -132,17 +126,34 @@ class SocialSignupServiceUnitExceptionTest {
         }));
     }
 
+    @Test
+    void 본인인증_없이_가입하고_입력한_이름_번호는_계정_조회용_해시에_남기지_않는다() {
+        // given — 소셜은 본인인증 제외(#150). 인증 안 된 값이 이메일 찾기·일반가입 중복 판정에 섞이면
+        // 남의 이름+번호로 소셜 가입하는 것만으로 그 사람의 일반가입을 막을 수 있다
+        givenSignupReady();
+
+        // when
+        service().signup(command("token", null));
+
+        // then — member 프로필에는 입력값이 그대로 간다(phone_number NOT NULL)
+        verify(accountRepository).save(org.mockito.ArgumentMatchers.argThat(a -> {
+            assertThat(a.getVerifiedName()).isNull();
+            assertThat(a.getVerifiedPhoneNumber()).isNull();
+            return true;
+        }));
+        verify(memberServiceClient).createProfile(org.mockito.ArgumentMatchers.argThat(
+                c -> "홍길동".equals(c.name()) && "01012345678".equals(c.phoneNumber())));
+    }
+
     private void givenValidTokens() {
         when(signupTokenStore.consumeSignup("token")).thenReturn(Optional.of(
                 new SocialTokenStore.PendingSocialSignup(
                         SocialProvider.KAKAO, "kakao-1", "user@kakao.com", "응원왕")));
-        when(identityVerificationStore.consume("verify")).thenReturn(Optional.of(
-                new IdentityVerificationStore.VerifiedIdentity("홍길동", "01012345678", LocalDate.of(1990, 1, 1))));
     }
 
     private SocialSignupService.SocialSignupCommand command(String signupToken, String email) {
         return new SocialSignupService.SocialSignupCommand(
-                signupToken, "verify", email, "응원왕", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
+                signupToken, email, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
     }
 
     private Account account() {
@@ -185,6 +196,6 @@ class SocialSignupServiceUnitExceptionTest {
 
     private SocialSignupService.SocialSignupCommand commandWithNickname(String nickname) {
         return new SocialSignupService.SocialSignupCommand(
-                "token", "verify", null, nickname, List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
+                "token", null, "홍길동", nickname, "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"), null);
     }
 }

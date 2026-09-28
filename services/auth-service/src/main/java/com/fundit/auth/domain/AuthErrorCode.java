@@ -9,6 +9,8 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_CREDENTIALS(401, "이메일 또는 비밀번호가 일치하지 않습니다."),
     ACCOUNT_LOCKED(423, "계정이 잠겨 있습니다."),
     EMAIL_ALREADY_EXISTS(409, "이미 가입된 이메일입니다."),
+    /** 일반 회원가입 — 본인인증한 이름+전화번호로 이미 계정이 있다(#150). */
+    ACCOUNT_ALREADY_EXISTS(409, "이미 계정이 존재합니다."),
     /** 정책 B·C — 어느 제공자인지는 응답 detail의 provider로 알려준다. */
     SOCIAL_ACCOUNT_EXISTS(409, "이미 소셜 로그인으로 가입된 이메일입니다.");
 

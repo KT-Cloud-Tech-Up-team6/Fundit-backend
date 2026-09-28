@@ -19,6 +19,9 @@ class ShipmentMapper {
                 .deliveredAt(entity.getDeliveredAt())
                 .receiptConfirmedAt(entity.getReceiptConfirmedAt())
                 .receiptAutoConfirmed(entity.isReceiptAutoConfirmed())
+                .reshipmentCount(entity.getReshipmentCount())
+                .lastReshipmentRequestedAt(entity.getLastReshipmentRequestedAt())
+                .lastReshipmentRefundRequestId(entity.getLastReshipmentRefundRequestId())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -36,6 +39,9 @@ class ShipmentMapper {
                 .deliveredAt(domain.getDeliveredAt())
                 .receiptConfirmedAt(domain.getReceiptConfirmedAt())
                 .receiptAutoConfirmed(domain.isReceiptAutoConfirmed())
+                .reshipmentCount(domain.getReshipmentCount())
+                .lastReshipmentRequestedAt(domain.getLastReshipmentRequestedAt())
+                .lastReshipmentRefundRequestId(domain.getLastReshipmentRefundRequestId())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
                 .build();

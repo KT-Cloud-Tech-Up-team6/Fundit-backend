@@ -54,7 +54,7 @@ class RefundRequestMapperUnitTest {
 
     @Test
     void 대체계좌가_없으면_암호문도_null이다() {
-        RefundRequest domain = RefundRequest.requestDefect(new UUID(0L, 1024L), UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"));
+        RefundRequest domain = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, new UUID(0L, 1024L), UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"));
 
         RefundRequestJpaEntity entity = mapper.toEntity(domain);
         RefundRequest restored = mapper.toDomain(entity);

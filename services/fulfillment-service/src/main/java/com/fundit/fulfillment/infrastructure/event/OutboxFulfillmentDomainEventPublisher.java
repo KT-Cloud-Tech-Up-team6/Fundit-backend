@@ -31,6 +31,7 @@ public class OutboxFulfillmentDomainEventPublisher implements FulfillmentDomainE
                 .eventType(FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPMENT_SHIPPED)
                 .fundingOrderId(event.fundingId())
                 .projectPublicId(event.projectId())
+                .reshipmentRefundRequestId(event.reshipmentRefundRequestId())
                 .build());
     }
 }

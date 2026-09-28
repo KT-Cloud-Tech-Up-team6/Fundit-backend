@@ -29,7 +29,7 @@
 
 ### 정책값 확인 필요 (가정치로 구현됨)
 - 비밀번호 복잡도 규칙(최소 8자+3종류 이상)과 토큰 수명(Access 30분/Refresh 14일)은 스펙에 구체 기준이 없어 가정한 값. 실제 정책이 다르면 `PasswordComplexityValidator`/`application-*.yml`의 `jwt.access-token-ttl`/`jwt.refresh-token-ttl`만 고치면 됨.
-- CI(연계정보)/DI(중복가입확인정보)는 이번 슬라이스에서 저장하지 않음(가입 시 미사용) — 1인 1계정 중복가입 방지 등에 필요해지면 `IdentityVerificationStore.VerifiedIdentity`에 필드 추가.
+- ~~CI(연계정보)/DI(중복가입확인정보)는 이번 슬라이스에서 저장하지 않음~~ **→ 2026-09-24 #150으로 정리.** 인프라팀 제보로 이메일만 바꾼 중복가입이 확인됐다. PortOne(KG이니시스 통합인증)은 DI를 주지 않고 CI는 카카오 인증서에서 빠져, PM 결정으로 **본인인증한 이름+전화번호**(기존 `name_hash`/`phone_hash`)로 일반가입만 막는다(409 `ACCOUNT_ALREADY_EXISTS`). 전화번호 변경 후 재가입은 예외로 둠. 같은 결정으로 소셜 가입은 본인인증을 하지 않고 계정 해시도 남기지 않는다. DB UNIQUE는 기존 dev 중복 계정 정리 후 검토.
 
 ---
 

@@ -19,5 +19,24 @@ class RefundTriggerTypeUnitTest {
                 .isEqualTo(RefundReason.POST_SUCCESS_DEFECT);
         assertThat(RefundTriggerType.SHIPPING_DELAY.toOrderServiceReason())
                 .isEqualTo(RefundReason.POST_SUCCESS_DELAY);
+        assertThat(RefundTriggerType.RETURN_CHANGE_OF_MIND.toOrderServiceReason())
+                .isEqualTo(RefundReason.POST_SUCCESS_RETURN);
+    }
+
+    @Test
+    void 판매자_검토_대상은_발송_후_신청_세_가지다() {
+        // 교환도 판매자 승인을 받는다 — 결제취소 대신 교환비 수납·재발송으로 이어진다.
+        assertThat(RefundTriggerType.DEFECT.isSellerDecisionTarget()).isTrue();
+        assertThat(RefundTriggerType.RETURN_CHANGE_OF_MIND.isSellerDecisionTarget()).isTrue();
+        assertThat(RefundTriggerType.EXCHANGE.isSellerDecisionTarget()).isTrue();
+        assertThat(RefundTriggerType.SHIPPING_DELAY.isSellerDecisionTarget()).isFalse();
+        assertThat(RefundTriggerType.GOAL_FAILED_AUTO.isSellerDecisionTarget()).isFalse();
+    }
+
+    @Test
+    void 발송_후_신청_유형은_기한_검사_대상_세_가지다() {
+        assertThat(RefundTriggerType.postShipmentTypes())
+                .containsExactlyInAnyOrder(RefundTriggerType.DEFECT, RefundTriggerType.EXCHANGE,
+                        RefundTriggerType.RETURN_CHANGE_OF_MIND);
     }
 }

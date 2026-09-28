@@ -38,12 +38,16 @@ class DefectRefundDecisionServiceUnitExceptionTest {
     @Mock
     private PaymentNotificationPublisher paymentNotificationPublisher;
 
+    @Mock
+    private ExchangeService exchangeService;
+
     private DefectRefundDecisionService defectRefundDecisionService;
 
     @BeforeEach
     void setUp() {
         defectRefundDecisionService = new DefectRefundDecisionService(refundRequestRepository, paymentRepository,
-                orderFundingClient, refundExecutionService, paymentNotificationPublisher);
+                orderFundingClient, refundExecutionService, exchangeService,
+                paymentNotificationPublisher);
     }
 
     @Test
@@ -73,7 +77,7 @@ class DefectRefundDecisionServiceUnitExceptionTest {
     @Test
     void 타_판매자가_결정하려하면_FORBIDDEN_예외가_발생한다() {
         // given
-        RefundRequest refundRequest = RefundRequest.requestDefect(FUNDING_ID, UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"));
+        RefundRequest refundRequest = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"));
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(refundRequest));
         when(orderFundingClient.fetch(FUNDING_ID)).thenReturn(
                 new OrderFundingClient.FundingSnapshot(UUID.randomUUID(), UUID.randomUUID(), "GOAL_ACHIEVED", 89_000L,

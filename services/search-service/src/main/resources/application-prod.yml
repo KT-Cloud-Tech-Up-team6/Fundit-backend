@@ -10,6 +10,12 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
+search:
+  integration:
+    live-service:
+      # order-service가 이미 쓰는 것과 같은 환경변수다(파이프라인에 search-service용으로 추가 필요).
+      base-url: ${LIVE_SERVICE_BASE_URL:http://live-service:8080}
+
 internal-api:
   key: ${INTERNAL_API_KEY}
 

@@ -46,7 +46,7 @@ class KafkaPaymentEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.sendPaymentCompleted(
-                new PaymentCompletedTransportEvent(new UUID(0L, 1024L), List.of(7L)), 1L))
+                new PaymentCompletedTransportEvent(new UUID(0L, 1024L), List.of(7L), null), 1L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 

@@ -11,4 +11,8 @@ public interface FulfillmentStageDetailJpaRepository extends JpaRepository<Fulfi
     Optional<FulfillmentStageDetailJpaEntity> findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(Long trackerId, String stage);
 
     List<FulfillmentStageDetailJpaEntity> findByTrackerIdOrderByUpdatedAtDesc(Long trackerId);
+
+    /** 위 단건 조회의 배치판(발송지연 판정용) — 트래커별 최신 1건 선택은 호출부가 한다. */
+    List<FulfillmentStageDetailJpaEntity> findByTrackerIdInAndStageOrderByUpdatedAtDesc(List<Long> trackerIds,
+                                                                                        String stage);
 }

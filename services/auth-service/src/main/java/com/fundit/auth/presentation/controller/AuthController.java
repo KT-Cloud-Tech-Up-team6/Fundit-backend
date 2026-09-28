@@ -146,8 +146,8 @@ public class AuthController {
     @PostMapping("/signup/social")
     public ResponseEntity<SocialSignupResponse> signupSocial(@Valid @RequestBody SocialSignupRequest request) {
         var result = socialSignupService.signup(new SocialSignupService.SocialSignupCommand(
-                request.signupToken(), request.verificationToken(), request.email(),
-                request.nickname(), request.agreedTerms(), request.address()));
+                request.signupToken(), request.email(), request.name(),
+                request.nickname(), request.phoneNumber(), request.agreedTerms(), request.address()));
 
         return withRefreshTokenCookie(result.refreshToken())
                 .body(new SocialSignupResponse(result.accountId(), result.memberId(), result.accessToken()));

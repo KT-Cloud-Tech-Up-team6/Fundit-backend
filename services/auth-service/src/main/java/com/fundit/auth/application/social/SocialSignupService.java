@@ -1,6 +1,5 @@
 package com.fundit.auth.application.social;
 
-import com.fundit.auth.application.identity.IdentityVerificationStore;
 import com.fundit.auth.application.signup.MemberServiceClient;
 import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.AuthErrorCode;
@@ -29,10 +28,11 @@ import java.util.UUID;
  * 값이 없으면 {@code @NotBlank}가 400으로 끊는다 — <b>실명으로 대신 채우지 않는다.</b>
  * 닉네임 칸에 실명이 들어가면 공개 화면에 실명이 나간다(security.md S9).
  *
- * <p><b>본인인증을 요구한다.</b> API 명세서 AUTH-008 표에는 {@code verificationToken}이 없지만,
- * 일반가입(AUTH-007)은 요구하고 member-service는 {@code phone_number}를 NOT NULL로 저장한다.
- * 소셜만 면제하면 본인인증을 안 거친 회원이 생기고, 나중에 정책 A(연동)가 대조할 휴대폰번호도
- * 사용자가 타이핑한 값이 된다. 기획 확인 후 완화할 수 있지만, 쌓인 미인증 데이터는 되돌리기 어렵다.
+ * <p><b>본인인증을 하지 않는다</b>(#150, 2026-09-24 결정 — 본인인증은 일반가입에만 남긴다).
+ * 이름·전화번호는 요청값을 그대로 member 프로필에 넘기고, <b>계정의 이름·전화번호 해시는 비워 둔다.</b>
+ * 인증되지 않은 값이 이메일 찾기(AUTH-009)·비밀번호 재설정·일반가입 중복 판정에 섞이면 안 된다 —
+ * 남의 이름+번호를 넣어 소셜 가입하는 것만으로 그 사람의 일반가입을 막거나 이메일 찾기 결과를 오염시킬 수 있다.
+ * 정책 A(연동)는 기존 일반 계정의 인증된 번호를 대조하므로 영향이 없다.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,16 +41,12 @@ public class SocialSignupService {
     private final AccountRepository accountRepository;
     private final EmailConflictChecker emailConflictChecker;
     private final SocialTokenStore signupTokenStore;
-    private final IdentityVerificationStore identityVerificationStore;
     private final MemberServiceClient memberServiceClient;
     private final TokenIssuer tokenIssuer;
 
     public SocialSignupResult signup(SocialSignupCommand command) {
         var pending = signupTokenStore.consumeSignup(command.signupToken())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_EXPIRED));
-
-        var verifiedIdentity = identityVerificationStore.consume(command.verificationToken())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_INVALID));
 
         // 이미 연동된 계정이 있으면 가입이 아니라 로그인해야 한다(명세 AUTH-008).
         // signupToken 발급과 이 시점 사이에 다른 탭에서 가입이 끝났을 수 있다.
@@ -76,9 +72,7 @@ public class SocialSignupService {
         Account account = Account.builder()
                 .id(UuidCreator.getTimeOrderedEpoch())
                 .email(email)
-                // 이메일 찾기(AUTH-009) 조회용. 평문이 아니라 블라인드 인덱스 해시로 저장된다.
-                .verifiedName(verifiedIdentity.name())
-                .verifiedPhoneNumber(verifiedIdentity.phoneNumber())
+                // verifiedName/verifiedPhoneNumber 없음 — 본인인증을 안 거친 값이라 해시를 남기지 않는다(클래스 주석)
                 // passwordHash 없음 — 소셜 전용 계정은 NULL 허용(V1__init_schema.sql)
                 .socialProvider(pending.provider().name())
                 .socialId(pending.socialId())
@@ -96,8 +90,8 @@ public class SocialSignupService {
         MemberServiceClient.MemberProfile memberProfile;
         try {
             memberProfile = memberServiceClient.createProfile(new MemberServiceClient.CreateMemberProfileCommand(
-                    account.getId(), email, verifiedIdentity.name(), command.nickname(),
-                    verifiedIdentity.phoneNumber(), command.agreedTerms(), command.address()));
+                    account.getId(), email, command.name(), command.nickname(),
+                    command.phoneNumber(), command.agreedTerms(), command.address()));
         } catch (DependencyFailureException e) {
             accountRepository.deleteById(account.getId());
             throw e;
@@ -110,9 +104,10 @@ public class SocialSignupService {
 
     public record SocialSignupCommand(
             String signupToken,
-            String verificationToken,
             String email,
+            String name,
             String nickname,
+            String phoneNumber,
             List<String> agreedTerms,
             Map<String, Object> address
     ) {

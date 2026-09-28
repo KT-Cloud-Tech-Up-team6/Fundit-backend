@@ -154,6 +154,36 @@ class AuthControllerTest {
     }
 
     @Test
+    void 소셜_회원가입은_이름과_전화번호를_각자_자리로_서비스에_넘긴다() throws Exception {
+        // given — 둘 다 String이라 인자 순서가 뒤바뀌어도 컴파일된다. 매핑을 여기서 고정한다
+        when(socialSignupService.signup(org.mockito.ArgumentMatchers.any())).thenReturn(
+                new SocialSignupService.SocialSignupResult(
+                        UUID.randomUUID(), UUID.randomUUID(), "access-token", "refresh-token"));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/auth/signup/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "signupToken": "signup-token",
+                                  "name": "홍길동",
+                                  "nickname": "응원왕",
+                                  "phoneNumber": "01012345678",
+                                  "agreedTerms": ["SERVICE_USE"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("access-token"))
+                .andExpect(header().exists("Set-Cookie"));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(SocialSignupService.SocialSignupCommand.class);
+        org.mockito.Mockito.verify(socialSignupService).signup(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().name()).isEqualTo("홍길동");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().phoneNumber()).isEqualTo("01012345678");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().nickname()).isEqualTo("응원왕");
+    }
+
+    @Test
     void 로그인에_성공하면_토큰과_쿠키를_응답한다() throws Exception {
         // given
         UUID accountId = UUID.randomUUID();

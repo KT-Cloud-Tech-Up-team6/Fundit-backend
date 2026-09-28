@@ -16,8 +16,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -88,4 +90,61 @@ class InternalLiveControllerTest {
                 .andExpect(jsonPath("$.sellerId").value(sellerId.toString()));
     }
 
+    @Test
+    void 프로젝트_진행중_방송은_세션_id까지_돌려준다() throws Exception {
+        // given
+        UUID projectId = UUID.randomUUID();
+        UUID liveId = UUID.randomUUID();
+        when(liveStatusQueryService.findActiveByProject(projectId)).thenReturn(Optional.of(
+                new LiveStatusQueryService.LiveStatus(liveId, 42L, "LIVE", UUID.randomUUID())));
+
+        // when & then
+        mockMvc.perform(get("/internal/v1/lives/by-project/{projectId}/active-status", projectId)
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionId").value(42))
+                .andExpect(jsonPath("$.liveId").value(liveId.toString()));
+    }
+
+    @Test
+    void 프로젝트가_방송_중이_아니면_200에_전부_null이다() throws Exception {
+        // given — 404로 주면 order가 "호출 실패"와 구분하지 못한다
+        UUID projectId = UUID.randomUUID();
+        when(liveStatusQueryService.findActiveByProject(projectId)).thenReturn(Optional.empty());
+
+        // when & then
+        mockMvc.perform(get("/internal/v1/lives/by-project/{projectId}/active-status", projectId)
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liveId").value(nullValue()))
+                .andExpect(jsonPath("$.sessionId").value(nullValue()))
+                .andExpect(jsonPath("$.status").value(nullValue()))
+                .andExpect(jsonPath("$.sellerId").value(nullValue()));
+    }
+
+    @Test
+    void 세션_상태_조회는_종료된_방송도_실제_상태를_돌려준다() throws Exception {
+        // given
+        when(liveStatusQueryService.findBySessionId(42L)).thenReturn(Optional.of(
+                new LiveStatusQueryService.LiveStatus(UUID.randomUUID(), 42L, "ENDED", UUID.randomUUID())));
+
+        // when & then
+        mockMvc.perform(get("/internal/v1/lives/sessions/{sessionId}/status", 42L)
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ENDED"));
+    }
+
+    @Test
+    void 세션이_없으면_200에_전부_null이다() throws Exception {
+        // given
+        when(liveStatusQueryService.findBySessionId(99L)).thenReturn(Optional.empty());
+
+        // when & then
+        mockMvc.perform(get("/internal/v1/lives/sessions/{sessionId}/status", 99L)
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(nullValue()))
+                .andExpect(jsonPath("$.sessionId").value(nullValue()));
+    }
 }

@@ -71,7 +71,7 @@ class OrderCreateServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 5, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false, null, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.INSUFFICIENT_STOCK));
 
@@ -100,7 +100,7 @@ class OrderCreateServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
-                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE"), false, null, null))
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("RACE"), false, null, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(OrderErrorCode.COUPON_BUDGET_EXCEEDED));
@@ -123,7 +123,7 @@ class OrderCreateServiceUnitExceptionTest {
         assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
                 List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
                 new ShippingAddress("홍길동", "010", "12345", "주소", null), null, false,
-                "retry-key-1", "hash-changed"))
+                "retry-key-1", "hash-changed", null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(com.fundit.common.error.CommonErrorCode.CONFLICT));

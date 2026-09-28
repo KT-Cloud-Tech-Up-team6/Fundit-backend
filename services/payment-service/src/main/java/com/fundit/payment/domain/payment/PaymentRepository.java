@@ -34,5 +34,12 @@ public interface PaymentRepository {
     /** PAYMENT-001 ⑤ — 이미 pg_order_id가 발급된 시도가 있으면 재사용(중복 생성 방지). */
     Optional<Payment> findPendingByFundingId(UUID fundingId);
 
+    /**
+     * 교환 배송비 결제 조회 — 교환 신청 1건당 완료 결제는 1건이고(uq_payments_completed_exchange_fee),
+     * 실패한 시도가 쌓일 수 있어 최신 건을 돌려준다. 위 펀딩 단위 조회들은 리워드 결제만 보므로
+     * 교환비 결제는 이 메서드로만 찾는다.
+     */
+    Optional<Payment> findLatestExchangeFeeByRefundRequestId(Long refundRequestId);
+
     boolean existsByPgOrderId(String pgOrderId);
 }

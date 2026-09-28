@@ -99,6 +99,18 @@ class AuthControllerExceptionTest {
     }
 
     @Test
+    void 소셜_회원가입에_전화번호가_없으면_400이다() throws Exception {
+        // when & then — 소셜은 본인인증이 없어 입력값이 유일한 출처다(member phone_number NOT NULL, #150)
+        mockMvc.perform(post("/api/v1/auth/signup/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "signupToken": "signup-token", "name": "홍길동", "nickname": "응원왕",
+                                  "agreedTerms": ["SERVICE_USE"] }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 로그인_비밀번호가_틀리면_401_INVALID_CREDENTIALS를_반환한다() throws Exception {
         // given
         when(loginService.authenticate("test@fundit.com", "wrong-pw"))

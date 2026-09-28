@@ -3,8 +3,10 @@ package com.fundit.order.application.order;
 import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.catalog.ProjectSummaryClient;
 import com.fundit.order.application.fulfillment.FulfillmentStatusClient;
+import com.fundit.order.application.refund.RefundStatusClient;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
+import com.fundit.order.domain.funding.FundingProgressStage;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
 import com.fundit.order.domain.funding.ShippingAddress;
@@ -37,6 +39,8 @@ class OrderQueryServiceUnitTest {
     private FundingCouponApplicationJpaRepository couponApplicationJpaRepository;
     @Mock
     private FulfillmentStatusClient fulfillmentStatusClient;
+    @Mock
+    private RefundStatusClient refundStatusClient;
     @Mock
     private ProjectSummaryClient projectSummaryClient;
     @Mock
@@ -100,6 +104,8 @@ class OrderQueryServiceUnitTest {
         when(projectSummaryClient.getSummaries(List.of(projectId))).thenReturn(java.util.Map.of(projectId,
                 new ProjectSummaryClient.ProjectSummary("프로젝트", "https://cdn/x.png", "메이커")));
         when(fulfillmentStatusClient.fetchBatch(List.of())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchDelayedProjectIds(List.of())).thenReturn(java.util.Set.of());
+        when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
         var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
@@ -109,6 +115,68 @@ class OrderQueryServiceUnitTest {
         OrderQueryService.OrderListItem item = result.getContent().get(0);
         assertThat(item.projectSummary().sellerDisplayName()).isEqualTo("메이커");
         assertThat(item.availableActions()).containsExactly("CANCEL");
+        assertThat(item.progressStage()).isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
+        assertThat(item.refundRequests()).isEmpty();
+    }
+
+    @Test
+    void 목록조회시_발송예정일이_지난_프로젝트의_미발송건만_발송지연으로_내려간다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(projectId)
+                .status(FundingStatus.GOAL_ACHIEVED)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800))
+                .lineItems(List.of(new FundingLineItem(1L, 5L, "리워드", 1, 10_000L, List.of())))
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByMemberId(any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of(orderId,
+                new FulfillmentStatusClient.FulfillmentStatus(false, false, null)));
+        when(fulfillmentStatusClient.fetchDelayedProjectIds(List.of(projectId)))
+                .thenReturn(java.util.Set.of(projectId));
+        when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
+
+        // when
+        var result = orderQueryService.listMyOrders(memberId, null,
+                org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then
+        OrderQueryService.OrderListItem item = result.getContent().get(0);
+        assertThat(item.progressStage()).isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
+        assertThat(item.availableActions()).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+    }
+
+    @Test
+    void 목록조회시_배송상태_조회가_실패하면_발송지연으로_보지_않는다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(projectId)
+                .status(FundingStatus.GOAL_ACHIEVED)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800)).lineItems(List.of())
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByMemberId(any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        // 조회 실패 시 어댑터가 빈 값을 돌려준다(목록 자체는 내려가야 한다).
+        when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchDelayedProjectIds(any())).thenReturn(java.util.Set.of());
+        when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
+
+        // when
+        var result = orderQueryService.listMyOrders(memberId, null,
+                org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then — 누를 수 없는 버튼을 보여주지 않는 쪽으로 degrade
+        OrderQueryService.OrderListItem item = result.getContent().get(0);
+        assertThat(item.progressStage()).isEqualTo(FundingProgressStage.FUNDING_SUCCEEDED);
+        assertThat(item.availableActions()).isEmpty();
     }
 
     @Test
@@ -125,6 +193,8 @@ class OrderQueryServiceUnitTest {
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
         when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchDelayedProjectIds(any())).thenReturn(java.util.Set.of());
+        when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
         when(couponApplicationJpaRepository.sumDiscountAmountByFundingIdIn(List.of(1L)))
                 .thenReturn(List.of(discountProjection(1L, 3_000L)));
 
@@ -158,6 +228,7 @@ class OrderQueryServiceUnitTest {
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of(
                 FundingCouponApplicationJpaEntity.builder().fundingId(1L).couponIssuanceId(1L).discountAmount(2_000L).build()));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(refundStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of());
 
         // when
         OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
@@ -178,13 +249,20 @@ class OrderQueryServiceUnitTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
         when(fulfillmentStatusClient.fetch(orderId))
-                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, true));
+                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, false,
+                        Instant.now().minus(java.time.Duration.ofDays(2))));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(refundStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of(orderId,
+                List.of(new RefundStatusClient.RefundStatus(7L, "DEFECT", "REQUESTED", Instant.now()))));
 
         // when
         OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
 
-        // then
-        assertThat(detail.availableActions()).containsExactly("DEFECT_REFUND_REQUEST");
+        // then — 단건 API는 지연 여부까지 한 번에 오므로 프로젝트 단위 조회를 하지 않는다.
+        assertThat(detail.availableActions())
+                .containsExactly("RETURN_REQUEST", "EXCHANGE_REQUEST", "DEFECT_REFUND_REQUEST");
+        assertThat(detail.progressStage()).isEqualTo(FundingProgressStage.DELIVERED);
+        assertThat(detail.refundRequests()).singleElement()
+                .extracting(RefundStatusClient.RefundStatus::triggerType).isEqualTo("DEFECT");
     }
 }

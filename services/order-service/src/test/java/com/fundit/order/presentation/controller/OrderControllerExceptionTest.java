@@ -2,6 +2,8 @@ package com.fundit.order.presentation.controller;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.order.application.live.LiveStatusClient;
+import com.fundit.order.application.order.LiveOrderStatsService;
 import com.fundit.order.application.order.OrderCancelService;
 import com.fundit.order.application.order.OrderCreateService;
 import com.fundit.order.application.order.OrderPreviewService;
@@ -45,12 +47,16 @@ class OrderControllerExceptionTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private OrderCancelService orderCancelService;
+    @MockitoBean
+    private LiveOrderStatsService liveOrderStatsService;
+    @MockitoBean
+    private LiveStatusClient liveStatusClient;
 
     @Test
     void 재고가_부족하면_409를_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();
-        when(orderCreateService.create(any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(orderCreateService.create(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any()))
                 .thenThrow(new BusinessException(OrderErrorCode.INSUFFICIENT_STOCK));
 
         // when & then
@@ -71,7 +77,7 @@ class OrderControllerExceptionTest {
         // given
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orderCancelService.cancel(memberId, orderId)).thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
+        when(orderCancelService.cancel(memberId, orderId, null, null)).thenThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         // when & then
         mockMvc.perform(post("/api/v1/orders/" + orderId + "/cancel")
@@ -85,7 +91,7 @@ class OrderControllerExceptionTest {
         // given
         UUID memberId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orderCancelService.cancel(memberId, orderId))
+        when(orderCancelService.cancel(memberId, orderId, null, null))
                 .thenThrow(new BusinessException(OrderErrorCode.ORDER_NOT_CANCELLABLE));
 
         // when & then

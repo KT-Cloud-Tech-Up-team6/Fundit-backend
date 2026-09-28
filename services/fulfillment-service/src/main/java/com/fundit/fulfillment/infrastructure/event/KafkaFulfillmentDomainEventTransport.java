@@ -54,6 +54,8 @@ public class KafkaFulfillmentDomainEventTransport implements FulfillmentDomainEv
         payload.put("fundingId", event.fundingId());
         payload.put("projectId", event.projectId());
         payload.put("shippedAt", shippedAt);
+        // 교환 재발송분이면 payment-service가 이 값으로 자기 교환 신청과 대조한다(최초 발송이면 null).
+        payload.put("reshipmentRefundRequestId", event.reshipmentRefundRequestId());
         send(KafkaTopics.SHIPMENT_SHIPPED, String.valueOf(event.fundingId()), payload);
     }
 

@@ -12,4 +12,6 @@ public interface LiveVerificationJpaRepository extends JpaRepository<LiveVerific
     List<LiveVerificationJpaEntity> findByProjectIdAndDeletedAtIsNull(Long projectId);
 
     boolean existsByProjectIdAndDeletedAtIsNull(Long projectId);
+
+    boolean existsByProjectIdAndQuestionSummaryIdAndDeletedAtIsNull(Long projectId, String questionSummaryId);
 }

@@ -16,7 +16,7 @@ class FundingUnitExceptionTest {
     private Funding newFunding() {
         List<FundingLineItem> lineItems = List.of(new FundingLineItem(null, 1L, "리워드", 1, 10_000L, List.of()));
         return Funding.create(UUID.randomUUID(), UUID.randomUUID(), "프로젝트", new ShippingAddress("홍길동", "010", "12345", "주소", null),
-                3_000L, lineItems, Instant.now().plusSeconds(3600), null, null);
+                3_000L, lineItems, Instant.now().plusSeconds(3600), null, null, null);
     }
 
     @Test
@@ -26,7 +26,7 @@ class FundingUnitExceptionTest {
         funding.expireIfPending();
 
         // when & then
-        assertThatThrownBy(funding::cancelByMember)
+        assertThatThrownBy(() -> funding.cancelByMember(null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> org.assertj.core.api.Assertions.assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.RESOURCE_EXPIRED));
@@ -36,10 +36,10 @@ class FundingUnitExceptionTest {
     void 이미_취소된_주문을_다시_취소하려하면_ORDER_NOT_CANCELLABLE_예외가_발생한다() {
         // given
         Funding funding = newFunding();
-        funding.cancelByMember();
+        funding.cancelByMember(null, null);
 
         // when & then
-        assertThatThrownBy(funding::cancelByMember)
+        assertThatThrownBy(() -> funding.cancelByMember(null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> org.assertj.core.api.Assertions.assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(OrderErrorCode.ORDER_NOT_CANCELLABLE));
@@ -52,7 +52,7 @@ class FundingUnitExceptionTest {
         funding.markGoalAchieved();
 
         // when & then
-        assertThatThrownBy(funding::cancelByMember)
+        assertThatThrownBy(() -> funding.cancelByMember(null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> org.assertj.core.api.Assertions.assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(OrderErrorCode.ORDER_NOT_CANCELLABLE));

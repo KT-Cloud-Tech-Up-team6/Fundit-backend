@@ -31,6 +31,7 @@ class RefundRequestMapper {
                 .alternateRefundAccount(decrypt(entity.getAlternateRefundAccountCipherText()))
                 .requestedAt(entity.getRequestedAt())
                 .processedAt(entity.getProcessedAt())
+                .reshipmentRequestedAt(entity.getReshipmentRequestedAt())
                 .build();
     }
 
@@ -49,6 +50,7 @@ class RefundRequestMapper {
                 .alternateRefundAccountCipherText(encrypt(domain.getAlternateRefundAccount()))
                 .requestedAt(domain.getRequestedAt())
                 .processedAt(domain.getProcessedAt())
+                .reshipmentRequestedAt(domain.getReshipmentRequestedAt())
                 .build();
     }
 

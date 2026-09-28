@@ -2,6 +2,7 @@ package com.fundit.order.presentation.controller;
 
 import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.coupon.MakerCouponIssueService;
+import com.fundit.order.application.live.LiveStatusClient;
 import com.fundit.order.domain.coupon.Coupon;
 import com.fundit.order.domain.coupon.CouponTargetScope;
 import com.fundit.order.domain.coupon.DiscountType;
@@ -40,6 +41,8 @@ class SellerCouponControllerTest {
 
     @MockitoBean
     private MakerCouponIssueService makerCouponIssueService;
+    @MockitoBean
+    private LiveStatusClient liveStatusClient;
     @MockitoBean
     private ProjectOwnershipClient projectOwnershipClient;
 

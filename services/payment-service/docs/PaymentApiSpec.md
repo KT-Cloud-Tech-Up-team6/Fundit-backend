@@ -3,7 +3,7 @@
 > `Auth Required` 엔드포인트는 게이트웨이(`platform:gateway-service`)가 JWT를 검증해 주입한 `X-User-Id`(`AuthHeaders.USER_ID`)로 사용자를 식별합니다. 서비스는 이 헤더를 직접 파싱하지 않고 `@LoginUser CurrentUser`로 주입받습니다. 게이트웨이를 우회한 직접 호출은 `X-Internal-Api-Key`(`AuthHeaders.INTERNAL_API_KEY`)가 없어 401로 차단됩니다. 웹훅(`POST /api/v1/payments/webhook/toss`)만 로그인 인증을 요구하지 않습니다.
 
 > **식별자 계약 (cross-service ID 통일 #69)**: `fundingId`의 정본은 order-service `orderId`(`fundings.public_id`, UUID)다.
-> - **v2** `POST /api/v2/payments`, `POST /api/v2/payments/confirm`, `POST /api/v2/refunds/defect`, `POST /api/v2/refunds/shipping-delay`, `GET /api/v2/refunds`는 UUID `fundingId`를 그대로 받는다/돌려준다. 승인/목록 응답의 `fundingId`도 UUID(`PaymentConfirmResponseV2`/`RefundSummaryResponseV2`).
+> - **v2** `POST /api/v2/payments`, `POST /api/v2/payments/confirm`, `POST /api/v2/refunds/defect`, `POST /api/v2/refunds/return`, `POST /api/v2/refunds/exchange`, `POST /api/v2/refunds/shipping-delay`, `GET /api/v2/refunds`는 UUID `fundingId`를 그대로 받는다/돌려준다. 승인/목록 응답의 `fundingId`도 UUID(`PaymentConfirmResponseV2`/`RefundSummaryResponseV2`).
 > - **v1**은 레거시 Long(order-service 내부 PK)을 받아 내부 API로 UUID로 해석한다. v1 승인/목록 응답의 Long `fundingId`는 항상 null — 값이 필요하면 v2를 쓴다.
 > - v2 HTTP 연동은 `GET /internal/orders/{orderId}`를 쓰고, v1은 `GET /internal/fundings/{fundingId}`(Long PK)를 쓴다.
 
@@ -116,6 +116,7 @@
       "triggerType": "DEFECT",
       "status": "UNDER_REVIEW",
       "amount": 89000,
+      "returnShippingFee": null,
       "requestedAt": "2026-09-01T10:00:00",
       "reasonDetail": "[DAMAGED] 배송 중 파손되어 도착했습니다.",
       "rejectedReason": null,
@@ -135,6 +136,31 @@
 ```
 
 - **V04**: `reasonDetail`/`rejectedReason`/`completedAt`은 `refund_requests` 테이블 값을 그대로 노출한다(반려 전이면 `rejectedReason`은 null, 미처리 건이면 `completedAt`은 null). `projectTitle`/`lineItems`는 order-service 내부 배치 API(`GET /internal/orders/order-summaries`)로 페이지 단위 1회 조회해 채우며, 조회 실패 시 둘 다 null(부가 정보, 목록 자체는 정상 응답).
+- **`amount`는 실 환불 금액이다**(결제 원금이 아님). 완료된 건은 `payment_cancellations.cancel_amount` 합계를, 아직 취소가 실행되지 않은 건(신청 중·반려)은 `payments.amount`를 폴백으로 내려준다 — 즉시처리 유형은 전액 취소라 폴백값이 곧 실 환불액이다. 반품비 차감 부분취소(2-3)를 별도 컬럼 없이 반영하기 위한 설계이며, 목록 쿼리 성능이 문제되면 그때 비정규화한다.
+- **`returnShippingFee`**는 `triggerType=RETURN_CHANGE_OF_MIND`일 때만 `5000`이고 그 외 유형은 null이다(반품비는 전 프로젝트 공통 고정액이라 조회 시 상수로 채운다).
+- **v2(`GET /api/v2/refunds`)는 사유를 나눠 내려준다** — `reasonType`(사유 유형 enum 이름, 유형 없는 사유는 null)과 `reasonDetail`(구매자가 쓴 상세만, 태그 제거)이다. 저장은 `"[DAMAGED] 배송 중 파손되어..."` 한 문자열이지만 FE가 이 문자열을 파싱하지 않도록 응답에서 분리한다(`RefundReasonTag`). 교환 건은 사유에 따른 `additionalPaymentAmount`(구매자 귀책 5000, 그 외 0)도 채워진다. **v1 응답은 기존 계약 유지** — `reasonDetail`에 태그가 포함된 원문이 그대로 내려가고 `reasonType`/`additionalPaymentAmount` 필드가 없다.
+- **필터**: `triggerType` 쿼리 파라미터로 유형별 필터가 가능하다 — 발송 후 반품은 `RETURN_CHANGE_OF_MIND`, 모금 중 참여 취소는 `SIMPLE_CHANGE_OF_MIND`로 구분된다.
+- **v2의 `triggerType`은 여러 번 올 수 있다**(`?triggerType=DEFECT&triggerType=RETURN_CHANGE_OF_MIND` — LIVE `GET /api/v1/lives/mine`의 `status`와 같은 방식). 화면의 "유형" 한 칸이 트리거 여러 개를 묶기 때문이다(취소 = `SIMPLE_CHANGE_OF_MIND`·`SHIPPING_DELAY`·`GOAL_FAILED_AUTO`, 반품 = `DEFECT`·`RETURN_CHANGE_OF_MIND`, 교환 = `EXCHANGE`). 여러 값은 합집합(OR)이고 `inProgress`와는 AND, 생략하거나 빈 값이면 전체다. **묶음의 정의는 FE가 조립한다** — 서버에 그룹 enum을 두지 않는다(화면이 바뀔 때마다 서버가 바뀌는 것을 피한다). v1(`GET /api/v1/refunds`)은 필터 없는 기존 계약 그대로다.
+- 여기서 "발송 전 단순변심"은 목록에 나타날 수 없다 — 환불 정책 V.1.0에서 성립 후 발송 전 단순변심 취소는 불가하고(발송 지연일 때만 `POST /api/v2/refunds/shipping-delay`), `SIMPLE_CHANGE_OF_MIND`는 모금 중 참여 취소 전용이다.
+
+### 2-1-1. GET `/internal/refunds/statuses` — 주문별 신청 이력 배치 조회(내부 전용)
+
+```
+GET /internal/refunds/statuses?fundingIds={orderId1},{orderId2},...
+```
+
+- **권한**: 내부 전용(`X-Internal-Api-Key`, `InternalEndpointConfig`에 등록). 게이트웨이 라우트에는 `/api/**`만 있어 외부에서 들어올 수 없다.
+- **호출 주체**: order-service 펀딩 내역(ORDER-004/005) — 카드 버튼이 신청 후 "취소 내역"·"반품·교환 내역"으로 바뀌어야 하는데, order-service는 환불 **완료** 이벤트만 구독해 진행 중(`REQUESTED`/`UNDER_REVIEW`/`APPROVED`/`PROCESSING`) 신청을 알 수 없다. 페이지 단위로 한 번만 호출해 N+1을 피한다.
+- **Response 200 OK**
+
+```json
+[
+  { "fundingId": "018f9a1b-....", "refundId": 501, "triggerType": "DEFECT", "status": "REQUESTED",
+    "requestedAt": "2026-09-01T10:00:00Z" }
+]
+```
+
+- 한 주문에 이력이 여러 건이면 최신순으로 모두 내려준다(재신청 흐름 — 반려된 하자환불을 반품으로 다시 접수하는 경우 등). 신청이 없는 주문은 응답에 나타나지 않는다.
 
 ---
 
@@ -169,11 +195,116 @@
 { "refundId": 501, "status": "REQUESTED" }
 ```
 
-- **주요 에러 코드**: `EVIDENCE_REQUIRED`(400), `NOT_FOUND`(404, 완료된 결제 없음), `FORBIDDEN`(403, 본인 주문 아님)
+- **접수 조건(공통 가드)**: 발송 후 신청 3종(하자환불·반품·교환)은 **소유권 → 배송완료·수령 후 7일 → 중복 신청** 순으로 같은 가드를 통과한다(`PostShipmentRefundRequestService`). 배송 완료 전이면 `409 NOT_DELIVERED`, 배송 완료 후 7일이 지났으면 `409 RETURN_PERIOD_EXPIRED`, 같은 주문에 미처리 신청이 남아 있으면 `409 REFUND_ALREADY_REQUESTED`다. 기한 기준일은 `deliveredAt`(배송 완료)이다 — `receiptConfirmedAt`은 배송완료 +7일에 자동 확정되므로 그것을 기준으로 삼으면 실제 신청 기간이 14일로 늘어난다.
+- `defectType`(필수): `DEFECTIVE` | `DAMAGED` | `WRONG_DELIVERY` | `DIFFERENT_FROM_DESCRIPTION` | `MISSING_COMPONENTS` | `OTHER` — 모두 판매자 귀책이라 승인 시 전액 취소이고, `OTHER`만 귀책이 불분명해 사전 계산(2-6)이 확정액을 내리지 않는다. 저장 시 `[DAMAGED] ...` 형태로 사유 유형을 태그로 앞에 붙인다(반품·교환과 동일, 별도 컬럼 없음).
+- **주요 에러 코드**: `EVIDENCE_REQUIRED`(400), `NOT_DELIVERED`(409), `RETURN_PERIOD_EXPIRED`(409), `REFUND_ALREADY_REQUESTED`(409), `NOT_FOUND`(404, 완료된 결제 없음), `FORBIDDEN`(403, 본인 주문 아님)
 
 ---
 
-### 2-3. PATCH `/api/v1/refunds/{refundId}/decision` — 하자환불 검토/승인/반려 (PAYMENT-007)
+### 2-2b. POST `/api/v2/refunds/return` — 발송 후 단순변심 반품 접수 (환불 정책 V.1.0)
+
+- **권한**: 구매자
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Request Body**
+
+```json
+{
+  "fundingId": "0a9f1b2c-3d4e-7a1b-9c2d-6e5f4a3b2c1d",
+  "returnReason": "CHANGE_OF_MIND",
+  "reasonDetail": "색상이 생각과 달라요",
+  "evidenceUrls": []
+}
+```
+
+- `returnReason`(필수): `CHANGE_OF_MIND` | `WRONG_OPTION` — 둘 다 구매자 귀책이라 반품비 부담 규칙이 같다.
+- `reasonDetail`(선택, 500자 이하), `evidenceUrls`(**선택**) — 정책상 구매자 귀책이라 입증 자료를 요구하지 않는다(하자환불 2-2와 다른 점). 저장 시 `[CHANGE_OF_MIND] ...` 형태로 사유 유형을 태그로 앞에 붙인다(하자환불과 동일, 별도 컬럼 없음).
+
+- **Response 201 Created**
+
+```json
+{
+  "refundId": 1234,
+  "status": "REQUESTED",
+  "paymentAmount": 23000,
+  "returnShippingFee": 5000,
+  "estimatedRefundAmount": 18000
+}
+```
+
+- **처리 절차**: 2-2와 같은 공통 가드(소유권 → 배송완료·수령 후 7일 → 중복 신청)를 통과한 뒤 `refund_requests(trigger_type='RETURN_CHANGE_OF_MIND', status='REQUESTED')`를 생성한다. 중복 신청은 응용 계층 검사와 **DB 부분 유니크 인덱스**(`uq_refund_requests_unresolved_post_shipment`, V8) 두 겹으로 막는다 — 검사와 INSERT 사이의 경합에서 진 쪽은 인덱스 위반이 같은 `REFUND_ALREADY_REQUESTED`(409)로 번역된다. 정책이 "**회수 후 환불**"이므로 **접수 시점에는 PG 취소를 하지 않는다** — 판매자가 회수를 확인하고 2-3(`PATCH /api/v1/refunds/{refundId}/decision`)으로 승인하면 반품 배송비를 뺀 금액이 부분취소된다. 승인 주체는 판매자이며 신규 승인 API는 없다.
+- **비고**: 반품 배송비는 **전 프로젝트 공통 5,000원**(`ReturnPolicy.RETURN_SHIPPING_FEE`, 정책 확정 2026-09-23)이다. 프로젝트/리워드별 반품비 정책이 생기면 project-service 조회로 바꾼다 — 그때까지 설정값으로 빼지 않는다. 성립 후 **발송 전** 단순변심 취소는 정책상 불가라 별도 경로가 없다(발송 지연일 때만 2-4로 취소 가능).
+- **주요 에러 코드**: `NOT_DELIVERED`(409), `RETURN_PERIOD_EXPIRED`(409), `REFUND_ALREADY_REQUESTED`(409), `RETURN_FEE_EXCEEDS_AMOUNT`(422, 결제액이 반품비 이하), `NOT_FOUND`(404), `FORBIDDEN`(403)
+
+---
+
+### 2-2c. POST `/api/v2/refunds/exchange` — 발송 후 교환 접수 (MVP 범위 제한)
+
+- **권한/요청**: 2-2b와 동일한 공통 가드를 쓴다.
+- **Request Body**
+
+```json
+{
+  "fundingId": "0a9f1b2c-3d4e-7a1b-9c2d-6e5f4a3b2c1d",
+  "exchangeReason": "WRONG_OPTION",
+  "reasonDetail": "사이즈를 잘못 골랐어요",
+  "evidenceUrls": []
+}
+```
+
+- `exchangeReason`(**선택**, 미전송 시 `OTHER`): 구매자 귀책 `CHANGE_OF_MIND` | `WRONG_OPTION`, 판매자 귀책 `DEFECTIVE` | `DAMAGED` | `WRONG_DELIVERY` | `MISSING_COMPONENTS` | `DIFFERENT_FROM_DESCRIPTION`, 그리고 `OTHER`. 사유가 교환 배송비 부담 주체를 정한다 — 구매자 귀책만 5,000원을 별도 결제한다(환불 정책 V.1.0). FE가 사유를 보내도록 전환하는 동안 선택 필드로 두고, 전환이 끝나면 필수로 바꾼다.
+- `reasonDetail`(선택, 500자 이하), `evidenceUrls`(**선택**) — 구매자 귀책 사유에는 증빙을 요구하지 않는다(하자환불 2-2와 다른 점). 저장 시 `[WRONG_OPTION] ...` 형태로 사유 유형을 태그로 앞에 붙인다.
+
+- **Response 201 Created**
+
+```json
+{
+  "refundId": 1234,
+  "status": "REQUESTED",
+  "exchangeShippingFee": 5000,
+  "additionalPaymentAmount": 5000
+}
+```
+
+- `additionalPaymentAmount`는 구매자가 실제로 내야 하는 금액이다 — 판매자 귀책·기타는 `0`이다. FE가 교환비를 직접 계산하지 않도록 반품 접수(2-2b)와 대칭으로 내려준다. 실제 수납은 판매자 승인 후이므로(2-3 → 2-2d) 접수 시점에는 금액만 알려준다.
+- **교환 처리 흐름**
+
+```
+REQUESTED ──판매자 승인(2-3)──┬─ 구매자 귀책 → APPROVED ──교환비 결제(2-2d + 1-2)──> PROCESSING
+                              └─ 판매자 귀책·기타(0원) ─────────────────────────────> PROCESSING
+PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMPLETED
+```
+
+- **재발송 요청의 내구성**: 교환비 결제 승인은 커밋된 뒤에 fulfillment 재발송을 호출한다(결제 트랜잭션 안에서 부르면 fulfillment 장애가 이미 승인된 결제를 롤백시킨다). 호출이 실패하면 `refund_requests.reshipment_requested_at`이 비어 있어 재시도 스케줄러가 같은 요청을 다시 보낸다 — 요청은 `refundRequestId` 기준 멱등이라 재발송이 두 번 일어나지 않는다.
+- **완료 판정**: `shipment.shipped.v1`의 `reshipmentRefundRequestId`가 그 교환 신청 id와 같을 때만 COMPLETED로 전이한다(최초 발송 이벤트 재전달로 조기 완료되는 것을 막는다).
+
+- **범위 밖**: 교환 신청의 구매자 취소, 승인 후 미결제 방치 건의 자동 만료(기한 스케줄러)는 아직 없다. 교환은 결제취소를 수반하지 않아 `RefundCompleted` 이벤트를 발행하지 않는다(`RefundTriggerType.EXCHANGE.toOrderServiceReason()`이 예외를 던진다) — 쿠폰 복원·주문 상태 전이 대상이 아니기 때문이다.
+
+---
+
+### 2-2d. POST `/api/v2/refunds/{refundId}/exchange-fee` — 교환 배송비 결제 시도 생성
+
+- **권한**: 구매자(해당 교환 신청의 원 결제 소유자만)
+- **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
+- **Request Body**: 없음(금액은 정책 상수, 경로의 `refundId`로 대상을 정한다)
+- **Response 201 Created**
+
+```json
+{
+  "paymentId": "018f9a1b-....",
+  "pgOrderId": "fundit-Xy7Zq...",
+  "amount": 5000,
+  "orderName": "교환 배송비"
+}
+```
+
+- **처리 절차**: 교환 신청이 `APPROVED`(판매자 승인 완료)인지, 사유가 구매자 귀책인지 확인한 뒤 `payments(purpose='EXCHANGE_FEE', status='PENDING')`를 만든다. 이미 발급된 PENDING 시도가 있으면 재사용한다(PAYMENT-001과 같은 규칙). 응답값으로 **결제위젯을 띄우고 승인은 리워드 결제와 같은 1-2(`POST /api/v2/payments/confirm`)를 쓴다** — 승인되면 서버가 fulfillment에 재발송을 요청하고 신청이 `PROCESSING`으로 넘어간다.
+- **금액**: `ReturnPolicy.EXCHANGE_SHIPPING_FEE`(5,000원) 고정. 주문 금액과 무관한 별도 결제라 order-service 스냅샷을 쓰지 않지만, 승인 시 대조하는 값은 이 시점에 저장된 `payments.amount`다(금액 재계산 금지 원칙 유지).
+- **리워드 결제와 다른 점**: 교환비 결제는 승인 시 `PaymentCompleted`를 발행하지 않고(주문 결제가 아니다) 정산 보류(`settlement_holds`)도 열지 않는다. 환불·정산의 펀딩 단위 조회는 모두 `purpose='REWARD'`만 본다 — 같은 펀딩에 두 결제가 공존하므로 이 필터가 빠지면 환불이 5,000원만 취소한다.
+- **주요 에러 코드**: `EXCHANGE_NOT_APPROVED`(409, 판매자 승인 전), `EXCHANGE_FEE_NOT_REQUIRED`(409, 판매자 귀책·기타라 추가 결제 없음), `EXCHANGE_FEE_ALREADY_PAID`(409), `NOT_FOUND`(404), `FORBIDDEN`(403)
+
+---
+
+### 2-3. PATCH `/api/v1/refunds/{refundId}/decision` — 발송 후 환불 신청 검토/승인/반려 (PAYMENT-007)
 
 - **권한**: 판매자(해당 주문의 판매자 본인만)
 - **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
@@ -201,8 +332,14 @@
 { "refundId": 501, "status": "COMPLETED" }
 ```
 
-- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **MVP는 전액 취소만 수행**한다(반품비 차감 등 부분취소 금액 산정이 미확정이라 `payments.amount` 전액을 취소). 완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceIds, refundReason, fullRefund }` (`refundReason`=`POST_SUCCESS_DEFECT`, `fullRefund`=`true`). 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
-- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `PG_CANCEL_FAILED`(422), `NOT_FOUND`(404)
+- **대상**: 판매자 검토가 필요한 유형만이다 — 하자환불(`DEFECT`), 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`), 교환(`EXCHANGE`). 그 외(즉시처리 유형)는 `400 INVALID_INPUT`("판매자 검토 대상 신청이 아닙니다.")로 거부한다.
+- **승인 후가 유형별로 갈린다**: 하자환불은 전액, 반품은 반품비를 뺀 금액을 PG 취소한다(응답 `status=COMPLETED`). **교환은 결제취소가 없다** — 구매자 귀책이면 교환비 결제 대기(`status=APPROVED`, 구매자가 2-2d로 결제), 판매자 귀책·기타면 즉시 fulfillment 재발송 요청(`status=PROCESSING`)이다. 반려는 세 유형이 동일하다(`status=REJECTED`, 사유 필수, 이벤트 미발행).
+- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **취소 금액은 귀책에 따라 다르다**(환불 정책 V.1.0):
+  - 판매자 귀책(`DEFECT`) → `payments.amount` **전액 취소**, `is_full_refund=true`
+  - 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`) → `payments.amount - 5000`(반품 배송비 차감) **부분취소**, `is_full_refund=false`. 결제 상태는 `COMPLETED`를 유지하고(전액취소 아님) 에스크로 보류도 유지된다.
+
+  완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceIds, refundReason, fullRefund }`. `refundReason`은 `DEFECT`면 `POST_SUCCESS_DEFECT`(`fullRefund=true`), 반품이면 `POST_SUCCESS_RETURN`(`fullRefund=false`)이다. 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
+- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `INVALID_INPUT`(400, 판매자 검토 대상 유형 아님), `PG_CANCEL_FAILED`(422), `NOT_FOUND`(404)
 
 ---
 
@@ -248,24 +385,42 @@
 
 ---
 
-### 2-6. GET `/api/v1/refunds/estimate` — 환불 예상액 사전 계산 (R05)
+### 2-6. GET `/api/v1/refunds/estimate` — 환불·교환 금액 사전 계산 (R05)
 
 - **권한**: 구매자(해당 orderId의 완료 결제 소유자만)
 - **Request Header**: `X-User-Id` (`@LoginUser CurrentUser`)
-- **Query**: `orderId`(UUID, order-service `fundings.public_id`)
+- **Query**: `orderId`(UUID, order-service `fundings.public_id`), `triggerType`(선택, 신청하려는 유형), `defectType`(선택, 하자 사유), `exchangeReason`(선택, 교환 사유)
 - **Response 200 OK**
 
 ```json
 {
   "orderId": "018f9a1b-....",
-  "rewardAmount": 89000,
+  "paymentAmount": 23000,
+  "rewardAmount": 20000,
   "shippingFee": 3000,
-  "discountAmount": 2000,
-  "refundAmount": 90000
+  "discountAmount": 0,
+  "returnShippingFee": 5000,
+  "additionalPaymentAmount": 0,
+  "refundAmount": 18000,
+  "confirmed": true
 }
 ```
 
-- **비고**: 신청 단위는 펀딩(주문) 전체만 지원한다(개별 리워드 부분 환불은 미지원). `refundAmount`는 오늘 기준 항상 `payments.amount`(전액)다 — 반품비 차감(R04)이 없어 모든 트리거가 전액 환불만 실행한다. `rewardAmount`는 `amount - shippingFee + discountAmount`로 역산한다. 적립금/현금 분리는 MVP에 적립금이 없어 두지 않았고, 플랫폼 수수료는 정산 쪽 차감이라 구매자 환불액에 넣지 않는다.
+- **금액 산정**(환불 정책 V.1.0) — 화면은 `paymentAmount`·`returnShippingFee`·`additionalPaymentAmount`·`refundAmount`를 그대로 표기하고 직접 계산하지 않는다:
+
+| `triggerType` | 사유 | `refundAmount` | `returnShippingFee` | `additionalPaymentAmount` | `confirmed` | 화면 표기 |
+|---|---|---|---|---|---|---|
+| 미지정 | – | `amount` | 0 | 0 | `true` | 예상 환불액 23,000원 |
+| `RETURN_CHANGE_OF_MIND` | 단순변심·옵션오류 | `amount - 5000` | 5000 | 0 | `true` | 23,000 − 5,000 → 18,000원 |
+| `SHIPPING_DELAY`·즉시처리 | – | `amount` | 0 | 0 | `true` | 예상 환불액 23,000원 |
+| `DEFECT` | `OTHER` 제외 | `amount` | 0 | 0 | `false` | 23,000원(확인 시) |
+| `DEFECT` | `OTHER` | `null` | 0 | 0 | `false` | 접수 후 확인하여 안내 |
+| `EXCHANGE` | 구매자 귀책 2종 | `null` | 0 | 5000 | `true` | 교환 배송비 5,000원 → 추가 결제 5,000원 |
+| `EXCHANGE` | 판매자 귀책 5종 | `null` | 0 | 0 | `false` | 추가 결제 0원(확인 시) |
+| `EXCHANGE` | `OTHER`·미지정 | `null` | 0 | 0 | `false` | 접수 후 확인하여 안내 |
+
+- **`confirmed`**: 금액이 정책으로 확정되는 건만 `true`다. 하자환불 전체와 판매자 귀책·기타 교환은 판매자 검토로 귀책이 정해져 금액이 바뀔 수 있어 `false`이며(정책 표기 "(확인 시)"), 화면은 확정액으로 표기하면 안 된다. `refundAmount=null`은 확정액 자체가 없는 경우다(교환은 환불을 수반하지 않고, 귀책 불분명 건은 검토 후 정해진다).
+- **비고**: 신청 단위는 펀딩(주문) 전체만 지원한다(개별 리워드 부분 환불은 미지원). `rewardAmount`는 `amount - shippingFee + discountAmount`로 역산한다. 반품 사유 2종(`CHANGE_OF_MIND`/`WRONG_OPTION`)은 금액 규칙이 같아 별도 파라미터를 받지 않는다. 적립금/현금 분리는 MVP에 적립금이 없어 두지 않았고, 플랫폼 수수료는 정산 쪽 차감이라 구매자 환불액에 넣지 않는다.
 - **주요 에러 코드**: `NOT_FOUND`(404, 완료 결제 없음), `FORBIDDEN`(403, 본인 결제 아님)
 
 ---
@@ -387,7 +542,7 @@
 ```json
 {
   "eventId": "payment:42",
-  "fundingId": 1024,
+  "fundingId": "0a9f1b2c-3d4e-7a1b-9c2d-6e5f4a3b2c1d",
   "couponIssuanceIds": [7, 8]
 }
 ```
@@ -397,14 +552,20 @@
 ```json
 {
   "eventId": "payment:77",
-  "fundingId": 1024,
+  "fundingId": "0a9f1b2c-3d4e-7a1b-9c2d-6e5f4a3b2c1d",
   "couponIssuanceIds": [7],
   "refundReason": "CANCELLED_BY_MEMBER",
   "fullRefund": true
 }
 ```
 
-`refundReason`은 order-service `PaymentEventListener.RefundReason` 이름과 일치한다: `GOAL_FAILURE_AUTO_REFUND` / `CANCELLED_BY_MEMBER` / `POST_SUCCESS_DEFECT` / `POST_SUCCESS_DELAY`. 필드명은 `refundReason`/`fullRefund`이다(`triggerType`/`isFullRefund`가 아님).
+`payment.completed.v1` payload에는 `paidAt`(결제 완료 시각, ISO-8601)이 함께 실린다 — order-service 펀딩 내역의 "결제일"에 쓰이며, 결제 시각은 이 서비스만 아는 값이다. 필드 추가라 이 값을 모르는 구독자에게는 영향이 없다(아웃박스 payload에는 이전부터 저장돼 있었고, 전송 이벤트에서 빠져 있던 것을 실어 보낸다).
+
+`refundReason`은 order-service `PaymentEventListener.RefundReason` 이름과 일치한다: `GOAL_FAILURE_AUTO_REFUND` / `CANCELLED_BY_MEMBER` / `POST_SUCCESS_DEFECT` / `POST_SUCCESS_DELAY` / `POST_SUCCESS_RETURN`. 필드명은 `refundReason`/`fullRefund`이다(`triggerType`/`isFullRefund`가 아님).
+
+> ⚠️ **배포 순서: order-service(컨슈머) → payment-service(프로듀서).** `POST_SUCCESS_RETURN`은 새로 추가된 값이라, 이 값을 모르는 컨슈머가 먼저 받으면 역직렬화가 실패한다.
+>
+> `POST_SUCCESS_RETURN`은 반품비가 차감된 부분환불이라 `fullRefund=false`로 나가지만, order-service는 이 사유에서 쿠폰을 복원하지 않고(구매자 귀책) 주문 상태만 `REFUNDED_AFTER_SUCCESS`로 전이시킨다 — 하자·지연(`fullRefund=true`일 때만 전이)과 다른 점이다.
 
 **`notification.raised.v1`** (파티션 키 `memberId`) — 환불 상태 알림. `RefundExecutionService`가 완료·대체계좌대기 시, `DefectRefundDecisionService`가 반려 시 아웃박스에 적재한다.
 
@@ -435,10 +596,17 @@ error-handling.md 컨벤션에 따라 `ErrorCode` 인터페이스를 구현하�
 | `PG_CONFIRM_FAILED` | 422 | 토스 결제승인 API 실패 응답 |
 | `PG_CANCEL_FAILED` | 422 | 토스 결제취소 API 실패 응답 |
 | `WEBHOOK_SIGNATURE_INVALID` | 401 | 토스 웹훅 본문 `data.secret` 누락·불일치 |
-| `EVIDENCE_REQUIRED` | 400 | 하자환불 신청 시 증빙 자료 누락 |
+| `EVIDENCE_REQUIRED` | 400 | 하자환불 신청 시 증빙 자료 누락(반품·교환은 증빙이 선택이라 해당 없음) |
 | `REASON_REQUIRED` | 400 | 하자환불 반려 시 사유 누락 |
 | `ALREADY_SHIPPED` | 409 | 발송지연 취소 신청 시점에 이미 발송 시작됨(`isAlreadyShipped=true`) |
 | `NOT_YET_DELAYED` | 422 | 발송지연 취소 신청 시점에 아직 발송 예정일이 지나지 않음(`isDelayed=false`) |
+| `NOT_DELIVERED` | 409 | 배송 완료 전에 반품·교환·하자환불을 신청함(`deliveredAt=null`) |
+| `RETURN_PERIOD_EXPIRED` | 409 | 수령(배송 완료) 후 7일 경과 — FE "반품·교환 가능 기간이 지났어요"가 이 코드에 매핑된다 |
+| `REFUND_ALREADY_REQUESTED` | 409 | 같은 주문에 진행 중인 반품·교환·하자환불 신청이 이미 있음(부분취소 중복 실행 방지) |
+| `EXCHANGE_NOT_APPROVED` | 409 | 판매자 승인 전에 교환 배송비 결제를 시작함 |
+| `EXCHANGE_FEE_NOT_REQUIRED` | 409 | 판매자 귀책·기타 교환(추가 결제 0원)에 교환비 결제를 시작함 |
+| `EXCHANGE_FEE_ALREADY_PAID` | 409 | 교환 배송비가 이미 결제됨 |
+| `RETURN_FEE_EXCEEDS_AMOUNT` | 422 | 결제 금액이 반품 배송비(5,000원) 이하라 차감 후 환불액이 남지 않음 |
 | `DISPUTE_PERIOD_EXPIRED` | 409 | 정산 이의신청 가능 기간(7일) 경과 |
 
 > `CommonErrorCode.DEPENDENCY_FAILURE`(503)는 PAYMENT-001의 order-service 내부 API 호출 실패 시 재사용. `CommonErrorCode.NOT_FOUND`(404)는 funding/결제/환불/정산 대상을 찾지 못했을 때 재사용(`FUNDING_NOT_FOUND` 코드는 없음).

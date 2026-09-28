@@ -44,7 +44,7 @@ class OrderCancelServiceUnitExceptionTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> orderCancelService.cancel(UUID.randomUUID(), orderId))
+        assertThatThrownBy(() -> orderCancelService.cancel(UUID.randomUUID(), orderId, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
@@ -60,7 +60,7 @@ class OrderCancelServiceUnitExceptionTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
 
         // when & then
-        assertThatThrownBy(() -> orderCancelService.cancel(UUID.randomUUID(), orderId))
+        assertThatThrownBy(() -> orderCancelService.cancel(UUID.randomUUID(), orderId, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
     }
@@ -77,7 +77,7 @@ class OrderCancelServiceUnitExceptionTest {
         when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
 
         // when & then
-        assertThatThrownBy(() -> orderCancelService.cancel(memberId, orderId))
+        assertThatThrownBy(() -> orderCancelService.cancel(memberId, orderId, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.ORDER_NOT_CANCELLABLE));
     }

@@ -107,16 +107,18 @@ class FulfillmentDomainEventOutboxWorkerUnitTest {
         setUp();
         FulfillmentDomainEventOutboxJpaEntity event = FulfillmentDomainEventOutboxJpaEntity.builder()
                 .id(3L).eventType(FulfillmentDomainEventOutboxJpaEntity.TYPE_SHIPMENT_SHIPPED)
-                .fundingOrderId(UUID.fromString("00000000-0000-0000-0000-000000001024")).projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123")).build();
+                .fundingOrderId(UUID.fromString("00000000-0000-0000-0000-000000001024")).projectPublicId(UUID.fromString("00000000-0000-0000-0000-000000000123"))
+                .reshipmentRefundRequestId(77L).build();
         when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
 
         // when
         worker.publishPending();
 
-        // then
+        // then — 교환 재발송 식별자도 그대로 실려 나간다(payment-service가 교환 완료 판정에 쓴다)
         ArgumentCaptor<ShipmentShippedEvent> captor = ArgumentCaptor.forClass(ShipmentShippedEvent.class);
         verify(transport).sendShipmentShipped(captor.capture(), eq(event.getCreatedAt()), eq(3L));
         assertThat(captor.getValue().fundingId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000001024"));
+        assertThat(captor.getValue().reshipmentRefundRequestId()).isEqualTo(77L);
         assertThat(event.getPublishedAt()).isNotNull();
     }
 

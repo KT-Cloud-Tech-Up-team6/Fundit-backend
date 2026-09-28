@@ -14,7 +14,7 @@
 | 3 | GET | `/api/v1/categories` | 카테고리 대/중분류 트리 조회 | X (공통) | SEARCH-003 |
 | 4 | GET | `/api/v1/categories/{categoryMajor}/projects` | 카테고리별 프로젝트 목록 조회 | X (공통) | SEARCH-004 |
 | 5 | GET | `/api/v1/search/projects` | 통합 검색 — 상품 탭 | X (공통) | SEARCH-005, SEARCH-008 |
-| 6 | GET | `/api/v1/search/lives` | 통합 검색 — LIVE 탭(스텁, 항상 빈 결과) | X (공통) | SEARCH-006 |
+| 6 | GET | `/api/v1/search/lives` | 통합 검색 — LIVE 탭(live-service 프록시, 키워드 없음) | X (공통) | SEARCH-006 |
 | 7 | GET | `/api/v1/search/sellers` | 통합 검색 — 판매자 탭 | X (공통) | SEARCH-007 |
 | 8 | GET | `/api/v1/search/recent-keywords` | 내 최근 검색어 목록 조회 | O (구매자) | SEARCH-009 |
 | 9 | DELETE | `/api/v1/search/recent-keywords/{keyword}` | 최근 검색어 개별 삭제 | O (구매자) | SEARCH-009 |
@@ -87,13 +87,30 @@ GET /api/v1/home/lives
 **Response Body**
 
 ```json
-{ "content": [] }
+{
+  "content": [
+    {
+      "liveId": "3f2b7c14-9a2e-4f81-b0d5-6c0a9e2b1d77",
+      "introText": "캠핑 의자 라이브 — 실물 먼저 보여드립니다",
+      "status": "LIVE",
+      "projectId": "b1c2d3e4-5f60-4712-8899-aabbccddeeff",
+      "thumbnailUrl": "https://cdn.fundit.com/live/thumb.png",
+      "scheduledStartAt": "2026-09-25T11:00:00Z",
+      "likeCount": 12,
+      "createdAt": "2026-09-20T09:00:00Z"
+    }
+  ]
+}
 ```
 
 **Validation / Business Rules**
 
-- **현재는 항상 `content: []`을 반환하는 스텁이다.** live-service는 이미 끝났지만 `live_documents`를 채울 컨슈머가 아직 없다(`SearchDomainFunctionalSpec.md` SEARCH-002 참고). 프론트는 빈 배열을 "LIVE 없음"으로 처리해 영역을 자연스럽게 숨기면 되므로 API 계약 자체는 지금 확정해도 무방하다.
-- **홈 배너는 이 색인 없이 이미 해결된다** — live-service `GET /api/v1/lives/banner`가 진행중 LIVE를 바로 내려준다. 이 엔드포인트는 검색 LIVE 탭(SEARCH-006)이 실제 필요해질 때 컨슈머와 함께 교체한다(YAGNI). 그때 응답 스키마는 `{ liveId, projectId, title, thumbnailUrl, viewerCount }[]` 형태가 될 예정이다.
+- live-service `GET /api/v1/lives/banner`를 그대로 프록시한다(색인 `live_documents`는 쓰지 않는다 — `SearchERD.md` 5-③).
+- 항목 스키마는 live-service `LiveSummaryResponse`와 필드 1:1이다. FE가 LIVE 메인과 같은 카드 컴포넌트를 재사용할 수 있도록 이름을 바꾸지 않는다.
+  - **`title`은 없다** — LIVE에는 제목 입력 자체가 없고(요구사항정의서 6.2.4.1) 카드 문구는 `introText`다.
+  - **`viewerCount`는 이 경로에서 채워지지 않는다** — live-service가 `sort=viewerCount`(실시간 순위)일 때만 IVS에서 가져온다. `spring.jackson.default-property-inclusion: non_null`이라 위 예시처럼 필드 자체가 응답에서 빠진다(프론트는 `undefined`로 받는다).
+- 진행 중 LIVE가 없으면 `content: []`(에러 아님). 영역 미노출은 프론트가 처리한다.
+- **live-service 장애 시에도 200 + `content: []`를 반환한다** — 홈은 피드와 LIVE가 한 화면이라 LIVE 하나로 홈 전체를 503으로 내리지 않는다. 검색 LIVE 탭(#6)은 반대로 503을 그대로 올린다.
 
 ---
 
@@ -210,18 +227,22 @@ GET /api/v1/search/lives
 
 **Auth Required**: X (공통)
 
-**Request**: Query Parameter — `page`, `size`(기본 0/20). 스텁 단계에서는 `keyword`/`subTab`을 받지 않는다.
+**Request**: Query Parameter — `page`, `size`(기본 0/20, `page < 0`·`size < 1` → `INVALID_INPUT`). **`keyword`/`subTab`은 받지 않는다.**
 
 **Response Body**
 
 ```json
-{ "content": [], "page": 0, "size": 20, "totalElements": 0, "totalPages": 0, "hasNext": false }
+{ "content": [ /* #2와 동일한 LIVE 카드 */ ], "page": 0, "size": 20,
+  "totalElements": 1, "totalPages": 1, "hasNext": false }
 ```
 
 **Validation / Business Rules**
 
-- 2번 엔드포인트와 동일하게 **현재는 항상 빈 결과를 반환하는 스텁**(live_documents 컨슈머 미연결).
-- 상품 탭(#5)과 달리 `keyword` 검증·`search_query_logs` 적재·최근검색어 저장을 하지 않는다. 실제 검색으로 교체할 때 #5와 맞출 것.
+- live-service `GET /api/v1/lives`를 프록시한다. 항목 스키마는 #2와 동일하다.
+- DRAFT는 live-service 쿼리에서 이미 제외되므로 여기서 다시 거르지 않는다.
+- **키워드 검색을 하지 않는다.** live-service 공개 목록에 키워드 파라미터가 없다(있는 건 판매자 전용 `/api/v1/lives/mine`의 `introText` 검색). 실제 요구가 생기면 live-service에 `q`를 추가한 뒤 그대로 전달한다 — 그때 #5와 계약(검색어 검증·`search_query_logs` 적재·최근검색어 저장)을 맞춘다.
+- 상품 탭(#5)과 달리 `search_query_logs` 적재·최근검색어 저장을 하지 않는다 — 검색어 자체를 받지 않기 때문이다.
+- live-service 장애 시 `503 DEPENDENCY_FAILURE`를 그대로 올린다(#2와 다른 점).
 
 ---
 

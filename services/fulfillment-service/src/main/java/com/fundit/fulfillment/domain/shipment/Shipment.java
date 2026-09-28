@@ -30,6 +30,11 @@ public class Shipment {
     private Instant deliveredAt;
     private Instant receiptConfirmedAt;
     private boolean receiptAutoConfirmed;
+    /** 교환으로 다시 보낸 횟수. 0이면 최초 발송 사이클이다. */
+    private int reshipmentCount;
+    private Instant lastReshipmentRequestedAt;
+    /** 마지막 재발송을 유발한 payment-service 교환 신청(refund_requests.id) — 멱등 판정에 쓴다. */
+    private Long lastReshipmentRefundRequestId;
     private final Instant createdAt;
     private Instant updatedAt;
 
@@ -64,6 +69,38 @@ public class Shipment {
         }
         this.carrier = carrier;
         this.trackingNumber = trackingNumber;
+    }
+
+    /**
+     * 교환 재발송 착수 — payment-service가 교환 승인(판매자 귀책) 또는 교환비 결제 완료 후
+     * 내부 API로 요청한다. 배송을 새 사이클로 되돌리므로 운송장·배송완료·수령확인 값을 비우고
+     * {@code PREPARING}으로 내린다. 판매자는 기존 발송정보 등록(FULFILLMENT-006)으로 새 운송장을
+     * 올리면 되고, 그 시점에 {@code shipment.shipped.v1}이 다시 발행된다.
+     *
+     * <p>같은 교환 신청으로 두 번 요청되면(내부 호출 재시도) 아무것도 바꾸지 않는다 — 판매자가
+     * 이미 새 운송장을 등록한 뒤 늦게 도착한 재시도가 그것을 지우면 안 된다.
+     *
+     * <p>배송이 끝난 건만 대상이다. 수령 후 7일 이내 신청이라는 정책상 교환은 배송완료
+     * (또는 수령확인) 이후에만 접수되므로, 그 외 상태로 오는 요청은 잘못된 호출이다.
+     */
+    public boolean startReshipment(Long refundRequestId, Instant at) {
+        if (refundRequestId != null && refundRequestId.equals(lastReshipmentRefundRequestId)) {
+            return false;
+        }
+        if (status != ShipmentStatus.DELIVERED && status != ShipmentStatus.RECEIPT_CONFIRMED) {
+            throw new BusinessException(FulfillmentErrorCode.RESHIPMENT_NOT_ALLOWED);
+        }
+        this.status = ShipmentStatus.PREPARING;
+        this.carrier = null;
+        this.trackingNumber = null;
+        this.shippedAt = null;
+        this.deliveredAt = null;
+        this.receiptConfirmedAt = null;
+        this.receiptAutoConfirmed = false;
+        this.reshipmentCount = reshipmentCount + 1;
+        this.lastReshipmentRequestedAt = at;
+        this.lastReshipmentRefundRequestId = refundRequestId;
+        return true;
     }
 
     /** FULFILLMENT-007 — 배송완료 목업 배치 전용. */

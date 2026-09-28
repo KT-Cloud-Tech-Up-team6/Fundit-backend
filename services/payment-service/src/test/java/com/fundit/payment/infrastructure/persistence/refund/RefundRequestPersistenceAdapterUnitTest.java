@@ -1,6 +1,7 @@
 package com.fundit.payment.infrastructure.persistence.refund;
 
 import com.fundit.payment.domain.refund.RefundRequest;
+import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.infrastructure.security.AesGcmCipher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class RefundRequestPersistenceAdapterUnitTest {
 
     @Test
     void 저장과_조회가_매퍼를_거친다() {
-        RefundRequest request = RefundRequest.requestDefect(new UUID(0L, 1024L), UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"))
+        RefundRequest request = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, new UUID(0L, 1024L), UUID.randomUUID(), UUID.randomUUID(), "파손", List.of("url"))
                 .toBuilder().id(11L).build();
         when(jpaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(jpaRepository.findById(11L)).thenReturn(Optional.of(mapper.toEntity(request)));

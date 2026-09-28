@@ -39,6 +39,11 @@ public class MakerCouponIssueService {
         if (!actualOwner.equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
         }
+        // LIVE 쿠폰은 방송 소유자도 대조한다 — 프로젝트는 내 것인데 남의 방송에 쿠폰을 매달 수 있으면
+        // 그 방송 시청자에게 내 쿠폰이 뿌려진다(확정 계약 2번: 소유권은 live가 주는 sellerId로 판정).
+        if (command.issueChannel() == IssueChannel.LIVE && !sellerId.equals(command.liveSellerId())) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
 
         DiscountType discountType = command.discountType();
         long discountValue = discountType == DiscountType.FREE_SHIPPING ? 0 : command.discountValue();
@@ -62,7 +67,9 @@ public class MakerCouponIssueService {
                 .perMemberLimit(command.perMemberLimit())
                 .remainingQuantity(command.quantity())
                 .expiresAt(command.expiresAt())
-                .issueChannel(IssueChannel.GENERAL)
+                .issueChannel(command.issueChannel())
+                .liveSessionId(command.liveSessionId())
+                .dropType(command.dropType())
                 .version(0)
                 .createdAt(Instant.now())
                 .build();

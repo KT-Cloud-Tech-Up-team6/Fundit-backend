@@ -1,6 +1,7 @@
 package com.fundit.project.presentation.controller;
 
 import com.fundit.common.webmvc.auth.CommonWebConfig;
+import com.fundit.project.application.liveverification.LiveQuestionAnswerView;
 import com.fundit.project.application.liveverification.LiveVerificationService;
 import com.fundit.project.infrastructure.persistence.liveverification.LiveVerificationJpaEntity;
 import com.fundit.project.presentation.GlobalExceptionHandler;
@@ -85,14 +86,36 @@ class LiveVerificationControllerTest {
     }
 
     @Test
-    void 소비자_목록조회는_content_배열로_반환한다() throws Exception {
+    void 소비자_목록조회는_질문문구와_건수를_함께_반환한다() throws Exception {
         // given
         UUID projectId = UUID.randomUUID();
-        when(liveVerificationService.listForConsumer(projectId)).thenReturn(List.of(entity()));
+        when(liveVerificationService.listForConsumer(projectId)).thenReturn(List.of(
+                new LiveQuestionAnswerView("live-q-1", "배송은 얼마나 걸리나요?", 12, 301L, "답변")));
 
         // when & then
         mockMvc.perform(get("/api/v1/projects/" + projectId + "/live-verifications"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].questionSummaryId").value("live-q-1"))
+                .andExpect(jsonPath("$.content[0].questionText").value("배송은 얼마나 걸리나요?"))
                 .andExpect(jsonPath("$.content[0].questionCount").value(12));
+    }
+
+    @Test
+    void 판매자_질문목록조회는_미답변_질문도_반환한다() throws Exception {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(liveVerificationService.listQuestionsForSeller(sellerId, projectId)).thenReturn(List.of(
+                new LiveQuestionAnswerView("live-q-1", "배송은 얼마나 걸리나요?", 12, 301L, "답변"),
+                new LiveQuestionAnswerView("live-q-2", "방수 되나요?", 5, null, null)));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/projects/" + projectId + "/live-questions")
+                        .header("X-User-Id", sellerId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].answered").value(true))
+                .andExpect(jsonPath("$.content[1].answered").value(false))
+                .andExpect(jsonPath("$.content[1].questionText").value("방수 되나요?"));
     }
 }
