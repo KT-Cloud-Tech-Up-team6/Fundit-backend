@@ -2,6 +2,8 @@ package com.fundit.member.infrastructure.persistence.follow;
 
 import com.fundit.member.infrastructure.persistence.member.MemberJpaEntity;
 import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
+import com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaRepository;
+import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +47,10 @@ class FollowJpaRepositoryIntegrationTest {
     private FollowJpaRepository followJpaRepository;
     @Autowired
     private MemberJpaRepository memberJpaRepository;
+    @Autowired
+    private WishJpaRepository wishJpaRepository;
+    @Autowired
+    private ProjectSnapshotJpaRepository projectSnapshotJpaRepository;
 
     private UUID createMember(String name) {
         return memberJpaRepository.save(MemberJpaEntity.builder()
@@ -152,5 +158,60 @@ class FollowJpaRepositoryIntegrationTest {
 
         // then
         assertThat(paged).hasSize(6).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void 목록에_판매자별_팔로워_수를_담고_탈퇴한_팔로워는_세지_않는다() {
+        // given — seller는 구매자 2명 + 탈퇴 회원 1명이 팔로우, other는 나만 팔로우
+        UUID memberId = createMember("구매자");
+        UUID seller = createMember("판매자");
+        UUID other = createMember("다른판매자");
+        UUID withdrawn = memberJpaRepository.save(MemberJpaEntity.builder()
+                .id(UUID.randomUUID()).name("탈퇴회원").phoneNumber("01012345678")
+                .deletedAt(Instant.now()).build()).getId();
+        followJpaRepository.insertIgnoringConflict(memberId, seller);
+        followJpaRepository.insertIgnoringConflict(createMember("구매자2"), seller);
+        followJpaRepository.insertIgnoringConflict(withdrawn, seller);
+        followJpaRepository.insertIgnoringConflict(memberId, other);
+
+        // when
+        var views = followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20));
+
+        // then — 서브쿼리를 넣어도 페이지 건수는 내 팔로우 수 그대로다
+        assertThat(views.getTotalElements()).isEqualTo(2);
+        assertThat(countOf(views.getContent(), seller).followerCount()).isEqualTo(2);
+        assertThat(countOf(views.getContent(), other).followerCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 찜_합산은_그_판매자_프로젝트의_찜만_세고_판매자를_모르는_스냅샷은_뺀다() {
+        // given — seller 프로젝트 2개(찜 2+1), 다른 판매자 프로젝트 1개(찜 1), seller_id가 없는 옛 스냅샷 1개(찜 1)
+        UUID memberId = createMember("구매자");
+        UUID seller = createMember("판매자");
+        UUID other = createMember("다른판매자");
+        UUID buyer2 = createMember("구매자2");
+        projectSnapshotJpaRepository.upsert(101L, UUID.randomUUID(), seller, "p1", null, 1L);
+        projectSnapshotJpaRepository.upsert(102L, UUID.randomUUID(), seller, "p2", null, 1L);
+        projectSnapshotJpaRepository.upsert(103L, UUID.randomUUID(), other, "p3", null, 1L);
+        projectSnapshotJpaRepository.upsert(104L, UUID.randomUUID(), null, "옛 스냅샷", null, 1L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 101L);
+        wishJpaRepository.insertIgnoringConflict(buyer2, 101L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 102L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 103L);
+        wishJpaRepository.insertIgnoringConflict(memberId, 104L);
+        followJpaRepository.insertIgnoringConflict(memberId, seller);
+        followJpaRepository.insertIgnoringConflict(memberId, other);
+
+        // when
+        var views = followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20)).getContent();
+
+        // then
+        assertThat(countOf(views, seller).wishCount()).isEqualTo(3);
+        assertThat(countOf(views, other).wishCount()).isEqualTo(1);
+        assertThat(countOf(views, seller).profileImageUrl()).isNull();
+    }
+
+    private static FollowView countOf(List<FollowView> views, UUID sellerId) {
+        return views.stream().filter(v -> v.sellerId().equals(sellerId)).findFirst().orElseThrow();
     }
 }

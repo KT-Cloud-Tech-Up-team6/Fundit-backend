@@ -34,6 +34,10 @@ public class ProjectSnapshotJpaEntity {
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
+    /** 팔로잉 목록 ♥(판매자 프로젝트 찜 합산)용. V7 이전에 받은 스냅샷은 project 이벤트가 다시 올 때까지 null이다. */
+    @Column(name = "seller_id")
+    private UUID sellerId;
+
     @Column(name = "source_version")
     private Long sourceVersion;
 

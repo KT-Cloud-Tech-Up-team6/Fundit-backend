@@ -58,7 +58,8 @@ public class FollowController {
                     "page는 0 이상, size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         var result = followService.getFollows(user.id(), PageRequest.of(page, size))
-                .map(f -> new FollowListItemResponse(f.sellerId(), f.sellerName(), f.sellerNickname(), f.createdAt()));
+                .map(f -> new FollowListItemResponse(f.sellerId(), f.sellerName(), f.sellerNickname(),
+                        f.profileImageUrl(), f.followerCount(), f.wishCount(), f.createdAt()));
         return PageResponse.from(result);
     }
 }

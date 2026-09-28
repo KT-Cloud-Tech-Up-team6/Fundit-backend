@@ -93,7 +93,7 @@ class WishJpaRepositoryIntegrationTest {
         // given — 10번은 스냅샷이 있고 11번은 아직 이벤트가 오지 않았다
         UUID memberId = createMember();
         UUID publicId = UUID.randomUUID();
-        projectSnapshotJpaRepository.upsert(10L, publicId, "에어쿡 프로", "https://img/10.png", 5L);
+        projectSnapshotJpaRepository.upsert(10L, publicId, null, "에어쿡 프로", "https://img/10.png", 5L);
         wishJpaRepository.insertIgnoringConflict(memberId, 10L);
         wishJpaRepository.insertIgnoringConflict(memberId, 11L);
 
@@ -114,10 +114,10 @@ class WishJpaRepositoryIntegrationTest {
         // given
         UUID memberId = createMember();
         UUID publicId = UUID.randomUUID();
-        projectSnapshotJpaRepository.upsert(20L, publicId, "새 제목", "https://img/new.png", 7L);
+        projectSnapshotJpaRepository.upsert(20L, publicId, null, "새 제목", "https://img/new.png", 7L);
 
         // when — 재전송된 옛 이벤트
-        projectSnapshotJpaRepository.upsert(20L, publicId, "옛 제목", "https://img/old.png", 3L);
+        projectSnapshotJpaRepository.upsert(20L, publicId, null, "옛 제목", "https://img/old.png", 3L);
         wishJpaRepository.insertIgnoringConflict(memberId, 20L);
 
         // then
@@ -130,10 +130,10 @@ class WishJpaRepositoryIntegrationTest {
         // given — 버전 7이 반영된 뒤 버전 없는(구버전 발행) 이벤트가 온다
         UUID memberId = createMember();
         UUID publicId = UUID.randomUUID();
-        projectSnapshotJpaRepository.upsert(30L, publicId, "버전7 제목", "https://img/v7.png", 7L);
+        projectSnapshotJpaRepository.upsert(30L, publicId, null, "버전7 제목", "https://img/v7.png", 7L);
 
         // when
-        projectSnapshotJpaRepository.upsert(30L, publicId, "버전없는 제목", "https://img/none.png", null);
+        projectSnapshotJpaRepository.upsert(30L, publicId, null, "버전없는 제목", "https://img/none.png", null);
         wishJpaRepository.insertIgnoringConflict(memberId, 30L);
 
         // then — 제목도 버전도 그대로다(버전이 null로 바뀌면 이후 옛 이벤트가 다시 덮을 수 있다)

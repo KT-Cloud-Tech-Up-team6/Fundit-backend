@@ -24,12 +24,13 @@ class ProjectSnapshotKafkaListenerUnitTest {
     void 프로젝트_승인_수정_이벤트를_스냅샷으로_반영한다() {
         // given
         UUID publicId = UUID.randomUUID();
+        UUID sellerId = UUID.randomUUID();
 
         // when
         listener.onProjectChanged(new ProjectSnapshotKafkaListener.ProjectChangedEvent(
-                10L, publicId, "에어쿡 프로", "https://img/10.png", 5L));
+                10L, publicId, sellerId, "에어쿡 프로", "https://img/10.png", 5L));
 
         // then
-        verify(projectSnapshotJpaRepository).upsert(10L, publicId, "에어쿡 프로", "https://img/10.png", 5L);
+        verify(projectSnapshotJpaRepository).upsert(10L, publicId, sellerId, "에어쿡 프로", "https://img/10.png", 5L);
     }
 }

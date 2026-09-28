@@ -19,10 +19,11 @@ public interface ProjectSnapshotJpaRepository extends JpaRepository<ProjectSnaps
     @Transactional
     @Modifying
     @Query(value = """
-            INSERT INTO project_snapshots (project_id, project_public_id, title, thumbnail_url, source_version, synced_at)
-            VALUES (:projectId, :publicId, :title, :thumbnailUrl, :sourceVersion, now())
+            INSERT INTO project_snapshots (project_id, project_public_id, seller_id, title, thumbnail_url, source_version, synced_at)
+            VALUES (:projectId, :publicId, :sellerId, :title, :thumbnailUrl, :sourceVersion, now())
             ON CONFLICT (project_id) DO UPDATE SET
                 project_public_id = EXCLUDED.project_public_id,
+                seller_id = EXCLUDED.seller_id,
                 title = EXCLUDED.title,
                 thumbnail_url = EXCLUDED.thumbnail_url,
                 source_version = EXCLUDED.source_version,
@@ -30,7 +31,7 @@ public interface ProjectSnapshotJpaRepository extends JpaRepository<ProjectSnaps
             WHERE project_snapshots.source_version IS NULL
                OR EXCLUDED.source_version >= project_snapshots.source_version
             """, nativeQuery = true)
-    void upsert(@Param("projectId") Long projectId, @Param("publicId") UUID publicId,
+    void upsert(@Param("projectId") Long projectId, @Param("publicId") UUID publicId, @Param("sellerId") UUID sellerId,
                 @Param("title") String title, @Param("thumbnailUrl") String thumbnailUrl,
                 @Param("sourceVersion") Long sourceVersion);
 }
