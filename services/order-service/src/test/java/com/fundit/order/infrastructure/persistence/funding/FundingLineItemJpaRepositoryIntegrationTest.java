@@ -69,6 +69,30 @@ class FundingLineItemJpaRepositoryIntegrationTest {
     }
 
     @Test
+    void 참여자_수는_결제완료_펀딩의_회원을_중복_없이_센다() {
+        // given — 같은 회원이 두 번 참여 + 다른 회원 1명(결제완료) + PENDING 1명
+        UUID projectId = UUID.randomUUID();
+        UUID repeatMember = UUID.randomUUID();
+        FundingLineItem lineItem = new FundingLineItem(null, 1L, "리워드", 1, 10_000L, List.of());
+        for (UUID memberId : List.of(repeatMember, repeatMember, UUID.randomUUID())) {
+            Funding paid = fundingRepository.save(Funding.create(memberId, projectId, "프로젝트",
+                    new ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 어딘가", null),
+                    0L, List.of(lineItem), Instant.now().plusSeconds(3600), null, null, null));
+            paid.markPaymentCompleted(null);
+            fundingRepository.save(paid);
+        }
+        fundingRepository.save(Funding.create(UUID.randomUUID(), projectId, "프로젝트",
+                new ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 어딘가", null),
+                0L, List.of(lineItem), Instant.now().plusSeconds(3600), null, null, null));
+
+        // when
+        int count = fundingJpaRepository.countParticipantsByProjectPublicId(projectId);
+
+        // then — 결제완료 회원 2명(중복 1명 제외), PENDING은 세지 않는다
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
     void 옵션_그룹이_여러개여도_리워드_전체합계는_부풀려지지_않는다() {
         // given
         UUID projectId = UUID.randomUUID();

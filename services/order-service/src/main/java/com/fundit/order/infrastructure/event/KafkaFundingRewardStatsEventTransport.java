@@ -30,6 +30,7 @@ public class KafkaFundingRewardStatsEventTransport implements FundingRewardStats
         payload.put("eventId", SERVICE_NAME + ":" + outboxId);
         payload.put("projectId", event.projectId());
         payload.put("rewardStats", event.rewardStats());
+        payload.put("participantCount", event.participantCount());
 
         try {
             kafkaTemplate.send(KafkaTopics.PROJECT_FUNDING_REWARD_STATS_UPDATED, String.valueOf(event.projectId()), payload)

@@ -38,6 +38,12 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
             nativeQuery = true)
     List<UUID> findDistinctProjectPublicIdsWithCountableFundings();
 
+    /** 프로젝트 참여자 수 — 진행 중·목표 달성 펀딩의 회원 수(중복 제외). 위 배치 대상과 같은 상태 기준이다. */
+    @Query(value = "SELECT count(DISTINCT member_id) FROM fundings "
+            + "WHERE project_public_id = :projectId AND status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')",
+            nativeQuery = true)
+    int countParticipantsByProjectPublicId(@Param("projectId") UUID projectId);
+
     Page<FundingJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
 
     Page<FundingJpaEntity> findByMemberIdAndStatus(UUID memberId, String status, Pageable pageable);

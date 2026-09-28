@@ -38,6 +38,7 @@ class FundingRewardStatsBatchServiceUnitTest {
         when(fundingLineItemJpaRepository.aggregateRewardStatsByProjectId(projectId)).thenReturn(List.of(
                 projection(1L, 100L, 2, 20_000L),
                 projection(1L, null, 1, 9_000L)));
+        when(fundingJpaRepository.countParticipantsByProjectPublicId(projectId)).thenReturn(7);
 
         // when
         batchService.recomputeOne(projectId);
@@ -47,6 +48,7 @@ class FundingRewardStatsBatchServiceUnitTest {
                 ArgumentCaptor.forClass(FundingRewardStatsPublisher.RewardStatsUpdatedEvent.class);
         verify(fundingRewardStatsPublisher).publishRewardStatsUpdated(captor.capture());
         assertThat(captor.getValue().projectId()).isEqualTo(projectId);
+        assertThat(captor.getValue().participantCount()).isEqualTo(7);
         assertThat(captor.getValue().rewardStats()).containsExactly(
                 new RewardStatItem(1L, 100L, 2, 20_000L),
                 new RewardStatItem(1L, null, 1, 9_000L));

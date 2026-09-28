@@ -37,7 +37,7 @@ class KafkaFundingRewardStatsEventTransportUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> transport.send(
-                new RewardStatsUpdatedEvent(UUID.randomUUID(), List.of(new RewardStatItem(2L, 3L, 1, 1000L))), 9L))
+                new RewardStatsUpdatedEvent(UUID.randomUUID(), List.of(new RewardStatItem(2L, 3L, 1, 1000L)), 1), 9L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }
