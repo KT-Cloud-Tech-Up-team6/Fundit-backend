@@ -68,7 +68,7 @@ class FollowServiceUnitTest {
         UUID memberId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
         Page<FollowView> page = new PageImpl<>(List.of(
-                new FollowView(sellerId, "홍길동", "길동", Instant.now())));
+                new FollowView(sellerId, "홍길동", "길동", null, 0L, 0L, Instant.now())));
         when(followJpaRepository.findViewsByMemberId(memberId, PageRequest.of(0, 20))).thenReturn(page);
 
         // when

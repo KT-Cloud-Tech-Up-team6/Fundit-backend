@@ -50,6 +50,10 @@ public class MemberJpaEntity {
     @Column(length = 50)
     private String nickname;
 
+    /** 팔로잉 목록 표시용. 업로드·수정 경로가 아직 없어 항상 null이다(FE가 기본 이미지로 대체). */
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

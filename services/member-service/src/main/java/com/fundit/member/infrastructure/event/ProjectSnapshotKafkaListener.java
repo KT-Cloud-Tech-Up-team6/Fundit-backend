@@ -20,12 +20,12 @@ public class ProjectSnapshotKafkaListener {
 
     @KafkaListener(topics = {KafkaTopics.PROJECT_APPROVED, KafkaTopics.PROJECT_UPDATED})
     public void onProjectChanged(ProjectChangedEvent event) {
-        projectSnapshotJpaRepository.upsert(event.projectId(), event.publicId(), event.title(),
+        projectSnapshotJpaRepository.upsert(event.projectId(), event.publicId(), event.sellerId(), event.title(),
                 event.thumbnailUrl(), event.sourceVersion());
     }
 
     /** 발행 측 {@code ProjectIndexedEvent} 중 찜 목록에 필요한 필드만 받는다(JSON이 계약). */
-    public record ProjectChangedEvent(Long projectId, UUID publicId, String title, String thumbnailUrl,
+    public record ProjectChangedEvent(Long projectId, UUID publicId, UUID sellerId, String title, String thumbnailUrl,
                                       Long sourceVersion) {
     }
 }

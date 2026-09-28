@@ -39,14 +39,31 @@ public interface FollowJpaRepository extends JpaRepository<FollowJpaEntity, Foll
      * <p>createdAt만으로 정렬하지 않는 이유: insertIgnoringConflict가 Postgres now()
      * (=트랜잭션 시작 시각)를 쓰므로 동률이 실제로 생긴다. 동률이면 페이지마다 순서가 달라져
      * 같은 행이 두 페이지에 나오거나 아예 빠진다. sellerId를 2차 키로 둬 순서를 고정한다.
+     *
+     * <p>팔로워 수·♥(판매자 프로젝트 찜 합산)는 행마다 스칼라 서브쿼리로 센다 — 페이지 크기 상한이 100이라
+     * 별도 집계 쿼리와 Map 조립보다 짧다. 탈퇴한 회원의 팔로우는 세지 않는다. ♥는 {@code project_snapshots.seller_id}로
+     * 판매자를 찾으므로 seller_id가 아직 없는(V7 이전) 스냅샷의 찜은 빠진다. 서브쿼리가 들어가 count 쿼리는 직접 둔다.
      */
-    @Query("""
+    @Query(value = """
             select new com.fundit.member.infrastructure.persistence.follow.FollowView(
-                       f.sellerId, m.name, m.nickname, f.createdAt)
+                       f.sellerId, m.name, m.nickname, m.profileImageUrl,
+                       (select count(f2) from FollowJpaEntity f2
+                            join MemberJpaEntity follower on follower.id = f2.memberId
+                        where f2.sellerId = f.sellerId and follower.deletedAt is null),
+                       (select count(w) from WishJpaEntity w
+                            join com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaEntity s
+                                on s.projectId = w.projectId
+                        where s.sellerId = f.sellerId),
+                       f.createdAt)
             from FollowJpaEntity f
             join MemberJpaEntity m on m.id = f.sellerId
             where f.memberId = :memberId and m.deletedAt is null
             order by f.createdAt desc, f.sellerId desc
+            """,
+            countQuery = """
+            select count(f) from FollowJpaEntity f
+            join MemberJpaEntity m on m.id = f.sellerId
+            where f.memberId = :memberId and m.deletedAt is null
             """)
     Page<FollowView> findViewsByMemberId(@Param("memberId") UUID memberId, Pageable pageable);
 }

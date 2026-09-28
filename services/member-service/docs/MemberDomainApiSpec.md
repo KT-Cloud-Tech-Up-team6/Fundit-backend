@@ -295,6 +295,8 @@ Response Body
       "sellerId": "018e5678-abcd-7xxx-xxxx-xxxxxxxxxxxx",
       "sellerName": "김판매",
       "sellerNickname": "판매왕",
+      "followerCount": 128,
+      "wishCount": 342,
       "createdAt": "2026-08-20T10:00:00Z"
     }
   ],
@@ -312,6 +314,10 @@ Validation / Business Rules
 - `sellerName`/`sellerNickname`은 **스냅샷이 아니라 `members` 조인 결과**다 — 찜(`wishes`)과 달리 대상이 같은 DB에 있어 복사할 이유가 없고, 복사하면 동기화 문제만 새로 생긴다.
 - **탈퇴한 판매자는 목록에서 제외된다**(`members.deleted_at`) — 남아 있으면 클릭했을 때 없는 프로필로 간다.
 - `nickname`은 nullable이라 `sellerNickname`이 응답에서 생략될 수 있다(`spring.jackson.default-property-inclusion: non_null`).
+- `followerCount`: 그 판매자의 팔로워 수. 탈퇴한 회원의 팔로우는 세지 않는다.
+- `wishCount`(♥): 그 판매자 프로젝트들에 달린 찜의 합. 판매자는 `project_snapshots.seller_id`(project 승인·수정 이벤트의 `sellerId`)로 찾는다 — V7 이전에 받은 스냅샷은 `seller_id`가 없어 project 이벤트가 다시 올 때까지 합산에서 빠진다(실제보다 작게 나올 수 있음).
+- `profileImageUrl`: 업로드·수정 경로가 아직 없어 **항상 null이라 응답에서 생략된다**(위 `non_null` 설정). FE는 필드가 없으면 기본 이미지를 쓴다.
+- 방송 중 여부는 이 응답에 없다 — FE가 `GET /api/v1/lives?status=LIVE&sellerId=...` 결과와 조합한다.
 
 ---
 
@@ -449,6 +455,8 @@ Validation / Business Rules
 - **[확정, 2026-09-22 #109] 찜 목록 프로젝트 정보**: 찜 등록 시 `project_id`만 저장하고 스냅샷을 채우는 코드가 없어 제목·썸네일이 항상 null이었다. `project.approved.v1`/`project.updated.v1`을 구독해 `project_snapshots`(V6)에 upsert하고 목록 조회에서 조인한다. `projectPublicId`를 응답에 추가했다. `wishes`의 옛 스냅샷 컬럼 3개는 더 이상 쓰지 않으며 후속 정리 대상이다.
 
 - **[확정, 2026-09-24 #154] 회원 닉네임 일괄 조회(내부)**: live 카드 판매자명용 `GET /internal/v1/members/nicknames` 추가. dev 전용 `MockSellerSeeder`가 라이브 목업 판매자 50명을 고정 UUID로 만든다(가입 흐름을 타지 않아 `member.signed-up.v1` 미발행).
+
+- **[확정, 2026-09-28 #168] 팔로잉 목록 표시 필드**: `GET /api/v1/follows` 항목에 `followerCount`·`wishCount`(판매자 프로젝트 찜 합산)·`profileImageUrl`(현재 항상 null) 추가. ♥ 합산을 위해 `project_snapshots.seller_id`를 저장한다(V7). 기존 스냅샷의 `seller_id`는 project 이벤트 재발행으로 채워야 한다.
 
 ## ⚠️ 남은 확인 필요 사항
 

@@ -75,7 +75,7 @@ class FollowControllerTest {
         UUID accountId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
         when(followService.getFollows(accountId, PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(new FollowView(sellerId, "홍길동", "길동", Instant.now()))));
+                .thenReturn(new PageImpl<>(List.of(new FollowView(sellerId, "홍길동", "길동", null, 3L, 12L, Instant.now()))));
 
         // when & then
         mockMvc.perform(get("/api/v1/follows")
@@ -83,7 +83,9 @@ class FollowControllerTest {
                         .header("X-Internal-Api-Key", "test-only-internal-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].sellerId").value(sellerId.toString()))
-                .andExpect(jsonPath("$.content[0].sellerName").value("홍길동"));
+                .andExpect(jsonPath("$.content[0].sellerName").value("홍길동"))
+                .andExpect(jsonPath("$.content[0].followerCount").value(3))
+                .andExpect(jsonPath("$.content[0].wishCount").value(12));
     }
 
     @Test
