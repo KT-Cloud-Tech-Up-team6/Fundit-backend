@@ -41,7 +41,7 @@ spring:
             - id: fulfillment-service
               uri: ${downstream.fulfillment-service-base-url}
               predicates:
-                - Path=/api/v1/projects/*/fulfillment/**,/api/v1/projects/*/fundings/*/shipment/**,/api/v2/projects/*/fulfillment/**,/api/v2/projects/*/fundings/*/shipment/**
+                - Path=/api/v1/projects/*/fulfillment/**,/api/v1/projects/*/fundings/*/shipment/**,/api/v2/projects/*/fulfillment/**,/api/v2/projects/*/fundings/*/shipment/**,/api/v2/projects/*/shipments
             - id: order-service
               uri: ${downstream.order-service-base-url}
               predicates:
