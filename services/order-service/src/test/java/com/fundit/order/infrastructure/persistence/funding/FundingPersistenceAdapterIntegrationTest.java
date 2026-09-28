@@ -103,10 +103,66 @@ class FundingPersistenceAdapterIntegrationTest {
         fundingRepository.save(newFunding(UUID.randomUUID(), UUID.randomUUID(), FundingStatus.PENDING, Instant.now().plusSeconds(1800)));
 
         // when
-        var page = fundingRepository.findByMemberId(memberId, null, PageRequest.of(0, 20));
+        var page = fundingRepository.findByMemberId(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void 클라이언트_정렬이_붙어도_오류_없이_최신_참여순으로_조회한다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        fundingRepository.save(titled(memberId, "예전", FundingStatus.PENDING, Instant.parse("2026-09-01T00:00:00Z")));
+        fundingRepository.save(titled(memberId, "최근", FundingStatus.PENDING, Instant.parse("2026-09-20T00:00:00Z")));
+
+        // when — FE가 ?sort=createdAt,asc를 보낸 경우
+        var page = fundingRepository.findByMemberId(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
+                PageRequest.of(0, 20, org.springframework.data.domain.Sort.by("createdAt").ascending()));
+
+        // then
+        assertThat(page.getContent()).extracting(Funding::getProjectTitle).containsExactly("최근", "예전");
+    }
+
+    private Funding titled(UUID memberId, String title, FundingStatus status, Instant createdAt) {
+        Funding base = newFunding(memberId, UUID.randomUUID(), status, Instant.now().plusSeconds(1800));
+        return base.toBuilder().projectTitle(title).createdAt(createdAt).build();
+    }
+
+    @Test
+    void 프로젝트명_기간_여러_상태로_함께_거른다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        Instant d1 = Instant.parse("2026-09-01T03:00:00Z");
+        Instant d2 = Instant.parse("2026-09-10T03:00:00Z");
+        fundingRepository.save(titled(memberId, "무선 청소기", FundingStatus.PENDING, d1));
+        fundingRepository.save(titled(memberId, "무선 선풍기", FundingStatus.CANCELLED_BY_MEMBER, d2));
+        fundingRepository.save(titled(memberId, "무선 이어폰", FundingStatus.PAYMENT_EXPIRED, d2));
+        fundingRepository.save(titled(memberId, "유선 키보드", FundingStatus.PENDING, d2));
+
+        // when — "무선" + 9/5 이후 + (취소·결제 대기)
+        var filter = new com.fundit.order.domain.funding.MemberOrderFilter(
+                List.of(FundingStatus.CANCELLED_BY_MEMBER, FundingStatus.PENDING), "무선",
+                Instant.parse("2026-09-05T00:00:00Z"), null);
+        var page = fundingRepository.findByMemberId(memberId, filter, PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).extracting(Funding::getProjectTitle).containsExactly("무선 선풍기");
+    }
+
+    @Test
+    void 검색어의_와일드카드는_글자_그대로_찾는다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        fundingRepository.save(titled(memberId, "100% 면 티셔츠", FundingStatus.PENDING, Instant.now()));
+        fundingRepository.save(titled(memberId, "1000 피스 퍼즐", FundingStatus.PENDING, Instant.now()));
+
+        // when
+        var page = fundingRepository.findByMemberId(memberId,
+                new com.fundit.order.domain.funding.MemberOrderFilter(null, "100%", null, null), PageRequest.of(0, 20));
+
+        // then — %를 와일드카드로 해석하면 "1000 피스 퍼즐"까지 걸린다
+        assertThat(page.getContent()).extracting(Funding::getProjectTitle).containsExactly("100% 면 티셔츠");
     }
 
     @Test
@@ -117,7 +173,7 @@ class FundingPersistenceAdapterIntegrationTest {
         fundingRepository.save(newFunding(memberId, UUID.randomUUID(), FundingStatus.CANCELLED_BY_MEMBER, Instant.now().plusSeconds(1800)));
 
         // when
-        var page = fundingRepository.findByMemberId(memberId, FundingStatus.CANCELLED_BY_MEMBER, PageRequest.of(0, 20));
+        var page = fundingRepository.findByMemberId(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(FundingStatus.CANCELLED_BY_MEMBER), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getTotalElements()).isEqualTo(1);

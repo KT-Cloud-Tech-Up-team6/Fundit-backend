@@ -70,6 +70,47 @@ class PaymentConfirmServiceUnitTest {
     }
 
     @Test
+    void 승인_응답이_실패해도_토스_조회에서_승인이_확인되면_결제가_완료된다() {
+        // given — 5xx·타임아웃으로 결과 불명
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findByPgOrderId("fundit-order-1")).thenReturn(Optional.of(payment));
+        when(tossPaymentsClient.confirm("pay_key_1", "fundit-order-1", 89_000L))
+                .thenThrow(new com.fundit.common.error.DependencyFailureException(new RuntimeException("timeout")));
+        when(tossPaymentsClient.lookup("pay_key_1")).thenReturn(approvedLookup("fundit-order-1", 89_000L));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        var result = paymentConfirmService.confirm(MEMBER_ID, "pay_key_1", "fundit-order-1", 89_000L);
+
+        // then
+        assertThat(result.status()).isEqualTo(PaymentStatus.COMPLETED.name());
+        verify(paymentEventPublisher).publishPaymentCompleted(any());
+    }
+
+    @Test
+    void 이미_처리된_결제라는_응답이면_토스_조회로_승인을_확인해_완료한다() {
+        // given — 결과 불명 뒤 재확정
+        Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findByPgOrderId("fundit-order-1")).thenReturn(Optional.of(payment));
+        when(tossPaymentsClient.confirm("pay_key_1", "fundit-order-1", 89_000L))
+                .thenThrow(new TossApiException(TossApiException.ALREADY_PROCESSED_PAYMENT, "이미 처리된 결제"));
+        when(tossPaymentsClient.lookup("pay_key_1")).thenReturn(approvedLookup("fundit-order-1", 89_000L));
+        when(paymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        var result = paymentConfirmService.confirm(MEMBER_ID, "pay_key_1", "fundit-order-1", 89_000L);
+
+        // then
+        assertThat(result.status()).isEqualTo(PaymentStatus.COMPLETED.name());
+        verifyNoInteractions(paymentFailureRecorder);
+    }
+
+    private static TossPaymentsClient.TossPaymentLookup approvedLookup(String orderId, long amount) {
+        return new TossPaymentsClient.TossPaymentLookup("DONE", new TossPaymentsClient.TossPaymentResult(
+                "pay_key_1", orderId, "secret_1", "카드", null, Instant.now(), amount));
+    }
+
+    @Test
     void 같은_paymentKey로_재시도하면_토스를_다시_호출하지_않고_기존_결과를_반환한다() {
         // given
         Payment payment = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");

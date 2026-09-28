@@ -10,6 +10,7 @@ import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingProgressStage;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
+import com.fundit.order.domain.funding.MemberOrderFilter;
 import com.fundit.order.domain.funding.SellerOrderShippingCounts;
 import com.fundit.order.domain.funding.ShippingFilter;
 import com.fundit.order.infrastructure.persistence.coupon.FundingCouponApplicationJpaEntity;
@@ -43,8 +44,8 @@ public class OrderQueryService {
      * V03 — 목록 화면이 건별로 project-service/fulfillment-service를 재호출하지 않도록, 페이지
      * 안의 프로젝트 요약·배송 상태를 한 번에 배치 조회해 각 항목에 채워 넣는다.
      */
-    public Page<OrderListItem> listMyOrders(UUID memberId, FundingStatus status, Pageable pageable) {
-        Page<Funding> page = fundingRepository.findByMemberId(memberId, status, pageable);
+    public Page<OrderListItem> listMyOrders(UUID memberId, MemberOrderFilter filter, Pageable pageable) {
+        Page<Funding> page = fundingRepository.findByMemberId(memberId, filter, pageable);
         List<Funding> fundings = page.getContent();
 
         Map<UUID, ProjectSummaryClient.ProjectSummary> summaries = projectSummaryClient.getSummaries(

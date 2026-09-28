@@ -213,6 +213,58 @@ class OrderPricingServiceUnitTest {
             assertThat(result.discountAmount()).isEqualTo(1_500L);
             assertThat(result.appliedCoupons()).hasSize(2);
         }
+
+        /** 주문 금액 = 리워드 10,000 + 배송비 3,000 = 13,000. */
+        private OrderPricingService.PricingResult calculateWith(long platformDiscount, long makerDiscount) {
+            // given
+            Coupon platform = couponBase("PLAT", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue((int) platformDiscount).build();
+            Coupon maker = couponBase("MAKER", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue((int) makerDiscount).build();
+            when(couponRepository.findByCouponCode("PLAT")).thenReturn(Optional.of(platform));
+            when(couponRepository.findByCouponCode("MAKER")).thenReturn(Optional.of(maker));
+            when(couponIssuanceRepository.findByCouponCodeAndOwnerId("PLAT", MEMBER_ID))
+                    .thenReturn(Optional.of(CouponIssuance.issue("PLAT", MEMBER_ID)));
+            when(couponIssuanceRepository.findByCouponCodeAndOwnerId("MAKER", MEMBER_ID))
+                    .thenReturn(Optional.of(CouponIssuance.issue("MAKER", MEMBER_ID)));
+            return service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("PLAT", "MAKER"), false);
+        }
+
+        @Test
+        void 할인_합계가_주문_금액과_같으면_결제_금액이_0원이라_작은_쿠폰을_거절한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 3_000L);
+
+            // then — 큰 할인부터 채우고, 결제 금액을 0원으로 만드는 쿠폰은 사용 불가 사유와 함께 내려간다
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactly("PLAT");
+            assertThat(result.finalAmount()).isEqualTo(3_000L);
+            assertThat(result.unavailableCoupons()).containsExactly(
+                    new OrderPricingService.UnavailableCoupon("MAKER", "EXCEEDS_ORDER_AMOUNT"));
+        }
+
+        @Test
+        void 할인_합계가_주문_금액을_넘어도_거절한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 5_000L);
+
+            // then
+            assertThat(result.unavailableCoupons()).extracting(OrderPricingService.UnavailableCoupon::reason)
+                    .containsExactly("EXCEEDS_ORDER_AMOUNT");
+            assertThat(result.finalAmount()).isPositive();
+        }
+
+        @Test
+        void 결제_금액이_1원이라도_남으면_두_쿠폰을_모두_적용한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 2_999L);
+
+            // then
+            assertThat(result.appliedCoupons()).hasSize(2);
+            assertThat(result.finalAmount()).isEqualTo(1L);
+            assertThat(result.unavailableCoupons()).isEmpty();
+        }
     }
 
     @Nested
@@ -322,6 +374,62 @@ class OrderPricingServiceUnitTest {
                     .containsExactlyInAnyOrder("PLAT-HIGH", "MAKER");
             assertThat(result.discountAmount()).isEqualTo(2_200L);
             assertThat(result.unavailableCoupons()).isEmpty();
+        }
+
+        @Test
+        void 최대_할인_쿠폰이_주문_금액을_넘으면_같은_발급주체의_차선_쿠폰을_고른다() {
+            // given — 주문 금액 13,000. PLAT-ALL(13,000)은 결제 금액을 0원으로 만든다
+            Coupon platformAll = couponBase("PLAT-ALL", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(13_000).build();
+            Coupon platformMid = couponBase("PLAT-MID", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(5_000).build();
+            Coupon maker = couponBase("MAKER", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(700).build();
+            when(couponIssuanceRepository.findByOwnerId(MEMBER_ID, CouponIssuanceStatus.AVAILABLE, Pageable.unpaged()))
+                    .thenReturn(new PageImpl<>(List.of(
+                            CouponIssuance.issue("PLAT-ALL", MEMBER_ID),
+                            CouponIssuance.issue("PLAT-MID", MEMBER_ID),
+                            CouponIssuance.issue("MAKER", MEMBER_ID))));
+            when(couponRepository.findByCouponCodeIn(any())).thenReturn(List.of(platformAll, platformMid, maker));
+
+            // when
+            OrderPricingService.PricingResult result = service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), null, true);
+
+            // then
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactlyInAnyOrder("PLAT-MID", "MAKER");
+            assertThat(result.finalAmount()).isEqualTo(7_300L);
+        }
+
+        @Test
+        void 결제_금액이_남는_조합_중_할인_합계가_가장_큰_조합을_고른다() {
+            // given — 주문 금액 13,000. 9,000+5,000은 넘치고 9,000+3,500(12,500)이 최대다
+            Coupon platformHigh = couponBase("PLAT-9000", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(9_000).build();
+            Coupon platformLow = couponBase("PLAT-3000", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue(3_000).build();
+            Coupon makerHigh = couponBase("MAKER-5000", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(5_000).build();
+            Coupon makerLow = couponBase("MAKER-3500", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue(3_500).build();
+            when(couponIssuanceRepository.findByOwnerId(MEMBER_ID, CouponIssuanceStatus.AVAILABLE, Pageable.unpaged()))
+                    .thenReturn(new PageImpl<>(List.of(
+                            CouponIssuance.issue("PLAT-9000", MEMBER_ID),
+                            CouponIssuance.issue("PLAT-3000", MEMBER_ID),
+                            CouponIssuance.issue("MAKER-5000", MEMBER_ID),
+                            CouponIssuance.issue("MAKER-3500", MEMBER_ID))));
+            when(couponRepository.findByCouponCodeIn(any()))
+                    .thenReturn(List.of(platformHigh, platformLow, makerHigh, makerLow));
+
+            // when
+            OrderPricingService.PricingResult result = service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), null, true);
+
+            // then
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactlyInAnyOrder("PLAT-9000", "MAKER-3500");
+            assertThat(result.finalAmount()).isEqualTo(500L);
         }
 
         @Test

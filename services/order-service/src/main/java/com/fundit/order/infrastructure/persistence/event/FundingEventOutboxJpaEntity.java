@@ -28,6 +28,8 @@ public class FundingEventOutboxJpaEntity {
     public static final String TYPE_GOAL_FAILED = "FUNDING_GOAL_FAILED";
     public static final String TYPE_SUCCEEDED = "FUNDING_SUCCEEDED";
     public static final String TYPE_CANCELLED_BY_MEMBER = "FUNDING_CANCELLED_BY_MEMBER";
+    /** 31자 — event_type 컬럼(32자) 안에 든다. */
+    public static final String TYPE_PAYMENT_RECONCILIATION_REQUIRED = "PAYMENT_RECONCILIATION_REQUIRED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,7 +41,7 @@ public class FundingEventOutboxJpaEntity {
     @Column(name = "funding_id", nullable = false)
     private Long fundingId;
 
-    @Column(name = "project_id", nullable = false)
+    @Column(name = "project_id")
     private Long projectId;
 
     @Column(name = "member_id")

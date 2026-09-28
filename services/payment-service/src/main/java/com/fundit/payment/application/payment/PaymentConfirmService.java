@@ -2,6 +2,7 @@ package com.fundit.payment.application.payment;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.error.DependencyFailureException;
 import com.fundit.payment.application.event.PaymentEventPublisher;
 import com.fundit.payment.application.settlement.SettlementHoldService;
 import com.fundit.payment.domain.PaymentErrorCode;
@@ -9,10 +10,14 @@ import com.fundit.payment.domain.payment.Payment;
 import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -22,6 +27,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class PaymentConfirmService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentConfirmService.class);
 
     private final PaymentRepository paymentRepository;
     private final TossPaymentsClient tossPaymentsClient;
@@ -78,14 +85,43 @@ public class PaymentConfirmService {
                                                                    long amount) {
         try {
             return tossPaymentsClient.confirm(paymentKey, orderId, amount);
+        } catch (DependencyFailureException e) {
+            // 5xx·타임아웃 — 토스에서는 승인됐을 수 있다. 조회로 승인이 확인되면 완료로 맞추고,
+            // 아니면 그대로 던져 트랜잭션을 롤백한다(결제는 PENDING 유지, 재확정 가능).
+            return findApproved(paymentKey, orderId, amount).orElseThrow(() -> e);
         } catch (TossApiException e) {
+            if (e.isAlreadyProcessed()) {
+                // 결과 불명 뒤 재확정 — 이미 승인된 결제면 완료로 맞춘다. 조회로 확인하지 못하면 토스에선 승인됐을 수
+                // 있으니 FAILED로 굳히지 않고 결과 불명(503)으로 던진다(PENDING 유지, 재확정 가능).
+                return findApproved(paymentKey, orderId, amount).orElseThrow(() -> new DependencyFailureException(e));
+            }
             // ⑥ 실패: Payment(FAILED)만 기록하고 Funding.status는 손대지 않는다(order-service가 PENDING 유지).
             // 이 예외가 던져지면 confirm()의 트랜잭션 전체가 롤백되므로, FAILED 기록은 별도 트랜잭션에서 커밋한다.
             paymentFailureRecorder.recordFailure(payment);
+            // 토스 오류 코드는 detail로 내린다 — FE가 거절 사유별 안내를 분기할 수 있게(메시지 파싱 금지).
+            Map<String, String> detail = Map.of("tossErrorCode", e.getTossErrorCode());
             if (e.isSessionExpired()) {
-                throw new BusinessException(PaymentErrorCode.PAYMENT_EXPIRED, e.getTossMessage());
+                throw new BusinessException(PaymentErrorCode.PAYMENT_EXPIRED, e.getTossMessage(), detail);
             }
-            throw new BusinessException(PaymentErrorCode.PG_CONFIRM_FAILED, e.getTossMessage());
+            throw new BusinessException(PaymentErrorCode.PG_CONFIRM_FAILED, e.getTossMessage(), detail);
+        }
+    }
+
+    /**
+     * 토스에 실제로 승인됐는지 조회로 대조한다. 주문번호·금액까지 맞아야 인정한다 — 다른 주문의 paymentKey로
+     * 완료 처리되는 일을 막는다. 조회 자체가 실패하면 판단하지 않는다(빈 값).
+     */
+    private Optional<TossPaymentsClient.TossPaymentResult> findApproved(String paymentKey, String orderId, long amount) {
+        try {
+            TossPaymentsClient.TossPaymentLookup lookup = tossPaymentsClient.lookup(paymentKey);
+            TossPaymentsClient.TossPaymentResult result = lookup.payment();
+            if (lookup.isDone() && orderId.equals(result.orderId()) && result.totalAmount() == amount) {
+                return Optional.of(result);
+            }
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            log.warn("토스 결제 조회 실패, 승인 여부를 판단하지 않습니다. orderId={}", orderId, e);
+            return Optional.empty();
         }
     }
 

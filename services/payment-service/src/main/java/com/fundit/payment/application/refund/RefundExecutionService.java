@@ -11,6 +11,7 @@ import com.fundit.payment.application.payment.TossPaymentsClient;
 import com.fundit.payment.application.settlement.SettlementHoldService;
 import com.fundit.payment.domain.PaymentErrorCode;
 import com.fundit.payment.domain.payment.Payment;
+import com.fundit.payment.domain.payment.PaymentMethod;
 import com.fundit.payment.domain.payment.PaymentRepository;
 import com.fundit.payment.domain.payment.PaymentStatus;
 import com.fundit.payment.domain.refund.RefundRequest;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -53,8 +55,10 @@ public class RefundExecutionService {
     @Transactional
     public RefundExecutionResult executeFullRefund(UUID fundingId, RefundTriggerType triggerType,
                                                      String cancelReason) {
-        Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId)
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));
+        Payment payment = paymentRepository.findCompletedOrCancelledByFundingId(fundingId).orElse(null);
+        if (payment == null) {
+            return failPendingPayment(fundingId, triggerType, cancelReason);
+        }
 
         if (payment.getStatus() == PaymentStatus.CANCELLED) {
             log.info("이미 취소 처리된 결제입니다(멱등 무시). fundingId={} paymentId={}", fundingId, payment.getId());
@@ -62,6 +66,47 @@ public class RefundExecutionService {
         }
 
         return execute(payment, payment.getAmount(), triggerType, cancelReason, null);
+    }
+
+    /**
+     * 환불할 완료 결제가 없다 — 결제 전에 참여를 취소한 경우다. 대기 중인 결제가 남아 있으면 FAILED로 닫아
+     * 결제창에서 뒤늦게 확정되지 않게 한다(돈이 빠지고 주문은 취소로 남는 사고 방지). 대기 결제도 없으면 기존처럼 404.
+     *
+     * <p>단, 승인 결과 불명(토스 5xx·타임아웃)으로 PENDING에 남은 결제는 토스에선 이미 승인됐을 수 있다. 그래서
+     * 닫기 전에 주문번호로 토스를 조회해, 승인돼 있으면 완료로 맞춘 뒤 전액 취소한다. FAILED로 닫는 건 토스에 결제가
+     * 없거나 앞으로도 승인될 수 없는 상태일 때뿐이고, 그마저 조건부 UPDATE라 동시에 끝난 승인을 덮지 않는다.
+     * 조회 자체가 실패하면 FAILED로 굳히지 않고 예외를 던져 PENDING으로 둔다.
+     * ponytail: 이 경우 이벤트는 재시도 없이 끝난다. 구매자가 재확정하면 결제 완료 → order 조정 환불로 이어지지만,
+     * 재확정도 없으면 자동 복구는 없다 — 필요해지면 PENDING 결제를 주기적으로 토스와 대조하는 배치를 둘 것.
+     */
+    private RefundExecutionResult failPendingPayment(UUID fundingId, RefundTriggerType triggerType, String cancelReason) {
+        Payment pending = paymentRepository.findPendingByFundingId(fundingId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "완료된 결제를 찾을 수 없습니다."));
+        Optional<TossPaymentsClient.TossPaymentLookup> lookup = tossPaymentsClient.lookupByOrderId(pending.getPgOrderId());
+        if (lookup.isPresent() && lookup.get().isDone() && lookup.get().payment().totalAmount() == pending.getAmount()) {
+            TossPaymentsClient.TossPaymentResult toss = lookup.get().payment();
+            // 주문은 이미 취소됐으니 PaymentCompleted·정산 보류 없이 완료로만 맞추고 바로 전액 취소한다.
+            pending.markCompleted(toss.paymentKey(), toss.secret(), PaymentMethod.fromTossMethod(toss.method()),
+                    toss.easyPayProvider(), toss.approvedAt() == null ? Instant.now() : toss.approvedAt());
+            log.warn("결제 전 취소로 보였으나 토스에선 승인된 결제라 전액 취소합니다. fundingId={} paymentId={}",
+                    fundingId, pending.getId());
+            return execute(pending, pending.getAmount(), triggerType, cancelReason, null);
+        }
+        if (lookup.isPresent() && !lookup.get().isNeverApprovable()) {
+            // 승인 진행 중(IN_PROGRESS)·이미 취소됨·금액 불일치 등 — FAILED로 굳히지 않는다. 승인이 끝나면
+            // 결제 완료 → order 조정 환불로 이어진다.
+            log.warn("대기 결제를 닫지 않고 둡니다. fundingId={} paymentId={} tossStatus={}",
+                    fundingId, pending.getId(), lookup.get().status());
+            return RefundExecutionResult.pendingPaymentUnresolved();
+        }
+        if (!paymentRepository.failIfPending(pending.getId())) {
+            // 조회와 닫기 사이에 승인이 먼저 커밋됐다 — 결제 완료 이벤트가 order 조정 환불로 이어진다.
+            log.warn("대기 결제가 그사이 다른 상태로 바뀌어 닫지 않습니다. fundingId={} paymentId={}",
+                    fundingId, pending.getId());
+            return RefundExecutionResult.pendingPaymentUnresolved();
+        }
+        log.info("결제 전 참여 취소 — 대기 결제를 실패 처리했습니다. fundingId={} paymentId={}", fundingId, pending.getId());
+        return RefundExecutionResult.pendingPaymentClosed();
     }
 
     /**
@@ -86,7 +131,7 @@ public class RefundExecutionService {
                 throw e;
             }
             log.warn("원 결제수단 환불 실패 — 대체 계좌 입력 대기 상태로 전환합니다. fundingId={}", fundingId, e);
-            refundRequestRepository.save(RefundRequest.awaitingAlternateAccount(triggerType, fundingId, payment.getId()));
+            refundRequestRepository.save(RefundRequest.awaitingAlternateAccount(triggerType, fundingId, payment.getId(), cancelReason));
             paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
                     fundingId, payment.getMemberId(), RefundNotificationStatus.AWAITING_ALTERNATE_ACCOUNT));
             return RefundExecutionResult.awaitingAlternateAccount();
@@ -130,7 +175,8 @@ public class RefundExecutionService {
                 .build());
 
         RefundRequest completed = existingRequest == null
-                ? RefundRequest.completeImmediately(triggerType, payment.getFundingId(), payment.getId(), isFullRefund)
+                ? RefundRequest.completeImmediately(triggerType, payment.getFundingId(), payment.getId(), isFullRefund,
+                        cancelReason)
                 : approveExisting(existingRequest, isFullRefund);
         RefundRequest saved = refundRequestRepository.save(completed);
 
@@ -155,6 +201,14 @@ public class RefundExecutionService {
 
         static RefundExecutionResult awaitingAlternateAccount() {
             return new RefundExecutionResult(null, "AWAITING_ALTERNATE_ACCOUNT", true);
+        }
+
+        static RefundExecutionResult pendingPaymentClosed() {
+            return new RefundExecutionResult(null, "PENDING_PAYMENT_CLOSED", false);
+        }
+
+        static RefundExecutionResult pendingPaymentUnresolved() {
+            return new RefundExecutionResult(null, "PENDING_PAYMENT_UNRESOLVED", false);
         }
     }
 }

@@ -25,7 +25,10 @@ public interface FundingRewardStatsPublisher {
      * {@code projectId}는 project-service의 publicId(UUID)다 — order-service는 project-service의
      * 내부 Long PK를 알 방법이 없어(cross-service ID 통일 #69), UUID로 발행하고 project-service가
      * 자기 DB에서 {@code publicId → 내부 id}로 스스로 변환한다.
+     *
+     * <p>{@code participantCount}는 진행 중·목표 달성 펀딩에 참여한 회원 수(중복 제외)다 — 한 회원이
+     * 여러 번 참여해도 1명이다. 필드 추가라 이 값을 모르는 구버전 소비자도 그대로 동작한다.
      */
-    record RewardStatsUpdatedEvent(UUID projectId, List<RewardStatItem> rewardStats) {
+    record RewardStatsUpdatedEvent(UUID projectId, List<RewardStatItem> rewardStats, int participantCount) {
     }
 }

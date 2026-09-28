@@ -38,9 +38,47 @@ public interface FundingJpaRepository extends JpaRepository<FundingJpaEntity, Lo
             nativeQuery = true)
     List<UUID> findDistinctProjectPublicIdsWithCountableFundings();
 
+    /** 프로젝트 참여자 수 — 진행 중·목표 달성 펀딩의 회원 수(중복 제외). 위 배치 대상과 같은 상태 기준이다. */
+    @Query(value = "SELECT count(DISTINCT member_id) FROM fundings "
+            + "WHERE project_public_id = :projectId AND status IN ('FUNDING_IN_PROGRESS','GOAL_ACHIEVED')",
+            nativeQuery = true)
+    int countParticipantsByProjectPublicId(@Param("projectId") UUID projectId);
+
     Page<FundingJpaEntity> findByMemberId(UUID memberId, Pageable pageable);
 
     Page<FundingJpaEntity> findByMemberIdAndStatus(UUID memberId, String status, Pageable pageable);
+
+    /**
+     * ORDER-004 내 펀딩 목록 필터. 널 파라미터 타입 추론 함정과 LIKE 이스케이프는 {@link #findSellerOrders}와
+     * 같은 방식으로 막는다(CAST, ESCAPE). 참여일 최신순, 동률이면 id로 순서를 고정한다.
+     */
+    @Query(value = """
+            SELECT * FROM fundings f
+            WHERE f.member_id = :memberId
+              AND (:allStatuses = true OR f.status IN (:statuses))
+              AND (CAST(:q AS text) IS NULL
+                   OR lower(f.project_title) LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\')
+              AND (CAST(:from AS timestamp) IS NULL OR f.created_at >= CAST(:from AS timestamp))
+              AND (CAST(:to AS timestamp) IS NULL OR f.created_at < CAST(:to AS timestamp))
+            ORDER BY f.created_at DESC, f.id DESC
+            """,
+            countQuery = """
+            SELECT count(*) FROM fundings f
+            WHERE f.member_id = :memberId
+              AND (:allStatuses = true OR f.status IN (:statuses))
+              AND (CAST(:q AS text) IS NULL
+                   OR lower(f.project_title) LIKE lower(concat('%', CAST(:q AS text), '%')) ESCAPE '\\')
+              AND (CAST(:from AS timestamp) IS NULL OR f.created_at >= CAST(:from AS timestamp))
+              AND (CAST(:to AS timestamp) IS NULL OR f.created_at < CAST(:to AS timestamp))
+            """,
+            nativeQuery = true)
+    Page<FundingJpaEntity> findMemberOrders(@Param("memberId") UUID memberId,
+                                             @Param("allStatuses") boolean allStatuses,
+                                             @Param("statuses") List<String> statuses,
+                                             @Param("q") String q,
+                                             @Param("from") Instant from,
+                                             @Param("to") Instant to,
+                                             Pageable pageable);
 
     List<FundingJpaEntity> findByStatusAndPaymentExpiresAtBefore(String status, Instant threshold);
 

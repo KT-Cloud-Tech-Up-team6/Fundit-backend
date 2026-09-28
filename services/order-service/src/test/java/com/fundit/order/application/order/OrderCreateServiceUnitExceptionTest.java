@@ -79,6 +79,47 @@ class OrderCreateServiceUnitExceptionTest {
     }
 
     @Test
+    void 지정한_쿠폰을_쓸_수_없으면_재고_차감_전에_COUPON_NOT_APPLICABLE로_거절한다() {
+        // given — 미리보기 뒤에 쿠폰이 만료됐다
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
+                10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(),
+                List.of(new OrderPricingService.UnavailableCoupon("WELCOME", "EXPIRED")));
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
+
+        // when & then — 할인 없이 조용히 주문이 만들어지지 않는다
+        assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("WELCOME"), false, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    assertThat(((BusinessException) e).getErrorCode()).isEqualTo(OrderErrorCode.COUPON_NOT_APPLICABLE);
+                    assertThat(((BusinessException) e).getDetail())
+                            .isEqualTo(java.util.Map.of("couponCode", "WELCOME", "reason", "EXPIRED"));
+                });
+        verify(inventoryRepository, never()).decreaseStock(any(), org.mockito.ArgumentMatchers.anyInt());
+        verify(fundingRepository, never()).save(any());
+    }
+
+    @Test
+    void 쿠폰_예산이_소진됐으면_COUPON_BUDGET_EXCEEDED로_거절한다() {
+        // given
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
+                10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(),
+                List.of(new OrderPricingService.UnavailableCoupon("PLAT", "BUDGET_EXCEEDED")));
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
+
+        // when & then
+        assertThatThrownBy(() -> orderCreateService.create(MEMBER_ID, PROJECT_ID,
+                List.of(new OrderLineItemRequest(REWARD_ID, 1, null)),
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of("PLAT"), false, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(OrderErrorCode.COUPON_BUDGET_EXCEEDED));
+    }
+
+    @Test
     void 쿠폰_예산_반영에_실패하면_COUPON_BUDGET_EXCEEDED_예외가_발생한다() {
         // given — resolveSingleCoupon()이 조회 시점엔 예산이 남아있다고 판단했지만, 그 사이 다른
         // 요청이 예산을 먼저 소진시켜(레이스) increaseUsedBudget()의 조건부 UPDATE가 0건 반영된 경우.

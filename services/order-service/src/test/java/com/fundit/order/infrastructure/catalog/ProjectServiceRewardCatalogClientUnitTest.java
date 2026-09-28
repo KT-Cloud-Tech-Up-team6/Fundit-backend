@@ -64,6 +64,26 @@ class ProjectServiceRewardCatalogClientUnitTest {
     }
 
     @Test
+    void 얼리버드_리워드는_할인가를_단가로_쓴다() {
+        // given — 정가 10,000원, 얼리버드 할인가 8,000원
+        server.expect(requestTo("http://localhost:8083/api/v1/projects/" + PROJECT_ID + "/rewards"))
+                .andRespond(withSuccess("""
+                        [
+                          {"rewardId": 1, "name": "얼리버드", "price": 10000, "isEarlyBird": true,
+                           "earlyBirdDiscountedPrice": 8000, "isLimited": false, "soldOut": false, "options": []},
+                          {"rewardId": 2, "name": "일반", "price": 10000, "isEarlyBird": false,
+                           "earlyBirdDiscountedPrice": null, "isLimited": false, "soldOut": false, "options": []}
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        // when
+        List<RewardSnapshot> result = client.getRewards(PROJECT_ID);
+
+        // then — 화면의 할인가와 결제 금액이 같다
+        assertThat(result).extracting(RewardSnapshot::price).containsExactly(8_000L, 10_000L);
+    }
+
+    @Test
     void 응답이_없으면_빈_목록을_반환한다() {
         // given
         server.expect(requestTo("http://localhost:8083/api/v1/projects/" + PROJECT_ID + "/rewards"))

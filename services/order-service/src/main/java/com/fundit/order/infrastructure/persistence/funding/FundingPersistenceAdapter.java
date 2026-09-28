@@ -4,10 +4,12 @@ import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
 import com.fundit.order.domain.funding.FundingRepository;
 import com.fundit.order.domain.funding.FundingStatus;
+import com.fundit.order.domain.funding.MemberOrderFilter;
 import com.fundit.order.domain.funding.SellerOrderShippingCounts;
 import com.fundit.order.domain.funding.ShippingFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
@@ -64,11 +66,17 @@ public class FundingPersistenceAdapter implements FundingRepository {
     }
 
     @Override
-    public Page<Funding> findByMemberId(UUID memberId, FundingStatus status, Pageable pageable) {
-        Page<FundingJpaEntity> page = status == null
-                ? fundingJpaRepository.findByMemberId(memberId, pageable)
-                : fundingJpaRepository.findByMemberIdAndStatus(memberId, status.name(), pageable);
-        return page.map(this::hydrate);
+    public Page<Funding> findByMemberId(UUID memberId, MemberOrderFilter filter, Pageable pageable) {
+        // JPQL/네이티브 IN에 빈 컬렉션을 넘기면 쿼리가 깨진다 — 상태 필터가 없으면 자리표시 값을 넘기고
+        // allStatuses 플래그로 조건 자체를 끈다.
+        boolean allStatuses = filter.statuses().isEmpty();
+        List<String> statuses = allStatuses
+                ? List.of(FundingStatus.PENDING.name())
+                : filter.statuses().stream().map(FundingStatus::name).toList();
+        // 정렬은 쿼리에 고정돼 있다(최신 참여순). 클라이언트 sort를 넘기면 엔티티 속성명이 네이티브 SQL에 붙어 500이 난다.
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return fundingJpaRepository.findMemberOrders(memberId, allStatuses, statuses, escapeLikePattern(filter.q()),
+                filter.from(), filter.to(), unsorted).map(this::hydrate);
     }
 
     @Override

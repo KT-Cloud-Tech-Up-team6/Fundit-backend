@@ -16,6 +16,12 @@ public interface FundingEventPublisher {
 
     void publishFundingCancelledByMember(FundingCancelledByMemberEvent event);
 
+    /**
+     * 결제는 완료됐는데 주문이 이미 만료·취소돼 결제를 받을 수 없는 상태다. payment-service(PAYMENT-017)가
+     * 받아 전액 환불한다 — 돈만 빠지고 주문은 무효로 남는 사고를 막는다.
+     */
+    void publishPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event);
+
     record FundingGoalFailedEvent(Long fundingId, Long projectId) {
     }
 
@@ -23,5 +29,8 @@ public interface FundingEventPublisher {
     }
 
     record FundingCancelledByMemberEvent(Long fundingId, Long projectId, UUID memberId) {
+    }
+
+    record PaymentReconciliationRequiredEvent(Long fundingId) {
     }
 }

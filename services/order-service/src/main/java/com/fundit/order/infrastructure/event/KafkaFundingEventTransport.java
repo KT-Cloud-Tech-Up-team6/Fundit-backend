@@ -5,6 +5,7 @@ import com.fundit.common.event.KafkaTopics;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingCancelledByMemberEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingGoalFailedEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingSucceededEvent;
+import com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent;
 import com.fundit.order.domain.funding.FundingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -76,6 +77,17 @@ public class KafkaFundingEventTransport implements FundingEventTransport {
         });
         enrichPublicIds(payload, event.fundingId());
         send(KafkaTopics.FUNDING_CANCELLED_BY_MEMBER, String.valueOf(event.fundingId()), payload);
+    }
+
+    @Override
+    public void sendPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event, Long outboxId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventId", SERVICE_NAME + ":" + outboxId);
+        payload.put("fundingId", event.fundingId());
+        // paymentId는 order가 모른다 — payment-service는 orderId로 완료 결제를 찾는다(PaymentReconciliationListener).
+        payload.put("paymentId", null);
+        enrichPublicIds(payload, event.fundingId());
+        send(KafkaTopics.PAYMENT_RECONCILIATION_REQUIRED, String.valueOf(event.fundingId()), payload);
     }
 
     /**

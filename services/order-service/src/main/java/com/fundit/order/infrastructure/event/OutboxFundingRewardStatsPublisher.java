@@ -18,6 +18,7 @@ public class OutboxFundingRewardStatsPublisher implements FundingRewardStatsPubl
         outboxRepository.save(FundingRewardStatsEventOutboxJpaEntity.builder()
                 .projectId(event.projectId())
                 .rewardStats(event.rewardStats())
+                .participantCount(event.participantCount())
                 .build());
     }
 }

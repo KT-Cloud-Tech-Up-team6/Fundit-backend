@@ -40,6 +40,9 @@ public class FundingRewardStatsEventOutboxJpaEntity {
     @Column(name = "reward_stats", nullable = false, columnDefinition = "jsonb")
     private List<RewardStatItem> rewardStats;
 
+    @Column(name = "participant_count", nullable = false)
+    private int participantCount;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -65,7 +65,7 @@ class DefectRefundDecisionServiceUnitExceptionTest {
     void 하자환불_신청이_아니면_INVALID_INPUT_예외가_발생한다() {
         // given
         RefundRequest simpleChangeRequest = RefundRequest.completeImmediately(
-                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, UUID.randomUUID(), true);
+                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, UUID.randomUUID(), true, null);
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(simpleChangeRequest));
 
         // when & then

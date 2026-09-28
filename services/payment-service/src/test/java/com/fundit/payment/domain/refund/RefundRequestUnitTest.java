@@ -27,7 +27,7 @@ class RefundRequestUnitTest {
     void 즉시처리_유형은_생성과_동시에_COMPLETED_상태다() {
         // when
         RefundRequest request = RefundRequest.completeImmediately(
-                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, PAYMENT_ID, true);
+                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, PAYMENT_ID, true, null);
 
         // then
         assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);

@@ -81,7 +81,7 @@
 
 > **주의**: 이 응답에는 주문(Funding)의 상태가 포함되지 않는다. `Funding.status`를 `FUNDING_IN_PROGRESS`로 바꾸는 것은 order-service가 `payment.completed.v1`을 구독해 비동기로 처리하므로, 이 API가 200을 반환한 시점과 `GET /api/v1/orders/{orderId}`(order-service)에서 최신 상태가 보이는 시점 사이에 짧은 지연이 있을 수 있다. 프론트엔드는 이 API의 `status: "COMPLETED"` 자체를 결제 성공의 기준으로 삼아야 한다.
 
-- **주요 에러 코드**: `PAYMENT_NOT_PENDING`(409), `PAYMENT_AMOUNT_MISMATCH`(422), `PAYMENT_EXPIRED`(410, 인증 후 10분 초과), `PG_CONFIRM_FAILED`(422, 토스 승인 API 실패 응답 — 이 경우 `Payment.status=FAILED`로 기록되고 `Funding.status`는 order-service 쪽에서 그대로 `PENDING` 유지되어 클라이언트는 1-1부터 재시도 가능)
+- **주요 에러 코드**: `PAYMENT_NOT_PENDING`(409), `PAYMENT_AMOUNT_MISMATCH`(422), `PAYMENT_EXPIRED`(410, 인증 후 10분 초과), `PG_CONFIRM_FAILED`(422, 토스 승인 API 거절(4xx) — 이 경우 `Payment.status=FAILED`로 기록되고 `Funding.status`는 order-service 쪽에서 그대로 `PENDING` 유지되어 클라이언트는 1-1부터 재시도 가능. **에러 응답 `detail`에 `{ "tossErrorCode": "REJECT_CARD_COMPANY" }`처럼 토스 오류 코드를 싣는다** — 거절 사유별 안내에 쓴다), `DEPENDENCY_FAILURE`(503, 토스 5xx·타임아웃 = **결과 불명**. 결제를 FAILED로 굳히지 않고 PENDING으로 둔다 — 같은 요청으로 다시 확정하면 서버가 토스 결제 조회(`GET /v1/payments/{paymentKey}`)로 실제 승인 여부를 대조해, 승인됐으면(주문번호·금액 일치) 완료로 맞춘다. 토스가 `ALREADY_PROCESSED_PAYMENT`로 답해도 같은 대조를 거치고, 조회로 승인이 확인되지 않으면 FAILED로 굳히지 않고 `503`으로 응답한다)
 
 > **레이스 컨디션 처리**: 토스 승인 자체는 성공했으나(위 응답은 정상 200 반환) 이후 `payment.completed.v1`을 받은 order-service가 "이미 `PAYMENT_EXPIRED`"라고 판단하는 극히 드문 경우, 이 API 응답은 이미 나간 뒤이므로 별도 에러 코드로 표현하지 않는다. 대신 order-service가 `payment.reconciliation-required.v1`을 발행하면 payment-service가 PAYMENT-017로 자동 전액취소한다(비동기 보상 트랜잭션, `PaymentFunctionalSpec.md` PAYMENT-002/017 참고). payment 쪽 리스너·전액취소 로직은 이미 구현돼 있고, order-service의 발행이 붙으면 동작한다.
 
@@ -136,7 +136,7 @@
 ```
 
 - **V04**: `reasonDetail`/`rejectedReason`/`completedAt`은 `refund_requests` 테이블 값을 그대로 노출한다(반려 전이면 `rejectedReason`은 null, 미처리 건이면 `completedAt`은 null). `projectTitle`/`lineItems`는 order-service 내부 배치 API(`GET /internal/orders/order-summaries`)로 페이지 단위 1회 조회해 채우며, 조회 실패 시 둘 다 null(부가 정보, 목록 자체는 정상 응답).
-- **`amount`는 실 환불 금액이다**(결제 원금이 아님). 완료된 건은 `payment_cancellations.cancel_amount` 합계를, 아직 취소가 실행되지 않은 건(신청 중·반려)은 `payments.amount`를 폴백으로 내려준다 — 즉시처리 유형은 전액 취소라 폴백값이 곧 실 환불액이다. 반품비 차감 부분취소(2-3)를 별도 컬럼 없이 반영하기 위한 설계이며, 목록 쿼리 성능이 문제되면 그때 비정규화한다.
+- **`amount`는 실 환불 금액이다**(결제 원금이 아님). 완료된 건은 `payment_cancellations.cancel_amount` 합계를, 아직 취소가 실행되지 않은 건(신청 중·반려)은 `payments.amount`를 폴백으로 내려준다 — 즉시처리 유형은 전액 취소라 폴백값이 곧 실 환불액이다. **교환(`EXCHANGE`)은 결제를 취소하지 않으므로 항상 `0`이다**(원금 폴백 대상이 아니다). 즉시처리·대체계좌 대기 건도 참여 취소 사유가 `reasonDetail`에 저장된다. 반품비 차감 부분취소(2-3)를 별도 컬럼 없이 반영하기 위한 설계이며, 목록 쿼리 성능이 문제되면 그때 비정규화한다.
 - **`returnShippingFee`**는 `triggerType=RETURN_CHANGE_OF_MIND`일 때만 `5000`이고 그 외 유형은 null이다(반품비는 전 프로젝트 공통 고정액이라 조회 시 상수로 채운다).
 - **v2(`GET /api/v2/refunds`)는 사유를 나눠 내려준다** — `reasonType`(사유 유형 enum 이름, 유형 없는 사유는 null)과 `reasonDetail`(구매자가 쓴 상세만, 태그 제거)이다. 저장은 `"[DAMAGED] 배송 중 파손되어..."` 한 문자열이지만 FE가 이 문자열을 파싱하지 않도록 응답에서 분리한다(`RefundReasonTag`). 교환 건은 사유에 따른 `additionalPaymentAmount`(구매자 귀책 5000, 그 외 0)도 채워진다. **v1 응답은 기존 계약 유지** — `reasonDetail`에 태그가 포함된 원문이 그대로 내려가고 `reasonType`/`additionalPaymentAmount` 필드가 없다.
 - **필터**: `triggerType` 쿼리 파라미터로 유형별 필터가 가능하다 — 발송 후 반품은 `RETURN_CHANGE_OF_MIND`, 모금 중 참여 취소는 `SIMPLE_CHANGE_OF_MIND`로 구분된다.
@@ -526,7 +526,7 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
 
 | 기능 ID | 트리거 | 비고 |
 |---|---|---|
-| PAYMENT-004 | 이벤트 구독(`funding.cancelled-by-member.v1`) | 입력 `{ eventId, fundingId, projectId, memberId }`. 참여 취소 전액 환불 → `refund.completed.v1`(`refundReason`=`CANCELLED_BY_MEMBER`, `fullRefund`=`true`) |
+| PAYMENT-004 | 이벤트 구독(`funding.cancelled-by-member.v1`) | 입력 `{ eventId, fundingId, projectId, memberId }`. 참여 취소 전액 환불 → `refund.completed.v1`(`refundReason`=`CANCELLED_BY_MEMBER`, `fullRefund`=`true`). **결제 전 참여 취소**(완료 결제 없음)면 대기 중인 결제를 닫기 전에 주문번호로 토스를 조회한다(`GET /v1/payments/orders/{orderId}`). 토스에서 이미 승인됐으면(승인 응답 5xx 등) 완료로 맞춘 뒤 전액 환불하고, 결제 없음·`READY`·`ABORTED`·`EXPIRED`면 `FAILED`로 닫아 뒤늦게 확정되지 않게 한다(조건부 갱신 — 동시에 끝난 승인을 덮지 않음). 승인 진행 중(`IN_PROGRESS`)·이미 취소됨 등은 `PENDING`으로 둔다(승인이 끝나면 order 조정 환불로 이어진다). 조회 실패도 `PENDING` 유지 |
 | PAYMENT-005 | 이벤트 구독(`funding.goal-failed.v1`) | 입력 `{ eventId, fundingId, projectId }`. **펀딩 1건당 1이벤트**(프로젝트 단위 일괄 처리 아님) → `refund.completed.v1`(`refundReason`=`GOAL_FAILURE_AUTO_REFUND`, `fullRefund`=`true`) |
 | PAYMENT-012 | 배치(정산 처리 시) | 쿠폰 정산 차감 계산(메이커 발급 쿠폰만) |
 | PAYMENT-013 | 이벤트 구독(`funding.succeeded.v1`) + 스케줄 | 입력 `{ eventId, fundingId, projectId, sellerId, achievedAt }`. 달성확정일+5영업일 후 선정산 배치. `totalAmount`는 순액 100% |

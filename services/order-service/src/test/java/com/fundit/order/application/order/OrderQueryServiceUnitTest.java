@@ -82,7 +82,7 @@ class OrderQueryServiceUnitTest {
         when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
-        var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(FundingStatus.PENDING),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then
@@ -108,7 +108,7 @@ class OrderQueryServiceUnitTest {
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
-        var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(FundingStatus.PENDING),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then
@@ -141,7 +141,7 @@ class OrderQueryServiceUnitTest {
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
-        var result = orderQueryService.listMyOrders(memberId, null,
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then
@@ -170,7 +170,7 @@ class OrderQueryServiceUnitTest {
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
-        var result = orderQueryService.listMyOrders(memberId, null,
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then — 누를 수 없는 버튼을 보여주지 않는 쪽으로 degrade
@@ -199,7 +199,7 @@ class OrderQueryServiceUnitTest {
                 .thenReturn(List.of(discountProjection(1L, 3_000L)));
 
         // when
-        var result = orderQueryService.listMyOrders(memberId, FundingStatus.PENDING,
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(FundingStatus.PENDING),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then

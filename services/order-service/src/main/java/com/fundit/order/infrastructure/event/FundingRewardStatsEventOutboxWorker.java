@@ -37,7 +37,8 @@ public class FundingRewardStatsEventOutboxWorker {
         for (FundingRewardStatsEventOutboxJpaEntity event : outboxRepository.findByPublishedAtIsNullOrderByIdAsc(
                 PageRequest.of(0, batchSize))) {
             try {
-                transport.send(new RewardStatsUpdatedEvent(event.getProjectId(), event.getRewardStats()), event.getId());
+                transport.send(new RewardStatsUpdatedEvent(event.getProjectId(), event.getRewardStats(),
+                        event.getParticipantCount()), event.getId());
                 event.markPublished();
             } catch (RuntimeException e) {
                 log.warn("리워드 통계 이벤트 발행 실패, 재시도 예정. id={} projectId={}", event.getId(), event.getProjectId(), e);

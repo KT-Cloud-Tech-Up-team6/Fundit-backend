@@ -61,8 +61,9 @@ public class OrderPricingService {
     }
 
     /**
-     * @param autoApplyBestCoupon true면 {@code couponCodes}를 무시하고 회원이 보유한 쿠폰 중
-     *                            발급주체(플랫폼/메이커)별로 할인액이 가장 큰 것을 자동 적용한다(ORDER-010 최적 추천).
+     * @param autoApplyBestCoupon true면 {@code couponCodes}를 무시하고 회원이 보유한 쿠폰 중 발급주체(플랫폼/메이커)마다
+     *                            최대 1장씩, 결제 금액이 1원 이상 남는 조합 중 할인 합계가 가장 큰 조합을 자동 적용한다
+     *                            (ORDER-010 최적 추천).
      */
     public PricingResult calculate(UUID memberId, UUID projectId, List<OrderLineItemRequest> lineItemRequests,
                                     List<String> couponCodes, boolean autoApplyBestCoupon) {
@@ -140,13 +141,37 @@ public class OrderPricingService {
                             () -> unavailable.add(new UnavailableCoupon(code,
                                     unavailableReason(memberId, projectId, code, coupon, rewardAmount, shippingFee, matchContext))));
         }
-        long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
-        return new CouponResolution(applied, unavailable, totalDiscount);
+        List<AppliedCoupon> payable = keepPayableAmount(applied, rewardAmount + shippingFee,
+                rejected -> unavailable.add(new UnavailableCoupon(rejected.couponCode(), REASON_EXCEEDS_ORDER_AMOUNT)));
+        long totalDiscount = payable.stream().mapToLong(AppliedCoupon::discountAmount).sum();
+        return new CouponResolution(payable, unavailable, totalDiscount);
     }
 
     /**
-     * ORDER-010 최적 쿠폰 추천 — 회원이 보유한(AVAILABLE) 쿠폰 전부를 후보로 놓고, 적용 가능한
-     * 것 중 발급주체(issuer_type)별로 할인액이 가장 큰 것 하나씩만(최대 플랫폼 1 + 메이커 1) 채택한다.
+     * 쿠폰을 적용한 뒤에도 결제 금액이 1원 이상 남는 것만 남긴다(PM 결정 09-28). 할인 합계가 주문 금액
+     * (리워드 금액 + 배송비) 이상이면 결제 금액이 0원 이하가 되는데, 0원 결제는 PG가 처리하지 못해 주문을
+     * 끝낼 수 없다. 넘치게 만드는 쿠폰은 적용하지 않고 {@code rejected}로 넘긴다 — 할인이 큰 쿠폰부터 채운다.
+     */
+    private static List<AppliedCoupon> keepPayableAmount(List<AppliedCoupon> candidates, long orderAmount,
+                                                          java.util.function.Consumer<AppliedCoupon> rejected) {
+        List<AppliedCoupon> kept = new ArrayList<>();
+        long remaining = orderAmount;
+        List<AppliedCoupon> byDiscountDesc = new ArrayList<>(candidates);
+        byDiscountDesc.sort(java.util.Comparator.comparingLong(AppliedCoupon::discountAmount).reversed());
+        for (AppliedCoupon coupon : byDiscountDesc) {
+            if (remaining - coupon.discountAmount() >= 1) {
+                kept.add(coupon);
+                remaining -= coupon.discountAmount();
+            } else {
+                rejected.accept(coupon);
+            }
+        }
+        return kept;
+    }
+
+    /**
+     * ORDER-010 최적 쿠폰 추천 — 회원이 보유한(AVAILABLE) 쿠폰 전부를 후보로 놓고, 적용 가능한 것 중
+     * 발급주체(issuer_type)마다 최대 1장씩(최대 플랫폼 1 + 메이커 1) 결제 금액이 남는 최적 조합을 채택한다.
      * 후보에서 탈락한 쿠폰은 사용자가 직접 지정한 적이 없어 unavailableCoupons에 넣지 않는다.
      */
     private CouponResolution autoResolveCoupons(UUID memberId, UUID projectId, long rewardAmount, long shippingFee) {
@@ -163,22 +188,56 @@ public class OrderPricingService {
                 .collect(Collectors.toMap(Coupon::getCouponCode, Function.identity()));
         ProjectMatchContext matchContext = buildMatchContext(projectId, couponsByCode.values());
 
-        Map<IssuerType, AppliedCoupon> bestByIssuer = new EnumMap<>(IssuerType.class);
+        Map<IssuerType, List<AppliedCoupon>> candidatesByIssuer = new EnumMap<>(IssuerType.class);
         for (CouponIssuance issuance : issuances) {
             Coupon coupon = couponsByCode.get(issuance.getCouponCode());
             if (coupon == null) {
                 continue;
             }
             resolveSingleCoupon(coupon, issuance, projectId, rewardAmount, shippingFee, matchContext)
-                    .ifPresent(resolved -> bestByIssuer.merge(coupon.getIssuerType(),
-                            new AppliedCoupon(issuance.getId(), issuance.getCouponCode(), coupon.getIssuerType(),
-                                    coupon.getDiscountType(), resolved.discount()),
-                            (current, candidate) -> candidate.discountAmount() > current.discountAmount() ? candidate : current));
+                    .ifPresent(resolved -> candidatesByIssuer
+                            .computeIfAbsent(coupon.getIssuerType(), k -> new ArrayList<>())
+                            .add(new AppliedCoupon(issuance.getId(), issuance.getCouponCode(), coupon.getIssuerType(),
+                                    coupon.getDiscountType(), resolved.discount())));
         }
 
-        List<AppliedCoupon> applied = List.copyOf(bestByIssuer.values());
+        // 자동 추천은 사용자가 고른 쿠폰이 아니라 탈락분을 unavailable에 넣지 않는다(위 주석과 같은 원칙).
+        List<AppliedCoupon> applied = bestPayableCombination(
+                candidatesByIssuer.getOrDefault(IssuerType.PLATFORM, List.of()),
+                candidatesByIssuer.getOrDefault(IssuerType.MAKER, List.of()), rewardAmount + shippingFee);
         long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
         return new CouponResolution(applied, List.of(), totalDiscount);
+    }
+
+    /**
+     * 발급주체마다 최대 1장(또는 안 씀)을 골라, 결제 금액이 1원 이상 남는 조합 중 할인 합계가 가장 큰 것을 찾는다.
+     * 발급주체별 최대 할인만 먼저 고르면 그 쿠폰이 주문 금액을 넘을 때 쓸 수 있는 차선 쿠폰까지 놓친다.
+     * 플랫폼 후보(안 씀 포함)마다 남은 한도 안에서 가장 큰 메이커 쿠폰을 짝지어 전부 비교하므로 최적 조합을 놓치지 않는다.
+     */
+    private static List<AppliedCoupon> bestPayableCombination(List<AppliedCoupon> platform, List<AppliedCoupon> maker,
+                                                               long orderAmount) {
+        List<AppliedCoupon> makerByDiscountDesc = new ArrayList<>(maker);
+        makerByDiscountDesc.sort(java.util.Comparator.comparingLong(AppliedCoupon::discountAmount).reversed());
+        List<AppliedCoupon> platformOrNone = new ArrayList<>(platform);
+        platformOrNone.add(null);
+
+        List<AppliedCoupon> best = List.of();
+        long bestSum = 0;
+        for (AppliedCoupon p : platformOrNone) {
+            long platformDiscount = p == null ? 0 : p.discountAmount();
+            long limit = orderAmount - 1 - platformDiscount;
+            if (limit < 0) {
+                continue;
+            }
+            AppliedCoupon m = makerByDiscountDesc.stream()
+                    .filter(c -> c.discountAmount() <= limit).findFirst().orElse(null);
+            long sum = platformDiscount + (m == null ? 0 : m.discountAmount());
+            if (sum > bestSum) {
+                bestSum = sum;
+                best = java.util.stream.Stream.of(p, m).filter(java.util.Objects::nonNull).toList();
+            }
+        }
+        return best;
     }
 
     /** CATEGORY/MAKER 스코프 쿠폰 후보가 있을 때만 project-service를 조회한다(불필요한 호출 회피). */
@@ -228,6 +287,9 @@ public class OrderPricingService {
         }
         return Optional.of(new ResolvedCoupon(issuance, discount));
     }
+
+    /** 할인 합계가 주문 금액 이상이라 결제 금액이 남지 않는다 — FE 안내 "최소 결제금액보다 낮아 이 쿠폰을 사용할 수 없습니다". */
+    static final String REASON_EXCEEDS_ORDER_AMOUNT = "EXCEEDS_ORDER_AMOUNT";
 
     private String unavailableReason(UUID memberId, UUID projectId, String code, Coupon coupon, long rewardAmount,
                                       long shippingFee, ProjectMatchContext matchContext) {

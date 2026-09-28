@@ -138,6 +138,23 @@ public class Funding {
     }
 
     /**
+     * 결제 완료를 받아들일 수 있는 상태인지. 결제창을 오래 열어 두거나 다른 탭에서 취소한 뒤 결제하면 주문은
+     * 이미 만료·취소 상태인데 결제만 완료된다 — 이때는 결제를 되돌려야 한다(PAYMENT-017 조정 환불).
+     */
+    public boolean acceptsPaymentCompletion() {
+        return status == FundingStatus.PENDING || status == FundingStatus.FUNDING_IN_PROGRESS;
+    }
+
+    /**
+     * 결제를 한 번도 받지 못한 채 만료·취소된 주문인지 — 이때 도착한 결제 완료만 조정 환불 대상이다.
+     * 결제를 받은 뒤 성립·취소 등으로 넘어간 주문(paidAt 있음)에 오는 결제 완료는 Kafka 재전달이라 무시해야 한다.
+     */
+    public boolean needsPaymentReconciliation() {
+        return (status == FundingStatus.PAYMENT_EXPIRED || status == FundingStatus.CANCELLED_BY_MEMBER)
+                && paidAt == null;
+    }
+
+    /**
      * payment-service PaymentCompleted 이벤트 처리 — PENDING을 결제 완료 상태로 전환한다.
      * ORDER-0XX로 별도 번호가 매겨져 있지 않지만, 그렇지 않으면 결제에 성공한 주문이 영영
      * PENDING에 머무르게 되어 필요한 전이다[가정 — ORDER-015(쿠폰 사용확정) 이벤트 처리와

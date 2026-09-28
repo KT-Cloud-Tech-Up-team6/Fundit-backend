@@ -7,6 +7,7 @@ import com.fundit.payment.domain.payment.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -79,5 +80,10 @@ public class PaymentPersistenceAdapter implements PaymentRepository {
     @Override
     public boolean existsByPgOrderId(String pgOrderId) {
         return jpaRepository.existsByPgOrderId(pgOrderId);
+    }
+
+    @Override
+    public boolean failIfPending(UUID paymentId) {
+        return jpaRepository.failIfPending(paymentId, Instant.now()) == 1;
     }
 }

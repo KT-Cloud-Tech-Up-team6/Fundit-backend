@@ -120,6 +120,25 @@ class FundingEventOutboxWorkerUnitTest {
     }
 
     @Test
+    void 조정_환불_이벤트는_fundingId로_전달된다() {
+        // given
+        setUp();
+        FundingEventOutboxJpaEntity event = event(FundingEventOutboxJpaEntity.TYPE_PAYMENT_RECONCILIATION_REQUIRED);
+        when(outboxRepository.findByPublishedAtIsNullOrderByIdAsc(any())).thenReturn(List.of(event));
+
+        // when
+        worker.publishPending();
+
+        // then
+        ArgumentCaptor<com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent>
+                captor = ArgumentCaptor.forClass(
+                com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent.class);
+        verify(transport).sendPaymentReconciliationRequired(captor.capture(), any());
+        assertThat(captor.getValue().fundingId()).isEqualTo(1024L);
+        assertThat(event.getPublishedAt()).isNotNull();
+    }
+
+    @Test
     void 발행에_실패하면_재시도_횟수만_증가하고_published_at은_비워둔다() {
         // given
         setUp();

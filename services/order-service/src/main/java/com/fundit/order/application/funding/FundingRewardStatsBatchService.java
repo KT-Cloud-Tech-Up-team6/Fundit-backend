@@ -36,6 +36,8 @@ public class FundingRewardStatsBatchService {
         var rewardStats = fundingLineItemJpaRepository.aggregateRewardStatsByProjectId(projectId).stream()
                 .map(p -> new RewardStatItem(p.getRewardId(), p.getOptionValueId(), p.getTotalQuantity(), p.getTotalAmount()))
                 .toList();
-        fundingRewardStatsPublisher.publishRewardStatsUpdated(new RewardStatsUpdatedEvent(projectId, rewardStats));
+        int participantCount = fundingJpaRepository.countParticipantsByProjectPublicId(projectId);
+        fundingRewardStatsPublisher.publishRewardStatsUpdated(
+                new RewardStatsUpdatedEvent(projectId, rewardStats, participantCount));
     }
 }

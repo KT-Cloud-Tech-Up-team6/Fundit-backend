@@ -95,6 +95,103 @@ class RefundExecutionServiceUnitTest {
     }
 
     @Test
+    void 전액취소하면_취소_사유가_환불_내역에도_저장된다() {
+        // given
+        Payment payment = completedPayment();
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(tossPaymentsClient.cancel("pay_key_1", 89_000L, "[CHANGE_OF_MIND] 다른 상품 구매"))
+                .thenReturn(new TossPaymentsClient.TossCancelResult("tx_1", Instant.now(), 89_000L));
+        when(refundRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND,
+                "[CHANGE_OF_MIND] 다른 상품 구매");
+
+        // then — 취소 내역(refund_requests)이 읽는 reason_detail이 채워진다
+        ArgumentCaptor<com.fundit.payment.domain.refund.RefundRequest> captor =
+                ArgumentCaptor.forClass(com.fundit.payment.domain.refund.RefundRequest.class);
+        verify(refundRequestRepository).save(captor.capture());
+        assertThat(captor.getValue().getReasonDetail()).isEqualTo("[CHANGE_OF_MIND] 다른 상품 구매");
+    }
+
+    @Test
+    void 결제_전에_참여를_취소하면_대기_결제를_실패_처리하고_취소는_호출하지_않는다() {
+        // given — 토스에 결제가 없다(인증 전)
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+        when(tossPaymentsClient.lookupByOrderId("fundit-order-1")).thenReturn(Optional.empty());
+        when(paymentRepository.failIfPending(pending.getId())).thenReturn(true);
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then — 결제창에서 뒤늦게 확정되지 않도록 조건부로 FAILED 처리한다
+        assertThat(result.status()).isEqualTo("PENDING_PAYMENT_CLOSED");
+        verify(paymentRepository).failIfPending(pending.getId());
+        verify(tossPaymentsClient, never()).cancel(any(), org.mockito.ArgumentMatchers.anyLong(), any());
+        org.mockito.Mockito.verifyNoInteractions(refundRequestRepository, paymentEventPublisher);
+    }
+
+    @Test
+    void 토스에서_승인이_진행_중이면_대기_결제를_닫지_않는다() {
+        // given — 인증은 끝났고 우리 승인 호출이 진행 중일 수 있다
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+        when(tossPaymentsClient.lookupByOrderId("fundit-order-1")).thenReturn(Optional.of(
+                new TossPaymentsClient.TossPaymentLookup("IN_PROGRESS", new TossPaymentsClient.TossPaymentResult(
+                        "pay_key_1", "fundit-order-1", null, null, null, null, 89_000L))));
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then — 승인이 끝나면 결제 완료 → order 조정 환불로 이어진다
+        assertThat(result.status()).isEqualTo("PENDING_PAYMENT_UNRESOLVED");
+        assertThat(pending.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        verify(paymentRepository, never()).failIfPending(any());
+    }
+
+    @Test
+    void 닫기_직전에_승인이_먼저_끝났으면_덮어쓰지_않고_종료한다() {
+        // given
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+        when(tossPaymentsClient.lookupByOrderId("fundit-order-1")).thenReturn(Optional.empty());
+        when(paymentRepository.failIfPending(pending.getId())).thenReturn(false);
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then
+        assertThat(result.status()).isEqualTo("PENDING_PAYMENT_UNRESOLVED");
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void 결과_불명으로_대기_중이던_결제가_토스에선_승인돼_있으면_완료로_맞춘_뒤_전액_취소한다() {
+        // given — 승인 응답이 5xx였지만 토스에선 승인된 결제
+        Payment pending = Payment.create(FUNDING_ID, MEMBER_ID, "fundit-order-1", 89_000L, "테스트 주문", null, "idem");
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.findPendingByFundingId(FUNDING_ID)).thenReturn(Optional.of(pending));
+        when(tossPaymentsClient.lookupByOrderId("fundit-order-1")).thenReturn(Optional.of(
+                new TossPaymentsClient.TossPaymentLookup("DONE", new TossPaymentsClient.TossPaymentResult(
+                        "pay_key_1", "fundit-order-1", "secret_1", "카드", null, Instant.now(), 89_000L))));
+        when(tossPaymentsClient.cancel("pay_key_1", 89_000L, "사유"))
+                .thenReturn(new TossPaymentsClient.TossCancelResult("tx_1", Instant.now(), 89_000L));
+        when(refundRequestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then — 돈이 빠진 채 FAILED로 닫히지 않고 환불된다
+        assertThat(pending.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        verify(paymentEventPublisher).publishRefundCompleted(any());
+        verify(paymentEventPublisher, never()).publishPaymentCompleted(any());
+    }
+
+    @Test
     void 이미_취소된_결제면_토스를_다시_호출하지_않고_멱등_처리한다() {
         // given
         Payment payment = completedPayment();
