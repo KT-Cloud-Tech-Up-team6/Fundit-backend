@@ -42,4 +42,10 @@ public interface PaymentRepository {
     Optional<Payment> findLatestExchangeFeeByRefundRequestId(Long refundRequestId);
 
     boolean existsByPgOrderId(String pgOrderId);
+
+    /**
+     * 아직 PENDING일 때만 FAILED로 바꾼다(조건부 UPDATE). 읽고 저장하는 방식이면 그사이 승인이 COMPLETED를
+     * 커밋했을 때 FAILED로 덮어 버린다. 이미 다른 상태면 false.
+     */
+    boolean failIfPending(UUID paymentId);
 }

@@ -1,7 +1,11 @@
 package com.fundit.payment.infrastructure.persistence.payment;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,4 +40,9 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentJpaEntity, UU
     Optional<PaymentJpaEntity> findFirstByFundingIdAndStatusInOrderByCreatedAtDesc(Long fundingId, List<String> statuses);
 
     boolean existsByPgOrderId(String pgOrderId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update PaymentJpaEntity p set p.status = 'FAILED', p.updatedAt = :now "
+            + "where p.id = :id and p.status = 'PENDING'")
+    int failIfPending(@Param("id") UUID id, @Param("now") Instant now);
 }

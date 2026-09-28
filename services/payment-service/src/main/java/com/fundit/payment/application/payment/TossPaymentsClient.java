@@ -48,5 +48,13 @@ public interface TossPaymentsClient {
         public boolean isDone() {
             return "DONE".equals(status);
         }
+
+        /**
+         * 이 결제가 앞으로도 승인될 수 없는 상태인지 — 인증 전(READY)이거나 끝난 실패(ABORTED·EXPIRED).
+         * IN_PROGRESS(인증 완료, 승인 대기)는 우리 승인 호출이 진행 중일 수 있어 여기에 넣지 않는다.
+         */
+        public boolean isNeverApprovable() {
+            return "READY".equals(status) || "ABORTED".equals(status) || "EXPIRED".equals(status);
+        }
     }
 }
