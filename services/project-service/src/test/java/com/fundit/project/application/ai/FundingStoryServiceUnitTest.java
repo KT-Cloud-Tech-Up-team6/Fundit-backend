@@ -37,11 +37,13 @@ import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.domain.reward.RewardRepository;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -81,6 +83,8 @@ class FundingStoryServiceUnitTest {
     ProjectIndexEventPublisher projectIndexEventPublisher;
     @Mock
     SellerProfileClient sellerProfileClient;
+    @Spy
+    RichTextSanitizer richTextSanitizer = new RichTextSanitizer();
 
     @InjectMocks
     private FundingStoryService fundingStoryService;
@@ -119,6 +123,7 @@ class FundingStoryServiceUnitTest {
 
     @Test
     void 객체검증에_실패한_슬롯은_부분성공으로_낮추고_유효한_결과만_반영한다() {
+        // TEXT 블록의 script는 판매자 입력과 같은 정제로 제거된다(#153)
         // given
         UUID sellerId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
@@ -132,7 +137,7 @@ class FundingStoryServiceUnitTest {
                 new GeneratedBody("hero", List.of(
                         new GeneratedContentBlock("IMAGE", null, "hero"),
                         new GeneratedContentBlock("IMAGE", null, "missing"),
-                        new GeneratedContentBlock("TEXT", "생성 본문", null))),
+                        new GeneratedContentBlock("TEXT", "생성 본문<script>alert(1)</script>", null))),
                 List.of(
                         new SuccessfulImage("hero", validUrl, "image/png", 100L, 100, 100),
                         new SuccessfulImage("missing", invalidUrl, "image/png", 100L, 100, 100)),

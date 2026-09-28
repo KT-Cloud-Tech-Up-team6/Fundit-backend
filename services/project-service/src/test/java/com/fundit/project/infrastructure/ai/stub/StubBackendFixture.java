@@ -56,7 +56,8 @@ final class StubBackendFixture implements AutoCloseable {
             return bytes == null ? Optional.empty() : Optional.of(new MediaStorageClient.StoredObject(bytes.length, "image/png"));
         });
         service = new FundingStoryService(projects, null, runs, null, null, storage,
-                mock(ProjectIndexEventPublisher.class), mock(SellerProfileClient.class));
+                mock(ProjectIndexEventPublisher.class), mock(SellerProfileClient.class),
+                new com.fundit.project.infrastructure.content.RichTextSanitizer());
         server.createContext("/", exchange -> {
             try (exchange) {
                 try {
