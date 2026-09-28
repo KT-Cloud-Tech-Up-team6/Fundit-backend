@@ -25,12 +25,15 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(FundingStoryController.class)
 @Import({GlobalExceptionHandler.class, CommonWebConfig.class})
-@TestPropertySource(properties = "internal-api.key=test-only-internal-api-key")
+// 테스트 application.yml이 main 설정을 가리므로 운영의 전역 non_null을 명시한다(#152 재현 조건).
+@TestPropertySource(properties = {"internal-api.key=test-only-internal-api-key",
+        "spring.jackson.default-property-inclusion=non_null"})
 class FundingStoryControllerAdditionalTest {
 
     private static final String INTERNAL_KEY = "test-only-internal-api-key";
@@ -119,5 +122,33 @@ class FundingStoryControllerAdditionalTest {
                         .header("X-Project-Id", projectId)
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void 세션_응답의_null_필드는_생략하지_않고_null로_내려준다() throws Exception {
+        // #152 — 전역 non_null 설정 때문에 AI 계약의 null 필드가 사라지면 안 된다.
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        SessionResponse session = new SessionResponse(sessionId, 1, null, List.of(), List.of(), null, null);
+        when(fundingStoryService.getSession(sellerId, projectId, sessionId)).thenReturn(session);
+        when(fundingStoryService.getLatestSession(sellerId, projectId)).thenReturn(new LatestSessionResponse(null));
+
+        mockMvc.perform(get("/api/v1/ai/sessions/{sessionId}", sessionId)
+                        .header("X-User-Id", sellerId)
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.hasEntry("confirmed_revision", null),
+                        org.hamcrest.Matchers.hasEntry("summary", null),
+                        org.hamcrest.Matchers.hasEntry("active_chat_id", null))));
+
+        mockMvc.perform(get("/api/v1/ai/sessions/latest")
+                        .header("X-User-Id", sellerId)
+                        .header("X-Project-Id", projectId)
+                        .header("X-Internal-Api-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{\"session\":null}", org.springframework.test.json.JsonCompareMode.STRICT));
     }
 }

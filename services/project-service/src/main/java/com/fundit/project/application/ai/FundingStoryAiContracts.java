@@ -1,5 +1,7 @@
 package com.fundit.project.application.ai;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +61,8 @@ public final class FundingStoryAiContracts {
     public record StorySummary(String product, String story, List<StrengthSummary> strengths) {
     }
 
+    /** AI 계약상 null도 키로 내려야 한다(#152) — 전역 non_null 설정을 이 응답에서만 끈다. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record SessionResponse(
             UUID session_id,
             int revision,
@@ -69,6 +73,7 @@ public final class FundingStoryAiContracts {
             UUID active_chat_id) {
     }
 
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record LatestSessionResponse(SessionResponse session) {
     }
 
