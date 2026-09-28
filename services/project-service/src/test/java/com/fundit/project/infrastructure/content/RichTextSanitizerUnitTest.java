@@ -69,6 +69,39 @@ class RichTextSanitizerUnitTest {
     }
 
     @Test
+    void AI_Funding_Story_제목_소제목_구분선_서식은_그대로_보존된다() {
+        // given — #153 AI 결과 샘플 값
+        String html = "<section>"
+                + "<h2 style=\"border-left:3px solid #202124; padding-left:10px; margin:0 0 24px; font-size:18px; line-height:1.45\">제목</h2>"
+                + "<h3 style=\"margin:0 0 16px; font-size:16px; line-height:1.5\">소제목</h3>"
+                + "<hr style=\"border:0; border-top:1px solid #e6e6e6; margin:36px 0\">"
+                + "</section>";
+
+        // when
+        String result = sanitizer.sanitize(html);
+
+        // then
+        assertThat(result)
+                .contains("<section>", "<h2", "<h3", "<hr")
+                .contains("border-left:3px solid #202124; padding-left:10px; margin:0 0 24px; font-size:18px; line-height:1.45")
+                .contains("margin:0 0 16px; font-size:16px; line-height:1.5")
+                .contains("border:0; border-top:1px solid #e6e6e6; margin:36px 0");
+        assertThat(sanitizer.sanitize(result)).isEqualTo(result);
+    }
+
+    @Test
+    void 새로_연_태그에서도_허용_밖_CSS와_url은_제거된다() {
+        // given
+        String html = "<h2 style=\"position: fixed; border-left: 3px solid url(javascript:alert(1)); margin: -10px\" onclick=\"x()\">t</h2>";
+
+        // when
+        String result = sanitizer.sanitize(html);
+
+        // then
+        assertThat(result).isEqualTo("<h2>t</h2>");
+    }
+
+    @Test
     void null_입력은_null을_반환한다() {
         assertThat(sanitizer.sanitize(null)).isNull();
     }

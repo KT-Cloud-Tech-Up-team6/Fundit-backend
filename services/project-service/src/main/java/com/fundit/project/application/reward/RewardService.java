@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.media.MediaCategory;
 import com.fundit.project.application.media.MediaUrlValidator;
+import com.fundit.project.application.pagesummary.PageSummaryService;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.reward.EarlyBirdDiscountType;
@@ -30,6 +31,7 @@ public class RewardService {
     private final RewardRepository rewardRepository;
     private final RewardEventPublisher rewardEventPublisher;
     private final MediaUrlValidator mediaUrlValidator;
+    private final PageSummaryService pageSummaryService;
 
     /**
      * {@code idempotencyKey}는 {@code Idempotency-Key} 헤더(선택값) — 없으면 항상 새 리워드를
@@ -81,6 +83,7 @@ public class RewardService {
 
         rewardEventPublisher.publishRewardCreated(
                 new RewardEventPublisher.RewardCreatedEvent(saved.getId(), project.getId(), saved.isLimited(), saved.getQuantity()));
+        pageSummaryService.markDirtyIfPublic(project);
         return new RewardCreateResult(saved, false);
     }
 
@@ -164,14 +167,16 @@ public class RewardService {
 
         rewardEventPublisher.publishRewardUpdated(
                 new RewardEventPublisher.RewardUpdatedEvent(saved.getId(), saved.getProjectId(), saved.isLimited(), saved.getQuantity()));
+        pageSummaryService.markDirtyIfPublic(owned.project());
         return saved;
     }
 
     @Transactional
     public void delete(UUID sellerId, Long rewardId) {
-        Reward reward = loadOwned(sellerId, rewardId).reward();
-        reward.delete();
-        rewardRepository.save(reward);
+        OwnedReward owned = loadOwned(sellerId, rewardId);
+        owned.reward().delete();
+        rewardRepository.save(owned.reward());
+        pageSummaryService.markDirtyIfPublic(owned.project());
     }
 
     @Transactional

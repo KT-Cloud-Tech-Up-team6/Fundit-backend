@@ -38,6 +38,11 @@ class RewardServiceUnitExceptionTest {
     @Mock
     private MediaUrlValidator mediaUrlValidator;
 
+    @Mock
+
+    private com.fundit.project.application.pagesummary.PageSummaryService pageSummaryService;
+
+
     @InjectMocks
     private RewardService rewardService;
 

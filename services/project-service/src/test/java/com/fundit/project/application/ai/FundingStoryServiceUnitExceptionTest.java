@@ -15,10 +15,12 @@ import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.domain.reward.RewardRepository;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -49,6 +51,13 @@ class FundingStoryServiceUnitExceptionTest {
     private ProjectIndexEventPublisher projectIndexEventPublisher;
     @Mock
     private SellerProfileClient sellerProfileClient;
+    @Spy
+    private RichTextSanitizer richTextSanitizer = new RichTextSanitizer();
+
+    @Mock
+
+    private com.fundit.project.application.pagesummary.PageSummaryService pageSummaryService;
+
 
     @InjectMocks
     private FundingStoryService fundingStoryService;

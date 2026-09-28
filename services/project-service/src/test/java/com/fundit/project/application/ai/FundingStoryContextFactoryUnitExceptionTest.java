@@ -3,6 +3,8 @@ package com.fundit.project.application.ai;
 import com.fundit.common.error.BusinessException;
 import com.fundit.project.application.media.MediaStorageClient;
 import com.fundit.project.domain.ProjectErrorCode;
+import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.reward.Reward;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +32,7 @@ class FundingStoryContextFactoryUnitExceptionTest {
 
     @BeforeEach
     void setUp() {
-        factory = new FundingStoryContextFactory(storageClient, 15L);
+        factory = new FundingStoryContextFactory(storageClient, 15L, 60L);
     }
 
     @Test
@@ -63,5 +65,20 @@ class FundingStoryContextFactoryUnitExceptionTest {
 
         assertThatThrownBy(() -> factory.create(imageProject, List.of(fixtures.reward(1L, null))))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 본문_이미지를_읽을_수_없으면_요약_입력을_만들지_않는다() {
+        // given — AI 계약: 이미지 읽기 실패는 텍스트만으로 성공 처리하지 않는다
+        Project project = fixtures.validProject(UUID.randomUUID(), null).toBuilder()
+                .introContent(List.of(new IntroContentBlock(IntroContentType.IMAGE, "https://bucket.example/gone.png")))
+                .build();
+        when(storageClient.extractKey("https://bucket.example/gone.png")).thenReturn(Optional.of("gone.png"));
+        when(storageClient.headObject("gone.png")).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> factory.pageSummarySnapshot(project, List.of()))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.INVALID_PROJECT_DATA));
     }
 }

@@ -1,7 +1,10 @@
 package com.fundit.project.application.ai;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Funding Story AI wire contract. JSON field names intentionally use snake_case. */
@@ -59,6 +62,8 @@ public final class FundingStoryAiContracts {
     public record StorySummary(String product, String story, List<StrengthSummary> strengths) {
     }
 
+    /** AI 계약상 null도 키로 내려야 한다(#152) — 전역 non_null 설정을 이 응답에서만 끈다. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record SessionResponse(
             UUID session_id,
             int revision,
@@ -69,6 +74,7 @@ public final class FundingStoryAiContracts {
             UUID active_chat_id) {
     }
 
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public record LatestSessionResponse(SessionResponse session) {
     }
 
@@ -158,5 +164,46 @@ public final class FundingStoryAiContracts {
             PublicStoryResult result,
             List<FailedSlot> failed_slots,
             AsyncError error) {
+    }
+
+    // ---- Page Summary(상세 페이지 AI 요약, #169) — content-insights-integration-interface.md ----
+
+    public record PageSummaryReward(String name, String description, Long price) {
+    }
+
+    /** TEXT는 type·value만 허용된다(additionalProperties=false) — null 필드를 빼고 보낸다. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record StoryContentBlock(
+            String type, String value, String read_url, String content_type, Long file_size, Instant expires_at) {
+    }
+
+    /** {@code description}은 AI팀 확인으로 생략한다(null 금지 필드라 NON_NULL). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ProjectSnapshot(
+            String title, String category, List<PageSummaryReward> rewards, List<StoryContentBlock> story_content) {
+    }
+
+    public record PageSummaryRunCreateRequest(
+            int source_revision, String idempotency_key, String trigger, ProjectSnapshot project_snapshot) {
+    }
+
+    public record SummarySection(String role, String headline, String description) {
+    }
+
+    public record ArtifactOutput(List<SummarySection> sections) {
+    }
+
+    public record ArtifactError(String code, boolean retryable, String message) {
+    }
+
+    public record ArtifactView(String status, ArtifactOutput output, ArtifactError error) {
+    }
+
+    public record PageSummaryRunResponse(
+            UUID run_id, String status, int source_revision, Map<String, ArtifactView> artifacts) {
+
+        public ArtifactView pageSummary() {
+            return artifacts == null ? null : artifacts.get("PAGE_SUMMARY");
+        }
     }
 }

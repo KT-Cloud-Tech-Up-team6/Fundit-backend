@@ -2,6 +2,9 @@ package com.fundit.project.application.project;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.project.domain.pagesummary.PageSummary;
+import com.fundit.project.domain.pagesummary.PageSummaryRepository;
+import com.fundit.project.domain.pagesummary.PageSummarySection;
 import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
@@ -31,6 +34,7 @@ public class ProjectQueryService {
     private final LiveVerificationJpaRepository liveVerificationJpaRepository;
     private final RewardJpaRepository rewardJpaRepository;
     private final SellerProfileClient sellerProfileClient;
+    private final PageSummaryRepository pageSummaryRepository;
 
     /** 미공개(DRAFT) 상태여도 본인 소유면 조회 가능(PROJECT-013). */
     @Transactional(readOnly = true)
@@ -87,7 +91,23 @@ public class ProjectQueryService {
                         project.getFundingDeadline()),
                 hasLiveVerification, new SellerView(project.getSellerId(), displayName),
                 project.getCategoryMajor(), project.getCategoryMinor(),
-                project.getBusinessType() == null ? null : project.getBusinessType().name());
+                project.getBusinessType() == null ? null : project.getBusinessType().name(),
+                pageSummaryRepository.findByProjectId(project.getId()).map(ProjectQueryService::toPageSummaryView)
+                        .orElse(null));
+    }
+
+    /**
+     * 결과는 현재 내용으로 만든 것만 내린다. 수정 뒤 워커가 확인하기 전(dirty)에는 이전 결과가 현재 내용과
+     * 다를 수 있어 생성 중으로 본다. 실패면 필드를 생략한다.
+     */
+    private static PageSummaryView toPageSummaryView(PageSummary summary) {
+        if (summary.isDirty()) {
+            return new PageSummaryView("GENERATING", null);
+        }
+        if (summary.isSucceeded()) {
+            return new PageSummaryView("SUCCEEDED", summary.getSections());
+        }
+        return summary.isGenerating() ? new PageSummaryView("GENERATING", null) : null;
     }
 
     private Long remainingDays(Project project) {
@@ -112,7 +132,11 @@ public class ProjectQueryService {
             UUID projectId, String title, String status, Long goalAmount,
             String coverImageUrl, List<IntroContentBlock> introContent,
             FundingStatusView fundingStatus, boolean hasLiveVerification, SellerView seller,
-            String categoryMajor, String categoryMinor, String businessType) {
+            String categoryMajor, String categoryMinor, String businessType, PageSummaryView pageSummary) {
+    }
+
+    /** 상세 상단 AI 요약(#169). {@code status}는 SUCCEEDED·GENERATING. */
+    public record PageSummaryView(String status, List<PageSummarySection> sections) {
     }
 
     public record CommonPolicyView(String simpleRefundDeadline, boolean goalFailedAutoRefund) {

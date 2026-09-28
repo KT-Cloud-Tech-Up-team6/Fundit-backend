@@ -6,6 +6,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -14,20 +15,36 @@ import java.util.regex.Pattern;
  * 제한하고, {@code style} 속성은 한 번 더 검증한다 — Safelist가 속성 자체는 통과시켜도 그 안의
  * CSS 선언까지 검사하지는 않아서, style 속성을 통째로 허용하면 예전 IE의
  * {@code expression()}/{@code url(javascript:...)} 같은 CSS 인젝션 경로가 그대로 열린다.
- * 그래서 굵기/색상/정렬에 필요한 선언 3종만 화이트리스트로 남기고 나머지는 버린다.
+ * 그래서 {@link #ALLOWED_DECLARATIONS}에 맞는 선언만 남기고 나머지는 버린다({@code url()}은 어느 규칙에도 맞지 않는다).
  */
 @Component
 public class RichTextSanitizer {
 
     private static final Safelist SAFELIST = Safelist.none()
-            .addTags("b", "strong", "i", "em", "u", "p", "br", "span", "div", "ul", "ol", "li")
+            .addTags("b", "strong", "i", "em", "u", "p", "br", "span", "div", "ul", "ol", "li",
+                    "section", "h2", "h3", "hr")
             .addAttributes("span", "style")
             .addAttributes("p", "style")
-            .addAttributes("div", "style");
+            .addAttributes("div", "style")
+            .addAttributes("section", "style")
+            .addAttributes("h2", "style")
+            .addAttributes("h3", "style")
+            .addAttributes("hr", "style");
 
-    private static final Pattern COLOR = Pattern.compile("^color:\\s*#[0-9a-fA-F]{3,6}$");
-    private static final Pattern TEXT_ALIGN = Pattern.compile("^text-align:\\s*(left|center|right|justify)$");
-    private static final Pattern FONT_WEIGHT = Pattern.compile("^font-weight:\\s*(bold|normal|[1-9]00)$");
+    private static final String PX = "\\d{1,3}px";
+    private static final String LINE = "\\d{1,2}px\\s+solid\\s+#[0-9a-fA-F]{3,6}";
+
+    /** 서식별 허용 선언. 제목·소제목·구분선 값은 AI Funding Story 결과(#153)에 맞췄다. */
+    private static final List<Pattern> ALLOWED_DECLARATIONS = List.of(
+            Pattern.compile("^color:\\s*#[0-9a-fA-F]{3,6}$"),
+            Pattern.compile("^text-align:\\s*(left|center|right|justify)$"),
+            Pattern.compile("^font-weight:\\s*(bold|normal|[1-9]00)$"),
+            Pattern.compile("^font-size:\\s*" + PX + "$"),
+            Pattern.compile("^line-height:\\s*(\\d(\\.\\d{1,2})?|" + PX + ")$"),
+            Pattern.compile("^border:\\s*(0|" + LINE + ")$"),
+            Pattern.compile("^border-(top|left):\\s*" + LINE + "$"),
+            Pattern.compile("^padding-left:\\s*" + PX + "$"),
+            Pattern.compile("^margin:\\s*(0|" + PX + ")(\\s+(0|" + PX + ")){0,3}$"));
 
     public String sanitize(String html) {
         if (html == null) {
@@ -54,8 +71,7 @@ public class RichTextSanitizer {
         StringBuilder kept = new StringBuilder();
         for (String declaration : style.split(";")) {
             String trimmed = declaration.trim();
-            if (COLOR.matcher(trimmed).matches() || TEXT_ALIGN.matcher(trimmed).matches()
-                    || FONT_WEIGHT.matcher(trimmed).matches()) {
+            if (ALLOWED_DECLARATIONS.stream().anyMatch(p -> p.matcher(trimmed).matches())) {
                 kept.append(trimmed).append("; ");
             }
         }

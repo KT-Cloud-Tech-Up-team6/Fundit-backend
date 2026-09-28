@@ -27,6 +27,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTarget;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTargetsRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTargetsResponse;
 import com.fundit.project.application.media.MediaStorageClient;
+import com.fundit.project.application.pagesummary.PageSummaryService;
 import com.fundit.project.application.project.ProjectIndexEventPublisher;
 import com.fundit.project.application.project.ProjectIndexEventPublisher.ProjectIndexedEvent;
 import com.fundit.project.application.project.SellerProfileClient;
@@ -42,6 +43,7 @@ import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.reward.Reward;
 import com.fundit.project.domain.reward.RewardRepository;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -73,6 +75,8 @@ public class FundingStoryService {
     private final MediaStorageClient storageClient;
     private final ProjectIndexEventPublisher projectIndexEventPublisher;
     private final SellerProfileClient sellerProfileClient;
+    private final RichTextSanitizer richTextSanitizer;
+    private final PageSummaryService pageSummaryService;
 
     @Value("${funding-story.ai.upload-url-ttl-minutes:5}")
     private long uploadTtlMinutes;
@@ -261,6 +265,7 @@ public class FundingStoryService {
                 project.updateStory(null, result.coverImageUrl(), result.introContent());
                 Project saved = projectRepository.save(project);
                 publishIndexUpdateIfPublic(saved);
+                pageSummaryService.markDirtyIfPublic(saved);
             }
             sessionRepository.save(run);
         }
@@ -302,7 +307,8 @@ public class FundingStoryService {
                 if (block.value() == null || block.value().isBlank() || block.slot_id() != null) {
                     throw invalidInput();
                 }
-                intro.add(new IntroContentBlock(IntroContentType.TEXT, block.value()));
+                // 판매자 입력과 같은 정제를 거친다 — AI 결과도 공개 상세에 그대로 노출된다(security.md S2).
+                intro.add(new IntroContentBlock(IntroContentType.TEXT, richTextSanitizer.sanitize(block.value())));
             } else if ("IMAGE".equals(block.type())) {
                 if (block.slot_id() == null || block.value() != null) {
                     throw invalidInput();

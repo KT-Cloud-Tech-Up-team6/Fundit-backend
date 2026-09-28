@@ -10,6 +10,8 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmResponse
 import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryContext;
 import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionCreateRequest;
@@ -134,6 +136,28 @@ public class HttpFundingStoryAiClient implements FundingStoryAiClient {
                 .headers(headers -> setHeaders(headers, projectId))
                 .body(request)
                 .retrieve().body(RunAcceptedResponse.class));
+    }
+
+    @Override
+    public PageSummaryRunResponse createPageSummaryRun(UUID projectId, PageSummaryRunCreateRequest request) {
+        return call(() -> restClient.post().uri(PREFIX + "/page-summary-runs")
+                .headers(headers -> setHeaders(headers, projectId))
+                .body(request)
+                .retrieve().body(PageSummaryRunResponse.class));
+    }
+
+    @Override
+    public PageSummaryRunResponse getPageSummaryRun(UUID projectId, UUID runId) {
+        return call(() -> restClient.get().uri(PREFIX + "/page-summary-runs/{runId}", runId)
+                .headers(headers -> setHeaders(headers, projectId))
+                .retrieve().body(PageSummaryRunResponse.class));
+    }
+
+    @Override
+    public PageSummaryRunResponse retryPageSummaryRun(UUID projectId, UUID runId) {
+        return call(() -> restClient.post().uri(PREFIX + "/page-summary-runs/{runId}/retry", runId)
+                .headers(headers -> setHeaders(headers, projectId))
+                .retrieve().body(PageSummaryRunResponse.class));
     }
 
     private void setHeaders(org.springframework.http.HttpHeaders headers, UUID projectId) {

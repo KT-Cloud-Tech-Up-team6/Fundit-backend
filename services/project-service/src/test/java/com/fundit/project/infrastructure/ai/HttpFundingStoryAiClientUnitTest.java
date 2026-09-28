@@ -6,6 +6,11 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAcceptedRes
 import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryContext;
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryReward;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryRunResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectSnapshot;
+import com.fundit.project.application.ai.FundingStoryAiContracts.StoryContentBlock;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectFact;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -131,5 +137,42 @@ class HttpFundingStoryAiClientUnitTest {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    @Test
+    void 요약_run_요청은_null_필드를_빼고_보내고_응답의_PAGE_SUMMARY를_읽는다() {
+        // given — TEXT 블록·snapshot은 additionalProperties=false라 null 키가 있으면 AI가 422로 거부한다
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        PageSummaryRunCreateRequest request = new PageSummaryRunCreateRequest(1, projectId + ":1:1",
+                "PROJECT_REGISTRATION_COMPLETED",
+                new ProjectSnapshot("제목", "테크/가전", List.of(new PageSummaryReward("리워드", "설명", 1000L)),
+                        List.of(new StoryContentBlock("TEXT", "<p>본문</p>", null, null, null, null))));
+        String runJson = """
+                {"run_id":"%s","revision":1,"status":"SUCCEEDED","source_revision":1,"required_artifacts_ready":true,
+                 "artifacts":{"PAGE_SUMMARY":{"artifact_id":"a","status":"SUCCEEDED","required":true,"attempts":1,
+                   "output":{"schema_version":2,"sections":[{"role":"WHAT","headline":"h","description":"d"}],
+                   "source_fields":["title"]},"error":null}}}
+                """.formatted(runId);
+        server.expect(requestTo(BASE_URL + "/api/v1/ai/page-summary-runs"))
+                .andExpect(method(POST)).andExpect(header(PROJECT_HEADER, projectId.toString()))
+                .andExpect(jsonPath("$.project_snapshot.description").doesNotExist())
+                .andExpect(jsonPath("$.project_snapshot.story_content[0].read_url").doesNotExist())
+                .andExpect(jsonPath("$.source_revision").value(1))
+                .andRespond(withSuccess(runJson, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE_URL + "/api/v1/ai/page-summary-runs/" + runId))
+                .andExpect(method(GET)).andRespond(withSuccess(runJson, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE_URL + "/api/v1/ai/page-summary-runs/" + runId + "/retry"))
+                .andExpect(method(POST)).andRespond(withSuccess(runJson, MediaType.APPLICATION_JSON));
+
+        // when
+        PageSummaryRunResponse created = client.createPageSummaryRun(projectId, request);
+        client.getPageSummaryRun(projectId, runId);
+        client.retryPageSummaryRun(projectId, runId);
+
+        // then
+        server.verify();
+        assertThat(created.run_id()).isEqualTo(runId);
+        assertThat(created.pageSummary().output().sections()).extracting("headline").containsExactly("h");
     }
 }

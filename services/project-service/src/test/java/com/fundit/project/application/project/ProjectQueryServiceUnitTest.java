@@ -38,6 +38,11 @@ class ProjectQueryServiceUnitTest {
     @Mock
     private SellerProfileClient sellerProfileClient;
 
+    @Mock
+
+    private com.fundit.project.domain.pagesummary.PageSummaryRepository pageSummaryRepository;
+
+
     @InjectMocks
     private ProjectQueryService projectQueryService;
 
@@ -94,6 +99,57 @@ class ProjectQueryServiceUnitTest {
         assertThat(result.introContent().get(0).value()).isEqualTo("소개 본문");
         assertThat(result.categoryMajor()).isEqualTo("패션");
         assertThat(result.categoryMinor()).isEqualTo("의류");
+        assertThat(result.pageSummary()).isNull();
+    }
+
+    @Test
+    void 상세_AI_요약은_성공이면_내용을_생성중이면_상태만_실패면_생략한다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(project(UUID.randomUUID(), publicId, ProjectStatus.ONGOING)));
+        java.time.Instant dirtyAt = java.time.Instant.now();
+        var base = com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L)
+                .dirtyAt(dirtyAt).handledDirtyAt(dirtyAt);
+        var sections = java.util.List.of(new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "h", "d"));
+        when(pageSummaryRepository.findByProjectId(1L)).thenReturn(
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.SUCCEEDED).sections(sections).build()),
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.REQUESTED).sections(null).build()),
+                Optional.of(base.status(com.fundit.project.domain.pagesummary.PageSummaryStatus.FAILED).build()));
+
+        // when
+        var succeeded = projectQueryService.getPublicDetail(publicId).pageSummary();
+        var generating = projectQueryService.getPublicDetail(publicId).pageSummary();
+        var failed = projectQueryService.getPublicDetail(publicId).pageSummary();
+
+        // then
+        assertThat(succeeded.status()).isEqualTo("SUCCEEDED");
+        assertThat(succeeded.sections()).isEqualTo(sections);
+        assertThat(generating.status()).isEqualTo("GENERATING");
+        assertThat(generating.sections()).isNull();
+        assertThat(failed).isNull();
+    }
+
+    @Test
+    void 요약_입력이_수정된_뒤_워커가_처리하기_전이면_이전_성공_결과를_내리지_않는다() {
+        // given — 수정으로 dirty_at이 올라갔고 아직 새 revision이 열리지 않았다
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(project(UUID.randomUUID(), publicId, ProjectStatus.ONGOING)));
+        java.time.Instant handled = java.time.Instant.now().minusSeconds(60);
+        when(pageSummaryRepository.findByProjectId(1L)).thenReturn(Optional.of(
+                com.fundit.project.domain.pagesummary.PageSummary.builder().projectId(1L)
+                        .dirtyAt(handled.plusSeconds(30)).handledDirtyAt(handled)
+                        .status(com.fundit.project.domain.pagesummary.PageSummaryStatus.SUCCEEDED)
+                        .sections(java.util.List.of(new com.fundit.project.domain.pagesummary.PageSummarySection("WHAT", "h", "d")))
+                        .build()));
+
+        // when
+        var summary = projectQueryService.getPublicDetail(publicId).pageSummary();
+
+        // then
+        assertThat(summary.status()).isEqualTo("GENERATING");
+        assertThat(summary.sections()).isNull();
     }
 
     @Test

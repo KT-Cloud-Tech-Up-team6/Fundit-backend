@@ -42,6 +42,11 @@ class ProjectServiceUnitExceptionTest {
     @Mock
     private MediaUrlValidator mediaUrlValidator;
 
+    @Mock
+
+    private com.fundit.project.application.pagesummary.PageSummaryService pageSummaryService;
+
+
     @InjectMocks
     private ProjectService projectService;
 
