@@ -1,7 +1,9 @@
 package com.fundit.live.application.session;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ivs.IvsClient;
+import com.fundit.live.application.member.MemberNicknameClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
@@ -22,6 +24,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +41,7 @@ class LiveQueryServiceUnitTest {
     @Mock private LiveSessionJpaRepository sessionRepository;
     @Mock private LiveChannelJpaRepository channelRepository;
     @Mock private IvsClient ivsClient;
+    @Mock private MemberNicknameClient memberNicknameClient;
     @InjectMocks private LiveQueryService liveQueryService;
 
     @Test
@@ -77,11 +82,51 @@ class LiveQueryServiceUnitTest {
                 .willReturn(List.of(LiveSessionJpaEntity.builder().status(LiveStatus.LIVE).build()));
 
         // when
-        List<LiveSessionJpaEntity> banner = liveQueryService.findLiveBanner();
+        List<LiveSummaryResponse> banner = liveQueryService.findLiveBanner();
 
         // then
         assertThat(banner).hasSize(1);
         verify(sessionRepository).findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
+    }
+
+    @Test
+    void 소비자_목록_카드에_판매자_닉네임을_채운다() {
+        // given — 세션 → 채널 → sellerId로 이어 member를 한 번에 조회한다
+        var pageable = PageRequest.of(0, 20);
+        UUID sellerId = UUID.randomUUID();
+        UUID unknownSellerId = UUID.randomUUID();
+        given(sessionRepository.findPublic(null, pageable)).willReturn(new PageImpl<>(List.of(
+                LiveSessionJpaEntity.builder().channelId(10L).status(LiveStatus.LIVE).build(),
+                LiveSessionJpaEntity.builder().channelId(20L).status(LiveStatus.SCHEDULED).build())));
+        given(channelRepository.findAllById(List.of(10L, 20L))).willReturn(List.of(
+                LiveChannelJpaEntity.builder().id(10L).sellerId(sellerId).build(),
+                LiveChannelJpaEntity.builder().id(20L).sellerId(unknownSellerId).build()));
+        given(memberNicknameClient.findNicknames(List.of(sellerId, unknownSellerId)))
+                .willReturn(Map.of(sellerId, "쓱쓱생활연구소"));
+
+        // when
+        Page<LiveSummaryResponse> page = liveQueryService.findPublic(null, null, null, pageable);
+
+        // then — member에 없는 판매자는 닉네임만 비고 카드는 그대로 나간다
+        assertThat(page.getContent()).extracting(LiveSummaryResponse::sellerNickname)
+                .containsExactly("쓱쓱생활연구소", null);
+        verify(memberNicknameClient, times(1)).findNicknames(any());
+    }
+
+    @Test
+    void member_조회가_실패해도_목록은_닉네임_없이_나간다() {
+        // given — 판매자명은 부가 정보라 member 장애가 목록 전체 503으로 번지면 안 된다
+        given(sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)).willReturn(List.of(
+                LiveSessionJpaEntity.builder().channelId(10L).status(LiveStatus.LIVE).build()));
+        given(channelRepository.findAllById(any())).willReturn(List.of(
+                LiveChannelJpaEntity.builder().id(10L).sellerId(UUID.randomUUID()).build()));
+        given(memberNicknameClient.findNicknames(any())).willThrow(new DependencyFailureException(new RuntimeException()));
+
+        // when
+        List<LiveSummaryResponse> banner = liveQueryService.findLiveBanner();
+
+        // then
+        assertThat(banner).singleElement().extracting(LiveSummaryResponse::sellerNickname).isNull();
     }
 
     @Test

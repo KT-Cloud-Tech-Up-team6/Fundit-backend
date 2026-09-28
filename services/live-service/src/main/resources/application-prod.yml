@@ -22,6 +22,10 @@ live:
       # project-service가 아니면 주입이 필요하다 — 기본값은 로컬 개발용(localhost:8083)이라
       # 그대로 두면 운영에서 프로젝트 조회가 전부 실패한다(AI prepare/context만 영향, 방송 자체는 무관).
       base-url: ${PROJECT_SERVICE_BASE_URL:http://project-service:8080}
+    member-service:
+      # 라이브 카드 판매자명 조회(/internal/v1/members/nicknames, 내부 키 필요). 기본값이 로컬용
+      # (localhost:8082)이라 그대로 두면 운영 카드에 판매자명이 전부 빠진다(목록 자체는 정상).
+      base-url: ${MEMBER_SERVICE_BASE_URL:http://member-service:8080}
   ivs:
     # 기본값을 두지 않는다. 미설정이면 기동이 실패해야 한다 —
     # stub으로 흘러가면 가짜 ARN으로 방송이 "성공"하고 아무도 눈치채지 못한다.

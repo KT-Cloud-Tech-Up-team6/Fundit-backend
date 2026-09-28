@@ -21,6 +21,12 @@ public class InternalEndpointConfig {
         return new InternalEndpoint("POST", "/api/v1/members");
     }
 
+    /** live-service가 목록 카드에 판매자명을 붙이려고 부르는 닉네임 일괄 조회. */
+    @Bean
+    public InternalEndpoint memberNicknamesInternalEndpoint() {
+        return new InternalEndpoint("GET", "/internal/v1/members/nicknames");
+    }
+
     /** auth-service의 소셜 계정 연동(AUTH-002)만 호출하는 본인 확인 엔드포인트. */
     @Bean
     public InternalEndpoint phoneVerificationInternalEndpoint() {

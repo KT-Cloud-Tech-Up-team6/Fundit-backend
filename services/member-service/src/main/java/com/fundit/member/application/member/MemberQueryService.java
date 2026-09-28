@@ -8,11 +8,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class MemberQueryService {
+
+    static final int MAX_NICKNAME_LOOKUP = 100;
 
     private final MemberJpaRepository memberJpaRepository;
 
@@ -41,6 +45,30 @@ public class MemberQueryService {
                 .orElse(false);
     }
 
+    /**
+     * 다른 서비스가 판매자명을 표시하려고 부르는 일괄 조회(내부 전용). 목록 카드 한 페이지분을 한 번에
+     * 받으려는 용도라 건수에 상한을 둔다 — 없으면 id 수천 개로 한 번에 긁어갈 수 있다.
+     *
+     * <p>없는 id·탈퇴 회원은 결과에서 빠진다(에러가 아니다). 닉네임만 내보낸다 — 이름·전화번호는
+     * 암호화해 보관하는 개인정보라 이 경로로 나가면 안 된다.
+     */
+    @Transactional(readOnly = true)
+    public List<MemberNickname> findNicknames(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        if (ids.size() > MAX_NICKNAME_LOOKUP) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 회원은 %d명까지입니다.".formatted(MAX_NICKNAME_LOOKUP));
+        }
+        return memberJpaRepository.findAllByIdInAndDeletedAtIsNull(new HashSet<>(ids)).stream()
+                .map(m -> new MemberNickname(m.getId(), m.getNickname()))
+                .toList();
+    }
+
     public record MemberProfile(UUID memberId, String name, String nickname, String phoneNumber) {
+    }
+
+    public record MemberNickname(UUID memberId, String nickname) {
     }
 }

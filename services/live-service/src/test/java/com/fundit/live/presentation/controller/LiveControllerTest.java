@@ -16,6 +16,7 @@ import com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity;
 import com.fundit.live.presentation.GlobalExceptionHandler;
 import com.fundit.live.presentation.dto.LiveDetailResponse;
 import com.fundit.live.presentation.dto.LiveStatusCountsResponse;
+import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -97,7 +98,7 @@ class LiveControllerTest {
                 .status(LiveStatus.LIVE)
                 .likeCount(3)
                 .build();
-        when(liveQueryService.findLiveBanner()).thenReturn(List.of(entity));
+        when(liveQueryService.findLiveBanner()).thenReturn(List.of(LiveSummaryResponse.from(entity)));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/banner"))

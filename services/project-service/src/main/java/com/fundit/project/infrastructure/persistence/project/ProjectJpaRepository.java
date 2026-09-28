@@ -18,6 +18,9 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
 
     Optional<ProjectJpaEntity> findByPublicIdAndDeletedAtIsNull(UUID publicId);
 
+    /** 삭제 여부와 무관하게 본다 — public_id는 삭제된 행과도 UNIQUE라, 있으면 다시 넣을 수 없다. */
+    boolean existsByPublicId(UUID publicId);
+
     Optional<ProjectJpaEntity> findByIdAndDeletedAtIsNull(Long id);
 
     Optional<ProjectJpaEntity> findBySellerIdAndIdempotencyKeyAndDeletedAtIsNull(UUID sellerId, String idempotencyKey);

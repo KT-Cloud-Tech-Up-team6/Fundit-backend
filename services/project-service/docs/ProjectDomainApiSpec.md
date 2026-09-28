@@ -1381,4 +1381,8 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 
 > `project.funding-deadline-reached.v1`은 `KafkaTopics`/`event-convention.md`에 있으나 **이 서비스는 발행하지 않는다.** order-service ORDER-006 리스너는 구독 중이다.
 
+> **dev 목업 시더(#154)**: dev 프로필에서만 `MockProjectSeeder`가 라이브 목업 프로젝트 50건(`seed/mock-projects.json`, PM 고정 `public_id`,
+> `status=ONGOING`)과 `funding_status_snapshots`를 넣고, 심사 승인과 같은 `project.approved.v1`을 아웃박스에 적재한다(search·member 동기화).
+> 이미 있는 `public_id`는 건너뛴다. 리워드는 없고, search 카드의 금액·참여자 수는 펀딩 이벤트로만 채워져 0으로 보인다.
+
 ---

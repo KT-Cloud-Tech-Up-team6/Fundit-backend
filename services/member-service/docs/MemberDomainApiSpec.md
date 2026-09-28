@@ -27,6 +27,7 @@
 | PUT | `/api/v1/addresses/{addressId}` | O | 배송지 수정 |
 | PATCH | `/api/v1/addresses/{addressId}/default` | O | 기본 배송지 지정 |
 | DELETE | `/api/v1/addresses/{addressId}` | O | 배송지 삭제 |
+| GET | `/internal/v1/members/nicknames` | 내부 전용 (`X-Internal-Api-Key`) | 회원 닉네임 일괄 조회 — live 카드 판매자명용 |
 
 ---
 
@@ -406,6 +407,29 @@ Validation / Business Rules
 
 ---
 
+### 회원 닉네임 일괄 조회 (내부 전용)
+
+```
+GET /internal/v1/members/nicknames?ids={uuid}&ids={uuid}...
+```
+
+Auth Required: **X** — **내부 전용.** 게이트웨이 member 라우트는 `/api/v1/...`만이라 외부로 열려 있지 않고, `X-Internal-Api-Key`로 호출 주체를 검증한다. live-service가 라이브 카드에 판매자명을 붙일 때 부른다.
+
+Response Body (200)
+
+```json
+[ { "memberId": "b56c3e90-c807-341f-b9de-a2e480095fc0", "nickname": "쓱쓱생활연구소" } ]
+```
+
+Validation / Business Rules
+
+- **`memberId`·`nickname`만 내보낸다** — 이름·전화번호는 응답에 없다.
+- 없는 id·탈퇴 회원·닉네임이 없는 회원은 응답에서 빠진다(닉네임 null 항목은 `non_null` 설정으로 필드가 생략된다). 호출 측은 "빠진 id = 표시할 이름 없음"으로 처리한다.
+- `ids`가 없으면 빈 배열, **100개 초과면 `400 INVALID_INPUT`** — 상한이 없으면 id를 대량으로 넣어 닉네임을 한 번에 긁어갈 수 있다.
+- 내부 키가 없거나 틀리면 `401`.
+
+---
+
 ## 반영 이력
 
 - **[확정] 내부 전용 엔드포인트 방어**: 게이트웨이 라우팅 제외(네트워크 격리) + `X-Internal-Api-Key` 공유 시크릿 헤더 조합.
@@ -423,6 +447,8 @@ Validation / Business Rules
 - **[확정, 2026-09-21 #101] 배송지 수정·삭제·기본 지정**: QA 요청으로 추가. 기본 배송지가 여러 개 저장될 수 있던 문제를 V5 부분 유니크 인덱스로 막았다(기존 중복은 회원별 최신 1개만 남기고 정리). 기본을 삭제하면 기본 없음으로 둔다(자동 승계 안 함, 사용자 결정).
 
 - **[확정, 2026-09-22 #109] 찜 목록 프로젝트 정보**: 찜 등록 시 `project_id`만 저장하고 스냅샷을 채우는 코드가 없어 제목·썸네일이 항상 null이었다. `project.approved.v1`/`project.updated.v1`을 구독해 `project_snapshots`(V6)에 upsert하고 목록 조회에서 조인한다. `projectPublicId`를 응답에 추가했다. `wishes`의 옛 스냅샷 컬럼 3개는 더 이상 쓰지 않으며 후속 정리 대상이다.
+
+- **[확정, 2026-09-24 #154] 회원 닉네임 일괄 조회(내부)**: live 카드 판매자명용 `GET /internal/v1/members/nicknames` 추가. dev 전용 `MockSellerSeeder`가 라이브 목업 판매자 50명을 고정 UUID로 만든다(가입 흐름을 타지 않아 `member.signed-up.v1` 미발행).
 
 ## ⚠️ 남은 확인 필요 사항
 

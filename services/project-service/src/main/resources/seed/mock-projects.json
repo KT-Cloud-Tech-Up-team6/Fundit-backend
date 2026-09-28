@@ -1,0 +1,852 @@
+[
+  {
+    "publicId": "80f88d7e-089a-5226-b306-9e7168853e60",
+    "sellerId": "b56c3e90-c807-341f-b9de-a2e480095fc0",
+    "sellerNickname": "쓱쓱생활연구소",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "생활가전",
+    "title": "[청소가 가벼워진다] 꺼내는 순간 쓱! 데일리 무선청소기",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-24T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 190000,
+      "achievementRate": 38,
+      "participantCount": 9,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "4c97c1d1-5cf6-5cbf-93d3-abb734c3bca6",
+    "sellerId": "d29f5df1-5126-35d7-b982-9cc6bb39d44f",
+    "sellerNickname": "바람한칸",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "생활가전",
+    "title": "[책상 위 바람 한 조각] 접어서 쏙, 무선 선풍기",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-25T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 720000,
+      "achievementRate": 72,
+      "participantCount": 32,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "b0503518-030d-5196-871b-92cf1d053ce4",
+    "sellerId": "f370c5ed-1512-3e20-ad12-7ac3bc165a80",
+    "sellerNickname": "한잔온도",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "생활가전",
+    "title": "[한 잔도 내 취향대로] 온도 맞춰 즐기는 미니 전기포트",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-26T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1960000,
+      "achievementRate": 98,
+      "participantCount": 81,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "48d338ac-f631-570b-a894-ea837fc900e9",
+    "sellerId": "3d3ad839-c24d-3651-8709-e1308df550f8",
+    "sellerNickname": "촉촉한밤",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "생활가전",
+    "title": "[침대 옆 수분 루틴] 공간을 촉촉하게, 미니 가습기",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-27T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3000000,
+      "achievementRate": 100,
+      "participantCount": 116,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "63704a25-eb39-5099-8d8f-7cce568f47b1",
+    "sellerId": "0f1db408-bd57-3f98-9d36-32c091e7c5a0",
+    "sellerNickname": "구석구석랩",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "로봇",
+    "title": "[소파 아래까지 쏙] 낮은 틈을 누비는 슬림 로봇청소기",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-28T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 6300000,
+      "achievementRate": 126,
+      "participantCount": 229,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "f6c724fa-cee3-5773-aa56-6e2755c2e878",
+    "sellerId": "797e1e90-29cc-30f7-b532-af9273e98d76",
+    "sellerNickname": "맑은창연구소",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "로봇",
+    "title": "[창문 청소도 로봇에게] 유리창에 착! 사각 청소로봇",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-29T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 18500000,
+      "achievementRate": 185,
+      "participantCount": 633,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "9da6338c-ab50-5abb-a13f-c777faa75542",
+    "sellerId": "f82177fe-3329-36cc-8a4a-06690f5c275e",
+    "sellerNickname": "방구석상영관",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "엔터테인먼트가전",
+    "title": "[오늘 밤 우리 집 상영회] 들고 떠나는 포터블 미니 빔",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-30T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1215000,
+      "achievementRate": 243,
+      "participantCount": 39,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "b2f0d2f8-1ad9-5de4-8cb4-54bc982d93e6",
+    "sellerId": "1661d7da-eaf9-33f5-8e3f-1c76685171fc",
+    "sellerNickname": "우드사운드",
+    "categoryMajor": "테크·가전",
+    "categoryMinor": "엔터테인먼트가전",
+    "title": "[책상이 작은 공연장] 우드 감성 블루투스 스피커",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-31T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3680000,
+      "achievementRate": 368,
+      "participantCount": 112,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "2c636b31-3e3b-5b05-b939-f2376796b9f0",
+    "sellerId": "dce4b0f2-f6c0-3c7b-9665-7ddbd7eb2966",
+    "sellerNickname": "포근한겹",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "침실",
+    "title": "[이불 밖은 아쉬워] 사계절 포근한 워싱 이불",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-11-01T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 10540000,
+      "achievementRate": 527,
+      "participantCount": 307,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "c831dc03-662d-52d7-aaf6-ab92e0e24167",
+    "sellerId": "78784ddc-641f-3dce-b329-044d84f44eaa",
+    "sellerNickname": "곡선쉼",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "침실",
+    "title": "[베개에도 곡선이 필요해] 목선을 감싸는 곡선 베개",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-23T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 25800000,
+      "achievementRate": 860,
+      "participantCount": 716,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "42871d23-5810-5979-9a68-0105b84e7b45",
+    "sellerId": "c35ea88c-6409-3e58-99d6-76c5f4ab0685",
+    "sellerNickname": "보송한발끝",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "욕실",
+    "title": "[젖은 발은 여기까지] 욕실 앞 보송 루틴, 규조토 매트",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-24T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 62000000,
+      "achievementRate": 1240,
+      "participantCount": 1644,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "be389f7b-7627-577d-9401-88327ea20e59",
+    "sellerId": "4175094e-af00-3159-918d-46f4cc86562d",
+    "sellerNickname": "틈새정리소",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "욕실",
+    "title": "[이 틈도 수납이 된다] 욕실을 정리하는 슬림 선반",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-25T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 218000000,
+      "achievementRate": 2180,
+      "participantCount": 5532,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "534df539-8aff-569e-bf87-d105afa462d5",
+    "sellerId": "8fb8ece9-e22c-36c7-b287-5b298d83d2f3",
+    "sellerNickname": "한팬식탁",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "주방",
+    "title": "[볶고 끓이고 한 팬에] 매일의 요리를 담는 깊은 팬",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-26T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 190000,
+      "achievementRate": 38,
+      "participantCount": 4,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "1fd6d31d-4211-5b63-bf9a-ea8c3026b119",
+    "sellerId": "1efacbc4-9d0e-3397-b79e-45b47c214884",
+    "sellerNickname": "차곡키친",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "주방",
+    "title": "[냉장고도 정리의 맛] 차곡차곡 유리 밀폐용기 세트",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-27T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 720000,
+      "achievementRate": 72,
+      "participantCount": 16,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "bf16ad81-7919-5785-88fc-19386d6fa250",
+    "sellerId": "99425f0b-6441-36eb-821e-7796fb809e7f",
+    "sellerNickname": "돌돌생활",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "청소",
+    "title": "[털과 먼지, 돌돌 끝] 비우고 다시 쓰는 먼지롤러",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-28T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1960000,
+      "achievementRate": 98,
+      "participantCount": 44,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "42296abf-13ba-5be8-90f4-5081bc399c3a",
+    "sellerId": "9ba7cfa9-07d9-382a-b4a1-0e32202639f5",
+    "sellerNickname": "저녁빛공방",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "인테리어",
+    "title": "[불 하나로 달라진 저녁] 선 없이 두는 충전식 조명",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-29T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3000000,
+      "achievementRate": 100,
+      "participantCount": 64,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "9caa4c90-4b98-549c-a61c-3544b5b75b5c",
+    "sellerId": "45d39771-e2d4-3851-bb70-7f364b6f0fe1",
+    "sellerNickname": "숲향작업실",
+    "categoryMajor": "홈·리빙",
+    "categoryMinor": "방향제",
+    "title": "[집에 들어서는 순간] 공간에 스미는 우디 디퓨저",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-30T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 6300000,
+      "achievementRate": 126,
+      "participantCount": 131,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "da7db870-bdeb-546d-8b82-5fc5ce346552",
+    "sellerId": "903f328c-c3a7-3b2a-ae95-ada199edd25d",
+    "sellerNickname": "한방울보습",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "스킨케어",
+    "title": "[건조한 하루에 한 방울] 촉촉함을 더하는 보습 세럼",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-31T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 18500000,
+      "achievementRate": 185,
+      "participantCount": 372,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "8f0e72ee-2ae2-5584-bdae-dae3c7ba3627",
+    "sellerId": "6d91d24b-ff39-3c6e-a24a-e5ac0a3efbd3",
+    "sellerNickname": "매일수분",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "스킨케어",
+    "title": "[매일 바르는 촉촉함] 가볍게 감싸는 데일리 수분 크림",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-11-01T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1215000,
+      "achievementRate": 243,
+      "participantCount": 23,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "380f9228-37a5-58c7-9a78-8dedb01f27d2",
+    "sellerId": "a0cc31e8-3a39-31a6-a289-9131b1dcba25",
+    "sellerNickname": "생기한겹",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "메이크업",
+    "title": "[쓱 한 번, 생기 한 겹] 손이 가는 데일리 컬러 립밤",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-23T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3680000,
+      "achievementRate": 368,
+      "participantCount": 69,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "e3014b41-334c-5ef1-b2e5-975ddc7a6932",
+    "sellerId": "58642850-e448-3282-83f0-e47f2e8ef116",
+    "sellerNickname": "오늘의색감",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "메이크업",
+    "title": "[이 색은 매일 쓰니까] 필요한 컬러만 담은 팔레트",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-24T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 10540000,
+      "achievementRate": 527,
+      "participantCount": 192,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "070577ee-7281-5ae4-a3c3-afcd05d86c3f",
+    "sellerId": "19ee288a-a491-33a4-b7f5-d9db8cb97b84",
+    "sellerNickname": "윤기한올",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "헤어케어",
+    "title": "[샤워 뒤 헤어 루틴] 한 번 더 손이 가는 헤어 에센스",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-25T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 25800000,
+      "achievementRate": 860,
+      "participantCount": 457,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "9ef3a4a3-b6bb-5ccd-870a-d550673431f7",
+    "sellerId": "955af80b-3c3a-3f40-a086-5d97332f4bcb",
+    "sellerNickname": "손끝무드",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "네일",
+    "title": "[오늘 네일은 집에서] 손끝에 은은함, 젤 네일 팁",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-26T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 62000000,
+      "achievementRate": 1240,
+      "participantCount": 1067,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "0bf08ff2-855e-5900-8978-1db0c393e4be",
+    "sellerId": "1037b2c1-1a41-353c-855f-c888b81e667e",
+    "sellerNickname": "작은숲향방",
+    "categoryMajor": "뷰티",
+    "categoryMinor": "향수",
+    "title": "[옷깃에 작은 숲 하나] 일상에 남는 우디 향수",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-27T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 218000000,
+      "achievementRate": 2180,
+      "participantCount": 3645,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "0ab3c070-6ece-5c5f-9a35-3d813392d338",
+    "sellerId": "180a9dd5-5ae3-30a9-8c52-f1e536c8a8a6",
+    "sellerNickname": "가벼운걸음",
+    "categoryMajor": "패션",
+    "categoryMinor": "의류",
+    "title": "[출근길부터 산책길까지] 툭 걸치는 경량 바람막이",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-28T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 190000,
+      "achievementRate": 38,
+      "participantCount": 3,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "415b218b-7da8-5396-a6ec-53517b739dc4",
+    "sellerId": "a8c355e8-08de-389c-bca2-b9c958640ae8",
+    "sellerNickname": "매일한벌",
+    "categoryMajor": "패션",
+    "categoryMinor": "의류",
+    "title": "[내일도 이 셔츠] 매일 손이 가는 탄탄한 코튼 셔츠",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-29T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 720000,
+      "achievementRate": 72,
+      "participantCount": 11,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "6a9e1229-2540-5dd9-a5a3-94d8c794bf13",
+    "sellerId": "1c6d34c7-1ac8-3b6c-92c1-2ea3601302f8",
+    "sellerNickname": "햇살안경점",
+    "categoryMajor": "패션",
+    "categoryMinor": "패션소품",
+    "title": "[햇살 좋은 날의 완성] 가볍게 쓰는 데일리 선글라스",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-30T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1960000,
+      "achievementRate": 98,
+      "participantCount": 30,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "69c0071f-972e-56be-8e99-280d9fcefcd9",
+    "sellerId": "a3f4f10c-cbc4-38eb-bed9-70b3a4ff675e",
+    "sellerNickname": "얇은취향",
+    "categoryMajor": "패션",
+    "categoryMinor": "패션소품",
+    "title": "[지갑은 얇게, 취향은 진하게] 슬림 카드지갑",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-31T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3000000,
+      "achievementRate": 100,
+      "participantCount": 45,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "5b2591e8-9807-5499-b45e-63a2e2a0e29a",
+    "sellerId": "f7b25e87-cb0e-3d9c-8f26-207001da6d6e",
+    "sellerNickname": "제자리백",
+    "categoryMajor": "패션",
+    "categoryMinor": "가방",
+    "title": "[가방 속에도 제자리가] 노트북부터 텀블러까지 백팩",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-11-01T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 6300000,
+      "achievementRate": 126,
+      "participantCount": 92,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "f8874fe1-75cd-59e2-872c-47a9d7749ff7",
+    "sellerId": "5fd05875-e17a-3938-8abd-a6a02e7c6ffe",
+    "sellerNickname": "주말짐꾸리기",
+    "categoryMajor": "패션",
+    "categoryMinor": "가방",
+    "title": "[주말엔 짐도 여유롭게] 필요할 때 넓히는 여행 가방",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-23T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 18500000,
+      "achievementRate": 185,
+      "participantCount": 264,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "89dfd6ad-6117-5d5b-aa63-e6305e845658",
+    "sellerId": "7c581901-d944-3e39-a61d-882da32d142d",
+    "sellerNickname": "니트워크",
+    "categoryMajor": "패션",
+    "categoryMinor": "신발",
+    "title": "[매일 신고 싶은 한 켤레] 발을 감싸는 니트 스니커즈",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-24T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1215000,
+      "achievementRate": 243,
+      "participantCount": 16,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "31f9deb9-d4a7-5980-8294-4c909e1c4ed7",
+    "sellerId": "c6a4dab2-bb31-32f5-a04d-ff64e5786c67",
+    "sellerNickname": "뛰노는하루",
+    "categoryMajor": "패션",
+    "categoryMinor": "키즈",
+    "title": "[오늘도 마음껏 뛰어!] 아이의 일상을 담은 상하복",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-25T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3680000,
+      "achievementRate": 368,
+      "participantCount": 50,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "8cf5cacc-2827-5d76-91bc-ce3f00894780",
+    "sellerId": "5c60597b-0ca4-3fcc-b7a9-dbf36dcf6c6c",
+    "sellerNickname": "가을한입농원",
+    "categoryMajor": "푸드",
+    "categoryMinor": "산지직송",
+    "title": "[한입 베어 물면 가을] 달콤함을 담은 제철 사과 꾸러미",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-26T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 10540000,
+      "achievementRate": 527,
+      "participantCount": 140,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "d3500abf-309d-5b5c-9bae-beb25a080615",
+    "sellerId": "4548ef5c-751d-3905-9b84-f93ce1ea434a",
+    "sellerNickname": "고소한면방",
+    "categoryMajor": "푸드",
+    "categoryMinor": "로컬맛집",
+    "title": "[오늘 저녁은 이 한 그릇] 고소하게 차리는 들깨칼국수",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-27T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 25800000,
+      "achievementRate": 860,
+      "participantCount": 335,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "95313b17-b4ab-5815-9e54-1b873347cace",
+    "sellerId": "a7e9fd0d-a263-396f-92df-746ba0cde9ab",
+    "sellerNickname": "아침곡물소",
+    "categoryMajor": "푸드",
+    "categoryMinor": "헬스",
+    "title": "[바쁜 아침, 한 잔으로] 든든한 오트 곡물 쉐이크",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-28T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 62000000,
+      "achievementRate": 1240,
+      "participantCount": 789,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "c43c38c5-ca1a-5843-84dd-704d134cacc3",
+    "sellerId": "ebb6fe32-918d-3cf7-a3ff-2e85d3c32a92",
+    "sellerNickname": "버섯한스푼",
+    "categoryMajor": "푸드",
+    "categoryMinor": "소스",
+    "title": "[요리의 한 끗은 한 숟갈] 풍미를 더하는 버섯 만능소스",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-29T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 218000000,
+      "achievementRate": 2180,
+      "participantCount": 2718,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "dfe1e649-5bc1-5ba1-bb62-08c08d2bcf5f",
+    "sellerId": "5e289d90-1ca1-3127-9411-4e76c4636768",
+    "sellerNickname": "버터한입공방",
+    "categoryMajor": "푸드",
+    "categoryMinor": "디저트",
+    "title": "[겉바속촉 버터 한입] 티타임을 채우는 휘낭시에",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-30T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 190000,
+      "achievementRate": 38,
+      "participantCount": 2,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "c6103f3d-44c1-5153-9147-138ba3a53f3c",
+    "sellerId": "0ce429a3-becf-309d-a1a2-74fe86d64604",
+    "sellerNickname": "차가운찻시간",
+    "categoryMajor": "푸드",
+    "categoryMinor": "음료",
+    "title": "[차갑게 우린 여유] 한 모금 산뜻한 콜드브루 티",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-31T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 720000,
+      "achievementRate": 72,
+      "participantCount": 8,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "6fd89dcb-4e47-5401-a30d-2264469e767d",
+    "sellerId": "014eb1af-b17f-3e22-9da7-54c52fe2681a",
+    "sellerNickname": "쌀빛양조",
+    "categoryMajor": "푸드",
+    "categoryMinor": "주류",
+    "title": "[오늘 식탁의 한 잔] 쌀의 향을 담은 발효주",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-11-01T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1960000,
+      "achievementRate": 98,
+      "participantCount": 22,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "3b3a99dd-29d9-5a4b-950c-70e624d95157",
+    "sellerId": "af2f315c-8c6d-3f13-ab46-7dd066a670b4",
+    "sellerNickname": "펼치는쉼",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "캠핑",
+    "title": "[접으면 짐, 펼치면 쉼] 호숫가에 놓는 캠핑 체어",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-23T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3000000,
+      "achievementRate": 100,
+      "participantCount": 34,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "6f814b8a-7a14-5bf4-941d-f308c2f19eae",
+    "sellerId": "974b3529-5994-3f8c-9630-93f945c1a3b9",
+    "sellerNickname": "가벼운라운드",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "골프",
+    "title": "[연습장 갈 땐 가볍게] 필요한 클럽만 쏙, 골프 하프백",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-24T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 6300000,
+      "achievementRate": 126,
+      "participantCount": 71,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "70f8b764-7f7c-51f5-9dfb-0b4186089547",
+    "sellerId": "026d2b95-ae94-334b-be4a-a0a0609e670a",
+    "sellerNickname": "두손자유",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "러닝",
+    "title": "[달릴 땐 두 손 자유롭게] 몸에 밀착하는 러닝 벨트",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-10-25T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 18500000,
+      "achievementRate": 185,
+      "participantCount": 204,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "85b6f9f9-af6c-5a4d-ab16-6c0683b7e506",
+    "sellerId": "3c4b0ae1-63d0-37bc-a399-a61ba18baadf",
+    "sellerNickname": "밤길라이딩",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "자전거",
+    "title": "[해가 져도 라이딩은 계속] 충전식 자전거 라이트",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-26T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 1215000,
+      "achievementRate": 243,
+      "participantCount": 13,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "dd9f7340-21d7-5e86-a8da-e99b96c31bd1",
+    "sellerId": "bca32d80-e64c-344b-bbdd-ec29402ae5ce",
+    "sellerNickname": "코트메이트",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "테니스",
+    "title": "[코트 갈 준비, 이 가방 하나] 수납을 챙긴 테니스 백",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-07T09:00:00Z",
+    "fundingDeadline": "2026-10-27T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 3680000,
+      "achievementRate": 368,
+      "participantCount": 39,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "ff9b06c0-81a2-5263-ae9e-abd668a77bd7",
+    "sellerId": "ce7ea6d0-227f-325e-9518-5e9d8cb289a9",
+    "sellerNickname": "집앞짐",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "헬스",
+    "title": "[오늘 운동은 우리 집] 내 강도에 맞추는 운동 밴드",
+    "goalAmount": 2000000,
+    "fundingStartAt": "2026-09-06T09:00:00Z",
+    "fundingDeadline": "2026-10-28T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 10540000,
+      "achievementRate": 527,
+      "participantCount": 110,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "62cc4be5-d751-5176-88c1-b6b8fe82fa6f",
+    "sellerId": "6336a969-e4a4-37ce-9ac3-8b631654850e",
+    "sellerNickname": "산길동행",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "등산",
+    "title": "[오르막도 내리막도 함께] 접어서 챙기는 트레킹 폴",
+    "goalAmount": 3000000,
+    "fundingStartAt": "2026-09-05T09:00:00Z",
+    "fundingDeadline": "2026-10-29T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 25800000,
+      "achievementRate": 860,
+      "participantCount": 265,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "9bbe0497-c679-5d92-94d2-8ab8425555d2",
+    "sellerId": "313e0e13-0d53-32c4-aeef-e1d5911d1476",
+    "sellerNickname": "코르크쉼표",
+    "categoryMajor": "스포츠",
+    "categoryMinor": "기타",
+    "title": "[운동 끝, 나를 풀어줄 시간] 코르크 마사지볼",
+    "goalAmount": 5000000,
+    "fundingStartAt": "2026-09-04T09:00:00Z",
+    "fundingDeadline": "2026-10-30T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 62000000,
+      "achievementRate": 1240,
+      "participantCount": 626,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "ad6fa516-3d53-577e-956d-c4ac5ba957fd",
+    "sellerId": "e6ea550d-1046-3c56-bb49-3eeb5c8053af",
+    "sellerNickname": "구름냥작업실",
+    "categoryMajor": "캐릭터·굿즈",
+    "categoryMinor": "애니메이션",
+    "title": "[내 책상에 구름 한 마리] 작은 친구 구름냥 피규어",
+    "goalAmount": 10000000,
+    "fundingStartAt": "2026-09-03T09:00:00Z",
+    "fundingDeadline": "2026-10-31T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 218000000,
+      "achievementRate": 2180,
+      "participantCount": 2166,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "fc859f53-399d-57cb-a4a7-0767d8e0a87f",
+    "sellerId": "e033a126-a95a-3a03-8c2e-c2c149bdc0da",
+    "sellerNickname": "키보드숲공방",
+    "categoryMajor": "캐릭터·굿즈",
+    "categoryMinor": "게임",
+    "title": "[키보드 위에 숲이 자랐다] 오밀조밀 버섯 키캡 세트",
+    "goalAmount": 500000,
+    "fundingStartAt": "2026-09-09T09:00:00Z",
+    "fundingDeadline": "2026-11-01T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 190000,
+      "achievementRate": 38,
+      "participantCount": 1,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  },
+  {
+    "publicId": "9236e579-d129-59f9-9212-d1b1dde12bf6",
+    "sellerId": "8108566c-dcdd-35f7-bc1a-f5d4dc8db940",
+    "sellerNickname": "달토끼기록실",
+    "categoryMajor": "캐릭터·굿즈",
+    "categoryMinor": "크리에이터",
+    "title": "[오늘의 기록에 달토끼 한 스푼] 감성 문구 세트",
+    "goalAmount": 1000000,
+    "fundingStartAt": "2026-09-08T09:00:00Z",
+    "fundingDeadline": "2026-10-23T09:00:00Z",
+    "snapshot": {
+      "currentAmount": 720000,
+      "achievementRate": 72,
+      "participantCount": 6,
+      "lastSyncedAt": "2026-09-23T09:00:00Z"
+    }
+  }
+]

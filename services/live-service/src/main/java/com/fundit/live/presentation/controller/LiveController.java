@@ -149,7 +149,7 @@ public class LiveController {
     /** 진행중 LIVE 배너(요구사항정의서 10.1.4). 인증 불필요. */
     @GetMapping("/banner")
     public List<LiveSummaryResponse> banner() {
-        return liveQueryService.findLiveBanner().stream().map(LiveSummaryResponse::from).toList();
+        return liveQueryService.findLiveBanner();
     }
 
     /**
