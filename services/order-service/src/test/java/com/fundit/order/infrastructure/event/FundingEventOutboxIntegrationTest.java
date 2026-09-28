@@ -104,6 +104,11 @@ class FundingEventOutboxIntegrationTest {
             @Override
             public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event, Long outboxId) {
             }
+
+            @Override
+            public void sendPaymentReconciliationRequired(
+                    FundingEventPublisher.PaymentReconciliationRequiredEvent event, Long outboxId) {
+            }
         };
     }
 
@@ -122,6 +127,12 @@ class FundingEventOutboxIntegrationTest {
 
             @Override
             public void sendCancelledByMember(FundingEventPublisher.FundingCancelledByMemberEvent event, Long outboxId) {
+                throw new IllegalStateException("브로커 미구성");
+            }
+
+            @Override
+            public void sendPaymentReconciliationRequired(
+                    FundingEventPublisher.PaymentReconciliationRequiredEvent event, Long outboxId) {
                 throw new IllegalStateException("브로커 미구성");
             }
         };

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +32,8 @@ class PaymentEventSyncServiceUnitTest {
     private FundingRepository fundingRepository;
     @Mock
     private CouponIssuanceRepository couponIssuanceRepository;
+    @Mock
+    private com.fundit.order.application.funding.FundingEventPublisher fundingEventPublisher;
 
     @InjectMocks
     private PaymentEventSyncService paymentEventSyncService;
@@ -63,6 +66,37 @@ class PaymentEventSyncServiceUnitTest {
         assertThat(funding.getPaidAt()).isEqualTo(paidAt);
         assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.USED);
         assertThat(issuance.getUsedFundingId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 만료된_주문에_결제가_완료되면_쿠폰을_쓰지_않고_조정_환불을_요청한다() {
+        // given — 결제창을 30분 넘게 열어 둔 뒤 결제
+        Funding funding = funding(1L, FundingStatus.PAYMENT_EXPIRED);
+        when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
+
+        // when
+        paymentEventSyncService.onPaymentCompleted(
+                new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L), Instant.now()));
+
+        // then — payment-service가 전액 환불한다(PAYMENT-017)
+        assertThat(funding.getStatus()).isEqualTo(FundingStatus.PAYMENT_EXPIRED);
+        verify(fundingEventPublisher).publishPaymentReconciliationRequired(
+                new com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent(1L));
+        verifyNoInteractions(couponIssuanceRepository);
+    }
+
+    @Test
+    void 취소된_주문에_결제가_완료되어도_조정_환불을_요청한다() {
+        // given — 다른 탭에서 참여 취소한 뒤 결제
+        Funding funding = funding(1L, FundingStatus.CANCELLED_BY_MEMBER);
+        when(fundingRepository.findByPublicId(ORDER_ID)).thenReturn(Optional.of(funding));
+
+        // when
+        paymentEventSyncService.onPaymentCompleted(
+                new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(), Instant.now()));
+
+        // then
+        verify(fundingEventPublisher).publishPaymentReconciliationRequired(any());
     }
 
     @Nested

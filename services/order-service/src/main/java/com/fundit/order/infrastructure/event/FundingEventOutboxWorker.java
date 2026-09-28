@@ -4,6 +4,7 @@ import com.fundit.order.application.catalog.ProjectOwnershipClient;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingCancelledByMemberEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingGoalFailedEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingSucceededEvent;
+import com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent;
 import com.fundit.order.infrastructure.persistence.event.FundingEventOutboxJpaEntity;
 import com.fundit.order.infrastructure.persistence.event.FundingEventOutboxJpaRepository;
 import org.slf4j.Logger;
@@ -74,6 +75,8 @@ public class FundingEventOutboxWorker {
             case FundingEventOutboxJpaEntity.TYPE_CANCELLED_BY_MEMBER -> transport.sendCancelledByMember(
                     new FundingCancelledByMemberEvent(event.getFundingId(), event.getProjectId(), event.getMemberId()),
                     event.getId());
+            case FundingEventOutboxJpaEntity.TYPE_PAYMENT_RECONCILIATION_REQUIRED -> transport.sendPaymentReconciliationRequired(
+                    new PaymentReconciliationRequiredEvent(event.getFundingId()), event.getId());
             default -> throw new IllegalStateException("알 수 없는 펀딩 이벤트 타입: " + event.getEventType());
         }
     }

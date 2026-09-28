@@ -3,6 +3,7 @@ package com.fundit.order.infrastructure.event;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingCancelledByMemberEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingGoalFailedEvent;
 import com.fundit.order.application.funding.FundingEventPublisher.FundingSucceededEvent;
+import com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -25,4 +26,7 @@ public interface FundingEventTransport {
     void sendSucceeded(FundingSucceededEvent event, UUID sellerId, Instant achievedAt, Long outboxId);
 
     void sendCancelledByMember(FundingCancelledByMemberEvent event, Long outboxId);
+
+    /** payment-service {@code PaymentReconciliationListener} 계약 — {@code orderId}(주문 publicId)가 필수다. */
+    void sendPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event, Long outboxId);
 }

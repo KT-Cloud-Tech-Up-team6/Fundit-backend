@@ -1,5 +1,6 @@
 package com.fundit.order.application.payment;
 
+import com.fundit.order.application.funding.FundingEventPublisher;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceRepository;
 import com.fundit.order.domain.coupon.CouponIssuanceStatus;
@@ -23,6 +24,7 @@ public class PaymentEventSyncService implements PaymentEventListener {
 
     private final FundingRepository fundingRepository;
     private final CouponIssuanceRepository couponIssuanceRepository;
+    private final FundingEventPublisher fundingEventPublisher;
 
     @Override
     @Transactional
@@ -33,6 +35,14 @@ public class PaymentEventSyncService implements PaymentEventListener {
             return;
         }
         Funding funding = found.get();
+        if (!funding.acceptsPaymentCompletion()) {
+            // 만료·취소된 주문에 결제가 완료됐다 — 쿠폰을 사용 처리하지 않고 전액 환불을 요청한다.
+            log.warn("결제를 받을 수 없는 주문에 결제가 완료돼 조정 환불을 요청합니다. fundingId={} status={}",
+                    event.fundingId(), funding.getStatus());
+            fundingEventPublisher.publishPaymentReconciliationRequired(
+                    new FundingEventPublisher.PaymentReconciliationRequiredEvent(funding.getId()));
+            return;
+        }
         funding.markPaymentCompleted(event.paidAt());
         fundingRepository.save(funding);
 

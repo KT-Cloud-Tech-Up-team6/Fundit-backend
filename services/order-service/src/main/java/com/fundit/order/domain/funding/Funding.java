@@ -143,6 +143,14 @@ public class Funding {
      * PENDING에 머무르게 되어 필요한 전이다[가정 — ORDER-015(쿠폰 사용확정) 이벤트 처리와
      * 같은 이벤트를 트리거로 공유]. 이미 다른 상태면 무시한다(idempotent).
      */
+    /**
+     * 결제 완료를 받아들일 수 있는 상태인지. 결제창을 오래 열어 두거나 다른 탭에서 취소한 뒤 결제하면 주문은
+     * 이미 만료·취소 상태인데 결제만 완료된다 — 이때는 결제를 되돌려야 한다(PAYMENT-017 조정 환불).
+     */
+    public boolean acceptsPaymentCompletion() {
+        return status == FundingStatus.PENDING || status == FundingStatus.FUNDING_IN_PROGRESS;
+    }
+
     public void markPaymentCompleted(Instant paidAt) {
         if (status == FundingStatus.PENDING) {
             this.status = FundingStatus.FUNDING_IN_PROGRESS;

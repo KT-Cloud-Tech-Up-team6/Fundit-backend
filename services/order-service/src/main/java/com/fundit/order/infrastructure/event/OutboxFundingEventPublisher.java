@@ -34,6 +34,12 @@ public class OutboxFundingEventPublisher implements FundingEventPublisher {
                 event.fundingId(), event.projectId(), event.memberId()));
     }
 
+    @Override
+    public void publishPaymentReconciliationRequired(PaymentReconciliationRequiredEvent event) {
+        outboxRepository.save(toEntity(FundingEventOutboxJpaEntity.TYPE_PAYMENT_RECONCILIATION_REQUIRED,
+                event.fundingId(), null, null));
+    }
+
     private static FundingEventOutboxJpaEntity toEntity(String eventType, Long fundingId, Long projectId,
                                                           java.util.UUID memberId) {
         return FundingEventOutboxJpaEntity.builder()
