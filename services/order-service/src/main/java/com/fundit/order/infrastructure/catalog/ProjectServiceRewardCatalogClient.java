@@ -40,13 +40,16 @@ public class ProjectServiceRewardCatalogClient implements RewardCatalogClient {
                                 .map(v -> new OptionValueSnapshot(v.valueId(), v.value()))
                                 .toList()))
                 .toList();
-        return new RewardSnapshot(r.rewardId(), r.name(), r.price(), r.isLimited(), groups);
+        // 얼리버드 리워드는 할인가로 청구한다(PM 결정 09-28) — 화면의 리워드 카드·주문서와 결제 금액을 맞춘다.
+        // project-service가 계산해 내려주는 값을 그대로 쓴다(할인 계산을 여기서 다시 하지 않는다).
+        long unitPrice = r.isEarlyBird() && r.earlyBirdDiscountedPrice() != null ? r.earlyBirdDiscountedPrice() : r.price();
+        return new RewardSnapshot(r.rewardId(), r.name(), unitPrice, r.isLimited(), groups);
     }
 
-    // ProjectDomainApiSpec.md #14 응답 형태 그대로 — order-service는 이 중 name/price/options만 쓴다.
+    // ProjectDomainApiSpec.md #14 응답 형태 그대로 — order-service는 이 중 name/price(얼리버드면 할인가)/options만 쓴다.
     private record ProjectRewardResponse(Long rewardId, String rewardDisplayCode, String name, long price,
-                                          boolean isEarlyBird, boolean isLimited, Integer remainingStock,
-                                          List<OptionGroupResponse> options, boolean soldOut) {
+                                          boolean isEarlyBird, Long earlyBirdDiscountedPrice, boolean isLimited,
+                                          Integer remainingStock, List<OptionGroupResponse> options, boolean soldOut) {
     }
 
     private record OptionGroupResponse(Long groupId, String groupName, List<OptionValueResponse> values) {
