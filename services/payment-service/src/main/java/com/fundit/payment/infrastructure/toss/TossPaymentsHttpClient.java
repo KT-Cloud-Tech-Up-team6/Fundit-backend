@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -40,8 +41,28 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
                 throw new DependencyFailureException(new IllegalStateException("토스 결제 승인 응답 본문이 없습니다."));
             }
             return toResult(response);
+        } catch (HttpServerErrorException e) {
+            // 5xx는 "거절"이 아니라 "결과 불명"이다 — 토스에서는 승인됐는데 응답만 실패했을 수 있어
+            // 결제를 FAILED로 굳히지 않고 PENDING으로 둔다(재확정 시 lookup으로 대조).
+            throw new DependencyFailureException(e);
         } catch (RestClientResponseException e) {
             throw toTossApiException(e);
+        } catch (RestClientException e) {
+            throw new DependencyFailureException(e);
+        }
+    }
+
+    @Override
+    public TossPaymentLookup lookup(String paymentKey) {
+        try {
+            TossPaymentResponse response = tossPaymentsRestClient.get()
+                    .uri("/v1/payments/{paymentKey}", paymentKey)
+                    .retrieve()
+                    .body(TossPaymentResponse.class);
+            if (response == null) {
+                throw new DependencyFailureException(new IllegalStateException("토스 결제 조회 응답 본문이 없습니다."));
+            }
+            return new TossPaymentLookup(response.status(), toResult(response));
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }

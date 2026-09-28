@@ -13,6 +13,9 @@ public class TossApiException extends RuntimeException {
     /** 세션(인증) 만료 — 토스 문서 기준 결제 승인 API가 반환하는 코드. */
     public static final String NOT_FOUND_PAYMENT_SESSION = "NOT_FOUND_PAYMENT_SESSION";
 
+    /** 같은 paymentKey로 이미 승인된 결제 — 결과 불명 뒤 재확정할 때 돌아온다(실제 승인 여부는 조회로 대조). */
+    public static final String ALREADY_PROCESSED_PAYMENT = "ALREADY_PROCESSED_PAYMENT";
+
     private final String tossErrorCode;
     private final String tossMessage;
 
@@ -20,6 +23,10 @@ public class TossApiException extends RuntimeException {
         super("토스 API 실패: " + tossErrorCode + " - " + tossMessage);
         this.tossErrorCode = tossErrorCode;
         this.tossMessage = tossMessage;
+    }
+
+    public boolean isAlreadyProcessed() {
+        return ALREADY_PROCESSED_PAYMENT.equals(tossErrorCode);
     }
 
     public boolean isSessionExpired() {
