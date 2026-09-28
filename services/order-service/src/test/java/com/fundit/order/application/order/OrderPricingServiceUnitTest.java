@@ -213,6 +213,57 @@ class OrderPricingServiceUnitTest {
             assertThat(result.discountAmount()).isEqualTo(1_500L);
             assertThat(result.appliedCoupons()).hasSize(2);
         }
+
+        /** 주문 금액 = 리워드 10,000 + 배송비 3,000 = 13,000. */
+        private OrderPricingService.PricingResult calculateWith(long platformDiscount, long makerDiscount) {
+            Coupon platform = couponBase("PLAT", IssuerType.PLATFORM).discountType(DiscountType.AMOUNT)
+                    .discountValue((int) platformDiscount).build();
+            Coupon maker = couponBase("MAKER", IssuerType.MAKER).discountType(DiscountType.AMOUNT)
+                    .discountValue((int) makerDiscount).build();
+            when(couponRepository.findByCouponCode("PLAT")).thenReturn(Optional.of(platform));
+            when(couponRepository.findByCouponCode("MAKER")).thenReturn(Optional.of(maker));
+            when(couponIssuanceRepository.findByCouponCodeAndOwnerId("PLAT", MEMBER_ID))
+                    .thenReturn(Optional.of(CouponIssuance.issue("PLAT", MEMBER_ID)));
+            when(couponIssuanceRepository.findByCouponCodeAndOwnerId("MAKER", MEMBER_ID))
+                    .thenReturn(Optional.of(CouponIssuance.issue("MAKER", MEMBER_ID)));
+            return service.calculate(MEMBER_ID, PROJECT_ID,
+                    List.of(new OrderLineItemRequest(REWARD_ID, 1, null)), List.of("PLAT", "MAKER"), false);
+        }
+
+        @Test
+        void 할인_합계가_주문_금액과_같으면_결제_금액이_0원이라_작은_쿠폰을_거절한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 3_000L);
+
+            // then — 큰 할인부터 채우고, 결제 금액을 0원으로 만드는 쿠폰은 사용 불가 사유와 함께 내려간다
+            assertThat(result.appliedCoupons()).extracting(OrderPricingService.AppliedCoupon::couponCode)
+                    .containsExactly("PLAT");
+            assertThat(result.finalAmount()).isEqualTo(3_000L);
+            assertThat(result.unavailableCoupons()).containsExactly(
+                    new OrderPricingService.UnavailableCoupon("MAKER", "EXCEEDS_ORDER_AMOUNT"));
+        }
+
+        @Test
+        void 할인_합계가_주문_금액을_넘어도_거절한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 5_000L);
+
+            // then
+            assertThat(result.unavailableCoupons()).extracting(OrderPricingService.UnavailableCoupon::reason)
+                    .containsExactly("EXCEEDS_ORDER_AMOUNT");
+            assertThat(result.finalAmount()).isPositive();
+        }
+
+        @Test
+        void 결제_금액이_1원이라도_남으면_두_쿠폰을_모두_적용한다() {
+            // when
+            OrderPricingService.PricingResult result = calculateWith(10_000L, 2_999L);
+
+            // then
+            assertThat(result.appliedCoupons()).hasSize(2);
+            assertThat(result.finalAmount()).isEqualTo(1L);
+            assertThat(result.unavailableCoupons()).isEmpty();
+        }
     }
 
     @Nested

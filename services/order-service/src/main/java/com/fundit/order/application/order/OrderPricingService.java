@@ -140,8 +140,32 @@ public class OrderPricingService {
                             () -> unavailable.add(new UnavailableCoupon(code,
                                     unavailableReason(memberId, projectId, code, coupon, rewardAmount, shippingFee, matchContext))));
         }
-        long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
-        return new CouponResolution(applied, unavailable, totalDiscount);
+        List<AppliedCoupon> payable = keepPayableAmount(applied, rewardAmount + shippingFee,
+                rejected -> unavailable.add(new UnavailableCoupon(rejected.couponCode(), REASON_EXCEEDS_ORDER_AMOUNT)));
+        long totalDiscount = payable.stream().mapToLong(AppliedCoupon::discountAmount).sum();
+        return new CouponResolution(payable, unavailable, totalDiscount);
+    }
+
+    /**
+     * 쿠폰을 적용한 뒤에도 결제 금액이 1원 이상 남는 것만 남긴다(PM 결정 09-28). 할인 합계가 주문 금액
+     * (리워드 금액 + 배송비) 이상이면 결제 금액이 0원 이하가 되는데, 0원 결제는 PG가 처리하지 못해 주문을
+     * 끝낼 수 없다. 넘치게 만드는 쿠폰은 적용하지 않고 {@code rejected}로 넘긴다 — 할인이 큰 쿠폰부터 채운다.
+     */
+    private static List<AppliedCoupon> keepPayableAmount(List<AppliedCoupon> candidates, long orderAmount,
+                                                          java.util.function.Consumer<AppliedCoupon> rejected) {
+        List<AppliedCoupon> kept = new ArrayList<>();
+        long remaining = orderAmount;
+        List<AppliedCoupon> byDiscountDesc = new ArrayList<>(candidates);
+        byDiscountDesc.sort(java.util.Comparator.comparingLong(AppliedCoupon::discountAmount).reversed());
+        for (AppliedCoupon coupon : byDiscountDesc) {
+            if (remaining - coupon.discountAmount() >= 1) {
+                kept.add(coupon);
+                remaining -= coupon.discountAmount();
+            } else {
+                rejected.accept(coupon);
+            }
+        }
+        return kept;
     }
 
     /**
@@ -176,7 +200,9 @@ public class OrderPricingService {
                             (current, candidate) -> candidate.discountAmount() > current.discountAmount() ? candidate : current));
         }
 
-        List<AppliedCoupon> applied = List.copyOf(bestByIssuer.values());
+        // 자동 추천은 사용자가 고른 쿠폰이 아니라 탈락분을 unavailable에 넣지 않는다(위 주석과 같은 원칙).
+        List<AppliedCoupon> applied = keepPayableAmount(List.copyOf(bestByIssuer.values()),
+                rewardAmount + shippingFee, rejected -> { });
         long totalDiscount = applied.stream().mapToLong(AppliedCoupon::discountAmount).sum();
         return new CouponResolution(applied, List.of(), totalDiscount);
     }
@@ -228,6 +254,9 @@ public class OrderPricingService {
         }
         return Optional.of(new ResolvedCoupon(issuance, discount));
     }
+
+    /** 할인 합계가 주문 금액 이상이라 결제 금액이 남지 않는다 — FE 안내 "최소 결제금액보다 낮아 이 쿠폰을 사용할 수 없습니다". */
+    static final String REASON_EXCEEDS_ORDER_AMOUNT = "EXCEEDS_ORDER_AMOUNT";
 
     private String unavailableReason(UUID memberId, UUID projectId, String code, Coupon coupon, long rewardAmount,
                                       long shippingFee, ProjectMatchContext matchContext) {

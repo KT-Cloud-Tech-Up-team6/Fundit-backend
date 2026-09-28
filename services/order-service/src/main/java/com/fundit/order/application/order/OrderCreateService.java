@@ -79,6 +79,7 @@ public class OrderCreateService {
 
         OrderPricingService.PricingResult pricing =
                 orderPricingService.calculate(memberId, projectId, lineItemRequests, couponCodes, autoApplyBestCoupon);
+        rejectUnavailableCoupons(pricing);
 
         decreaseStockOrThrow(pricing.lineItems());
 
@@ -124,6 +125,23 @@ public class OrderCreateService {
         }
 
         return new OrderCreateResult(saved, pricing.finalAmount(), false);
+    }
+
+    /**
+     * 사용자가 지정한 쿠폰을 쓸 수 없으면 할인 없이 주문을 만들지 않고 거절한다(요구사항 정의서 "사용 불가 안내").
+     * 미리보기와 생성 사이에 쿠폰이 소진·만료되는 경우가 여기서 걸린다. 재고 차감 전에 확인해 되돌릴 일이 없게 한다.
+     * 자동 적용은 쓸 수 있는 쿠폰만 고르므로 해당 없다(unavailable이 항상 비어 있다).
+     */
+    private static void rejectUnavailableCoupons(OrderPricingService.PricingResult pricing) {
+        if (pricing.unavailableCoupons().isEmpty()) {
+            return;
+        }
+        OrderPricingService.UnavailableCoupon first = pricing.unavailableCoupons().getFirst();
+        OrderErrorCode code = "BUDGET_EXCEEDED".equals(first.reason())
+                ? OrderErrorCode.COUPON_BUDGET_EXCEEDED
+                : OrderErrorCode.COUPON_NOT_APPLICABLE;
+        throw new BusinessException(code, code.getMessage(),
+                java.util.Map.of("couponCode", first.couponCode(), "reason", first.reason()));
     }
 
     /** 같은 회원의 같은 키로 이미 만든 주문이 있으면 재고 차감/쿠폰 적용 없이 그대로 돌려준다. */
