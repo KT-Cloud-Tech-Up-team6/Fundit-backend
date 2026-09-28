@@ -53,7 +53,7 @@ Response Body
     {
       "notificationId": 9001,
       "notifType": "LIVE_START",
-      "title": "팔로우한 브랜드가 LIVE를 시작했어요",
+      "title": "「에어쿡 프로」 LIVE가 시작됐어요",
       "relatedUrl": "/live/0199...",
       "readAt": "2026-09-03T10:18:00+09:00",
       "createdAt": "2026-09-03T10:15:00+09:00"
