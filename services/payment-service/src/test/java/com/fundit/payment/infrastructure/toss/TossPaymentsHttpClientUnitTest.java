@@ -127,19 +127,21 @@ class TossPaymentsHttpClientUnitTest {
 
     @Test
     void 승인에서_토스_5xx면_결과_불명이라_의존성_실패다() {
+        // given
         server.expect(requestTo("http://localhost/v1/payments/confirm"))
                 .andExpect(method(POST))
                 .andRespond(withServerError().body("""
                         {"code":"FAILED_INTERNAL_SYSTEM_PROCESSING","message":"내부 오류"}
                         """).contentType(MediaType.APPLICATION_JSON));
 
-        // FAILED로 굳히지 않도록 TossApiException(거절)이 아니라 DependencyFailureException(결과 불명)이어야 한다
+        // when & then — FAILED로 굳히지 않도록 TossApiException(거절)이 아니라 DependencyFailureException(결과 불명)이어야 한다
         assertThatThrownBy(() -> client.confirm("pay_1", "fundit-1", 89_000L))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
     @Test
     void 결제_조회에_성공하면_상태와_결제_정보를_매핑한다() {
+        // given
         server.expect(requestTo("http://localhost/v1/payments/pay_1"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
@@ -147,8 +149,10 @@ class TossPaymentsHttpClientUnitTest {
                          "approvedAt":"2026-09-08T14:23:11+09:00","totalAmount":89000,"secret":"secret_1"}
                         """, MediaType.APPLICATION_JSON));
 
+        // when
         var lookup = client.lookup("pay_1");
 
+        // then
         assertThat(lookup.isDone()).isTrue();
         assertThat(lookup.payment().orderId()).isEqualTo("fundit-1");
         assertThat(lookup.payment().totalAmount()).isEqualTo(89_000L);
@@ -157,10 +161,12 @@ class TossPaymentsHttpClientUnitTest {
 
     @Test
     void 결제_조회가_실패하면_의존성_실패다() {
+        // given
         server.expect(requestTo("http://localhost/v1/payments/pay_1"))
                 .andExpect(method(GET))
                 .andRespond(withServerError());
 
+        // when & then
         assertThatThrownBy(() -> client.lookup("pay_1"))
                 .isInstanceOf(DependencyFailureException.class);
     }

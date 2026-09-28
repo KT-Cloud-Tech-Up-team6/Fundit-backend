@@ -62,21 +62,29 @@ class ShipmentControllerV2Test {
 
     @Test
     void 운송장이_100자를_넘으면_500이_아니라_400이다() throws Exception {
+        // given
+        String body = "{\"carrier\": \"CJ대한통운\", \"trackingNumber\": \"" + "1".repeat(101) + "\"}";
+
+        // when & then
         mockMvc.perform(post("/api/v2/projects/{projectId}/fundings/{fundingId}/shipment", PROJECT_ID, FUNDING_ID)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"carrier\": \"CJ대한통운\", \"trackingNumber\": \"" + "1".repeat(101) + "\"}"))
+                        .content(body))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void 택배사가_50자를_넘으면_400이다() throws Exception {
+        // given
+        String body = "{\"carrier\": \"" + "가".repeat(51) + "\", \"trackingNumber\": \"123\"}";
+
+        // when & then
         mockMvc.perform(post("/api/v2/projects/{projectId}/fundings/{fundingId}/shipment", PROJECT_ID, FUNDING_ID)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"carrier\": \"" + "가".repeat(51) + "\", \"trackingNumber\": \"123\"}"))
+                        .content(body))
                 .andExpect(status().isBadRequest());
     }
 

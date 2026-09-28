@@ -260,14 +260,6 @@ class OrderControllerTest {
     }
 
     @Test
-    void 목록_필터의_시작일이_종료일보다_늦으면_400이다() throws Exception {
-        mockMvc.perform(get("/api/v1/orders").header("X-User-Id", UUID.randomUUID().toString())
-                        .header("X-Internal-Api-Key", INTERNAL_KEY)
-                        .param("from", "2026-09-30").param("to", "2026-09-01"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
     void 참여_상세를_조회한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();

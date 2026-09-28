@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -99,5 +100,17 @@ class OrderControllerExceptionTest {
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void 목록_필터의_시작일이_종료일보다_늦으면_400이다() throws Exception {
+        // given
+        UUID memberId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(get("/api/v1/orders").header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .param("from", "2026-09-30").param("to", "2026-09-01"))
+                .andExpect(status().isBadRequest());
     }
 }
