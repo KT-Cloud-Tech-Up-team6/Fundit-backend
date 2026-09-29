@@ -57,6 +57,19 @@ class SellerSummaryJpaRepositoryIntegrationTest {
         assertThat(seller.getTotalProjectCount()).isEqualTo(2L);
     }
 
+    @Test
+    void 판매자명의_일부로도_검색된다() {
+        // given
+        projectDocumentJpaRepository.save(project(3L, UUID.randomUUID(), "쓱쓱생활연구소", ProjectDocumentStatus.ONGOING));
+        projectDocumentJpaRepository.save(project(4L, UUID.randomUUID(), "캠핑장인", ProjectDocumentStatus.ONGOING));
+
+        // when
+        var result = sellerSummaryJpaRepository.searchByKeyword("생활연구소", PageRequest.of(0, 20));
+
+        // then
+        assertThat(result.getContent()).extracting(s -> s.getSellerDisplayName()).containsExactly("쓱쓱생활연구소");
+    }
+
     private ProjectDocumentJpaEntity project(long id, UUID sellerId, String sellerDisplayName, ProjectDocumentStatus status) {
         return ProjectDocumentJpaEntity.builder()
                 .projectId(id)

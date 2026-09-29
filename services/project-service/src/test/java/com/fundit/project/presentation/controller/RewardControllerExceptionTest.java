@@ -87,4 +87,33 @@ class RewardControllerExceptionTest {
                                 """))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void 리워드명이_100자를_넘으면_400을_반환한다() throws Exception {
+        // given & when & then — DB 컬럼 길이(100)를 넘으면 500이 나던 것을 400으로 막는다(FE BE-11)
+        mockMvc.perform(post("/api/v1/projects/" + UUID.randomUUID() + "/rewards")
+                        .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"%s","description":"설명","price":39000,"isLimited":true,"quantity":100}
+                                """.formatted("가".repeat(101))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 옵션_그룹명이나_옵션값이_50자를_넘으면_400을_반환한다() throws Exception {
+        // given & when & then
+        String longText = "가".repeat(51);
+        for (String options : new String[]{
+                "[{\"groupName\":\"%s\",\"values\":[\"화이트\"]}]".formatted(longText),
+                "[{\"groupName\":\"색상\",\"values\":[\"%s\"]}]".formatted(longText)}) {
+            mockMvc.perform(post("/api/v1/projects/" + UUID.randomUUID() + "/rewards")
+                            .header("X-User-Id", UUID.randomUUID().toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                            .contentType("application/json")
+                            .content("""
+                                    {"name":"얼리버드","description":"설명","price":39000,"isLimited":true,"quantity":100,"options":%s}
+                                    """.formatted(options)))
+                    .andExpect(status().isBadRequest());
+        }
+    }
 }

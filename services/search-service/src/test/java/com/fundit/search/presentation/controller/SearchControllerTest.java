@@ -88,8 +88,8 @@ class SearchControllerTest {
         // given
         UUID liveId = UUID.randomUUID();
         LiveCard card = new LiveCard(liveId, "캠핑 의자 라이브", "SCHEDULED", UUID.randomUUID(),
-                "https://cdn/thumb.png", Instant.parse("2026-09-25T11:00:00Z"), 3,
-                Instant.parse("2026-09-20T09:00:00Z"), null);
+                "https://cdn/thumb.png", Instant.parse("2026-09-25T11:00:00Z"), 3, null,
+                Instant.parse("2026-09-20T09:00:00Z"), null, UUID.randomUUID(), "캠핑장인");
         when(liveCardClient.findPublic(any()))
                 .thenReturn(new PageImpl<>(List.of(card), PageRequest.of(0, 20), 1));
 
@@ -136,11 +136,27 @@ class SearchControllerTest {
         UUID memberId = UUID.randomUUID();
 
         // when & then
-        mockMvc.perform(delete("/api/v1/search/recent-keywords/무선 이어폰")
+        mockMvc.perform(delete("/api/v1/search/recent-keywords").param("keyword", "무선 이어폰")
                         .header("X-User-Id", memberId.toString())
                         .header("X-Internal-Api-Key", API_KEY))
                 .andExpect(status().isNoContent());
         verify(recentKeywordService).deleteKeyword(memberId, "무선 이어폰");
+        verify(recentKeywordService, org.mockito.Mockito.never()).deleteAllKeywords(any());
+    }
+
+    @Test
+    void 슬래시나_점이_든_검색어도_개별_삭제된다() throws Exception {
+        // given — 경로 변수였을 때 막히던 검색어(FE BE-13)
+        UUID memberId = UUID.randomUUID();
+
+        // when & then
+        for (String keyword : new String[]{"1/2 사이즈", "..", "."}) {
+            mockMvc.perform(delete("/api/v1/search/recent-keywords").param("keyword", keyword)
+                            .header("X-User-Id", memberId.toString())
+                            .header("X-Internal-Api-Key", API_KEY))
+                    .andExpect(status().isNoContent());
+            verify(recentKeywordService).deleteKeyword(memberId, keyword);
+        }
     }
 
     @Test

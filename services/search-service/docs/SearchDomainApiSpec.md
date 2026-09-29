@@ -17,7 +17,7 @@
 | 6 | GET | `/api/v1/search/lives` | 통합 검색 — LIVE 탭(live-service 프록시, 키워드 없음) | X (공통) | SEARCH-006 |
 | 7 | GET | `/api/v1/search/sellers` | 통합 검색 — 판매자 탭 | X (공통) | SEARCH-007 |
 | 8 | GET | `/api/v1/search/recent-keywords` | 내 최근 검색어 목록 조회 | O (구매자) | SEARCH-009 |
-| 9 | DELETE | `/api/v1/search/recent-keywords/{keyword}` | 최근 검색어 개별 삭제 | O (구매자) | SEARCH-009 |
+| 9 | DELETE | `/api/v1/search/recent-keywords?keyword=` | 최근 검색어 개별 삭제 | O (구매자) | SEARCH-009 |
 | 10 | DELETE | `/api/v1/search/recent-keywords` | 최근 검색어 전체 삭제 | O (구매자) | SEARCH-009 |
 | 11 | GET | `/api/v1/search/popular-keywords` | 인기 검색어 조회 | X (공통) | SEARCH-010 |
 
@@ -39,6 +39,7 @@ GET /api/v1/home/feed
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
+| `sort` | String | N | `POPULAR`(기본, 인기순) / `DEADLINE`(마감 임박순) / `RECENT`(신규순). 그 외 값은 400 `INVALID_INPUT` |
 | `size` | Int | N | 노출 개수(기본 20, 최대 100). null·1 미만은 20으로 처리하고 400을 내지 않음. 100 초과는 100으로 제한 |
 
 **Response Body**
@@ -65,7 +66,12 @@ GET /api/v1/home/feed
 
 **Validation / Business Rules**
 
-- 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). 현재 구현은 **인기순만** 지원한다(`participant_count DESC, wish_count DESC`). `personalized`/`sort` 쿼리는 받지 않는다.
+- 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). `personalized` 쿼리는 받지 않는다.
+- 정렬
+  - `POPULAR`: `participant_count DESC, wish_count DESC`
+  - `DEADLINE`: 마감이 지나지 않은(`funding_deadline >= 지금`) 프로젝트만, `funding_deadline ASC`. 마감이 지났는데 아직 `ONGOING`으로 색인된 프로젝트(마감 처리 반영 전)가 맨 앞에 오지 않게 하기 위해서다
+  - `RECENT`: 마감이 지나지 않은 프로젝트만, `project_created_at DESC`
+  - `DEADLINE`·`RECENT`는 같은 값이면 `projectId ASC`로 순서를 고정한다
 - `achievementRate`/`remainingDays`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다(SEARCH-013 동기화 주기에 종속, 미연동 동안 0).
 - 색인이 비어 있으면(콜드 스타트) `content: []` 반환 — 에러 아님.
 - **카드에서 상세로 이동할 때 쓰는 값은 `projectPublicId`(UUID)다.** `projectId`는 색인 내부 PK(숫자)이고
@@ -97,7 +103,10 @@ GET /api/v1/home/lives
       "thumbnailUrl": "https://cdn.fundit.com/live/thumb.png",
       "scheduledStartAt": "2026-09-25T11:00:00Z",
       "likeCount": 12,
-      "createdAt": "2026-09-20T09:00:00Z"
+      "actualStartAt": "2026-09-25T11:02:00Z",
+      "createdAt": "2026-09-20T09:00:00Z",
+      "sellerId": "7a1e0c55-2d3b-4c6f-9e8a-1b2c3d4e5f60",
+      "sellerNickname": "캠핑장인"
     }
   ]
 }
@@ -108,6 +117,7 @@ GET /api/v1/home/lives
 - live-service `GET /api/v1/lives/banner`를 그대로 프록시한다(색인 `live_documents`는 쓰지 않는다 — `SearchERD.md` 5-③).
 - 항목 스키마는 live-service `LiveSummaryResponse`와 필드 1:1이다. FE가 LIVE 메인과 같은 카드 컴포넌트를 재사용할 수 있도록 이름을 바꾸지 않는다.
   - **`title`은 없다** — LIVE에는 제목 입력 자체가 없고(요구사항정의서 6.2.4.1) 카드 문구는 `introText`다.
+  - `actualStartAt`(실제 방송 시작 시각, 시작 전이면 없음)·`sellerId`·`sellerNickname`(판매자 닉네임, live-service가 member에서 못 받으면 없음)도 live-service 값을 그대로 담는다.
   - **`viewerCount`는 이 경로에서 채워지지 않는다** — live-service가 `sort=viewerCount`(실시간 순위)일 때만 IVS에서 가져온다. `spring.jackson.default-property-inclusion: non_null`이라 위 예시처럼 필드 자체가 응답에서 빠진다(프론트는 `undefined`로 받는다).
 - 진행 중 LIVE가 없으면 `content: []`(에러 아님). 영역 미노출은 프론트가 처리한다.
 - **live-service 장애 시에도 200 + `content: []`를 반환한다** — 홈은 피드와 LIVE가 한 화면이라 LIVE 하나로 홈 전체를 503으로 내리지 않는다. 검색 LIVE 탭(#6)은 반대로 503을 그대로 올린다.
@@ -213,6 +223,8 @@ GET /api/v1/search/projects
 **Validation / Business Rules**
 
 - `keyword` 공백/누락 → `CommonErrorCode.INVALID_INPUT`(400).
+- 매칭: 제목·판매자명 **부분 유사도**(`word_similarity(keyword, 필드) > 0.3`, pg_trgm). 제목 안에 검색어가 들어 있으면 긴 제목이어도 걸리고("… 데일리 무선청소기" ← "청소기"), "후라이팬"↔"프라이팬" 정도의 오탈자도 허용한다.
+  - **전제: search DB 로케일이 UTF-8이어야 한다.** `LC_CTYPE=C`면 한글이 trigram으로 안 쪼개져 한글 검색어는 항상 0건이다.
 - 검색 실행 시 `search_query_logs`에 `(memberId 또는 null, keyword, resultCount)` 기록(SEARCH-010 소스). 검색 응답을 먼저 반환하고, 로그는 Spring `ApplicationEvent` + `@Async` 핸들러가 적재한다. 로그 저장 실패는 검색 API에 전파되지 않는다.
 - `X-User-Id` 헤더가 있으면(로그인) 같은 트랜잭션 경계와 무관하게 `recent_search_keywords`에 upsert(SEARCH-008) — 이 저장이 실패해도 검색 응답 자체는 정상 반환(부가 기능 실패가 주 기능을 막지 않음).
 - 결과 0건 → `content: []`("검색 결과가 없습니다" 안내는 프론트 처리).
@@ -270,6 +282,7 @@ GET /api/v1/search/sellers
 **Validation / Business Rules**
 
 - `keyword` 공백/누락 → `CommonErrorCode.INVALID_INPUT`(400).
+- 매칭은 #5와 같은 판매자명 부분 유사도(`word_similarity > 0.3`), 유사도 높은 순. UTF-8 로케일 전제도 같다.
 - `seller_summary` 뷰 기준 조회, 사업자 개인정보(연락처 등)는 응답에 포함하지 않음(S9).
 - 검색 실행 시 #5와 같이 `search_query_logs`에 비동기 기록한다(최근검색어 자동 저장은 하지 않음).
 - 판매자 상세는 이 응답에 없다 — 클라이언트는 `sellerId`로 project-service `GET /api/v1/sellers/{sellerId}`(PROJECT-021)를 호출해 상세를 가져온다[가정].
@@ -306,12 +319,12 @@ GET /api/v1/search/recent-keywords
 ### 9. 최근 검색어 개별 삭제
 
 ```
-DELETE /api/v1/search/recent-keywords/{keyword}
+DELETE /api/v1/search/recent-keywords?keyword=무선 이어폰
 ```
 
 **Auth Required**: O (구매자)
 
-**Request**: Path Parameter: `keyword`
+**Request**: Query Parameter: `keyword`(필수 — 없으면 10번 전체 삭제로 간다)
 
 **Response Body**: 204 No Content
 
@@ -319,6 +332,7 @@ DELETE /api/v1/search/recent-keywords/{keyword}
 
 - **Idempotent.** 존재하지 않는 키워드 삭제 요청도 204(찜 해제와 동일 원칙, member-service MEMBER-005 참고).
 - 본인 소유 행만 삭제(S4) — `member_id`는 항상 `@LoginUser`에서 주입.
+- **검색어는 쿼리 파라미터로 받는다(#188, FE BE-13).** 경로 변수 방식(`/recent-keywords/{keyword}`)은 `/`가 든 검색어를 Tomcat이 거절하고 `.`·`..`는 브라우저가 경로를 바꿔 버려 없앴다. 이전 경로로 부르면 404다(FE 동시 전환 필요).
 
 ---
 

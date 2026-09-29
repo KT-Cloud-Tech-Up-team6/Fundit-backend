@@ -3,6 +3,7 @@ package com.fundit.search.application.home;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentJpaRepository;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentStatus;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectCardProjection;
+import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -10,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -34,7 +36,7 @@ class HomeFeedQueryServiceUnitTest {
                 eq(ProjectDocumentStatus.ONGOING), any())).thenReturn(List.<ProjectCardProjection>of());
 
         // when
-        homeFeedQueryService.getHomeFeed(null);
+        homeFeedQueryService.getHomeFeed(null, null);
 
         // then
         var captor = ArgumentCaptor.forClass(Pageable.class);
@@ -51,7 +53,7 @@ class HomeFeedQueryServiceUnitTest {
                 eq(ProjectDocumentStatus.ONGOING), any())).thenReturn(List.<ProjectCardProjection>of());
 
         // when
-        homeFeedQueryService.getHomeFeed(5);
+        homeFeedQueryService.getHomeFeed(null, 5);
 
         // then
         var captor = ArgumentCaptor.forClass(Pageable.class);
@@ -68,7 +70,7 @@ class HomeFeedQueryServiceUnitTest {
                 eq(ProjectDocumentStatus.ONGOING), any())).thenReturn(List.<ProjectCardProjection>of());
 
         // when
-        homeFeedQueryService.getHomeFeed(500);
+        homeFeedQueryService.getHomeFeed(null, 500);
 
         // then
         var captor = ArgumentCaptor.forClass(Pageable.class);
@@ -76,5 +78,24 @@ class HomeFeedQueryServiceUnitTest {
                 .findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
                         eq(ProjectDocumentStatus.ONGOING), captor.capture());
         assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+    }
+
+    @Test
+    void 마감순이면_마감_지나지_않은_것을_마감일_id_순으로_조회한다() {
+        // given
+        when(projectDocumentJpaRepository.findByStatusAndDeletedAtIsNullAndFundingDeadlineGreaterThanEqual(
+                eq(ProjectDocumentStatus.ONGOING), any(), any())).thenReturn(List.<ProjectCardProjection>of());
+
+        // when
+        homeFeedQueryService.getHomeFeed(ProjectSortType.DEADLINE, null);
+
+        // then
+        var captor = ArgumentCaptor.forClass(Pageable.class);
+        org.mockito.Mockito.verify(projectDocumentJpaRepository)
+                .findByStatusAndDeletedAtIsNullAndFundingDeadlineGreaterThanEqual(
+                        eq(ProjectDocumentStatus.ONGOING), any(), captor.capture());
+        assertThat(captor.getValue().getSort()).containsExactly(
+                Sort.Order.asc("fundingDeadline"), Sort.Order.asc("projectId"));
+        assertThat(captor.getValue().getPageSize()).isEqualTo(20);
     }
 }

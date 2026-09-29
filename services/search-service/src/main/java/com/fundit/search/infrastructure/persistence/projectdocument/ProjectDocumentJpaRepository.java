@@ -14,12 +14,16 @@ import java.util.UUID;
 
 public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocumentJpaEntity, Long> {
 
-    /**
-     * SEARCH-001 홈피드. 인기순(participant_count DESC, wish_count DESC)만 지원한다 — API 계약에
-     * sort 파라미터가 없어 신규순 대안은 노출하지 않는다[가정, SearchDomainFunctionalSpec.md SEARCH-001 참고].
-     */
+    /** SEARCH-001 홈피드 기본(인기순, participant_count DESC, wish_count DESC). */
     List<ProjectCardProjection> findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
             ProjectDocumentStatus status, Pageable pageable);
+
+    /**
+     * SEARCH-001 홈피드 마감순·신규순. 마감이 지났는데 아직 ONGOING으로 색인된 행(마감 이벤트 반영 전)이
+     * 마감순 맨 앞을 차지하지 않도록 {@code fundingDeadline >= now}로 거른다. 정렬은 Pageable의 Sort를 쓴다.
+     */
+    List<ProjectCardProjection> findByStatusAndDeletedAtIsNullAndFundingDeadlineGreaterThanEqual(
+            ProjectDocumentStatus status, Instant now, Pageable pageable);
 
     /** SEARCH-004. categoryMinor 미지정 시 대분류 전체 대상. 정렬은 Pageable에 담긴 Sort(ProjectSortType)를 그대로 쓴다. */
     Page<ProjectCardProjection> findByStatusAndCategoryMajorAndDeletedAtIsNull(
@@ -33,15 +37,20 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
      * 바인딩 변수로만 전달). 쿼리가 집계 루트(p)를 그대로 select하므로 Pageable의 Sort가 반환 타입인
      * ProjectCardProjection에 정상 적용된다(persistence-convention.md §3).
      *
-     * <p>유사도 임계값 0.1은 조정 가능한 잠정값이다 — 정확도 이슈가 실제로 발생하면
-     * Elasticsearch 도입을 재검토한다(SearchERD.md 설계 결정 1번).
+     * <p>{@code similarity}가 아니라 {@code word_similarity(검색어, 제목)}를 쓴다 — similarity는 제목 전체와
+     * 비교해서 긴 제목 안에 검색어가 그대로 있어도("… 데일리 무선청소기"에서 "청소기") 점수가 낮게 나온다.
+     * word_similarity는 제목 안에서 가장 비슷한 구간과 비교하므로 포함되면 1.0에 가깝다.
+     * 임계값 0.3은 오탈자 허용("후라이팬"→"프라이팬")과 무관한 결과 차단의 절충이고, 이 값만 바꿔 조정한다.
+     *
+     * <p>전제: DB 로케일이 UTF-8이어야 한다. {@code LC_CTYPE=C}면 한글이 trigram 단어 문자로 안 잡혀
+     * 한글 검색어는 항상 0점이다. 정확도 이슈가 계속되면 Elasticsearch 도입을 재검토한다(SearchERD.md 설계 결정 1번).
      */
     @Query("""
             SELECT p FROM ProjectDocumentJpaEntity p
             WHERE p.deletedAt IS NULL
               AND p.status IN :statuses
-              AND (function('similarity', p.title, :keyword) > 0.1
-                   OR function('similarity', p.sellerDisplayName, :keyword) > 0.1)
+              AND (function('word_similarity', :keyword, p.title) > 0.3
+                   OR function('word_similarity', :keyword, p.sellerDisplayName) > 0.3)
             """)
     Page<ProjectCardProjection> searchByKeyword(
             @Param("keyword") String keyword, @Param("statuses") List<ProjectDocumentStatus> statuses, Pageable pageable);

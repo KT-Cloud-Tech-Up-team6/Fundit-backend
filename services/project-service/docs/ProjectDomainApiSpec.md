@@ -269,7 +269,7 @@ POST /api/v1/projects/{projectId}/submit
 
 **Validation / Business Rules**
 
-- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
+- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
 - 위 항목이 모두 채워진 `DRAFT`만 **관리자 승인 없이 바로** `status=ONGOING`으로 전환. 미완료 시
   `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
 - 전환과 같은 트랜잭션에서 `funding_start_at`/`funding_deadline`을 확정(모금기간 기본값 30일, 코드 상수)하고
@@ -402,6 +402,7 @@ POST /api/v1/projects/{projectId}/rewards
 **Validation / Business Rules**
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
+- **길이 제한**(DB 컬럼과 같음, 넘으면 `400 INVALID_INPUT`): `name` 100자, 옵션 `groupName`·`values[]` 각 50자. 수정(PATCH)도 같다(#188, 이전엔 DB 오류로 500).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`) — 위반 시 `400 INVALID_REWARD_QUANTITY`.
 - **무제한 수량 표기**: `quantity: -1`은 "무제한"을 뜻하는 sentinel로도 허용한다 — 서버가 `isLimited:false` + `quantity:null`(canonical)로 정규화해서 저장·응답한다. 정식 계약은 여전히 `isLimited:false` + `quantity` 생략(또는 `null`)이며, `-1`은 별칭일 뿐이다. `isLimited:true`와 `quantity:-1`을 함께 보내면 모순이라 정규화하지 않고 위 규칙대로 `400 INVALID_REWARD_QUANTITY`로 거부한다.
 - **배송비/예상 발송일**(둘 다 선택값, 미전달 시 `null`): `shippingFee`는 리워드별 배송비(0 이상, 0=무료배송), `estimatedDeliveryDays`는 "펀딩 종료 후 N일" 상대값(0 이상)이다. 값이 있는데 음수면 `400 INVALID_REWARD_SHIPPING_INFO`. **주의**: 배송비가 리워드별인지 프로젝트 공통인지, 예상 발송일이 상대값인지 고정 일자인지는 아직 기획 미확정이라 스키마가 바뀔 수 있다(`ProjectDomainPendingWork.md` #1 참고).
@@ -962,7 +963,7 @@ GET /api/v1/projects/{projectId}/preview
 - 본인 소유 프로젝트만 미리보기 접근 가능, 타 판매자 → `403 FORBIDDEN`(S4).
 - 응답 필드는 `projectId`/`title`/`status`/`goalAmount`/`coverImageUrl`/`introContent`/`fundingStatus`/`hasLiveVerification`/`seller`/`categoryMajor`/`categoryMinor`/`businessType`/`pageSummary`다(`pageSummary`는 #26과 같다 — `DRAFT`는 요약 대상이 아니라 없다). **rewards는 포함하지 않는다** — 리워드는 #14-1(판매자용 목록)로 별도 조회.
 - 클라이언트가 화면을 조립하려면 리워드(#14-1)·환불정책(#28)·LIVE검증(#32) 등 다른 GET을 조합한다. 스토리 본문(`introContent`/`coverImageUrl`)은 이 응답에 포함되며, 쓰기는 #8 PATCH.
-- `seller.displayName`은 `SellerProfileClient`가 `NoopSellerProfileClient`라 **항상 `null`**. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
+- `seller.displayName`은 member 닉네임(`SellerProfileClient` → member `/internal/v1/members/nicknames`, #188). member 조회가 실패하면 이 필드만 `null`이고 응답은 정상이다. `fundingStatus`는 `funding_status_snapshots`를 읽으며 행이 없으면 0/null.
 
 ---
 
@@ -1006,7 +1007,7 @@ GET /api/v1/projects/{projectId}
 - `status`가 `DRAFT`인 미공개 프로젝트 조회 시 `404 NOT_FOUND`(본인이면 미리보기 API 사용).
 - 응답은 `ProjectDetailResponse`만 반환한다 — rewards는 포함하지 않으며, 클라이언트는 #14(리워드)·#28(환불)·#32(LIVE검증)로 조합한다. 대표이미지(`coverImageUrl`)·소개 본문(`introContent`)은 이 응답에 포함된다(쓰기는 #8 PATCH). `businessType`은 #4 저장값을 그대로 노출해 재조회 시 기존 선택을 복원할 수 있게 한다(`GENERAL`/`SOLE`/`CORP`, 미입력이면 `null`).
 - `fundingStatus`는 PROJECT-015와 같은 `funding_status_snapshots` 읽기 모델이다. Kafka 펀딩집계 컨슈머가 없어 스냅샷이 비어 있으면 금액/달성률/참여자수는 0이다.
-- `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 Noop 클라이언트라 `null`.
+- `hasLiveVerification`은 `live_verifications`(미삭제) 존재 여부. `seller.displayName`은 member 닉네임(조회 실패 시 `null`).
 - **[2026-09-18 추가]** `categoryMajor`/`categoryMinor`는 order-service의 CATEGORY 스코프 쿠폰 매칭(ORDER-010)이 이 값을 조회해 쓴다 — 공개 계약이니 필드명을 바꾸면 그쪽 연동이 깨진다.
 - **[#169 추가] `pageSummary`** — 상세 상단 AI 요약(WHAT: 무엇을, WHY: 왜).
   - `SUCCEEDED`: 현재 내용으로 만든 `sections` 2개(`headline` ≤120자, `description` ≤400자, 일반 텍스트).
@@ -1232,7 +1233,7 @@ GET /api/v1/projects/{projectId}/funding-status
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 조회 가능(S4).
-- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). `currentAmount`/`achievementRate`/`participantCount`는 아직 별도 집계 이벤트가 없어 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
+- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). 같은 이벤트로 `currentAmount`(리워드 단위 합)·`achievementRate`와 `participantCount`(참여 회원 수, 중복 제외 — #180 이후 order가 싣는다. 필드가 없는 메시지면 기존 값 유지)도 갱신한다. 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
 - `optionValueId`가 null이면 옵션 없는 리워드 합계, 있으면 해당 옵션값 한정 통계다.
 - `openNotifyCount`는 `project_open_notify_requests` COUNT, `wishCount`는 `project_wish_stats` 읽기 모델(아래 #34와 동일). `remainingDays`는 `funding_deadline` 기준 계산.
 
@@ -1318,7 +1319,7 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 **Validation / Business Rules**
 
 - 소프트 삭제(`deleted_at`)된 프로젝트는 결과에서 빠진다(요청한 `ids`보다 응답 배열이 짧을 수 있다) — 404가 아니라 조용히 생략.
-- `sellerDisplayName`은 `SellerProfileClient`로 채우는데, member-service 연동 전(`NoopSellerProfileClient`)이라 **현재는 항상 null**이다(공개 상세 `GET /api/v1/projects/{projectId}`의 `seller.displayName`과 동일한 제약).
+- `sellerDisplayName`은 `SellerProfileClient`(member 닉네임 일괄 조회, #188)로 채운다. 요청 한 번에 member를 1회만 호출하고, 조회가 실패하면 이 필드만 `null`이다.
 - 목록 화면용 최소 필드만 제공한다 — 펀딩 현황·라이브 인증 여부 등은 포함하지 않는다(필요하면 공개 상세 API를 쓸 것).
 
 ---
@@ -1339,7 +1340,7 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 
 ### `project.approved.v1` / `project.updated.v1` payload
 
-평평한 JSON(봉투 없음). `sellerDisplayName`은 `NoopSellerProfileClient`라 **현재 항상 `null`**.
+평평한 JSON(봉투 없음). `sellerDisplayName`은 member 닉네임(#188, 조회 실패 시 `null`).
 
 ```json
 {

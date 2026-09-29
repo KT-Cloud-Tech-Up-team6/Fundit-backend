@@ -5,6 +5,7 @@ import com.fundit.search.application.home.HomeFeedQueryService;
 import com.fundit.search.application.live.LiveCardClient;
 import com.fundit.search.application.live.LiveCardClient.LiveCard;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectCardProjection;
+import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import com.fundit.search.presentation.dto.ContentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +26,10 @@ public class HomeController {
     private final LiveCardClient liveCardClient;
 
     @GetMapping("/feed")
-    public ContentResponse<ProjectCardProjection> getFeed(@RequestParam(required = false) Integer size) {
-        return new ContentResponse<>(homeFeedQueryService.getHomeFeed(size));
+    public ContentResponse<ProjectCardProjection> getFeed(
+            @RequestParam(defaultValue = "POPULAR") ProjectSortType sort,
+            @RequestParam(required = false) Integer size) {
+        return new ContentResponse<>(homeFeedQueryService.getHomeFeed(sort, size));
     }
 
     /**

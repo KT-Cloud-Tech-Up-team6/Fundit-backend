@@ -17,6 +17,12 @@ media:
 internal-api:
   key: ${INTERNAL_API_KEY}
 
+project:
+  integration:
+    member-service:
+      # 판매자 표시명(닉네임) 일괄 조회. 틀려도 화면은 정상이고 판매자명만 빠진다.
+      base-url: ${MEMBER_SERVICE_BASE_URL:http://member-service:8080}
+
 # order-service 재고 조회(GET /api/v1/inventories/{rewardId})는 이미 배선 완료 — dev는 실제 호출로 확인한다.
 order:
   integration:

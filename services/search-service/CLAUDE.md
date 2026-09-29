@@ -18,7 +18,7 @@
 
 남은 것:
 - **SEARCH-013(펀딩 집계 동기화)은 여전히 막혀 있습니다.** project-service PROJECT-015가 참고하는 펀딩 집계 이벤트 자체가 미확정이라(`project_documents.current_amount`/`achievement_rate`/`participant_count`), 아직 착수할 수 없습니다.
-- **project-service의 `SellerProfileClient`가 아직 Noop 구현체입니다.** member-service 동기 연동 전이라 `project_documents.seller_display_name`은 항상 `null`로 색인됩니다 — member-service 연동이 붙으면 자동으로 채워집니다(코드 변경 불필요, `SellerProfileClient` 구현체 교체만 필요).
+- **판매자명(`project_documents.seller_display_name`)은 project-service가 member 닉네임으로 채워 보냅니다(#188).** 그 전에 색인된 행은 `project.updated.v1`이 다시 올 때까지 `null`일 수 있습니다.
 - **`project.updated.v1`은 `updateBasicInfo`/`updateStory` 호출 시 프로젝트가 이미 공개(`isPublic()`) 상태일 때만 발행됩니다.** DRAFT/PENDING_REVIEW 단계의 수정은 애초에 색인에 없는 프로젝트라 발행하지 않습니다.
 
 ## 로컬 실행
@@ -63,6 +63,7 @@ cd services/search-service && docker compose up -d
 - **LIVE만 동기 호출이다(`LiveCardClient`).** `GET /api/v1/search/lives`는 live-service `GET /api/v1/lives`를, `GET /api/v1/home/lives`는 `GET /api/v1/lives/banner`를 프록시한다. 응답은 live-service `LiveSummaryResponse`와 필드 1:1로 미러링한다 — 이름을 바꾸면 FE가 LIVE 메인과 같은 카드 컴포넌트를 못 쓴다(`title`은 없고 카드 문구는 `introText`). 홈은 live-service 장애 시 빈 목록으로 떨어뜨리고, 검색 LIVE 탭은 503을 그대로 올린다.
 - **원본을 절대 직접 쓰지 않는다.** 모든 갱신은 이벤트 구독(또는 SEARCH-015 내부 배치)을 통해서만 일어난다 — DB-per-service 원칙, `project_documents`는 project-service 원본의 최종적 일관성(eventual consistency) 사본이다.
 - **검색은 PostgreSQL `pg_trgm`으로 시작한다(Elasticsearch 도입 안 함)[가정].** 이 레포 전체가 Postgres 단일 스택이라 새 인프라를 들이지 않는다. 정확도·트래픽 이슈가 실제로 나오면 재검토 대상.
+  - 매칭은 `word_similarity(keyword, 필드) > 0.3`(제목 안 부분일치). `similarity`로 되돌리면 긴 제목 속 검색어가 안 걸린다(#188). **DB 로케일이 UTF-8이어야 한다** — `LC_CTYPE=C`면 한글 검색이 항상 0건이다. `ProjectDocumentJpaRepositoryIntegrationTest`가 이 전제를 단언한다
 - **`project_display_code`(예: `F0000123`)는 컬럼으로 저장하지 않는다.** project-service와 동일한 생성 규칙(`'F' || LPAD(id::text, 7, '0')`)을 API 응답 직렬화 시점에 `project_id`로부터 계산한다.
 - **인기순 정렬은 `participant_count DESC, wish_count DESC`로 가정한다.** PM 확인 전 기본값 — `SearchERD.md` 5-⑥.
 - **최근 검색어는 로그인 회원 전용으로 가정한다.** 비로그인 사용자의 최근 검색어는 클라이언트 로컬 저장에 맡긴다고 가정 — `SearchERD.md` 5-⑦, PM 확인 필요.
@@ -96,4 +97,4 @@ cd services/search-service && docker compose up -d
 4. 인기순 정렬 산출식, 최근/인기 검색어 정책값.
 5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
 6. AI 개인화 추천(SEARCH-001 맞춤 추천 부분) 소유 서비스·구현 방식 확인.
-7. project-service `SellerProfileClient`가 member-service 실제 연동 전 Noop이라 `seller_display_name`이 계속 `null`로 색인된다 — member-service 연동 완료 시 자동 해결.
+7. ~~project-service `SellerProfileClient` Noop~~ — #188에서 member 닉네임 연동으로 해결.

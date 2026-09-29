@@ -177,7 +177,7 @@ class ProjectStatsServiceUnitTest {
         when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        projectStatsService.applyRewardStats(publicId, stats);
+        projectStatsService.applyRewardStats(publicId, stats, null);
 
         // then
         var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
@@ -199,13 +199,50 @@ class ProjectStatsServiceUnitTest {
         when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        projectStatsService.applyRewardStats(publicId, stats);
+        projectStatsService.applyRewardStats(publicId, stats, null);
 
         // then
         var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
         verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentAmount()).isEqualTo(300_000L);
         assertThat(captor.getValue().getAchievementRate()).isEqualTo(30);
+    }
+
+    @Test
+    void 참여자_수가_오면_스냅샷에_반영한다() {
+        // given — order가 참여 회원 수(중복 제외)를 실어 보낸다(#180)
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId, 1_000_000L)));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.empty());
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, null, 2, 200_000L)), 7);
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getParticipantCount()).isEqualTo(7);
+    }
+
+    @Test
+    void 참여자_수가_없으면_기존_값을_유지한다() {
+        // given — 필드가 없던 구버전 order 메시지는 null로 들어온다
+        UUID publicId = UUID.randomUUID();
+        when(projectRepository.findByPublicId(publicId))
+                .thenReturn(Optional.of(ownedProject(UUID.randomUUID(), publicId, 1_000_000L)));
+        when(fundingStatusSnapshotJpaRepository.findById(1L)).thenReturn(Optional.of(FundingStatusSnapshotJpaEntity.builder()
+                .projectId(1L).currentAmount(0L).achievementRate(0).participantCount(5).build()));
+        when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, null, 2, 200_000L)), null);
+
+        // then
+        var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
+        verify(fundingStatusSnapshotJpaRepository).save(captor.capture());
+        assertThat(captor.getValue().getParticipantCount()).isEqualTo(5);
     }
 
     @Test
@@ -222,7 +259,7 @@ class ProjectStatsServiceUnitTest {
         when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        projectStatsService.applyRewardStats(publicId, stats);
+        projectStatsService.applyRewardStats(publicId, stats, null);
 
         // then
         var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
@@ -240,7 +277,7 @@ class ProjectStatsServiceUnitTest {
         when(fundingStatusSnapshotJpaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, null, 2, 200_000L)));
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, null, 2, 200_000L)), null);
 
         // then
         var captor = org.mockito.ArgumentCaptor.forClass(FundingStatusSnapshotJpaEntity.class);
@@ -256,7 +293,7 @@ class ProjectStatsServiceUnitTest {
         when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.empty());
 
         // when
-        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, 100L, 2, 20_000L)));
+        projectStatsService.applyRewardStats(publicId, List.of(new RewardStat(1L, 100L, 2, 20_000L)), null);
 
         // then
         verify(fundingStatusSnapshotJpaRepository, never()).save(any());

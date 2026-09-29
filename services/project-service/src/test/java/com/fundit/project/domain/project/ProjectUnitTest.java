@@ -88,6 +88,18 @@ class ProjectUnitTest {
             // then
             assertThat(project.hasCompletedBasicInfo()).isFalse();
         }
+
+        @Test
+        void 제목이_공백뿐이면_미완료로_판단한다() {
+            // given — 임시저장은 빈 제목도 받는다. null만 보면 빈 제목으로 공개됐다(FE BE-12)
+            Project project = draftProject();
+
+            // when
+            project.updateBasicInfo(BusinessType.SOLE, "테크·가전", "생활가전", "   ", 1_000_000L);
+
+            // then
+            assertThat(project.hasCompletedBasicInfo()).isFalse();
+        }
     }
 
     @Nested

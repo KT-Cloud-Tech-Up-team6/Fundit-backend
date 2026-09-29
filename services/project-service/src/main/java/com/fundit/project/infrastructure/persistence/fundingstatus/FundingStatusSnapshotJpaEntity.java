@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 단순 애그리거트 — order-service {@code project.funding-reward-stats-updated.v1} 를 구독해 채우는 읽기 모델.
  * reward_stats 를 교체하면서 그 금액 합으로 currentAmount·achievementRate 도 같이 갱신한다.
- * participantCount 만 아직 0이다 — 이벤트에 참여자 수를 셀 수 있는 필드가 없다.
+ * participantCount 는 이벤트의 참여 회원 수(order가 중복 제외로 셈)를 그대로 옮긴다.
  */
 @Getter
 @Entity
@@ -58,5 +58,9 @@ public class FundingStatusSnapshotJpaEntity {
     public void applyFundingProgress(long currentAmount, int achievementRate) {
         this.currentAmount = currentAmount;
         this.achievementRate = achievementRate;
+    }
+
+    public void applyParticipantCount(int participantCount) {
+        this.participantCount = participantCount;
     }
 }

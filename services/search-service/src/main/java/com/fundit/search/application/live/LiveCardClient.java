@@ -34,6 +34,7 @@ public interface LiveCardClient {
      * {@code sort=viewerCount}(실시간 순위)일 때만 채우므로 여기서는 항상 null이다.
      */
     record LiveCard(UUID liveId, String introText, String status, UUID projectId, String thumbnailUrl,
-                    Instant scheduledStartAt, int likeCount, Instant createdAt, Integer viewerCount) {
+                    Instant scheduledStartAt, int likeCount, Instant actualStartAt, Instant createdAt,
+                    Integer viewerCount, UUID sellerId, String sellerNickname) {
     }
 }

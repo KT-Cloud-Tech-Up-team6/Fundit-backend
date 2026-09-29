@@ -1,6 +1,7 @@
 package com.fundit.project.presentation.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,7 +11,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 
 public record RewardCreateRequest(
-        @NotBlank String name,
+        // DB 컬럼 길이(VARCHAR 100)와 맞춘다 — 넘으면 DB 오류로 500이 났다(FE BE-11).
+        @NotBlank @Size(max = 100) String name,
         @NotBlank String description,
         String imageUrl,
         @NotNull @PositiveOrZero Long price,

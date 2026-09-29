@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** 내부 전용 조회 — fulfillment-service/order-service가 호출하는 최소 필드 조회. */
@@ -37,9 +38,13 @@ public class ProjectInternalQueryService {
         if (publicIds.isEmpty()) {
             return List.of();
         }
-        return projectJpaRepository.findSummariesByPublicIdIn(publicIds).stream()
+        var projections = projectJpaRepository.findSummariesByPublicIdIn(publicIds);
+        // 판매자명은 한 번에 모아 조회한다 — 행마다 부르면 주문 목록 한 페이지가 member를 N번 호출한다.
+        Map<UUID, String> displayNames = sellerProfileClient.getDisplayNames(
+                projections.stream().map(p -> p.getSellerId()).toList());
+        return projections.stream()
                 .map(p -> new ProjectSummarySnapshot(p.getPublicId(), p.getTitle(), p.getThumbnailUrl(),
-                        sellerProfileClient.getDisplayName(p.getSellerId()).orElse(null)))
+                        displayNames.get(p.getSellerId())))
                 .toList();
     }
 
