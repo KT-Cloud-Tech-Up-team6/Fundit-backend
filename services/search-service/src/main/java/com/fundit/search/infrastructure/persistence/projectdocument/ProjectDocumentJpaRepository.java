@@ -37,15 +37,20 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
      * 바인딩 변수로만 전달). 쿼리가 집계 루트(p)를 그대로 select하므로 Pageable의 Sort가 반환 타입인
      * ProjectCardProjection에 정상 적용된다(persistence-convention.md §3).
      *
-     * <p>유사도 임계값 0.1은 조정 가능한 잠정값이다 — 정확도 이슈가 실제로 발생하면
-     * Elasticsearch 도입을 재검토한다(SearchERD.md 설계 결정 1번).
+     * <p>{@code similarity}가 아니라 {@code word_similarity(검색어, 제목)}를 쓴다 — similarity는 제목 전체와
+     * 비교해서 긴 제목 안에 검색어가 그대로 있어도("… 데일리 무선청소기"에서 "청소기") 점수가 낮게 나온다.
+     * word_similarity는 제목 안에서 가장 비슷한 구간과 비교하므로 포함되면 1.0에 가깝다.
+     * 임계값 0.3은 오탈자 허용("후라이팬"→"프라이팬")과 무관한 결과 차단의 절충이고, 이 값만 바꿔 조정한다.
+     *
+     * <p>전제: DB 로케일이 UTF-8이어야 한다. {@code LC_CTYPE=C}면 한글이 trigram 단어 문자로 안 잡혀
+     * 한글 검색어는 항상 0점이다. 정확도 이슈가 계속되면 Elasticsearch 도입을 재검토한다(SearchERD.md 설계 결정 1번).
      */
     @Query("""
             SELECT p FROM ProjectDocumentJpaEntity p
             WHERE p.deletedAt IS NULL
               AND p.status IN :statuses
-              AND (function('similarity', p.title, :keyword) > 0.1
-                   OR function('similarity', p.sellerDisplayName, :keyword) > 0.1)
+              AND (function('word_similarity', :keyword, p.title) > 0.3
+                   OR function('word_similarity', :keyword, p.sellerDisplayName) > 0.3)
             """)
     Page<ProjectCardProjection> searchByKeyword(
             @Param("keyword") String keyword, @Param("statuses") List<ProjectDocumentStatus> statuses, Pageable pageable);

@@ -2,7 +2,10 @@ package com.fundit.search.infrastructure.persistence.projectdocument;
 
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectCardProjection;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -39,6 +42,9 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
     @Autowired
     private ProjectDocumentJpaRepository projectDocumentJpaRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private ProjectDocumentJpaEntity project(long id, String title, ProjectDocumentStatus status, int participantCount) {
         return project(id, title, "판매자" + id, status, participantCount);
@@ -136,5 +142,57 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
         // then
         assertThat(result).extracting(ProjectCardProjection::getProjectId).containsExactly(12L, 11L);
+    }
+
+    @Test
+    void 테스트_DB는_UTF8_로케일이다() {
+        // 아래 한글 부분일치 테스트의 전제. LC_CTYPE=C인 DB에서는 한글 검색어가 항상 0점이라 검색되지 않는다
+        String ctype = (String) entityManager.createNativeQuery(
+                "SELECT datctype FROM pg_database WHERE datname = current_database()").getSingleResult();
+
+        assertThat(ctype.toLowerCase()).containsAnyOf("utf8", "utf-8");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"무선청소기", "청소기", "무선 청소기"})
+    void 긴_한글_제목_안에_검색어가_있으면_검색된다(String keyword) {
+        // given — 제목 전체와 비교하는 similarity로는 잡히지 않던 경우
+        projectDocumentJpaRepository.save(project(21L, "[청소가 가벼워진다] 꺼내는 순간 쓱! 데일리 무선청소기",
+                ProjectDocumentStatus.ONGOING, 0));
+
+        // when
+        var result = projectDocumentJpaRepository.searchByKeyword(
+                keyword, List.of(ProjectDocumentStatus.ONGOING), PageRequest.of(0, 20));
+
+        // then
+        assertThat(result.getContent()).extracting(ProjectCardProjection::getProjectId).containsExactly(21L);
+    }
+
+    @Test
+    void 관계없는_검색어는_걸리지_않는다() {
+        // given
+        projectDocumentJpaRepository.save(project(22L, "[청소가 가벼워진다] 꺼내는 순간 쓱! 데일리 무선청소기",
+                ProjectDocumentStatus.ONGOING, 0));
+
+        // when
+        var result = projectDocumentJpaRepository.searchByKeyword(
+                "캠핑의자", List.of(ProjectDocumentStatus.ONGOING), PageRequest.of(0, 20));
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    void 판매자명으로도_검색된다() {
+        // given
+        projectDocumentJpaRepository.save(project(23L, "데일리 무선청소기", "쓱쓱생활연구소",
+                ProjectDocumentStatus.ONGOING, 0));
+
+        // when
+        var result = projectDocumentJpaRepository.searchByKeyword(
+                "생활연구소", List.of(ProjectDocumentStatus.ONGOING), PageRequest.of(0, 20));
+
+        // then
+        assertThat(result.getContent()).extracting(ProjectCardProjection::getProjectId).containsExactly(23L);
     }
 }

@@ -223,6 +223,8 @@ GET /api/v1/search/projects
 **Validation / Business Rules**
 
 - `keyword` 공백/누락 → `CommonErrorCode.INVALID_INPUT`(400).
+- 매칭: 제목·판매자명 **부분 유사도**(`word_similarity(keyword, 필드) > 0.3`, pg_trgm). 제목 안에 검색어가 들어 있으면 긴 제목이어도 걸리고("… 데일리 무선청소기" ← "청소기"), "후라이팬"↔"프라이팬" 정도의 오탈자도 허용한다.
+  - **전제: search DB 로케일이 UTF-8이어야 한다.** `LC_CTYPE=C`면 한글이 trigram으로 안 쪼개져 한글 검색어는 항상 0건이다.
 - 검색 실행 시 `search_query_logs`에 `(memberId 또는 null, keyword, resultCount)` 기록(SEARCH-010 소스). 검색 응답을 먼저 반환하고, 로그는 Spring `ApplicationEvent` + `@Async` 핸들러가 적재한다. 로그 저장 실패는 검색 API에 전파되지 않는다.
 - `X-User-Id` 헤더가 있으면(로그인) 같은 트랜잭션 경계와 무관하게 `recent_search_keywords`에 upsert(SEARCH-008) — 이 저장이 실패해도 검색 응답 자체는 정상 반환(부가 기능 실패가 주 기능을 막지 않음).
 - 결과 0건 → `content: []`("검색 결과가 없습니다" 안내는 프론트 처리).
@@ -280,6 +282,7 @@ GET /api/v1/search/sellers
 **Validation / Business Rules**
 
 - `keyword` 공백/누락 → `CommonErrorCode.INVALID_INPUT`(400).
+- 매칭은 #5와 같은 판매자명 부분 유사도(`word_similarity > 0.3`), 유사도 높은 순. UTF-8 로케일 전제도 같다.
 - `seller_summary` 뷰 기준 조회, 사업자 개인정보(연락처 등)는 응답에 포함하지 않음(S9).
 - 검색 실행 시 #5와 같이 `search_query_logs`에 비동기 기록한다(최근검색어 자동 저장은 하지 않음).
 - 판매자 상세는 이 응답에 없다 — 클라이언트는 `sellerId`로 project-service `GET /api/v1/sellers/{sellerId}`(PROJECT-021)를 호출해 상세를 가져온다[가정].
