@@ -25,8 +25,11 @@ class LiveHighlightUnitTest {
 
         @Test
         void 완료된_마커는_바로_공개된다() {
-            // given & when — 챕터를 공개할 판매자 화면이 없어 비공개면 다시보기 구간 탐색이 비어 있다
-            LiveHighlight highlight = marker(GenerationStatus.COMPLETED);
+            // given — 챕터를 공개할 판매자 화면이 없어 비공개면 다시보기 구간 탐색이 비어 있다
+            GenerationStatus status = GenerationStatus.COMPLETED;
+
+            // when
+            LiveHighlight highlight = marker(status);
 
             // then
             assertThat(highlight.isPublic()).isTrue();
@@ -34,8 +37,11 @@ class LiveHighlightUnitTest {
 
         @Test
         void 완료된_클립은_비공개로_시작한다() {
-            // given & when — 판매자가 확정해야 소비자에게 보인다
-            LiveHighlight highlight = clip(GenerationStatus.COMPLETED);
+            // given — 판매자가 확정해야 소비자에게 보인다
+            GenerationStatus status = GenerationStatus.COMPLETED;
+
+            // when
+            LiveHighlight highlight = clip(status);
 
             // then
             assertThat(highlight.isPublic()).isFalse();
@@ -43,8 +49,11 @@ class LiveHighlightUnitTest {
 
         @Test
         void 실패한_마커는_비공개다() {
-            // given & when — 재생할 구간이 없다
-            LiveHighlight highlight = marker(GenerationStatus.FAILED);
+            // given — 재생할 구간이 없다
+            GenerationStatus status = GenerationStatus.FAILED;
+
+            // when
+            LiveHighlight highlight = marker(status);
 
             // then
             assertThat(highlight.isPublic()).isFalse();

@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.List;
 import java.util.Optional;
@@ -156,15 +157,17 @@ class InternalLiveControllerTest {
         // given
         UUID liveId = UUID.randomUUID();
 
-        // when & then
-        mockMvc.perform(post("/internal/v1/lives/{liveId}/highlights", liveId)
-                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                [{ "kind": "CLIP", "sceneLabel": "DEMO", "startSec": 10, "endSec": 70,
-                                   "clipUrl": "https://clip", "thumbnailUrl": "https://thumb", "status": "COMPLETED" }]
-                                """))
-                .andExpect(status().isNoContent());
+        // when
+        ResultActions result = mockMvc.perform(post("/internal/v1/lives/{liveId}/highlights", liveId)
+                .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        [{ "kind": "CLIP", "sceneLabel": "DEMO", "startSec": 10, "endSec": 70,
+                           "clipUrl": "https://clip", "thumbnailUrl": "https://thumb", "status": "COMPLETED" }]
+                        """));
+
+        // then
+        result.andExpect(status().isNoContent());
         verify(highlightService).applyGenerated(eq(liveId), org.mockito.ArgumentMatchers.<List<HighlightService.GeneratedHighlight>>argThat(
                 list -> list.size() == 1 && "https://thumb".equals(list.getFirst().thumbnailUrl())));
     }
