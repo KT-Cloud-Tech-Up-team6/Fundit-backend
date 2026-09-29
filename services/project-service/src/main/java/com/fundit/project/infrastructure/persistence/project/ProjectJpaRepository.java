@@ -6,6 +6,7 @@ import com.fundit.project.infrastructure.persistence.project.query.StatusCountPr
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,6 +21,16 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
 
     /** 삭제 여부와 무관하게 본다 — public_id는 삭제된 행과도 UNIQUE라, 있으면 다시 넣을 수 없다. */
     boolean existsByPublicId(UUID publicId);
+
+    /**
+     * dev 목업 시더 전용 — 커버 이미지가 <b>비어 있을 때만</b> 채운다. 이미 있는 값(판매자가 바꾼 이미지 포함)은
+     * 덮지 않아 재기동해도 결과가 같다. 갱신 뒤 같은 트랜잭션에서 다시 읽으므로 영속성 컨텍스트를 비운다.
+     *
+     * @return 채운 행 수(0 또는 1)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("update ProjectJpaEntity p set p.coverImageUrl = :url where p.publicId = :publicId and p.coverImageUrl is null")
+    int fillCoverImageIfAbsent(@Param("publicId") UUID publicId, @Param("url") String url);
 
     Optional<ProjectJpaEntity> findByIdAndDeletedAtIsNull(Long id);
 

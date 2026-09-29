@@ -9,6 +9,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-24T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/001.png",
     "snapshot": {
       "currentAmount": 190000,
       "achievementRate": 38,
@@ -26,6 +27,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-25T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/002.png",
     "snapshot": {
       "currentAmount": 720000,
       "achievementRate": 72,
@@ -43,6 +45,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-26T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/003.png",
     "snapshot": {
       "currentAmount": 1960000,
       "achievementRate": 98,
@@ -60,6 +63,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-27T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/004.png",
     "snapshot": {
       "currentAmount": 3000000,
       "achievementRate": 100,
@@ -77,6 +81,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-28T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/005.png",
     "snapshot": {
       "currentAmount": 6300000,
       "achievementRate": 126,
@@ -94,6 +99,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-29T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/006.png",
     "snapshot": {
       "currentAmount": 18500000,
       "achievementRate": 185,
@@ -111,6 +117,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-30T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/007.png",
     "snapshot": {
       "currentAmount": 1215000,
       "achievementRate": 243,
@@ -128,6 +135,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-31T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/008.png",
     "snapshot": {
       "currentAmount": 3680000,
       "achievementRate": 368,
@@ -145,6 +153,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-11-01T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/009.png",
     "snapshot": {
       "currentAmount": 10540000,
       "achievementRate": 527,
@@ -162,6 +171,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-23T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/010.png",
     "snapshot": {
       "currentAmount": 25800000,
       "achievementRate": 860,
@@ -179,6 +189,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-24T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/011.png",
     "snapshot": {
       "currentAmount": 62000000,
       "achievementRate": 1240,
@@ -196,6 +207,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-25T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/012.png",
     "snapshot": {
       "currentAmount": 218000000,
       "achievementRate": 2180,
@@ -213,6 +225,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-26T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/013.png",
     "snapshot": {
       "currentAmount": 190000,
       "achievementRate": 38,
@@ -230,6 +243,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-27T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/014.png",
     "snapshot": {
       "currentAmount": 720000,
       "achievementRate": 72,
@@ -247,6 +261,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-28T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/015.png",
     "snapshot": {
       "currentAmount": 1960000,
       "achievementRate": 98,
@@ -264,6 +279,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-29T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/016.png",
     "snapshot": {
       "currentAmount": 3000000,
       "achievementRate": 100,
@@ -281,6 +297,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-30T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/017.png",
     "snapshot": {
       "currentAmount": 6300000,
       "achievementRate": 126,
@@ -298,6 +315,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-31T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/018.png",
     "snapshot": {
       "currentAmount": 18500000,
       "achievementRate": 185,
@@ -315,6 +333,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-11-01T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/019.png",
     "snapshot": {
       "currentAmount": 1215000,
       "achievementRate": 243,
@@ -332,6 +351,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-23T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/020.png",
     "snapshot": {
       "currentAmount": 3680000,
       "achievementRate": 368,
@@ -349,6 +369,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-24T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/021.png",
     "snapshot": {
       "currentAmount": 10540000,
       "achievementRate": 527,
@@ -366,6 +387,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-25T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/022.png",
     "snapshot": {
       "currentAmount": 25800000,
       "achievementRate": 860,
@@ -383,6 +405,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-26T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/023.png",
     "snapshot": {
       "currentAmount": 62000000,
       "achievementRate": 1240,
@@ -400,6 +423,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-27T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/024.png",
     "snapshot": {
       "currentAmount": 218000000,
       "achievementRate": 2180,
@@ -417,6 +441,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-28T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/025.png",
     "snapshot": {
       "currentAmount": 190000,
       "achievementRate": 38,
@@ -434,6 +459,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-29T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/026.png",
     "snapshot": {
       "currentAmount": 720000,
       "achievementRate": 72,
@@ -451,6 +477,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-30T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/027.png",
     "snapshot": {
       "currentAmount": 1960000,
       "achievementRate": 98,
@@ -468,6 +495,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-31T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/028.png",
     "snapshot": {
       "currentAmount": 3000000,
       "achievementRate": 100,
@@ -485,6 +513,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-11-01T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/029.png",
     "snapshot": {
       "currentAmount": 6300000,
       "achievementRate": 126,
@@ -502,6 +531,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-23T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/030.png",
     "snapshot": {
       "currentAmount": 18500000,
       "achievementRate": 185,
@@ -519,6 +549,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-24T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/031.png",
     "snapshot": {
       "currentAmount": 1215000,
       "achievementRate": 243,
@@ -536,6 +567,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-25T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/032.png",
     "snapshot": {
       "currentAmount": 3680000,
       "achievementRate": 368,
@@ -553,6 +585,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-26T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/033.png",
     "snapshot": {
       "currentAmount": 10540000,
       "achievementRate": 527,
@@ -570,6 +603,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-27T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/034.png",
     "snapshot": {
       "currentAmount": 25800000,
       "achievementRate": 860,
@@ -587,6 +621,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-28T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/035.png",
     "snapshot": {
       "currentAmount": 62000000,
       "achievementRate": 1240,
@@ -604,6 +639,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-29T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/036.png",
     "snapshot": {
       "currentAmount": 218000000,
       "achievementRate": 2180,
@@ -621,6 +657,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-30T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/037.png",
     "snapshot": {
       "currentAmount": 190000,
       "achievementRate": 38,
@@ -638,6 +675,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-31T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/038.png",
     "snapshot": {
       "currentAmount": 720000,
       "achievementRate": 72,
@@ -655,6 +693,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-11-01T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/039.png",
     "snapshot": {
       "currentAmount": 1960000,
       "achievementRate": 98,
@@ -672,6 +711,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-23T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/040.png",
     "snapshot": {
       "currentAmount": 3000000,
       "achievementRate": 100,
@@ -689,6 +729,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-24T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/041.png",
     "snapshot": {
       "currentAmount": 6300000,
       "achievementRate": 126,
@@ -706,6 +747,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-10-25T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/042.png",
     "snapshot": {
       "currentAmount": 18500000,
       "achievementRate": 185,
@@ -723,6 +765,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-26T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/043.png",
     "snapshot": {
       "currentAmount": 1215000,
       "achievementRate": 243,
@@ -740,6 +783,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-07T09:00:00Z",
     "fundingDeadline": "2026-10-27T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/044.png",
     "snapshot": {
       "currentAmount": 3680000,
       "achievementRate": 368,
@@ -757,6 +801,7 @@
     "goalAmount": 2000000,
     "fundingStartAt": "2026-09-06T09:00:00Z",
     "fundingDeadline": "2026-10-28T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/045.png",
     "snapshot": {
       "currentAmount": 10540000,
       "achievementRate": 527,
@@ -774,6 +819,7 @@
     "goalAmount": 3000000,
     "fundingStartAt": "2026-09-05T09:00:00Z",
     "fundingDeadline": "2026-10-29T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/046.png",
     "snapshot": {
       "currentAmount": 25800000,
       "achievementRate": 860,
@@ -791,6 +837,7 @@
     "goalAmount": 5000000,
     "fundingStartAt": "2026-09-04T09:00:00Z",
     "fundingDeadline": "2026-10-30T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/047.png",
     "snapshot": {
       "currentAmount": 62000000,
       "achievementRate": 1240,
@@ -808,6 +855,7 @@
     "goalAmount": 10000000,
     "fundingStartAt": "2026-09-03T09:00:00Z",
     "fundingDeadline": "2026-10-31T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/048.png",
     "snapshot": {
       "currentAmount": 218000000,
       "achievementRate": 2180,
@@ -825,6 +873,7 @@
     "goalAmount": 500000,
     "fundingStartAt": "2026-09-09T09:00:00Z",
     "fundingDeadline": "2026-11-01T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/049.png",
     "snapshot": {
       "currentAmount": 190000,
       "achievementRate": 38,
@@ -842,6 +891,7 @@
     "goalAmount": 1000000,
     "fundingStartAt": "2026-09-08T09:00:00Z",
     "fundingDeadline": "2026-10-23T09:00:00Z",
+    "coverImageUrl": "https://infrastudy.store/media/mock/050.png",
     "snapshot": {
       "currentAmount": 720000,
       "achievementRate": 72,

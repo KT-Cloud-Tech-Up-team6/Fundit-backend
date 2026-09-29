@@ -67,10 +67,35 @@ class ProjectJpaRepositoryIntegrationTest {
         assertThat(page.getContent().get(0).getTitle()).isEqualTo("우산 프로젝트");
     }
 
+    @Test
+    void 커버_이미지가_비어_있으면_채우고_있으면_덮지_않는다() {
+        // given — dev 목업 시더가 기존 행에 이미지를 보완하는 조건부 UPDATE
+        UUID empty = persistProject(UUID.randomUUID(), "빈 이미지", ProjectStatus.ONGOING, null);
+        UUID filled = persistProject(UUID.randomUUID(), "판매자 이미지", ProjectStatus.ONGOING, "https://seller/own.png");
+
+        // when
+        int emptyUpdated = projectJpaRepository.fillCoverImageIfAbsent(empty, "https://mock/001.png");
+        int filledUpdated = projectJpaRepository.fillCoverImageIfAbsent(filled, "https://mock/002.png");
+
+        // then
+        assertThat(emptyUpdated).isEqualTo(1);
+        assertThat(filledUpdated).isZero();
+        assertThat(projectJpaRepository.findByPublicIdAndDeletedAtIsNull(empty).orElseThrow().getCoverImageUrl())
+                .isEqualTo("https://mock/001.png");
+        assertThat(projectJpaRepository.findByPublicIdAndDeletedAtIsNull(filled).orElseThrow().getCoverImageUrl())
+                .isEqualTo("https://seller/own.png");
+    }
+
     private void persistProject(UUID sellerId, String title, ProjectStatus status) {
+        persistProject(sellerId, title, status, null);
+    }
+
+    private UUID persistProject(UUID sellerId, String title, ProjectStatus status, String coverImageUrl) {
+        UUID publicId = UUID.randomUUID();
         Instant now = Instant.now();
         projectRepository.save(Project.builder()
-                .publicId(UUID.randomUUID()).sellerId(sellerId).title(title).status(status)
+                .publicId(publicId).sellerId(sellerId).title(title).status(status).coverImageUrl(coverImageUrl)
                 .createdAt(now).updatedAt(now).build());
+        return publicId;
     }
 }
