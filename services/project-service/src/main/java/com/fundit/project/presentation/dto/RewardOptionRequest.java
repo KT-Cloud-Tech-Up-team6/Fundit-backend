@@ -1,5 +1,6 @@
 package com.fundit.project.presentation.dto;
 
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
@@ -13,7 +14,8 @@ import java.util.List;
  */
 public record RewardOptionRequest(
         Long optionGroupId,
-        @NotBlank String groupName,
-        @NotEmpty List<@NotBlank String> values
+        // DB 컬럼 길이(VARCHAR 50)와 맞춘다 — 넘으면 DB 오류로 500이 났다(FE BE-11).
+        @NotBlank @Size(max = 50) String groupName,
+        @NotEmpty List<@NotBlank @Size(max = 50) String> values
 ) {
 }

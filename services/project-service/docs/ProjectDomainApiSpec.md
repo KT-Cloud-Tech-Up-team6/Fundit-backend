@@ -269,7 +269,7 @@ POST /api/v1/projects/{projectId}/submit
 
 **Validation / Business Rules**
 
-- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
+- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
 - 위 항목이 모두 채워진 `DRAFT`만 **관리자 승인 없이 바로** `status=ONGOING`으로 전환. 미완료 시
   `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
 - 전환과 같은 트랜잭션에서 `funding_start_at`/`funding_deadline`을 확정(모금기간 기본값 30일, 코드 상수)하고
@@ -402,6 +402,7 @@ POST /api/v1/projects/{projectId}/rewards
 **Validation / Business Rules**
 
 - 필수값(`name`,`price`,`quantity`\[`isLimited=true`인 경우\]) 누락 → `400 INVALID_INPUT`(PRD 4.1.4).
+- **길이 제한**(DB 컬럼과 같음, 넘으면 `400 INVALID_INPUT`): `name` 100자, 옵션 `groupName`·`values[]` 각 50자. 수정(PATCH)도 같다(#188, 이전엔 DB 오류로 500).
 - `isLimited=true`이면 `quantity` 필수(0 이상), `isLimited=false`이면 `quantity`는 null이어야 함(DB CHECK `chk_rewards_quantity`) — 위반 시 `400 INVALID_REWARD_QUANTITY`.
 - **무제한 수량 표기**: `quantity: -1`은 "무제한"을 뜻하는 sentinel로도 허용한다 — 서버가 `isLimited:false` + `quantity:null`(canonical)로 정규화해서 저장·응답한다. 정식 계약은 여전히 `isLimited:false` + `quantity` 생략(또는 `null`)이며, `-1`은 별칭일 뿐이다. `isLimited:true`와 `quantity:-1`을 함께 보내면 모순이라 정규화하지 않고 위 규칙대로 `400 INVALID_REWARD_QUANTITY`로 거부한다.
 - **배송비/예상 발송일**(둘 다 선택값, 미전달 시 `null`): `shippingFee`는 리워드별 배송비(0 이상, 0=무료배송), `estimatedDeliveryDays`는 "펀딩 종료 후 N일" 상대값(0 이상)이다. 값이 있는데 음수면 `400 INVALID_REWARD_SHIPPING_INFO`. **주의**: 배송비가 리워드별인지 프로젝트 공통인지, 예상 발송일이 상대값인지 고정 일자인지는 아직 기획 미확정이라 스키마가 바뀔 수 있다(`ProjectDomainPendingWork.md` #1 참고).

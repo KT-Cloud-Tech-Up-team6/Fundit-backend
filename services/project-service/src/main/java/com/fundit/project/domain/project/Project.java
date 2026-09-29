@@ -79,9 +79,10 @@ public class Project {
         if (introContent != null) this.introContent = introContent;
     }
 
+    /** 공백뿐인 제목은 미작성으로 본다 — 임시저장은 빈 값도 받아서, null만 보면 빈 제목으로 공개됐다(FE BE-12). */
     public boolean hasCompletedBasicInfo() {
         return businessType != null && categoryMajor != null && categoryMinor != null
-                && title != null && goalAmount != null;
+                && title != null && !title.isBlank() && goalAmount != null;
     }
 
     public boolean hasStory() {
