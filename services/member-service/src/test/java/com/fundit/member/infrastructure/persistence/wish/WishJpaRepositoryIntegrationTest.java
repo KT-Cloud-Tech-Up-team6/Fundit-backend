@@ -141,4 +141,26 @@ class WishJpaRepositoryIntegrationTest {
         assertThat(wish.projectTitle()).isEqualTo("버전7 제목");
         assertThat(projectSnapshotJpaRepository.findById(30L).orElseThrow().getSourceVersion()).isEqualTo(7L);
     }
+
+    @Test
+    void 프로젝트_공개_id로_숫자_id를_찾고_스냅샷이_없으면_빈_값이다() {
+        // given
+        UUID publicId = UUID.randomUUID();
+        projectSnapshotJpaRepository.upsert(20L, publicId, null, "무선 청소기", null, 1L);
+
+        // when & then
+        assertThat(projectSnapshotJpaRepository.findProjectIdByPublicId(publicId)).contains(20L);
+        assertThat(projectSnapshotJpaRepository.findProjectIdByPublicId(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void 찜_여부를_회원과_프로젝트로_확인한다() {
+        // given
+        UUID memberId = createMember();
+        wishJpaRepository.insertIgnoringConflict(memberId, 21L);
+
+        // when & then
+        assertThat(wishJpaRepository.existsByMemberIdAndProjectId(memberId, 21L)).isTrue();
+        assertThat(wishJpaRepository.existsByMemberIdAndProjectId(memberId, 22L)).isFalse();
+    }
 }
