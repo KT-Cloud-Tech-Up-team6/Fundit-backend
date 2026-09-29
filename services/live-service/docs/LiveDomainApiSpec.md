@@ -1125,22 +1125,27 @@ Validation / Business Rules
 ### 프로젝트 공개 숏 클립 목록 (구매자 LIVE 체크 탭)
 
 ```
-GET /api/v1/lives/highlights?projectId=0198...
+GET /api/v1/lives/highlights?projectId=0198...&page=0&size=20
 ```
 
 Response Body
 
 ```json
-[ { "liveId": "0199c3a0-...", "highlightId": "0199e2...", "sceneLabel": "DEMO", "title": "실시간 시연",
-    "startSec": 300, "endSec": 380, "clipUrl": "https://cdn.../clip1.mp4", "thumbnailUrl": "https://cdn.../clip1.jpg",
-    "caption": "런칭 특가 안내", "createdAt": "2026-09-10T21:00:00Z" } ]
+{
+  "content": [
+    { "liveId": "0199c3a0-...", "highlightId": "0199e2...", "sceneLabel": "DEMO", "title": "실시간 시연",
+      "startSec": 300, "endSec": 380, "clipUrl": "https://cdn.../clip1.mp4", "thumbnailUrl": "https://cdn.../clip1.jpg",
+      "caption": "런칭 특가 안내", "createdAt": "2026-09-10T21:00:00Z" }
+  ],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
+}
 ```
 
 Validation / Business Rules
 
 - 인증 불필요. `projectId` 필수(없으면 `400`).
 - **공개(`isPublic`)·생성 완료(`COMPLETED`)된 클립만** 나온다. 마커(다시보기 구간 탐색용)와 `DRAFT` 방송은 제외된다.
-- 여러 방송의 클립이 섞이므로 항목마다 `liveId`를 준다. 정렬은 생성 최신순. 방송당 클립이 최대 3개라 페이지네이션은 없다.
+- 여러 방송의 클립이 섞이므로 항목마다 `liveId`를 준다. 정렬은 생성 최신순. 반복 방송이 쌓이면 계속 늘어나는 목록이라 `page`/`size`(기본 20)로 나눠 `PageResponse`로 준다.
 - **조회 수를 올리지 않는다.** 방송 단위 `/{liveId}/highlights/public`은 호출마다 그 방송 공개 항목의 노출 수를 올리는데,
   여기서도 올리면 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 같이 오른다. 클릭은 기존 `/click`을 쓴다.
 - `thumbnailUrl`은 AI 콜백이 채우기 전까지 `null`이다.

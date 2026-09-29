@@ -129,14 +129,42 @@ class HighlightServiceIntegrationTest {
         saveHighlight(draft.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, true);
 
         // when
-        List<ProjectClip> clips = highlightService.findPublicClips(projectId);
+        org.springframework.data.domain.Page<ProjectClip> clips =
+                highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 20));
 
-        // then — 비공개·마커·DRAFT 방송 클립은 빠지고, 썸네일이 저장·조회된다
-        assertThat(clips).singleElement().satisfies(c -> {
+        // then — 비공개·마커·DRAFT 방송 클립은 빠지고, 썸네일이 저장·조회된다. count 쿼리도 같은 조건이다
+        assertThat(clips.getTotalElements()).isEqualTo(1);
+        assertThat(clips.getContent()).singleElement().satisfies(c -> {
             assertThat(c.liveId()).isEqualTo(ended.getPublicId());
             assertThat(c.clip().getPublicId()).isEqualTo(shown.getPublicId());
             assertThat(c.clip().getThumbnailUrl()).isEqualTo("https://thumb");
         });
         assertThat(highlightRepository.findByPublicId(shown.getPublicId()).orElseThrow().getViewCount()).isZero();
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_페이지_크기만큼만_주고_전체_수를_알려준다() {
+        // given — 반복 방송으로 클립이 쌓이는 프로젝트
+        Long channelId = channelRepository.save(LiveChannelJpaEntity.builder()
+                .sellerId(UUID.randomUUID()).ivsChannelArn("arn-3")
+                .ivsIngestEndpoint("rtmps://ingest").ivsPlaybackUrl("https://play")
+                .active(true).build()).getId();
+        UUID projectId = UUID.randomUUID();
+        LiveSession toEnd = LiveSession.create(channelId, projectId);
+        toEnd.start(java.time.Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        toEnd.end(java.time.Instant.parse("2026-09-10T11:30:00Z"));
+        LiveSession ended = sessionRepository.save(toEnd);
+        for (int i = 0; i < 3; i++) {
+            saveHighlight(ended.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, true);
+        }
+
+        // when
+        org.springframework.data.domain.Page<ProjectClip> page =
+                highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 2));
+
+        // then
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.hasNext()).isTrue();
     }
 }

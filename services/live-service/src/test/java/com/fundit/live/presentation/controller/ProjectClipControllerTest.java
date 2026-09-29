@@ -12,14 +12,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -44,13 +49,17 @@ class ProjectClipControllerTest {
                 .clipUrl("https://clip").thumbnailUrl("https://thumb")
                 .isPublic(true).generationStatus(GenerationStatus.COMPLETED)
                 .createdAt(Instant.parse("2026-09-10T12:00:00Z")).build();
-        when(highlightService.findPublicClips(projectId)).thenReturn(List.of(new ProjectClip(liveId, clip)));
+        when(highlightService.findPublicClips(eq(projectId), any()))
+                .thenReturn(new PageImpl<>(List.of(new ProjectClip(liveId, clip)), PageRequest.of(0, 20), 1));
 
-        // when & then
-        mockMvc.perform(get("/api/v1/lives/highlights").param("projectId", projectId.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].liveId").value(liveId.toString()))
-                .andExpect(jsonPath("$[0].thumbnailUrl").value("https://thumb"))
-                .andExpect(jsonPath("$[0].createdAt").exists());
+        // when
+        ResultActions result = mockMvc.perform(get("/api/v1/lives/highlights").param("projectId", projectId.toString()));
+
+        // then
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].liveId").value(liveId.toString()))
+                .andExpect(jsonPath("$.content[0].thumbnailUrl").value("https://thumb"))
+                .andExpect(jsonPath("$.content[0].createdAt").exists())
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 }

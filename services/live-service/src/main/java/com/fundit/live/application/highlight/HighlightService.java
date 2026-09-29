@@ -10,6 +10,10 @@ import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
 import com.fundit.live.domain.highlight.LiveHighlightRepository;
 import com.fundit.live.domain.highlight.ProjectClip;
+import com.fundit.live.domain.highlight.ProjectClipPage;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import com.fundit.live.domain.highlight.SceneLabel;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -231,8 +235,10 @@ public class HighlightService {
      * 프로젝트 화면을 열 때마다 그 프로젝트의 모든 방송 클립 노출 수가 같이 오른다.
      */
     @Transactional(readOnly = true)
-    public List<ProjectClip> findPublicClips(UUID projectId) {
-        return highlightRepository.findPublicClipsByProjectId(projectId);
+    public Page<ProjectClip> findPublicClips(UUID projectId, Pageable pageable) {
+        ProjectClipPage page = highlightRepository.findPublicClipsByProjectId(
+                projectId, pageable.getPageNumber(), pageable.getPageSize());
+        return new PageImpl<>(page.content(), pageable, page.totalElements());
     }
 
     /** {@code highlightId}는 재생성 대상이며 최초 생성은 null이다. */

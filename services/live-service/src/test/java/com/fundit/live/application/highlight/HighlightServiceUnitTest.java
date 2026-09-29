@@ -211,10 +211,11 @@ class HighlightServiceUnitTest {
     void 프로젝트_클립_목록은_조회수를_올리지_않는다() {
         // given — 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 오르면 방송 단위 노출 수가 무의미해진다
         UUID projectId = UUID.randomUUID();
-        given(highlightRepository.findPublicClipsByProjectId(projectId)).willReturn(List.of());
+        given(highlightRepository.findPublicClipsByProjectId(projectId, 0, 20))
+                .willReturn(new com.fundit.live.domain.highlight.ProjectClipPage(List.of(), 0));
 
         // when
-        highlightService.findPublicClips(projectId);
+        highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 20));
 
         // then
         verify(highlightRepository, org.mockito.Mockito.never()).increaseViewCount(any());

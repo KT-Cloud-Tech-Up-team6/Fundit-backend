@@ -20,7 +20,7 @@ public interface LiveHighlightRepository {
      * 프로젝트의 공개 클립(최신순) — 공개·생성 완료된 CLIP만, DRAFT 방송은 제외.
      * 조회 수를 올리지 않는다(방송 단위 공개 조회와 다르다).
      */
-    List<ProjectClip> findPublicClipsByProjectId(UUID projectId);
+    ProjectClipPage findPublicClipsByProjectId(UUID projectId, int page, int size);
 
     long countClips(Long sessionId);
 
