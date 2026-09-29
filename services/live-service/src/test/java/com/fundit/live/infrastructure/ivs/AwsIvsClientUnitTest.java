@@ -47,7 +47,7 @@ class AwsIvsClientUnitTest {
     void 채널을_만들면_스트림_키는_값이_아니라_ARN만_담는다() {
         // given
         givenChannelCreated();
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when
         IvsClient.Channel channel = client.createChannel("seller-1");
@@ -66,8 +66,8 @@ class AwsIvsClientUnitTest {
         ArgumentCaptor<CreateChannelRequest> captor = ArgumentCaptor.forClass(CreateChannelRequest.class);
 
         // when
-        new AwsIvsClient(ivs, ivschat, "arn:recording", "").createChannel("s1");
-        new AwsIvsClient(ivs, ivschat, "", "").createChannel("s2");
+        new AwsIvsClient(ivs, ivschat, "arn:recording", "", "dev").createChannel("s1");
+        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChannel("s2");
 
         // then
         verify(ivs, org.mockito.Mockito.times(2)).createChannel(captor.capture());
@@ -82,7 +82,7 @@ class AwsIvsClientUnitTest {
                 .willReturn(CreateRoomResponse.builder().arn("arn:room").build());
         given(ivschat.createChatToken(any(CreateChatTokenRequest.class)))
                 .willReturn(CreateChatTokenResponse.builder().token("chat-token").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "arn:logging");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "arn:logging", "dev");
 
         // when
         String roomArn = client.createChatRoom("live-1");
@@ -102,7 +102,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
                 .stream(Stream.builder().viewerCount(42L).build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
@@ -117,7 +117,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStreamKey(any(GetStreamKeyRequest.class))).willReturn(GetStreamKeyResponse.builder()
                 .streamKey(StreamKey.builder().arn("arn:stream-key").value("sk_secret").build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when
         String value = client.getStreamKeyValue("arn:stream-key");
@@ -132,7 +132,7 @@ class AwsIvsClientUnitTest {
     @Test
     void 채팅_이벤트는_방_이름_속성을_그대로_보낸다() {
         // given
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when
         client.sendChatEvent("arn:room", "seller-answer", Map.of("answer", "500ml입니다"));
@@ -152,7 +152,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
                 .stream(Stream.builder().state("LIVE").health("STARVING").viewerCount(42L).startTime(startedAt).build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when
         IvsClient.StreamStatus status = client.getStreamStatus("arn:channel");
@@ -166,9 +166,38 @@ class AwsIvsClientUnitTest {
         // given — IVS는 송출이 없으면 예외로 알려준다
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
 
         // when & then
         assertThat(client.getStreamStatus("arn:channel")).isEqualTo(IvsClient.StreamStatus.OFFLINE);
+    }
+
+    @Test
+    void 채널_생성_요청에_Environment_태그가_실린다() {
+        // given — 인프라 IAM 조건(Infra PR #127)이 이 태그가 있는 생성만 허용한다
+        givenChannelCreated();
+        ArgumentCaptor<CreateChannelRequest> captor = ArgumentCaptor.forClass(CreateChannelRequest.class);
+
+        // when
+        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChannel("seller-1");
+
+        // then
+        verify(ivs).createChannel(captor.capture());
+        assertThat(captor.getValue().tags()).isEqualTo(Map.of("Environment", "dev"));
+    }
+
+    @Test
+    void 채팅방_생성_요청에_Environment_태그가_실린다() {
+        // given
+        given(ivschat.createRoom(any(CreateRoomRequest.class)))
+                .willReturn(CreateRoomResponse.builder().arn("arn:room").build());
+        ArgumentCaptor<CreateRoomRequest> captor = ArgumentCaptor.forClass(CreateRoomRequest.class);
+
+        // when
+        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChatRoom("live-1");
+
+        // then
+        verify(ivschat).createRoom(captor.capture());
+        assertThat(captor.getValue().tags()).isEqualTo(Map.of("Environment", "dev"));
     }
 }

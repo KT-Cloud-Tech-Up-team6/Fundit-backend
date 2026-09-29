@@ -34,6 +34,8 @@ live:
     # 선택 — 녹화(S3, 다시보기·하이라이트 입력)·채팅 로깅(Firehose → 채팅 적재) 설정 ARN.
     recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
     chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
+    # IVS 생성 요청의 Environment 태그(인프라 IAM 조건). aws 모드면 필수 — 비면 기동 실패.
+    environment: ${LIVE_IVS_ENVIRONMENT}
   ai:
     # IVS와 같은 이유로 기본값을 두지 않는다. 미설정이면 기동이 실패한다 —
     # 스텁으로 흘러가면 큐시트·추천답변이 "[stub] ..." 문자열로 "성공"한다.
