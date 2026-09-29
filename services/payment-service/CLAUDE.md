@@ -191,6 +191,24 @@ PROCESSING ─재발송분 발송(shipment.shipped.v1)→ COMPLETED
 ### PAYMENT-008 `POST /api/v1/refunds/shipping-delay`
 `ShippingStatusClient.fetch()`로 `isAlreadyShipped`/`isDelayed`를 함께 확인한 뒤 즉시 처리(단순변심/미달자동과 동일하게 `UNDER_REVIEW` 단계 없음) → 전액 취소 → `RefundCompleted(..., POST_SUCCESS_DELAY, true)` 발행. 이미 발송 시작됨 → `ALREADY_SHIPPED`(409). 미발송이어도 아직 발송 예정일이 지나지 않음(`isDelayed=false`) → `NOT_YET_DELAYED`(422).
 
+### 환불 실행 흐름 — 토스 취소와 DB 트랜잭션 분리 (`RefundExecutionService`, #182)
+PAYMENT-004/005/007/008/017은 전부 `RefundExecutionService` 한 곳을 탄다. **토스 취소 API는 DB 트랜잭션 밖에서 부른다** — 예전처럼 한 트랜잭션으로 묶으면 토스에선 취소됐는데 로컬 커밋이 실패했을 때 결제 CANCELLED·`payment_cancellations`·환불 내역·`RefundCompleted`·정산 보류 해제가 전부 롤백되고, 이미 환불된 금액이 판매자 정산에 들어갈 수 있다.
+
+```
+트랜잭션 1: refund_requests PROCESSING + cancel_amount/cancel_reason/cancel_requested_at (V11)
+   ↓
+토스 취소 (트랜잭션 밖)  ── 4xx 거절 → 유형별 되돌리기(아래)
+   ↓                    └─ 5xx·타임아웃 → PROCESSING 그대로 두고 예외(대사 배치가 맞춤)
+트랜잭션 2: 결제 CANCELLED(전액만) + 보류 해제(전액만) + payment_cancellations + COMPLETED + RefundCompleted/알림 아웃박스
+```
+
+- **"취소 요청됨" = `status='PROCESSING' AND cancel_amount IS NOT NULL`**. 교환의 PROCESSING(재발송 대기)은 `cancel_amount`가 없어 구분된다. 결제당 1건만 허용한다(부분 유니크 인덱스 `uq_refund_requests_cancel_in_flight`) — 이벤트 중복 수신은 새 요청을 만들지 않고 진행 중인 요청을 이어받는다. 교환 재발송과 같은 이유로 별도 작업 테이블을 두지 않는다.
+- **이어받은 요청은 토스를 다시 부르기 전에 반드시 조회한다**(`lookup(paymentKey).cancels`에서 로컬 `payment_cancellations`에 없는 transactionKey·같은 금액). 조회 없이 재취소하면 반품비 차감 부분취소가 한 번 더 실행돼 돈이 두 번 빠질 수 있다. `ALREADY_CANCELED_PAYMENT`도 실패가 아니라 같은 조회로 확정한다.
+- **토스 거절(4xx) 시 되돌리기는 유형별이다**: `GOAL_FAILED_AUTO`/`SHIPPING_DELAY` → `REQUESTED`(대체 계좌 입력 대기, PAYMENT-005 예외 처리) / 판매자 검토 유형(007) → `REQUESTED`(재결정 가능) / `SIMPLE_CHANGE_OF_MIND`/`SYSTEM_RECONCILIATION` → 요청 삭제(취소가 없었으니 내역도 없다).
+- **대사 배치**: `RefundCancelReconcileScheduler`가 1분마다 요청 후 5분 지난 건을 본다. 완료 결제면 위 조회 → 확정(없으면 재취소). 대기 결제(PAYMENT-004 결제 전 취소에서 토스 조회 실패·`IN_PROGRESS` 등으로 판단하지 못한 건, #181)면 주문번호 조회로 승인 → 완료 후 전액 취소 / 승인 불가 → `failIfPending` + 요청 삭제 / 판단 불가 → 다음 주기. 결제 화면에서 진행 중인 정상 결제에는 취소 요청이 없어 건드리지 않는다.
+- **호출부에 트랜잭션을 걸지 않는다**(`ShippingDelayRefundService`, `DefectRefundDecisionService`) — 바깥 트랜잭션이 있으면 토스 호출이 다시 그 안으로 들어간다. 트랜잭션 경계는 `TransactionTemplate`으로 나눈다.
+- 배치는 인스턴스 1개 실행을 가정한다(다른 스케줄러와 동일). 레플리카를 늘리면 ShedLock을 도입할 것.
+
 ### PAYMENT-009 `GET /api/v1/settlements/{settlementBatchId}`
 본인(해당 메이커) 배치만 조회 가능(403). `gross_amount`/`platform_fee_amount`(3%)/`coupon_deduction_amount`/`refund_deduction_amount`/`total_amount`와, `OrderSettlementAggregateClient`로 조회한 리워드·옵션별 판매 수량·금액(`lineItems`)을 합성해 응답.
 
@@ -211,7 +229,7 @@ PROCESSING ─재발송분 발송(shipment.shipped.v1)→ COMPLETED
 - **구독(Consumer, PAYMENT-004/005/017)**: 비즈니스 로직은 "이벤트 레코드를 입력받는 애플리케이션 서비스 메서드"로 완전히 구현하고 단위 테스트도 이 메서드를 직접 호출해서 짭니다(`GoalFailedAutoRefundService.handle(FundingGoalFailedEvent event)`처럼). 실제로 이 메서드를 누가 호출하는지(Kafka 리스너/REST 콜백/기타)는 브로커가 정해지면 그때 얇은 어댑터 하나만 추가하면 됩니다 — 지금은 그 어댑터를 만들지 않고 비워둬도 되고, 골격만 원한다면 `FundingEventSubscriber` 인터페이스(예: `onGoalFailed`, `onCancelledByMember`)를 만들고 아직 아무도 구현하지 않은 상태로 둬도 무방합니다. **핵심은 서비스 레이어(트랜잭션/멱등성/이벤트 발행까지 포함한 전체 로직)를 완성하는 것이지, 브로커 배선이 아닙니다.**
 
 ### PAYMENT-004 — 이벤트 구독(`FundingCancelledByMember`)
-payload: `(fundingId, projectId, memberId, orderId, cancelReason, cancelReasonDetail)`. `cancelReason`/`cancelReasonDetail`은 구매자가 고른 참여 취소 사유(선택값)로, 값이 있으면 `RefundReasonTag.format`으로 `"[ETC] 상세"` 형태로 `reason_detail`에 남긴다 — 취소 내역 화면이 이 서비스의 환불 목록을 보기 때문이다. 없으면 기존 고정 문구("구매자 단순변심 참여 취소")를 쓴다. `funding_id`로 완료 결제 조회 → 토스 전액 취소 → `refund_requests(trigger_type='SIMPLE_CHANGE_OF_MIND', status='COMPLETED', is_full_refund=true)` 즉시 생성(중간 단계 없음) → `RefundCompleted(..., CANCELLED_BY_MEMBER, true)` 발행. 중복 수신 시 이미 `CANCELLED` 상태면 토스 API 재호출 없이 무시(멱등).
+payload: `(fundingId, projectId, memberId, orderId, cancelReason, cancelReasonDetail)`. `cancelReason`/`cancelReasonDetail`은 구매자가 고른 참여 취소 사유(선택값)로, 값이 있으면 `RefundReasonTag.format`으로 `"[ETC] 상세"` 형태로 `reason_detail`에 남긴다 — 취소 내역 화면이 이 서비스의 환불 목록을 보기 때문이다. 없으면 기존 고정 문구("구매자 단순변심 참여 취소")를 쓴다. `funding_id`로 완료 결제 조회 → `refund_requests(trigger_type='SIMPLE_CHANGE_OF_MIND', status='PROCESSING')` 취소 요청 커밋 → 토스 전액 취소 → `COMPLETED`, `is_full_refund=true` 확정(판매자 검토 단계 없음, 아래 "환불 실행 흐름") → `RefundCompleted(..., CANCELLED_BY_MEMBER, true)` 발행. 중복 수신 시 이미 `CANCELLED` 상태면 토스 API 재호출 없이 무시(멱등).
 
 ### PAYMENT-005 — 이벤트 구독(`FundingGoalFailed`)
 payload: `(fundingId, projectId)`. **펀딩 1건당 1개**이므로 "일괄 처리"로 짜지 말 것. 완료 결제 조회 → 토스 전액 취소(환불비 미부과) → `refund_requests(trigger_type='GOAL_FAILED_AUTO', is_full_refund=true)` → `RefundCompleted(..., GOAL_FAILURE_AUTO_REFUND, true)` 발행. 원 결제수단 환불 불가 시 `alternate_refund_account` 입력 플로우로 전환(즉시 실패 처리 금지).
@@ -305,6 +323,8 @@ order-service 내부 API 호출 실패는 신규 코드 없이 `CommonErrorCode.
 - `RefundCompleted`/`PaymentCompleted` payload에서 `couponIssuanceIds`를 생략하거나 첫 번째 것만 보내지 말 것(전부 보내야 복수 쿠폰이 사용확정/복원됨)
 - PAYMENT-001에서 받은 `finalAmount`를 PAYMENT-002에서 재계산/재조회하지 말 것
 - 결제 승인 성공 처리와 아웃박스 적재를 별도 트랜잭션으로 분리하지 말 것
+- 토스 취소 API를 DB 트랜잭션 안에서 호출하지 말 것, 환불 실행기를 호출하는 쪽에 `@Transactional`을 걸지 말 것 — 로컬 커밋 실패가 토스 취소 결과를 지운다(위 "환불 실행 흐름")
+- 이어받은 취소 요청(`PROCESSING` + `cancel_amount`)을 토스 조회 없이 다시 취소하지 말 것 — 부분취소가 두 번 실행된다
 - 브로커가 없다고 이벤트 발행/구독 비즈니스 로직 자체를 생략하지 말 것 — 인터페이스 뒤에서 완성해둘 것
 - PAYMENT-005를 "프로젝트 단위 일괄 처리"로 짜지 말 것(펀딩 1건당 1이벤트)
 - 토스 웹훅 엔드포인트에 로그인 인증을 걸지 말 것
