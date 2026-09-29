@@ -10,7 +10,7 @@
 
 SEARCH-011(`project.approved.v1`/`project.updated.v1`)은 구현됐습니다. SEARCH-001·004·005·007은 `project_documents` 색인을 조회하며, 색인이 비어 있으면(콜드 스타트) 빈 결과를 반환합니다. 달성률·참여자수는 SEARCH-013이 붙기 전까지 0입니다.
 
-AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기반 맞춤 추천")은 별도 AI 솔루션 영역으로 보고 이 문서 범위에서는 **비로그인/미동의 기준 인기순**만 다룹니다 — 현재 홈 피드는 `sort`/`personalized` 쿼리를 받지 않습니다.
+AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기반 맞춤 추천")은 별도 AI 솔루션 영역으로 보고 이 문서 범위에서는 **비로그인/미동의 기준 인기순**만 다룹니다 — 현재 홈 피드는 `personalized` 쿼리를 받지 않습니다(`sort`는 #188부터 받음).
 
 ---
 
@@ -27,7 +27,7 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **우선순위**: MVP
 - **입력값**: (선택) `personalized`(AI 개인화 동의 여부 — 클라이언트가 로그인 회원 정보로 판단해 전달하거나, 서버가 `X-User-Id`로 회원 개인화 동의 여부를 조회. 후자는 member-service 동기 호출 필요 — 아래 검토의견 참고)
 - **중분류**: 홈
-- **처리 내용(기술)**: `project_documents`에서 `status='ONGOING'`인 행을 인기순(`participant_count DESC, wish_count DESC`)으로 조회. `personalized`/`sort` 쿼리는 받지 않으며 `size`는 기본 20·최대 100(null·1 미만은 20으로 처리, 400 아님). 개인화 동의 회원 대상 맞춤 추천은 이 기능 범위 밖(아래 참고)
+- **처리 내용(기술)**: `project_documents`에서 `status='ONGOING'`인 행을 `sort`(기본 `POPULAR` 인기순 `participant_count DESC, wish_count DESC` / `DEADLINE` 마감 임박순 / `RECENT` 신규순 — 마감순·신규순은 마감이 지난 행을 제외)로 조회. `personalized` 쿼리는 받지 않으며 `size`는 기본 20·최대 100(null·1 미만은 20으로 처리, 400 아님). 개인화 동의 회원 대상 맞춤 추천은 이 기능 범위 밖(아래 참고)
 - **출력값**: 프로젝트 카드 목록(projectId, title, thumbnailUrl, achievementRate, remainingDays 등 — API 명세서 참고)
 - **트리거 방식**: API 호출
 - **검토의견(변경사항)**: PRD 10.1.3은 "AI 개인화 동의 회원은 관심 카테고리·시청·펀딩 이력 기반 맞춤 추천"이라고 명시하지만, 이건 검색/카탈로그 조회 로직이 아니라 추천 랭킹 알고리즘(AI 솔루션)의 영역이다. 이 문서는 **미동의/비로그인 회원 기준(인기·신규)만** SEARCH-001의 구현 대상으로 삼고, 개인화 추천은 별도 기능으로 분리해야 한다고 본다[범위 확인 필요 — PM/AI 솔루션 담당자].

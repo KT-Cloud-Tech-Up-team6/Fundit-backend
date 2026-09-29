@@ -39,6 +39,7 @@ GET /api/v1/home/feed
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
+| `sort` | String | N | `POPULAR`(기본, 인기순) / `DEADLINE`(마감 임박순) / `RECENT`(신규순). 그 외 값은 400 `INVALID_INPUT` |
 | `size` | Int | N | 노출 개수(기본 20, 최대 100). null·1 미만은 20으로 처리하고 400을 내지 않음. 100 초과는 100으로 제한 |
 
 **Response Body**
@@ -65,7 +66,12 @@ GET /api/v1/home/feed
 
 **Validation / Business Rules**
 
-- 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). 현재 구현은 **인기순만** 지원한다(`participant_count DESC, wish_count DESC`). `personalized`/`sort` 쿼리는 받지 않는다.
+- 비페이지네이션 단일 목록(무한스크롤이 아닌 "영역" 성격 — PRD 10.1.4). `personalized` 쿼리는 받지 않는다.
+- 정렬
+  - `POPULAR`: `participant_count DESC, wish_count DESC`
+  - `DEADLINE`: 마감이 지나지 않은(`funding_deadline >= 지금`) 프로젝트만, `funding_deadline ASC`. 마감이 지났는데 아직 `ONGOING`으로 색인된 프로젝트(마감 처리 반영 전)가 맨 앞에 오지 않게 하기 위해서다
+  - `RECENT`: 마감이 지나지 않은 프로젝트만, `project_created_at DESC`
+  - `DEADLINE`·`RECENT`는 같은 값이면 `projectId ASC`로 순서를 고정한다
 - `achievementRate`/`remainingDays`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다(SEARCH-013 동기화 주기에 종속, 미연동 동안 0).
 - 색인이 비어 있으면(콜드 스타트) `content: []` 반환 — 에러 아님.
 - **카드에서 상세로 이동할 때 쓰는 값은 `projectPublicId`(UUID)다.** `projectId`는 색인 내부 PK(숫자)이고

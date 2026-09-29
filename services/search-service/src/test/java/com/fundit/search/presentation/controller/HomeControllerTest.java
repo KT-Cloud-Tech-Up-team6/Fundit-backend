@@ -5,6 +5,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.search.application.home.HomeFeedQueryService;
 import com.fundit.search.application.live.LiveCardClient;
 import com.fundit.search.application.live.LiveCardClient.LiveCard;
+import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import com.fundit.search.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,12 +43,33 @@ class HomeControllerTest {
     @Test
     void 홈피드는_content_형태로_반환된다() throws Exception {
         // given
-        when(homeFeedQueryService.getHomeFeed(any())).thenReturn(List.of());
+        when(homeFeedQueryService.getHomeFeed(any(), any())).thenReturn(List.of());
 
         // when & then
         mockMvc.perform(get("/api/v1/home/feed"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());
+        verify(homeFeedQueryService).getHomeFeed(ProjectSortType.POPULAR, null);
+    }
+
+    @Test
+    void 정렬값을_주면_그대로_넘긴다() throws Exception {
+        // given
+        when(homeFeedQueryService.getHomeFeed(any(), any())).thenReturn(List.of());
+
+        // when
+        mockMvc.perform(get("/api/v1/home/feed").param("sort", "DEADLINE").param("size", "10"))
+                .andExpect(status().isOk());
+
+        // then
+        verify(homeFeedQueryService).getHomeFeed(ProjectSortType.DEADLINE, 10);
+    }
+
+    @Test
+    void 없는_정렬값이면_400이다() throws Exception {
+        // when & then
+        mockMvc.perform(get("/api/v1/home/feed").param("sort", "CHEAPEST"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

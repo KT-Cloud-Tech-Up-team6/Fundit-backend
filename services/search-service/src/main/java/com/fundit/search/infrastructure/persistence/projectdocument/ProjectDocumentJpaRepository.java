@@ -14,12 +14,16 @@ import java.util.UUID;
 
 public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocumentJpaEntity, Long> {
 
-    /**
-     * SEARCH-001 홈피드. 인기순(participant_count DESC, wish_count DESC)만 지원한다 — API 계약에
-     * sort 파라미터가 없어 신규순 대안은 노출하지 않는다[가정, SearchDomainFunctionalSpec.md SEARCH-001 참고].
-     */
+    /** SEARCH-001 홈피드 기본(인기순, participant_count DESC, wish_count DESC). */
     List<ProjectCardProjection> findByStatusAndDeletedAtIsNullOrderByParticipantCountDescWishCountDesc(
             ProjectDocumentStatus status, Pageable pageable);
+
+    /**
+     * SEARCH-001 홈피드 마감순·신규순. 마감이 지났는데 아직 ONGOING으로 색인된 행(마감 이벤트 반영 전)이
+     * 마감순 맨 앞을 차지하지 않도록 {@code fundingDeadline >= now}로 거른다. 정렬은 Pageable의 Sort를 쓴다.
+     */
+    List<ProjectCardProjection> findByStatusAndDeletedAtIsNullAndFundingDeadlineGreaterThanEqual(
+            ProjectDocumentStatus status, Instant now, Pageable pageable);
 
     /** SEARCH-004. categoryMinor 미지정 시 대분류 전체 대상. 정렬은 Pageable에 담긴 Sort(ProjectSortType)를 그대로 쓴다. */
     Page<ProjectCardProjection> findByStatusAndCategoryMajorAndDeletedAtIsNull(

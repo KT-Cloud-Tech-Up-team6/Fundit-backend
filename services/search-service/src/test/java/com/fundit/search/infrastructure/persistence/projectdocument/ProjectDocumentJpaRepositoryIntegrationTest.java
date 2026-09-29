@@ -1,5 +1,6 @@
 package com.fundit.search.infrastructure.persistence.projectdocument;
 
+import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectCardProjection;
 import com.fundit.search.infrastructure.persistence.projectdocument.query.ProjectSortType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,15 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
     private ProjectDocumentJpaEntity project(
             long id, String title, String sellerDisplayName, ProjectDocumentStatus status, int participantCount) {
+        return project(id, title, sellerDisplayName, status, participantCount, Instant.now().plus(5, ChronoUnit.DAYS));
+    }
+
+    private ProjectDocumentJpaEntity project(long id, String title, Instant fundingDeadline) {
+        return project(id, title, "판매자" + id, ProjectDocumentStatus.ONGOING, 0, fundingDeadline);
+    }
+
+    private ProjectDocumentJpaEntity project(long id, String title, String sellerDisplayName,
+                                             ProjectDocumentStatus status, int participantCount, Instant fundingDeadline) {
         return ProjectDocumentJpaEntity.builder()
                 .projectId(id)
                 .projectPublicId(UUID.randomUUID())
@@ -55,7 +65,7 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
                 .categoryMinor("생활가전")
                 .status(status)
                 .goalAmount(1_000_000L)
-                .fundingDeadline(Instant.now().plus(5, ChronoUnit.DAYS))
+                .fundingDeadline(fundingDeadline)
                 .projectCreatedAt(Instant.now())
                 .currentAmount(0L)
                 .achievementRate(0)
@@ -110,5 +120,21 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
         // then
         assertThat(result.getContent().getFirst().getProjectId()).isEqualTo(6L);
+    }
+
+    @Test
+    void 홈_마감순은_마감_지난_것을_빼고_마감_가까운_순이다() {
+        // given
+        Instant now = Instant.now();
+        projectDocumentJpaRepository.save(project(11L, "사흘 남음", now.plus(3, ChronoUnit.DAYS)));
+        projectDocumentJpaRepository.save(project(12L, "하루 남음", now.plus(1, ChronoUnit.DAYS)));
+        projectDocumentJpaRepository.save(project(13L, "마감 지남", now.minus(1, ChronoUnit.DAYS)));
+
+        // when
+        var result = projectDocumentJpaRepository.findByStatusAndDeletedAtIsNullAndFundingDeadlineGreaterThanEqual(
+                ProjectDocumentStatus.ONGOING, now, PageRequest.of(0, 20, ProjectSortType.DEADLINE.toSort()));
+
+        // then
+        assertThat(result).extracting(ProjectCardProjection::getProjectId).containsExactly(12L, 11L);
     }
 }
