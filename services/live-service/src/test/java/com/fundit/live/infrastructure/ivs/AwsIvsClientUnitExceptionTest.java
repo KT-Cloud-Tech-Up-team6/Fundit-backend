@@ -59,4 +59,17 @@ class AwsIvsClientUnitExceptionTest {
         // then
         assertThat(viewerCount).isZero();
     }
+
+    @Test
+    void 송출_상태_조회는_방송_중_아님_외의_실패를_OFFLINE으로_감추지_않는다() {
+        // given — "모름"을 OFFLINE으로 보여주면 판매자가 멀쩡한 송출을 끊고 다시 켠다
+        software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
+        given(ivs.getStream(any(GetStreamRequest.class)))
+                .willThrow(SdkClientException.create("throttled"));
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "");
+
+        // when & then
+        assertThatThrownBy(() -> client.getStreamStatus("arn:channel"))
+                .isInstanceOf(DependencyFailureException.class);
+    }
 }

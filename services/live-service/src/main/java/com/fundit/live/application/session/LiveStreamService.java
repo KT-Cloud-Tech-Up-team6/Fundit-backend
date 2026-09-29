@@ -10,6 +10,7 @@ import com.fundit.live.application.project.ProjectContextClient;
 import com.fundit.live.application.question.QuestionInsightService;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.event.LiveEventTransport.QuestionsSummarizedEvent;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
@@ -242,6 +243,22 @@ public class LiveStreamService {
     }
 
     public record StreamInfo(String ingestEndpoint, String streamKey) {
+    }
+
+    /**
+     * 판매자 송출 화면의 송출 상태(폴링). LIVE가 아니면 IVS를 부르지 않고 OFFLINE —
+     * 시작 전·종료 후 화면이 폴링을 계속해도 IVS 호출 한도를 쓰지 않는다.
+     * 트랜잭션을 걸지 않는 이유는 {@link #streamInfo}와 같다.
+     */
+    public IvsClient.StreamStatus streamStatus(UUID sellerId, UUID liveId) {
+        LiveSession session = sessionRepository.findOwned(liveId, sellerId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (session.getStatus() != LiveStatus.LIVE) {
+            return IvsClient.StreamStatus.OFFLINE;
+        }
+        LiveChannelJpaEntity channel = channelRepository.findBySellerId(sellerId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return ivsClient.getStreamStatus(channel.getIvsChannelArn());
     }
 
     /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */

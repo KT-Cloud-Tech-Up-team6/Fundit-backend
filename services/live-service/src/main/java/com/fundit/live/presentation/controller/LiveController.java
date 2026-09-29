@@ -25,6 +25,7 @@ import com.fundit.live.presentation.dto.LiveStatusResponse;
 import com.fundit.live.presentation.dto.LiveSummaryResponse;
 import com.fundit.live.presentation.dto.PageResponse;
 import com.fundit.live.presentation.dto.StreamInfoResponse;
+import com.fundit.live.presentation.dto.StreamStatusResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -110,6 +111,12 @@ public class LiveController {
     }
 
     /** LIVE 기본 설정 등록/수정(요구사항정의서 6.2.4.1). 부분 업데이트다. */
+    /** 판매자 송출 화면 폴링용. 권장 간격은 명세 참고. */
+    @GetMapping("/{liveId}/stream-status")
+    public StreamStatusResponse streamStatus(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
+        return StreamStatusResponse.from(liveStreamService.streamStatus(user.id(), liveId));
+    }
+
     @PatchMapping("/{liveId}/settings")
     public LiveStatusResponse updateSettings(@LoginUser CurrentUser user,
                                              @PathVariable UUID liveId,

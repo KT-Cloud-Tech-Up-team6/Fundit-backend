@@ -19,6 +19,7 @@
 | POST | `/api/v1/lives/{liveId}/start` | O (본인 소유 LIVE) | LIVE 시작 |
 | POST | `/api/v1/lives/{liveId}/end` | O (본인 소유 LIVE) | LIVE 종료 |
 | GET | `/api/v1/lives/{liveId}/stream-info` | O (본인 소유 LIVE) | 송출 정보(ingest 주소·스트림 키) 조회 |
+| GET | `/api/v1/lives/{liveId}/stream-status` | O (본인 소유 LIVE) | 송출(스트림) 상태 조회 — 송출 화면 폴링용 |
 | GET | `/api/v1/lives/{liveId}/chat/insights` | O (본인 소유 LIVE) | AI 집계 Q&A(FAQ) 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}` | O (본인 소유 LIVE) | 대표질문(FAQ 클러스터) 원본 채팅 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/unanswered` | O (본인 소유 LIVE) | 미답변 질문 창(근거 없음) 조회 |
@@ -448,6 +449,32 @@ Validation / Business Rules
 - 판매자가 OBS 같은 송출 프로그램에 넣을 값이다. 본인 소유 LIVE만 조회된다 — 남의 방송·채널 없음은 `404`.
 - **스트림 키 값은 DB에 없다.** 채널 생성 시 참조(ARN, `live_channels.ivs_stream_key_ref`)만 저장하고, 이 호출 때마다 IVS `GetStreamKey`로 꺼낸다(S9). 탈취되면 타인이 이 채널로 무단 송출하므로 이 응답을 로그에 남기지 않는다.
 - 스텁 모드(`live.ivs.mode=stub`)에선 `stub-stream-key-value:...` 형식의 가짜 값이 나간다 — 실제 송출에는 쓸 수 없다.
+
+---
+
+### 송출(스트림) 상태 조회
+
+```
+GET /api/v1/lives/{liveId}/stream-status
+```
+
+Auth Required: **O** (본인 소유 LIVE)
+
+Response Body
+
+```json
+{ "state": "LIVE", "health": "HEALTHY", "viewerCount": 12, "startedAt": "2026-09-10T20:00:03+09:00" }
+```
+
+방송이 안 들어오고 있으면 `{ "state": "OFFLINE", "health": null, "viewerCount": 0, "startedAt": null }`.
+
+Validation / Business Rules
+
+- 판매자 송출 화면이 OBS 송출이 실제로 들어오는지 확인하는 용도다. 값은 IVS `GetStream`을 그대로 옮긴다 — `state`는 `LIVE`·`OFFLINE`, `health`는 `HEALTHY`·`STARVING`(송출 비트레이트 부족)·`UNKNOWN`.
+- **LIVE 상태 방송만 IVS에 묻는다.** 시작 전·종료 후에는 IVS를 부르지 않고 `OFFLINE`을 돌려준다 — 화면이 폴링을 계속해도 IVS 호출 한도를 쓰지 않는다.
+- **폴링 간격은 10초 이상을 권장한다.** IVS API는 계정 단위 호출 한도가 있고, 방송마다 판매자 화면이 폴링하므로 동시 방송 수만큼 호출이 늘어난다.
+- 방송 중이 아님 외의 IVS 실패(스로틀링·권한 등)는 `503`이다 — "모름"을 `OFFLINE`으로 보여주면 판매자가 멀쩡한 송출을 끊고 다시 켠다.
+- 남의 방송은 `404`(S10). 스텁 모드에선 LIVE 방송이면 늘 `LIVE`/`HEALTHY`다 — 실제 값은 `live.ivs.mode=aws` 전환 뒤에 나온다.
 
 ---
 

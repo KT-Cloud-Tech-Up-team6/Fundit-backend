@@ -60,6 +60,12 @@ public class StubIvsClient implements IvsClient {
         return Math.abs(channelArn.hashCode() % 1000);
     }
 
+    /** 호출부가 LIVE 세션에만 부르므로 늘 송출 중으로 답한다. */
+    @Override
+    public StreamStatus getStreamStatus(String channelArn) {
+        return new StreamStatus("LIVE", "HEALTHY", getViewerCount(channelArn), java.time.Instant.now());
+    }
+
     /** 진짜 키처럼 보이면 FE가 OBS 송출 실패를 늦게 발견한다 — 채팅 토큰과 같은 원칙. */
     @Override
     public String getStreamKeyValue(String streamKeyRef) {

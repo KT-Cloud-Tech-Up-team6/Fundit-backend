@@ -75,4 +75,14 @@ class StubIvsClientUnitTest {
         // then
         assertThat(channel.playbackUrl()).isEqualTo("https://infrastudy.store/media/test/master.m3u8");
     }
+
+    @Test
+    void 송출_상태는_송출_중으로_답한다() {
+        // given & when
+        IvsClient.StreamStatus status = client.getStreamStatus("arn-a");
+
+        // then — 호출부가 LIVE 세션에만 부른다
+        assertThat(status.state()).isEqualTo("LIVE");
+        assertThat(status.viewerCount()).isEqualTo(client.getViewerCount("arn-a"));
+    }
 }

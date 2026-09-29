@@ -55,6 +55,19 @@ class LiveStreamServiceUnitExceptionTest {
     }
 
     @Test
+    void 송출_상태는_남의_방송이면_404다() {
+        // given
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> liveStreamService.streamStatus(sellerId, liveId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+        verify(ivsClient, never()).getStreamStatus(anyString());
+    }
+
+    @Test
     void 송출_정보는_채널이_없으면_404다() {
         // given
         given(sessionRepository.findOwned(liveId, sellerId))

@@ -29,6 +29,13 @@ public interface IvsClient {
      */
     int getViewerCount(String channelArn);
 
+    /**
+     * 송출 상태(판매자 송출 화면 폴링용). 방송이 안 들어오고 있으면 {@link StreamStatus#OFFLINE}.
+     * 시청자 수와 달리 그 밖의 실패는 던진다 — "모름"을 OFFLINE으로 보여주면 판매자가
+     * 멀쩡한 송출을 끊고 다시 켠다.
+     */
+    StreamStatus getStreamStatus(String channelArn);
+
     /** ARN(참조)으로 실제 스트림 키 값을 조회한다. 요청 시점에만 쓰고 저장하지 않는다(S9). */
     String getStreamKeyValue(String streamKeyRef);
 
@@ -37,5 +44,10 @@ public interface IvsClient {
 
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
+    }
+
+    /** {@code state}는 IVS 값 그대로(LIVE·OFFLINE), {@code health}는 HEALTHY·STARVING·UNKNOWN. */
+    record StreamStatus(String state, String health, int viewerCount, java.time.Instant startedAt) {
+        public static final StreamStatus OFFLINE = new StreamStatus("OFFLINE", null, 0, null);
     }
 }

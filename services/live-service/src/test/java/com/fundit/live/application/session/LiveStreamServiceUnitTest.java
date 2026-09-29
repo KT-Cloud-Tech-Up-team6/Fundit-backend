@@ -25,6 +25,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +60,38 @@ class LiveStreamServiceUnitTest {
         // then
         assertThat(info.ingestEndpoint()).isEqualTo("rtmps://ingest:443/app/");
         assertThat(info.streamKey()).isEqualTo("sk_secret");
+    }
+
+    @Test
+    void 송출_상태는_LIVE면_채널로_IVS에_묻는다() {
+        // given
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+        session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(session));
+        given(channelRepository.findBySellerId(sellerId)).willReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
+        IvsClient.StreamStatus live = new IvsClient.StreamStatus("LIVE", "HEALTHY", 7, Instant.parse("2026-09-10T11:00:00Z"));
+        given(ivsClient.getStreamStatus("arn:channel")).willReturn(live);
+
+        // when
+        IvsClient.StreamStatus status = liveStreamService.streamStatus(sellerId, liveId);
+
+        // then
+        assertThat(status).isEqualTo(live);
+    }
+
+    @Test
+    void 송출_상태는_LIVE가_아니면_IVS를_부르지_않고_OFFLINE이다() {
+        // given — 시작 전 화면이 폴링을 계속해도 IVS 호출 한도를 쓰지 않는다
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.create(1L, UUID.randomUUID())));
+
+        // when
+        IvsClient.StreamStatus status = liveStreamService.streamStatus(sellerId, liveId);
+
+        // then
+        assertThat(status).isEqualTo(IvsClient.StreamStatus.OFFLINE);
+        verify(ivsClient, never()).getStreamStatus(anyString());
     }
 
     @Test

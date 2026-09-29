@@ -309,4 +309,21 @@ class LiveControllerTest {
                 .andExpect(jsonPath("$[0].offsetSec").value(60))
                 .andExpect(jsonPath("$[0].content").value("좋아요"));
     }
+
+    @Test
+    void 송출_상태를_돌려준다() throws Exception {
+        // given
+        when(liveStreamService.streamStatus(any(), any())).thenReturn(new com.fundit.live.application.ivs.IvsClient.StreamStatus(
+                "LIVE", "HEALTHY", 12, java.time.Instant.parse("2026-09-10T11:00:00Z")));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/stream-status", UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("LIVE"))
+                .andExpect(jsonPath("$.health").value("HEALTHY"))
+                .andExpect(jsonPath("$.viewerCount").value(12))
+                .andExpect(jsonPath("$.startedAt").exists());
+    }
 }

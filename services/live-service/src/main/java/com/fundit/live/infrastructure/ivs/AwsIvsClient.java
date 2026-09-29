@@ -7,10 +7,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.Stream;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
@@ -95,6 +97,20 @@ public class AwsIvsClient implements IvsClient {
             log.warn("IVS 시청자 수 조회 실패, channelArn={}", channelArn, e);
             return 0;
         }
+    }
+
+    /** 방송이 안 들어오는 것은 IVS가 예외로 알려준다 — 그것만 OFFLINE으로 바꾸고 나머지는 던진다. */
+    @Override
+    public StreamStatus getStreamStatus(String channelArn) {
+        return call(() -> {
+            try {
+                Stream stream = ivs.getStream(GetStreamRequest.builder().channelArn(channelArn).build()).stream();
+                return new StreamStatus(stream.stateAsString(), stream.healthAsString(),
+                        stream.viewerCount() == null ? 0 : stream.viewerCount().intValue(), stream.startTime());
+            } catch (ChannelNotBroadcastingException e) {
+                return StreamStatus.OFFLINE;
+            }
+        });
     }
 
     @Override

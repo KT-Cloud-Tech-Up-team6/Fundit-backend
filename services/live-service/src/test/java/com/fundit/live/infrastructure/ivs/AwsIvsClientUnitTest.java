@@ -4,6 +4,7 @@ import com.fundit.live.application.ivs.IvsClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
+import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
@@ -142,5 +143,32 @@ class AwsIvsClientUnitTest {
         assertThat(captor.getValue().roomIdentifier()).isEqualTo("arn:room");
         assertThat(captor.getValue().eventName()).isEqualTo("seller-answer");
         assertThat(captor.getValue().attributes()).containsEntry("answer", "500ml입니다");
+    }
+
+    @Test
+    void 송출_상태는_IVS_스트림_값을_그대로_옮긴다() {
+        // given
+        java.time.Instant startedAt = java.time.Instant.parse("2026-09-10T11:00:00Z");
+        given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
+                .stream(Stream.builder().state("LIVE").health("STARVING").viewerCount(42L).startTime(startedAt).build())
+                .build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when
+        IvsClient.StreamStatus status = client.getStreamStatus("arn:channel");
+
+        // then
+        assertThat(status).isEqualTo(new IvsClient.StreamStatus("LIVE", "STARVING", 42, startedAt));
+    }
+
+    @Test
+    void 방송이_안_들어오면_송출_상태는_OFFLINE이다() {
+        // given — IVS는 송출이 없으면 예외로 알려준다
+        given(ivs.getStream(any(GetStreamRequest.class)))
+                .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "");
+
+        // when & then
+        assertThat(client.getStreamStatus("arn:channel")).isEqualTo(IvsClient.StreamStatus.OFFLINE);
     }
 }
