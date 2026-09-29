@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface PaymentCancellationJpaRepository extends JpaRepository<PaymentCancellationJpaEntity, Long> {
 
     List<PaymentCancellationJpaEntity> findByPaymentId(UUID paymentId);
+
+    boolean existsByPgTransactionKey(String pgTransactionKey);
 }

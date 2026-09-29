@@ -32,6 +32,9 @@ class RefundRequestMapper {
                 .requestedAt(entity.getRequestedAt())
                 .processedAt(entity.getProcessedAt())
                 .reshipmentRequestedAt(entity.getReshipmentRequestedAt())
+                .cancelAmount(entity.getCancelAmount())
+                .cancelReason(entity.getCancelReason())
+                .cancelRequestedAt(entity.getCancelRequestedAt())
                 .build();
     }
 
@@ -51,6 +54,9 @@ class RefundRequestMapper {
                 .requestedAt(domain.getRequestedAt())
                 .processedAt(domain.getProcessedAt())
                 .reshipmentRequestedAt(domain.getReshipmentRequestedAt())
+                .cancelAmount(domain.getCancelAmount())
+                .cancelReason(domain.getCancelReason())
+                .cancelRequestedAt(domain.getCancelRequestedAt())
                 .build();
     }
 

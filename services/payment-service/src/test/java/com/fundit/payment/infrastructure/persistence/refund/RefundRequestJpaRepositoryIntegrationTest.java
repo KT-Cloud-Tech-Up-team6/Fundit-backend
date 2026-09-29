@@ -165,6 +165,85 @@ class RefundRequestJpaRepositoryIntegrationTest {
         assertThat(saveRequest(payment, fundingId, "RETURN_CHANGE_OF_MIND", "REQUESTED").getId()).isNotNull();
     }
 
+    @Test
+    void 대사_목록은_취소_요청이_오래된_순이다() {
+        // given — id 순서와 요청 시각 순서가 반대다
+        Instant now = Instant.now();
+        RefundRequestJpaEntity newer = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(600));
+        RefundRequestJpaEntity older = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(1_200));
+
+        // when
+        var list = refundRequestJpaRepository
+                .findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByCancelRequestedAtAsc(
+                        "PROCESSING", now, PageRequest.of(0, 10));
+
+        // then
+        assertThat(list).extracting(RefundRequestJpaEntity::getId).containsExactly(older.getId(), newer.getId());
+    }
+
+    @Test
+    void 미루기는_아직_취소_요청됨인_행에만_적용된다() {
+        // given
+        Instant requestedAt = Instant.now().minusSeconds(1_200);
+        Instant deferredAt = Instant.now();
+        RefundRequestJpaEntity inFlight = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                requestedAt);
+        RefundRequestJpaEntity reverted = saveRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                "GOAL_FAILED_AUTO", "REQUESTED");
+
+        // when
+        int deferred = refundRequestJpaRepository.deferCancelRequest(inFlight.getId(), deferredAt);
+        int untouched = refundRequestJpaRepository.deferCancelRequest(reverted.getId(), deferredAt);
+
+        // then — 대사 중 되돌려진 행(REQUESTED)은 건드리지 않는다
+        assertThat(deferred).isEqualTo(1);
+        assertThat(untouched).isZero();
+        assertThat(refundRequestJpaRepository.findById(inFlight.getId()).orElseThrow().getCancelRequestedAt())
+                .isAfter(requestedAt);
+        assertThat(refundRequestJpaRepository.findById(reverted.getId()).orElseThrow().getCancelRequestedAt()).isNull();
+    }
+
+    @Test
+    void 멈춘_취소_요청은_한_번만_선점된다() {
+        // given — 요청 후 20분이 지난(stale 기준 5분) 취소 요청
+        Instant now = Instant.now();
+        Instant staleBefore = now.minusSeconds(300);
+        RefundRequestJpaEntity stale = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(1_200));
+
+        // when — 대사 배치와 이벤트 재수신이 차례로 선점을 시도한다
+        int first = refundRequestJpaRepository.claimCancelRequest(stale.getId(), staleBefore, now);
+        int second = refundRequestJpaRepository.claimCancelRequest(stale.getId(), staleBefore, now);
+
+        // then — 먼저 잡은 쪽만 토스를 부른다(요청 시각이 지금으로 바뀌어 두 번째는 조건에 안 맞는다)
+        assertThat(first).isEqualTo(1);
+        assertThat(second).isZero();
+    }
+
+    @Test
+    void 방금_요청된_건과_취소_요청이_아닌_건은_선점되지_않는다() {
+        // given
+        Instant now = Instant.now();
+        Instant staleBefore = now.minusSeconds(300);
+        RefundRequestJpaEntity fresh = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(60));
+        RefundRequestJpaEntity reverted = saveRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                "GOAL_FAILED_AUTO", "REQUESTED");
+
+        // when & then
+        assertThat(refundRequestJpaRepository.claimCancelRequest(fresh.getId(), staleBefore, now)).isZero();
+        assertThat(refundRequestJpaRepository.claimCancelRequest(reverted.getId(), staleBefore, now)).isZero();
+    }
+
+    private RefundRequestJpaEntity saveCancelRequest(PaymentJpaEntity payment, Instant cancelRequestedAt) {
+        return refundRequestJpaRepository.saveAndFlush(RefundRequestJpaEntity.builder()
+                .paymentId(payment.getId()).fundingOrderId(UUID.randomUUID()).triggerType("SIMPLE_CHANGE_OF_MIND")
+                .status("PROCESSING").cancelAmount(payment.getAmount()).cancelReason("사유")
+                .cancelRequestedAt(cancelRequestedAt).requestedAt(cancelRequestedAt).build());
+    }
+
     private PaymentJpaEntity givenCompletedPayment(UUID memberId, long amount) {
         Instant now = Instant.now();
         return paymentJpaRepository.save(PaymentJpaEntity.builder()

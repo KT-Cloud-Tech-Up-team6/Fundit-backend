@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -234,6 +235,20 @@ class FundingPersistenceAdapterIntegrationTest {
         // then
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getStatus()).isEqualTo(FundingStatus.GOAL_ACHIEVED);
+    }
+
+    @Test
+    void 판매자_발송목록에_클라이언트_정렬이_붙어도_오류_없이_조회된다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        fundingRepository.save(newFunding(UUID.randomUUID(), projectId, FundingStatus.GOAL_ACHIEVED, Instant.now()));
+
+        // when — FE가 ?sort=createdAt,asc를 보낸 경우
+        var page = fundingRepository.findSellerOrders(projectId, ShippingFilter.ALL, null,
+                PageRequest.of(0, 20, Sort.by("createdAt").ascending()));
+
+        // then
+        assertThat(page.getContent()).hasSize(1);
     }
 
     @Test

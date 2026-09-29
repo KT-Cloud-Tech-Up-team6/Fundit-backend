@@ -64,7 +64,7 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
             if (response == null) {
                 throw new DependencyFailureException(new IllegalStateException("토스 결제 조회 응답 본문이 없습니다."));
             }
-            return new TossPaymentLookup(response.status(), toResult(response));
+            return toLookup(response);
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
@@ -80,7 +80,7 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
             if (response == null) {
                 throw new DependencyFailureException(new IllegalStateException("토스 결제 조회 응답 본문이 없습니다."));
             }
-            return Optional.of(new TossPaymentLookup(response.status(), toResult(response)));
+            return Optional.of(toLookup(response));
         } catch (HttpClientErrorException.NotFound e) {
             // 결제 인증 전이라 토스에 결제 자체가 없다 — 승인될 수 없는 상태다. 코드가 다른 404(경로 오류 등)를
             // "결제 없음"으로 믿으면 승인된 결제를 FAILED로 닫을 수 있어 의존성 실패로 둔다.
@@ -105,13 +105,22 @@ public class TossPaymentsHttpClient implements TossPaymentsClient {
                 throw new DependencyFailureException(new IllegalStateException("토스 결제 취소 응답에 취소 내역이 없습니다."));
             }
             // 이번 호출로 생긴 취소 건은 cancels 배열의 마지막 원소다(과거 부분취소 이력이 앞에 쌓여 있을 수 있음).
-            CancelDetail latest = response.cancels().get(response.cancels().size() - 1);
-            return new TossCancelResult(latest.transactionKey(), parseInstant(latest.canceledAt()), latest.cancelAmount());
+            return toCancelResult(response.cancels().get(response.cancels().size() - 1));
         } catch (RestClientResponseException e) {
             throw toTossApiException(e);
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
+    }
+
+    private TossPaymentLookup toLookup(TossPaymentResponse response) {
+        List<TossCancelResult> cancels = response.cancels() == null ? List.of()
+                : response.cancels().stream().map(this::toCancelResult).toList();
+        return new TossPaymentLookup(response.status(), toResult(response), cancels);
+    }
+
+    private TossCancelResult toCancelResult(CancelDetail detail) {
+        return new TossCancelResult(detail.transactionKey(), parseInstant(detail.canceledAt()), detail.cancelAmount());
     }
 
     private TossPaymentResult toResult(TossPaymentResponse response) {

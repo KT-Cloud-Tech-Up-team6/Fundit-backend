@@ -100,7 +100,9 @@ public class FundingPersistenceAdapter implements FundingRepository {
 
     @Override
     public Page<Funding> findSellerOrders(UUID projectId, ShippingFilter shippingFilter, String q, Pageable pageable) {
-        return fundingJpaRepository.findSellerOrders(projectId, shippingFilter.name(), escapeLikePattern(q), pageable)
+        // findByMemberId와 같은 이유로 클라이언트 sort를 뗀다(쿼리에 최신 참여순 고정, 붙이면 네이티브 SQL 500).
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return fundingJpaRepository.findSellerOrders(projectId, shippingFilter.name(), escapeLikePattern(q), unsorted)
                 .map(this::hydrate);
     }
 
