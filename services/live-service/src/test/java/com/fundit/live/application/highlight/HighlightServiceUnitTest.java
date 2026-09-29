@@ -70,7 +70,7 @@ class HighlightServiceUnitTest {
 
     private HighlightService.GeneratedHighlight generatedClip() {
         return new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
-                "실시간 시연", 320, 400, "https://clip", "자막", GenerationStatus.COMPLETED);
+                "실시간 시연", 320, 400, "https://clip", "https://thumb", "자막", GenerationStatus.COMPLETED);
     }
 
     @Test
@@ -121,7 +121,7 @@ class HighlightServiceUnitTest {
         givenSessionForCallback();
         given(highlightRepository.countClips(1L)).willReturn(3L);
         var marker = new HighlightService.GeneratedHighlight(null, HighlightKind.MARKER,
-                SceneLabel.SPEC, "핵심 스펙", 120, null, null, null, GenerationStatus.COMPLETED);
+                SceneLabel.SPEC, "핵심 스펙", 120, null, null, null, null, GenerationStatus.COMPLETED);
 
         // when
         highlightService.applyGenerated(liveId, List.of(marker, marker, marker, marker, marker));
@@ -141,7 +141,7 @@ class HighlightServiceUnitTest {
         // when
         highlightService.applyGenerated(liveId, List.of(new HighlightService.GeneratedHighlight(
                 highlightId, HighlightKind.CLIP, SceneLabel.DEMO, "새 제목", 10, 30,
-                "https://new", "새 자막", GenerationStatus.COMPLETED)));
+                "https://new", "https://thumb/new", "새 자막", GenerationStatus.COMPLETED)));
 
         // then
         assertThat(existing.getTitle()).isEqualTo("새 제목");
@@ -205,6 +205,35 @@ class HighlightServiceUnitTest {
 
         // then
         verify(highlightRepository).increaseViewCount(1L);
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_조회수를_올리지_않는다() {
+        // given — 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 오르면 방송 단위 노출 수가 무의미해진다
+        UUID projectId = UUID.randomUUID();
+        given(highlightRepository.findPublicClipsByProjectId(projectId, 0, 20))
+                .willReturn(new com.fundit.live.domain.highlight.ProjectClipPage(List.of(), 0));
+
+        // when
+        highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then
+        verify(highlightRepository, org.mockito.Mockito.never()).increaseViewCount(any());
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_페이지_크기를_50으로_제한한다() {
+        // given — 공개 API라 큰 size 한 번으로 조인 쿼리를 대량으로 돌릴 수 없어야 한다
+        UUID projectId = UUID.randomUUID();
+        given(highlightRepository.findPublicClipsByProjectId(projectId, 0, HighlightService.MAX_CLIP_PAGE_SIZE))
+                .willReturn(new com.fundit.live.domain.highlight.ProjectClipPage(List.of(), 0));
+
+        // when
+        var page = highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 2000));
+
+        // then
+        verify(highlightRepository).findPublicClipsByProjectId(projectId, 0, HighlightService.MAX_CLIP_PAGE_SIZE);
+        assertThat(page.getSize()).isEqualTo(HighlightService.MAX_CLIP_PAGE_SIZE);
     }
 
     @Test

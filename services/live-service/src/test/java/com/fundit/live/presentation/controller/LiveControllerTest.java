@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -79,7 +80,7 @@ class LiveControllerTest {
     @Test
     void 소비자_목록은_인증_없이_조회된다() throws Exception {
         // given — 방송 자체가 공개다
-        when(liveQueryService.findPublic(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(liveQueryService.findPublic(any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives"))
@@ -98,7 +99,7 @@ class LiveControllerTest {
                 .status(LiveStatus.LIVE)
                 .likeCount(3)
                 .build();
-        when(liveQueryService.findLiveBanner()).thenReturn(List.of(LiveSummaryResponse.from(entity)));
+        when(liveQueryService.findLiveBanner()).thenReturn(List.of(LiveSummaryResponse.from(entity, null, null, null)));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/banner"))
@@ -157,7 +158,7 @@ class LiveControllerTest {
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
         session.updateSettings("테크·가전", "생활가전", "소개", null,
                 java.time.Instant.parse("2026-09-10T11:00:00Z"));
-        when(liveSettingsService.update(any(), any(), any(), any(), any(), any(), any()))
+        when(liveSettingsService.update(any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
                 .thenReturn(session);
 
         // when & then
@@ -307,5 +308,22 @@ class LiveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].offsetSec").value(60))
                 .andExpect(jsonPath("$[0].content").value("좋아요"));
+    }
+
+    @Test
+    void 송출_상태를_돌려준다() throws Exception {
+        // given
+        when(liveStreamService.streamStatus(any(), any())).thenReturn(new com.fundit.live.application.ivs.IvsClient.StreamStatus(
+                "LIVE", "HEALTHY", 12, java.time.Instant.parse("2026-09-10T11:00:00Z")));
+
+        // when & then
+        mockMvc.perform(get("/api/v1/lives/{liveId}/stream-status", UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("LIVE"))
+                .andExpect(jsonPath("$.health").value("HEALTHY"))
+                .andExpect(jsonPath("$.viewerCount").value(12))
+                .andExpect(jsonPath("$.startedAt").exists());
     }
 }

@@ -59,7 +59,7 @@ class CueSheetServiceUnitExceptionTest {
     void 방송_길이가_10분을_넘으면_400이고_AI를_부르지_않는다() {
         // given & when & then — 요구사항정의서 6.2.3
         assertThatThrownBy(() -> cueSheetService.requestGeneration(sellerId, liveId, "SCENARIO", 601,
-                false, List.of(), null, List.of()))
+                false, List.of(), null, List.of(), null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT);
         verify(aiClient, never()).requestCueSheet(anyString(), any());
@@ -73,7 +73,7 @@ class CueSheetServiceUnitExceptionTest {
 
         // when & then
         assertThatThrownBy(() -> cueSheetService.requestGeneration(sellerId, liveId, "SCENARIO", 580,
-                false, List.of(), null, List.of()))
+                false, List.of(), null, List.of(), null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.CONFLICT);
     }

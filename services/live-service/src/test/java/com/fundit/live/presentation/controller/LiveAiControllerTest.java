@@ -201,4 +201,25 @@ class LiveAiControllerTest {
                 .andExpect(jsonPath("$[0].questionCount").value(12))
                 .andExpect(jsonPath("$[0].answeredBy").value("SELLER"));
     }
+
+    @Test
+    void 답변_완료_처리는_고정_문구를_돌려준다() throws Exception {
+        // given
+        LiveQuestionSummaryJpaEntity summary = LiveQuestionSummaryJpaEntity.builder()
+                .publicId(UUID.randomUUID()).sessionId(1L).aiQuestionId("fq_0002")
+                .summaryText("타이머 기능 돼요?").relatedQuestionCount(3).answered(false).build();
+        summary.recordAnswer("방송 중 답변 완료", Instant.now());
+        when(aiAnswerService.markDone(any(), any(), any())).thenReturn(summary);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer", liveId, UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"MARK_DONE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftAnswer").value("방송 중 답변 완료"))
+                .andExpect(jsonPath("$.sent").value(true));
+        verify(aiAnswerService, never()).send(any(), any(), any(), any());
+    }
 }

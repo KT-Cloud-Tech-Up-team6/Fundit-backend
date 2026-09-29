@@ -53,7 +53,8 @@ public class LiveAiController {
     public CueSheetResponse requestCueSheet(@LoginUser CurrentUser user, @PathVariable UUID liveId,
                                             @Valid @RequestBody CueSheetGenerateRequest request) {
         cueSheetService.requestGeneration(user.id(), liveId, request.mode().name(), request.targetDurationSec(),
-                request.demoAvailableOrFalse(), request.emphasisOrEmpty(), request.tone(), request.mandatoryOrEmpty());
+                request.demoAvailableOrFalse(), request.emphasisOrEmpty(), request.tone(), request.mandatoryOrEmpty(),
+                request.sellerBrief());
         return new CueSheetResponse("GENERATING", request.mode().name(), request.targetDurationSec(), null, null);
     }
 
@@ -99,6 +100,10 @@ public class LiveAiController {
         if (request.isSend()) {
             aiAnswerService.send(user.id(), liveId, questionId, request.finalAnswer());
             return new AiAnswerResponse(request.finalAnswer(), List.of(), true);
+        }
+        if (request.isMarkDone()) {
+            return new AiAnswerResponse(aiAnswerService.markDone(user.id(), liveId, questionId).getAnswerText(),
+                    List.of(), true);
         }
         AiClient.UnansweredDetail detail = aiAnswerService.draft(user.id(), liveId, questionId);
         List<String> referenceChunks = detail.reference() == null ? List.of()

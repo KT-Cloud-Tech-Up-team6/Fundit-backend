@@ -29,13 +29,17 @@ public class LiveSettingsService {
 
     @Transactional
     public LiveSession update(UUID sellerId, UUID liveId, String categoryMajor, String categoryMinor,
-                              String introText, String thumbnailUrl, Instant scheduledStartAt) {
+                              String introText, String thumbnailUrl, Instant scheduledStartAt,
+                              boolean clearSchedule) {
         LiveSession session = sessionRepository.findOwned(liveId, sellerId)
                 // 타인 소유와 없는 LIVE를 같은 404로 응답한다 — 403이면 "그 방송이 존재한다"를
                 // 알려줘서 id를 넣어보며 남의 방송 존재 여부를 캐낼 수 있다(security.md S10).
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
 
         session.updateSettings(categoryMajor, categoryMinor, introText, thumbnailUrl, scheduledStartAt);
+        if (clearSchedule) {
+            session.clearSchedule();
+        }
         LiveSession saved = sessionRepository.save(session);
         scheduleContextUpdate(saved);
         return saved;

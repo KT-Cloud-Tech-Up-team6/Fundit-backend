@@ -67,6 +67,9 @@ public class LiveHighlightJpaEntity {
     @Column(name = "clip_url")
     private String clipUrl;
 
+    @Column(name = "thumbnail_url")
+    private String thumbnailUrl;
+
     @Column(name = "caption")
     private String caption;
 
@@ -96,6 +99,7 @@ public class LiveHighlightJpaEntity {
         this.startSec = highlight.getStartSec();
         this.endSec = highlight.getEndSec();
         this.clipUrl = highlight.getClipUrl();
+        this.thumbnailUrl = highlight.getThumbnailUrl();
         this.caption = highlight.getCaption();
         this.isPublic = highlight.isPublic();
         this.generationStatus = highlight.getGenerationStatus();

@@ -77,14 +77,19 @@ public class HttpAiClient implements AiClient {
     /**
      * {@code liveId}를 감싸지 않고 나머지 필드와 나란히(평평하게) 보낸다 — 합의된 바디 모양이
      * {@code {"live_id": ..., "mode": ..., "product": {...}, ...}}라 {@code CueSheetRequest}를
-     * {@code "request"} 키로 감싸면 안 된다.
+     * {@code "request"} 키로 감싸면 안 된다. 판매자 답변({@code SellerBrief})도 같은 이유로 최상위 키로 펼친다.
      */
     private record CueSheetHttpRequest(String liveId, String mode, int targetDurationSec, boolean demoAvailable,
                                        List<String> emphasisPoints, String tone, List<String> mandatoryPhrases,
-                                       PrepareRequest product, FundingInfo funding) {
+                                       PrepareRequest product, FundingInfo funding,
+                                       String productDescription, String motivation, String expectedRisks,
+                                       String demoDescription, String deliverySchedule) {
         static CueSheetHttpRequest of(String liveId, CueSheetRequest r) {
+            AiClient.SellerBrief b = r.brief() == null ? AiClient.SellerBrief.EMPTY : r.brief();
             return new CueSheetHttpRequest(liveId, r.mode(), r.targetDurationSec(), r.demoAvailable(),
-                    r.emphasisPoints(), r.tone(), r.mandatoryPhrases(), r.product(), r.funding());
+                    r.emphasisPoints(), r.tone(), r.mandatoryPhrases(), r.product(), r.funding(),
+                    b.productDescription(), b.motivation(), b.expectedRisks(), b.demoDescription(),
+                    b.deliverySchedule());
         }
     }
 

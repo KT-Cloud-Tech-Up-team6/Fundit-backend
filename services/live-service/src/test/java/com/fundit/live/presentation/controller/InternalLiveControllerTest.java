@@ -15,13 +15,17 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -146,5 +150,25 @@ class InternalLiveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(nullValue()))
                 .andExpect(jsonPath("$.sessionId").value(nullValue()));
+    }
+
+    @Test
+    void 하이라이트_콜백은_썸네일까지_넘긴다() throws Exception {
+        // given
+        UUID liveId = UUID.randomUUID();
+
+        // when
+        ResultActions result = mockMvc.perform(post("/internal/v1/lives/{liveId}/highlights", liveId)
+                .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        [{ "kind": "CLIP", "sceneLabel": "DEMO", "startSec": 10, "endSec": 70,
+                           "clipUrl": "https://clip", "thumbnailUrl": "https://thumb", "status": "COMPLETED" }]
+                        """));
+
+        // then
+        result.andExpect(status().isNoContent());
+        verify(highlightService).applyGenerated(eq(liveId), org.mockito.ArgumentMatchers.<List<HighlightService.GeneratedHighlight>>argThat(
+                list -> list.size() == 1 && "https://thumb".equals(list.getFirst().thumbnailUrl())));
     }
 }

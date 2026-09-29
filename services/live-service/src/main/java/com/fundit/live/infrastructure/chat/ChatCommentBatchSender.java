@@ -2,6 +2,7 @@ package com.fundit.live.infrastructure.chat;
 
 import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
@@ -34,6 +35,9 @@ import java.util.stream.Collectors;
  *
  * <p><b>AI 호출이 실패해도 채팅 저장·송출에는 영향이 없다</b>(CLAUDE.md 원칙) — 실패한 세션은
  * {@code sent_to_ai_at}을 채우지 않고 다음 주기에 그대로 재시도한다.
+ *
+ * <p>응답에 AI 답변이 실려 오면 채팅방에 {@value #AI_ANSWER_EVENT_NAME} 이벤트로 게시한다
+ * ({@link #postAiAnswers}).
  */
 @Component
 @RequiredArgsConstructor
@@ -44,6 +48,9 @@ public class ChatCommentBatchSender {
     private final LiveSessionJpaRepository sessionRepository;
     private final ChatMessageJpaRepository chatMessageRepository;
     private final AiClient aiClient;
+    private final IvsClient ivsClient;
+
+    static final String AI_ANSWER_EVENT_NAME = "ai-answer";
 
     /**
      * 세션별 "발신자가 직전에 보낸 내용" — 배치 경계(50건)를 넘어서도 기억해야 한다. 49번째까지
@@ -108,6 +115,8 @@ public class ChatCommentBatchSender {
         // 배치 앞자리를 차지해 뒤 채팅이 방송 끝까지 AI에 도달하지 못한다. 개별 댓글 LLM 실패는
         // 재시도해도 같은 결과일 가능성이 높고, 잦아지면 그건 AI 서버 장애라 재시도 횟수로 풀
         // 문제가 아니다. 버린 건 로그로 남긴다.
+        postAiAnswers(session, result.questions());
+
         Set<String> handled = new HashSet<>();
         result.questions().forEach(q -> handled.add(q.commentId()));
         result.ignored().forEach(i -> handled.add(i.commentId()));
@@ -123,6 +132,43 @@ public class ChatCommentBatchSender {
                 .forEach(sentIds::add);
         if (!sentIds.isEmpty()) {
             chatMessageRepository.markSentToAi(sentIds, Instant.now());
+        }
+    }
+
+    /**
+     * 근거를 찾은 AI 답변을 채팅방에 게시한다(PM ①② — 근거 있는 답변만 판매자 확인 없이 자동 게시,
+     * 근거 없는 질문은 기존대로 판매자가 AI 추천 답변을 수정해 보낸다). AI는 근거가 없으면
+     * {@code answer}를 비워 보내므로 {@code answer}가 있는 것만 게시한다.
+     *
+     * <p>{@code answer}는 원문 그대로 싣는다 — {@code strict=true}는 가공 금지라는 뜻이다. 그래서 IVS 이벤트
+     * 속성 한도(4KB)를 넘으면 줄이지 않고 건너뛴다. 판매자 답변과 달리 AI 답변은 따로 조회할 경로가 없어
+     * 식별자만 보내는 대안도 없다.
+     *
+     * <p>게시 실패는 로그만 남긴다 — 이 건 때문에 전송 완료 표시가 안 되면 같은 채팅이 AI에 다시 가서
+     * 답변이 두 번 만들어진다. 채팅방이 아직 없으면(ARN null) 게시할 곳이 없다.
+     */
+    private void postAiAnswers(LiveSessionJpaEntity session, List<AiClient.AnsweredQuestion> questions) {
+        String roomArn = session.getIvsChatRoomArn();
+        if (roomArn == null) {
+            return;
+        }
+        for (AiClient.AnsweredQuestion q : questions) {
+            if (q.answer() == null || q.answer().text() == null || q.answer().text().isBlank()) {
+                continue;
+            }
+            // aiQuestionId: 판매자 답변 이벤트의 questionId(질문 UUID)와 값이 달라 이름을 나눈다.
+            Map<String, String> attributes = Map.of("commentId", q.commentId(),
+                    "aiQuestionId", q.questionId(), "answer", q.answer().text());
+            if (IvsClient.chatEventAttributesBytes(attributes) > IvsClient.CHAT_EVENT_ATTRIBUTES_MAX_BYTES) {
+                log.warn("AI 답변이 채팅 이벤트 한도를 넘어 게시하지 않는다. sessionId={} commentId={}",
+                        session.getId(), q.commentId());
+                continue;
+            }
+            try {
+                ivsClient.sendChatEvent(roomArn, AI_ANSWER_EVENT_NAME, attributes);
+            } catch (RuntimeException e) {
+                log.warn("AI 답변 채팅 게시 실패. sessionId={} commentId={}", session.getId(), q.commentId(), e);
+            }
         }
     }
 

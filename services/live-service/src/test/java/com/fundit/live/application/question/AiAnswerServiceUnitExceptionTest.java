@@ -15,7 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,8 +39,14 @@ class AiAnswerServiceUnitExceptionTest {
 
     @Test
     void 빈_답변은_보낼_수_없다() {
-        // when & then
-        assertThatThrownBy(() -> aiAnswerService.send(sellerId, liveId, questionId, "  "))
+        // given
+        String blankAnswer = "  ";
+
+        // when
+        Throwable thrown = catchThrowable(() -> aiAnswerService.send(sellerId, liveId, questionId, blankAnswer));
+
+        // then
+        assertThat(thrown)
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);
@@ -51,8 +58,27 @@ class AiAnswerServiceUnitExceptionTest {
         givenOwned();
         given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.empty());
 
-        // when & then — 존재를 알리지 않으려 404다(S10)
-        assertThatThrownBy(() -> aiAnswerService.send(sellerId, liveId, questionId, "답변"))
+        // when
+        Throwable thrown = catchThrowable(() -> aiAnswerService.send(sellerId, liveId, questionId, "답변"));
+
+        // then — 존재를 알리지 않으려 404다(S10)
+        assertThat(thrown)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void 다른_LIVE의_질문은_답변_완료_처리할_수_없다() {
+        // given
+        givenOwned();
+        given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.empty());
+
+        // when
+        Throwable thrown = catchThrowable(() -> aiAnswerService.markDone(sellerId, liveId, questionId));
+
+        // then
+        assertThat(thrown)
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);
@@ -64,8 +90,11 @@ class AiAnswerServiceUnitExceptionTest {
         givenOwned();
         given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.empty());
 
-        // when & then
-        assertThatThrownBy(() -> aiAnswerService.draft(sellerId, liveId, questionId))
+        // when
+        Throwable thrown = catchThrowable(() -> aiAnswerService.draft(sellerId, liveId, questionId));
+
+        // then
+        assertThat(thrown)
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);

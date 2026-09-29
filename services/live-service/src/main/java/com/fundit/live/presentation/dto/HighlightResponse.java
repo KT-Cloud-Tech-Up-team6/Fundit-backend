@@ -2,6 +2,7 @@ package com.fundit.live.presentation.dto;
 
 import com.fundit.live.domain.highlight.LiveHighlight;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,12 +13,13 @@ import java.util.UUID;
 public record HighlightResponse(List<Item> markers, List<Item> clips) {
 
     public record Item(UUID highlightId, String sceneLabel, String title, int startSec, Integer endSec,
-                       String clipUrl, String caption, boolean isPublic, String generationStatus) {
+                       String clipUrl, String thumbnailUrl, String caption, boolean isPublic,
+                       String generationStatus, Instant createdAt) {
 
         public static Item from(LiveHighlight h) {
             return new Item(h.getPublicId(), h.getSceneLabel().name(), h.getTitle(), h.getStartSec(),
-                    h.getEndSec(), h.getClipUrl(), h.getCaption(), h.isPublic(),
-                    h.getGenerationStatus().name());
+                    h.getEndSec(), h.getClipUrl(), h.getThumbnailUrl(), h.getCaption(), h.isPublic(),
+                    h.getGenerationStatus().name(), h.getCreatedAt());
         }
     }
 

@@ -51,7 +51,7 @@ public class CueSheetService {
     @Transactional
     public void requestGeneration(UUID sellerId, UUID liveId, String mode, int targetDurationSec,
                                   boolean demoAvailable, List<String> emphasisPoints, String tone,
-                                  List<String> mandatoryPhrases) {
+                                  List<String> mandatoryPhrases, AiClient.SellerBrief brief) {
         if (targetDurationSec <= 0 || targetDurationSec > MAX_DURATION_SEC) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "방송 길이는 10분 이내여야 합니다.");
         }
@@ -79,7 +79,7 @@ public class CueSheetService {
         // 이벤트를 발행해 커밋 후 별도 스레드에서 처리한다(onCueSheetGenerationRequested).
         eventPublisher.publishEvent(new CueSheetGenerationRequested(liveId, new AiClient.CueSheetRequest(
                 mode, targetDurationSec, demoAvailable, emphasisPoints, tone, mandatoryPhrases,
-                input.product(), input.funding())));
+                input.product(), input.funding(), brief)));
     }
 
     /**

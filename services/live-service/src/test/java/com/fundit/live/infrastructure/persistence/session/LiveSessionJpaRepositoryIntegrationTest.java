@@ -77,7 +77,7 @@ class LiveSessionJpaRepositoryIntegrationTest {
         seedSession(channelId, LiveStatus.ENDED);
 
         // when
-        var page = sessionRepository.findPublic(null, PageRequest.of(0, 20));
+        var page = sessionRepository.findPublic(null, null, PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(2)
@@ -92,7 +92,7 @@ class LiveSessionJpaRepositoryIntegrationTest {
         seedSession(channelId, LiveStatus.ENDED);
 
         // when
-        var page = sessionRepository.findPublic(LiveStatus.LIVE, PageRequest.of(0, 20));
+        var page = sessionRepository.findPublic(LiveStatus.LIVE, null, PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1)
@@ -215,10 +215,24 @@ class LiveSessionJpaRepositoryIntegrationTest {
         seedSession(channelId, LiveStatus.LIVE);
 
         // when
-        var page = sessionRepository.findPublic(LiveStatus.DRAFT, PageRequest.of(0, 20));
+        var page = sessionRepository.findPublic(LiveStatus.DRAFT, null, PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    void 소비자_목록은_프로젝트로_거를_수_있다() {
+        // given — 프로젝트 상세 "LIVE 체크" 탭(종료 LIVE 목록)
+        var target = seedSession(channelId, LiveStatus.ENDED);
+        seedSession(channelId, LiveStatus.ENDED);
+
+        // when
+        var page = sessionRepository.findPublic(LiveStatus.ENDED, target.getProjectId(), PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).singleElement()
+                .extracting(LiveSessionJpaEntity::getPublicId).isEqualTo(target.getPublicId());
     }
 
     @Test
@@ -240,7 +254,7 @@ class LiveSessionJpaRepositoryIntegrationTest {
         seedSession(otherChannel, LiveStatus.LIVE);
 
         // when
-        var page = sessionRepository.findPublicBySellerIds(null, List.of(sellerId), PageRequest.of(0, 20));
+        var page = sessionRepository.findPublicBySellerIds(null, null, List.of(sellerId), PageRequest.of(0, 20));
 
         // then
         assertThat(page.getContent()).hasSize(1).allMatch(s -> s.getChannelId().equals(channelId));

@@ -37,7 +37,7 @@ class StubAiClientUnitTest {
         // given — 콜백이 사라졌으니(동기 전환) 스텁도 완료 흐름을 실제로 타야 로컬에서
         // GENERATING에 영원히 머물지 않는다
         AiClient.CueSheetRequest request = new AiClient.CueSheetRequest(
-                "SCENARIO", 580, false, List.of(), null, List.of(), null, null);
+                "SCENARIO", 580, false, List.of(), null, List.of(), null, null, null);
 
         // when
         String segments = new StubAiClient().requestCueSheet("live", request);
@@ -51,7 +51,7 @@ class StubAiClientUnitTest {
         // given — QA/dev에서 FAILED 상태를 재현할 방법이 없었다(FE 요청). prod는 이 스텁 자체가
         // 안 뜨므로 운영 코드 경로에는 영향이 없다.
         AiClient.CueSheetRequest request = new AiClient.CueSheetRequest(
-                "SCENARIO", 580, false, List.of(), "QA_FORCE_FAIL", List.of(), null, null);
+                "SCENARIO", 580, false, List.of(), "QA_FORCE_FAIL", List.of(), null, null, null);
 
         // when & then
         assertThatThrownBy(() -> new StubAiClient().requestCueSheet("live", request))

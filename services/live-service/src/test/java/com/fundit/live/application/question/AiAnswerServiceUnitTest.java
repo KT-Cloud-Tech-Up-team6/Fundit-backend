@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -217,5 +218,37 @@ class AiAnswerServiceUnitTest {
         } finally {
             logger.detachAppender(appender);
         }
+    }
+
+    @Test
+    void 답변_완료_처리는_고정_문구만_남기고_코파일럿과_채팅에_보내지_않는다() {
+        // given — 코파일럿에 등록하면 이 문구가 유사 질문의 시청자 답변으로 재사용된다
+        LiveQuestionSummaryJpaEntity s = summary();
+        givenOwnedAndSummary(s);
+
+        // when
+        aiAnswerService.markDone(sellerId, liveId, questionId);
+
+        // then
+        assertThat(s.isAnswered()).isTrue();
+        assertThat(s.getAnswerText()).isEqualTo(AiAnswerService.MARK_DONE_ANSWER);
+        assertThat(s.getAnsweredBy()).isEqualTo(AiClient.AnsweredBy.SELLER);
+        verify(aiClient, never()).registerSellerAnswer(anyString(), anyString(), anyString());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void 이미_답변된_질문은_답변_완료_처리로_덮지_않는다() {
+        // given — 판매자가 실제로 쓴 답변이 고정 문구로 바뀌면 안 된다
+        LiveQuestionSummaryJpaEntity s = summary();
+        s.recordAnswer("500ml/700ml 두 가지입니다.", Instant.parse("2026-09-10T11:00:00Z"));
+        givenOwnedAndSummary(s);
+
+        // when
+        aiAnswerService.markDone(sellerId, liveId, questionId);
+
+        // then
+        assertThat(s.getAnswerText()).isEqualTo("500ml/700ml 두 가지입니다.");
+        assertThat(s.getAnsweredAt()).isEqualTo(Instant.parse("2026-09-10T11:00:00Z"));
     }
 }

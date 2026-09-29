@@ -1,6 +1,8 @@
 package com.fundit.live.infrastructure.persistence.highlight;
 
 import com.fundit.live.domain.highlight.HighlightKind;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +20,32 @@ public interface LiveHighlightJpaRepository extends JpaRepository<LiveHighlightJ
     List<LiveHighlightJpaEntity> findBySessionIdAndIsPublicTrueOrderByStartSecAsc(Long sessionId);
 
     Optional<LiveHighlightJpaEntity> findByPublicId(UUID publicId);
+
+    /**
+     * 프로젝트의 공개 클립과 그 방송의 {@code public_id}. 세션 → 프로젝트 조인이라 세션 엔티티를 같이 본다.
+     * 결과 행은 {@code [UUID liveId, LiveHighlightJpaEntity]}. 두 엔티티를 select해 count를 자동으로
+     * 못 만들므로 {@code countQuery}를 따로 둔다.
+     */
+    @Query(value = """
+            select s.publicId, h from LiveHighlightJpaEntity h, com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity s
+            where s.id = h.sessionId
+              and s.projectId = :projectId
+              and s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
+              and h.kind = com.fundit.live.domain.highlight.HighlightKind.CLIP
+              and h.isPublic = true
+              and h.generationStatus = com.fundit.live.domain.ai.GenerationStatus.COMPLETED
+            order by h.createdAt desc, h.id desc
+            """,
+            countQuery = """
+            select count(h) from LiveHighlightJpaEntity h, com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity s
+            where s.id = h.sessionId
+              and s.projectId = :projectId
+              and s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
+              and h.kind = com.fundit.live.domain.highlight.HighlightKind.CLIP
+              and h.isPublic = true
+              and h.generationStatus = com.fundit.live.domain.ai.GenerationStatus.COMPLETED
+            """)
+    Page<Object[]> findPublicClipsByProjectId(@Param("projectId") UUID projectId, Pageable pageable);
 
     /** 방송 1회당 클립 최대 3개(요구사항정의서 6.6.3) 검증용. 마커는 제한이 없다. */
     long countBySessionIdAndKind(Long sessionId, HighlightKind kind);

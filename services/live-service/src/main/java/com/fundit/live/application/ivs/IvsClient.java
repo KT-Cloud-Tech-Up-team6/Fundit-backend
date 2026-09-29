@@ -29,13 +29,36 @@ public interface IvsClient {
      */
     int getViewerCount(String channelArn);
 
+    /**
+     * 송출 상태(판매자 송출 화면 폴링용). 방송이 안 들어오고 있으면 {@link StreamStatus#OFFLINE}.
+     * 시청자 수와 달리 그 밖의 실패는 던진다 — "모름"을 OFFLINE으로 보여주면 판매자가
+     * 멀쩡한 송출을 끊고 다시 켠다.
+     */
+    StreamStatus getStreamStatus(String channelArn);
+
     /** ARN(참조)으로 실제 스트림 키 값을 조회한다. 요청 시점에만 쓰고 저장하지 않는다(S9). */
     String getStreamKeyValue(String streamKeyRef);
 
     /** 서버발 이벤트. 참가자 MESSAGE가 아니라 EVENT 타입으로 도착한다 — FE가 렌더링해야 보인다. */
     void sendChatEvent(String roomArn, String eventName, java.util.Map<String, String> attributes);
 
+    /** IVS Chat SendEvent attributes 합계 상한(AWS API 문서: "4 KB total"). 넘기면 IVS가 거절한다. */
+    int CHAT_EVENT_ATTRIBUTES_MAX_BYTES = 4 * 1024;
+
+    /** attributes 키·값 UTF-8 바이트 합. 호출부가 {@link #CHAT_EVENT_ATTRIBUTES_MAX_BYTES}와 비교해 미리 거른다. */
+    static int chatEventAttributesBytes(java.util.Map<String, String> attributes) {
+        return attributes.entrySet().stream()
+                .mapToInt(e -> e.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + e.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                .sum();
+    }
+
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
+    }
+
+    /** {@code state}는 IVS 값 그대로(LIVE·OFFLINE), {@code health}는 HEALTHY·STARVING·UNKNOWN. */
+    record StreamStatus(String state, String health, int viewerCount, java.time.Instant startedAt) {
+        public static final StreamStatus OFFLINE = new StreamStatus("OFFLINE", null, 0, null);
     }
 }

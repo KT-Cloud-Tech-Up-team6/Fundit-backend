@@ -33,6 +33,7 @@ public class LiveHighlight {
     private int startSec;
     private Integer endSec;
     private String clipUrl;
+    private String thumbnailUrl;
     private String caption;
     private boolean isPublic;
     private GenerationStatus generationStatus;
@@ -40,10 +41,14 @@ public class LiveHighlight {
     private final int clickCount;
     private final Instant createdAt;
 
-    /** AI 생성 결과. <b>항상 비공개로 시작한다</b> — 기본값을 뒤집으면 검수 전 내용이 그대로 샌다. */
+    /**
+     * AI 생성 결과. <b>클립은 비공개로 시작한다</b> — 판매자가 확정해야 소비자에게 보인다.
+     * 완료된 마커(다시보기 챕터)만 바로 공개한다(PM-1 "생성되면 자동 공개") — 챕터를 공개할 판매자
+     * 화면이 없어 비공개로 두면 다시보기 구간 탐색이 영영 비어 있다.
+     */
     public static LiveHighlight generated(Long sessionId, HighlightKind kind, SceneLabel sceneLabel,
                                           String title, int startSec, Integer endSec, String clipUrl,
-                                          String caption, GenerationStatus status) {
+                                          String thumbnailUrl, String caption, GenerationStatus status) {
         requireRange(kind, startSec, endSec);
         return LiveHighlight.builder()
                 .publicId(UUID.randomUUID())
@@ -54,8 +59,9 @@ public class LiveHighlight {
                 .startSec(startSec)
                 .endSec(endSec)
                 .clipUrl(clipUrl)
+                .thumbnailUrl(thumbnailUrl)
                 .caption(caption)
-                .isPublic(false)
+                .isPublic(autoPublic(kind, status))
                 .generationStatus(status)
                 .viewCount(0)
                 .clickCount(0)
@@ -75,18 +81,23 @@ public class LiveHighlight {
         if (caption != null) this.caption = caption;
     }
 
-    /** 재생성 결과 반영. 검토 전 내용이 새지 않게 공개 여부를 다시 내린다. */
+    /** 재생성 결과 반영. 검토 전 클립이 새지 않게 공개 여부를 다시 정한다 — 완료된 마커만 공개. */
     public void applyRegenerated(SceneLabel sceneLabel, String title, int startSec, Integer endSec,
-                                 String clipUrl, String caption, GenerationStatus status) {
+                                 String clipUrl, String thumbnailUrl, String caption, GenerationStatus status) {
         requireRange(this.kind, startSec, endSec);
         this.sceneLabel = sceneLabel;
         this.title = title;
         this.startSec = startSec;
         this.endSec = endSec;
         this.clipUrl = clipUrl;
+        this.thumbnailUrl = thumbnailUrl;
         this.caption = caption;
         this.generationStatus = status;
-        this.isPublic = false;
+        this.isPublic = autoPublic(this.kind, status);
+    }
+
+    private static boolean autoPublic(HighlightKind kind, GenerationStatus status) {
+        return kind == HighlightKind.MARKER && status == GenerationStatus.COMPLETED;
     }
 
     public void markRegenerating() {

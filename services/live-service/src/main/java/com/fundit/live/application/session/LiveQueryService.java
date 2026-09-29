@@ -98,23 +98,26 @@ public class LiveQueryService {
      * ({@link #findPublicByViewerCount}). 그 외에는 기존 DB 정렬(`createdAt desc`) 그대로다.
      */
     public Page<LiveSummaryResponse> findPublic(LiveStatus status, String sort, List<UUID> sellerIds,
-                                                Pageable pageable) {
+                                                UUID projectId, Pageable pageable) {
         if (SORT_VIEWER_COUNT.equals(sort)) {
-            return findPublicByViewerCount(pageable);
+            return findPublicByViewerCount(projectId, pageable);
         }
         Page<LiveSessionJpaEntity> page = (sellerIds == null || sellerIds.isEmpty())
-                ? sessionRepository.findPublic(status, pageable)
-                : sessionRepository.findPublicBySellerIds(status, sellerIds, pageable);
-        Map<Long, String> nicknames = sellerNicknameByChannelId(page.getContent());
-        return page.map(e -> LiveSummaryResponse.from(e, null, nicknames.get(e.getChannelId())));
+                ? sessionRepository.findPublic(status, projectId, pageable)
+                : sessionRepository.findPublicBySellerIds(status, projectId, sellerIds, pageable);
+        Map<Long, Seller> sellers = sellerByChannelId(page.getContent());
+        return page.map(e -> summaryOf(e, null, sellers));
     }
 
     /**
      * 동시 방송 수만큼 {@code GetStream} 호출이 나간다 — ponytail: 지금은 그대로 가고,
      * 트래픽이 늘어 문제가 되면 짧은 TTL 캐시를 붙인다.
      */
-    private Page<LiveSummaryResponse> findPublicByViewerCount(Pageable pageable) {
-        List<LiveSessionJpaEntity> liveSessions = sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
+    private Page<LiveSummaryResponse> findPublicByViewerCount(UUID projectId, Pageable pageable) {
+        List<LiveSessionJpaEntity> liveSessions = sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)
+                .stream()
+                .filter(s -> projectId == null || projectId.equals(s.getProjectId()))
+                .toList();
         Map<Long, String> channelArnById = channelRepository.findAllById(
                         liveSessions.stream().map(LiveSessionJpaEntity::getChannelId).distinct().toList())
                 .stream().collect(Collectors.toMap(LiveChannelJpaEntity::getId, LiveChannelJpaEntity::getIvsChannelArn));
@@ -135,10 +138,9 @@ public class LiveQueryService {
         int end = Math.min(start + pageable.getPageSize(), ranked.size());
         // 닉네임은 잘라낸 페이지분만 조회한다 — 전체 LIVE 수만큼 member를 부를 이유가 없다.
         List<Map.Entry<LiveSessionJpaEntity, Integer>> pageEntries = ranked.subList(start, end);
-        Map<Long, String> nicknames = sellerNicknameByChannelId(pageEntries.stream().map(Map.Entry::getKey).toList());
+        Map<Long, Seller> sellers = sellerByChannelId(pageEntries.stream().map(Map.Entry::getKey).toList());
         List<LiveSummaryResponse> content = pageEntries.stream()
-                .map(entry -> LiveSummaryResponse.from(entry.getKey(), entry.getValue(),
-                        nicknames.get(entry.getKey().getChannelId())))
+                .map(entry -> summaryOf(entry.getKey(), entry.getValue(), sellers))
                 .toList();
         return new PageImpl<>(content, pageable, ranked.size());
     }
@@ -146,19 +148,26 @@ public class LiveQueryService {
     /** 홈 배너(요구사항정의서 10.1.4) — 현재 방송 중인 것만. */
     public List<LiveSummaryResponse> findLiveBanner() {
         List<LiveSessionJpaEntity> sessions = sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE);
-        Map<Long, String> nicknames = sellerNicknameByChannelId(sessions);
+        Map<Long, Seller> sellers = sellerByChannelId(sessions);
         return sessions.stream()
-                .map(e -> LiveSummaryResponse.from(e, null, nicknames.get(e.getChannelId())))
+                .map(e -> summaryOf(e, null, sellers))
                 .toList();
     }
 
+    private static LiveSummaryResponse summaryOf(LiveSessionJpaEntity e, Integer viewerCount, Map<Long, Seller> sellers) {
+        Seller seller = sellers.get(e.getChannelId());
+        return LiveSummaryResponse.from(e, viewerCount,
+                seller == null ? null : seller.sellerId(), seller == null ? null : seller.nickname());
+    }
+
     /**
-     * 카드에 붙일 판매자 닉네임(channelId → nickname). 세션 → 채널 → sellerId를 모아 member를 한 번에 부른다.
+     * 카드에 붙일 판매자(channelId → sellerId·닉네임). 세션 → 채널 → sellerId를 모아 member를 한 번에 부른다.
      *
      * <p>member 조회 실패는 삼킨다 — 판매자명은 카드 부가 정보라 그것 때문에 목록 전체가 503이 되면 안 된다
-     * ({@code LiveStreamService.fetchProjectTitleOrNull}과 같은 판단).
+     * ({@code LiveStreamService.fetchProjectTitleOrNull}과 같은 판단). 이때도 sellerId는 채운다 —
+     * 우리 DB 값이라 member와 무관하고, FE가 팔로잉 목록의 "방송 중 여부"를 이 값으로 맞춘다.
      */
-    private Map<Long, String> sellerNicknameByChannelId(List<LiveSessionJpaEntity> sessions) {
+    private Map<Long, Seller> sellerByChannelId(List<LiveSessionJpaEntity> sessions) {
         if (sessions.isEmpty()) {
             return Map.of();
         }
@@ -170,10 +179,13 @@ public class LiveQueryService {
                     channels.stream().map(LiveChannelJpaEntity::getSellerId).toList());
         } catch (RuntimeException e) {
             log.warn("판매자 닉네임 조회 실패, 닉네임 없이 목록 반환, channels={}", channels.size(), e);
-            return Map.of();
+            nicknameBySellerId = java.util.Collections.emptyMap();
         }
-        return channels.stream()
-                .filter(c -> nicknameBySellerId.containsKey(c.getSellerId()))
-                .collect(Collectors.toMap(LiveChannelJpaEntity::getId, c -> nicknameBySellerId.get(c.getSellerId())));
+        Map<UUID, String> nicknames = nicknameBySellerId;
+        return channels.stream().collect(Collectors.toMap(LiveChannelJpaEntity::getId,
+                c -> new Seller(c.getSellerId(), nicknames.get(c.getSellerId()))));
+    }
+
+    private record Seller(UUID sellerId, String nickname) {
     }
 }

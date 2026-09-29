@@ -22,7 +22,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.createChannel(any(CreateChannelRequest.class)))
                 .willThrow(SdkClientException.create("timeout"));
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
 
         // when & then
         assertThatThrownBy(() -> client.createChannel("seller-1"))
@@ -35,7 +35,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
@@ -51,12 +51,36 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(SdkClientException.create("throttled"));
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
 
         // then
         assertThat(viewerCount).isZero();
+    }
+
+    @Test
+    void 송출_상태_조회는_방송_중_아님_외의_실패를_OFFLINE으로_감추지_않는다() {
+        // given — "모름"을 OFFLINE으로 보여주면 판매자가 멀쩡한 송출을 끊고 다시 켠다
+        software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
+        given(ivs.getStream(any(GetStreamRequest.class)))
+                .willThrow(SdkClientException.create("throttled"));
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
+
+        // when & then
+        assertThatThrownBy(() -> client.getStreamStatus("arn:channel"))
+                .isInstanceOf(DependencyFailureException.class);
+    }
+
+    @Test
+    void 환경_태그_값이_비어_있으면_생성할_수_없다() {
+        // given — 태그 없이 뜨면 첫 LIVE 생성에서야 AccessDenied로 드러난다. 기동에서 막는다
+        software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
+
+        // when & then
+        assertThatThrownBy(() -> new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", " "))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LIVE_IVS_ENVIRONMENT");
     }
 }

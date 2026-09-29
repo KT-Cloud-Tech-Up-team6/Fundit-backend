@@ -19,6 +19,7 @@
 | POST | `/api/v1/lives/{liveId}/start` | O (본인 소유 LIVE) | LIVE 시작 |
 | POST | `/api/v1/lives/{liveId}/end` | O (본인 소유 LIVE) | LIVE 종료 |
 | GET | `/api/v1/lives/{liveId}/stream-info` | O (본인 소유 LIVE) | 송출 정보(ingest 주소·스트림 키) 조회 |
+| GET | `/api/v1/lives/{liveId}/stream-status` | O (본인 소유 LIVE) | 송출(스트림) 상태 조회 — 송출 화면 폴링용 |
 | GET | `/api/v1/lives/{liveId}/chat/insights` | O (본인 소유 LIVE) | AI 집계 Q&A(FAQ) 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/questions/{questionId}` | O (본인 소유 LIVE) | 대표질문(FAQ 클러스터) 원본 채팅 조회 |
 | GET | `/api/v1/lives/{liveId}/chat/unanswered` | O (본인 소유 LIVE) | 미답변 질문 창(근거 없음) 조회 |
@@ -32,13 +33,14 @@
 | DELETE | `/api/v1/lives/{liveId}/highlights/{highlightId}` | O (본인 소유 LIVE) | 하이라이트 삭제 |
 | PATCH | `/api/v1/lives/{liveId}/highlights/{highlightId}/visibility` | O (본인 소유 LIVE) | 하이라이트 공개 설정 |
 | GET | `/api/v1/lives/{liveId}/highlights/stats` | O (본인 소유 LIVE) | 하이라이트 성과 통계 조회 |
+| POST | `/api/v1/lives/{liveId}/highlights` | O (본인 소유 LIVE) | 하이라이트 자동 생성 요청(수동·재요청용) |
 
 ### 엔드포인트 목록 — 소비자
 
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/lives/banner` | X | 진행중 LIVE 배너 조회 |
-| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별·실시간 순위·팔로우 필터) |
+| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별·실시간 순위·팔로우·프로젝트 필터) |
 | GET | `/api/v1/lives/{liveId}/playback` | X | LIVE 시청 정보 조회 |
 | PUT | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요(idempotent) |
 | DELETE | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요 취소(idempotent) |
@@ -47,6 +49,9 @@
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
 | GET | `/api/v1/lives/{liveId}/vod/chat` | X | 다시보기 시간대별 채팅 조회 |
+| GET | `/api/v1/lives/{liveId}/highlights/public` | X | 방송의 공개 하이라이트(마커·클립) — 호출마다 노출 수 +1 |
+| POST | `/api/v1/lives/{liveId}/highlights/{highlightId}/click` | X | 하이라이트 클릭 수 +1 |
+| GET | `/api/v1/lives/highlights?projectId=` | X | 프로젝트의 공개 숏 클립 목록(LIVE 체크 탭) — 노출 수 불변 |
 
 > **`/share-link`는 구현되어 있지 않다.** 공유 URL은 프론트 도메인·경로를 알아야 조립할 수 있는데
 > BE가 프론트 경로를 아는 순간 화면 구조가 바뀔 때마다 BE를 같이 배포해야 한다. 프론트가 `liveId`로
@@ -64,6 +69,7 @@
 | GET | `/internal/v1/lives/{liveId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 방송 상태 조회(공개 liveId 기준) — order 집계·LIVE 쿠폰 생성용 |
 | GET | `/internal/v1/lives/by-project/{projectId}/active-status` | 내부 전용 (`X-Internal-Api-Key`) | 프로젝트의 진행 중 방송 조회 — order 주문 생성 시 세션 꼬리표용 |
 | GET | `/internal/v1/lives/sessions/{sessionId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 세션 상태 조회(내부 세션 PK 기준) — order LIVE 쿠폰 검증용 |
+| POST | `/internal/v1/lives/{liveId}/highlights` | 내부 전용 (`X-Internal-Api-Key`) | 하이라이트 AI 생성 결과 수신(콜백) |
 
 ---
 
@@ -201,8 +207,12 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 >   하면 판매자가 버튼을 누르고 그만큼 기다리게 된다. `@Async` +
 >   `@TransactionalEventListener(AFTER_COMMIT)`로 분리한다(`CueSheetService` 참고).
 >
-> **하이라이트는 여전히 계약 미정이다** — 위 문제가 그대로 남아 있다. AI가 결과를 우리 내부
-> 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어주는 콜백 구조를 유지한다.
+> **하이라이트는 AI가 `live.ended.v1`을 구독해 자동 생성한다(09-29 AI 구현 완료).** 종료 이벤트엔 녹화 위치가
+> 없고 종료 시점엔 녹화도 안 끝나 있어, AI가 `GET /api/v1/lives/{liveId}/vod`를 폴링해 준비를 확인한 뒤
+> 생성하고(약 6분 30초) 결과를 우리 내부 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어준다.
+> 수동·재생성 요청(`POST /api/v1/lives/{liveId}/highlights`)은 그대로 둔다.
+> ⚠️ 지금은 `vod_url`을 채우는 코드가 없어 `/vod`가 모든 종료 방송에 `409`다 — 녹화 완료 수신(인프라 회신 대기)이
+> 들어와야 자동 생성이 실제로 시작된다.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
 > 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
@@ -319,6 +329,7 @@ Validation / Business Rules
 
 - 부분 업데이트다. 카테고리·소개문구는 연결된 프로젝트 값이 기본으로 채워지고 이 API로 덮어쓴다.
 - **`scheduledStartAt`이 채워지면 상태가 `DRAFT` → `SCHEDULED`로 올라간다.** 예약 없이 바로 시작하는 경우 이 필드는 비워둔 채 "LIVE 시작"로 간다.
+- **예약 해제는 `"clearSchedule": true`로 보낸다.** `scheduledStartAt`이 지워지고 `SCHEDULED` → `DRAFT`로 돌아간다(소비자 예정 목록·배너에서 빠지고 `/mine?status=DRAFT`에 나온다). `ERROR`는 상태를 유지하고 예정 시각만 지운다. `scheduledStartAt: null`은 "변경 없음"이라 해제로 쓸 수 없다. `clearSchedule`과 `scheduledStartAt`을 함께 보내면 `400`.
 - `introText`는 200자 제한. 소비자 화면에 그대로 노출되므로 출력 인코딩 대상이다(`security.md` S2).
 - **연결된 프로젝트·상품 정보는 이 API로 바꿀 수 없다**(요구사항정의서 6.2.4.1 "변경 불가"). 프로젝트를 바꾸려면 LIVE를 새로 만든다.
 - 이미 `LIVE`·`ENDED` 상태면 `409`.
@@ -342,9 +353,25 @@ Request Body
   "demoAvailable": true,
   "emphasisPoints": ["10년 무상 A/S"],
   "tone": "ACTIVE",
-  "mandatoryPhrases": ["환불 규정은 상세페이지 참고"]
+  "mandatoryPhrases": ["환불 규정은 상세페이지 참고"],
+  "productDescription": "접이식 미니 가습기",
+  "motivation": "자취방이 너무 건조해서 만들었습니다",
+  "expectedRisks": "초기 물량이 부족할 수 있습니다",
+  "demoDescription": "분무량 3단계 조절 시연",
+  "deliverySchedule": "10월 둘째 주부터 순차 발송"
 }
 ```
+
+판매자 답변 5가지(AI-1) — 전부 선택, 각 1000자 이내(넘으면 `400`). 저장하지 않고 AI로 전달만 한다.
+비어 있으면 AI가 지어내지 않고 그 항목을 건너뛴다.
+
+| 의미 | 요청 필드(FE→BE) | AI로 가는 JSON 키(최상위) |
+| --- | --- | --- |
+| 제품 설명 | `productDescription` | `product_description` |
+| 개발 동기 | `motivation` | `motivation` |
+| 예상 어려움 | `expectedRisks` | `expected_risks` |
+| 시연 항목 | `demoDescription` | `demo_description` |
+| 발송 일정 | `deliverySchedule` | `delivery_schedule` |
 
 Response Body (202 Accepted)
 
@@ -422,7 +449,7 @@ Validation / Business Rules
 - 시작은 `DRAFT`·`SCHEDULED`에서만 가능하다. 종료는 `LIVE`에서만 가능하다. 그 외는 `409`.
 - **스트림 키는 응답에 담지 않는다.** 송출 소프트웨어 설정용 키는 아래 `stream-info`로 분리하고, 여기서는 `ingestEndpoint`만 돌려준다 — 방송 시작 응답은 로그·브라우저 히스토리에 남기 쉬운 값이다.
 - 송출 오류 시 상태를 `ERROR`로 두고 `error_detail`을 함께 저장한다(요구사항정의서 6.3.4). 응답은 사유를 일반화해 내보낸다(S10).
-- **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다.
+- **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다. 하이라이트 AI는 이 이벤트를 구독(확정)하고, 녹화 준비는 `/vod`를 폴링해 확인한다(payload에 녹화 위치가 없다).
 - 질문요약이 완성되면 **`live.questions-summarized.v1`을 추가로 발행**해 project-service가 LIVE 검증 탭을 채우게 한다(아래 "질문요약 발행" 절).
 - **시작 시 `live.started.v1`을 발행**한다. `notification.raised.v1`을 직접 쏘지 않는 이유: 그 토픽은
   수신자(`memberId`)가 채워져 있어야 하는데 신청자 목록(`live_notify_requests`)은 notification이 소유한다.
@@ -447,6 +474,32 @@ Validation / Business Rules
 - 판매자가 OBS 같은 송출 프로그램에 넣을 값이다. 본인 소유 LIVE만 조회된다 — 남의 방송·채널 없음은 `404`.
 - **스트림 키 값은 DB에 없다.** 채널 생성 시 참조(ARN, `live_channels.ivs_stream_key_ref`)만 저장하고, 이 호출 때마다 IVS `GetStreamKey`로 꺼낸다(S9). 탈취되면 타인이 이 채널로 무단 송출하므로 이 응답을 로그에 남기지 않는다.
 - 스텁 모드(`live.ivs.mode=stub`)에선 `stub-stream-key-value:...` 형식의 가짜 값이 나간다 — 실제 송출에는 쓸 수 없다.
+
+---
+
+### 송출(스트림) 상태 조회
+
+```
+GET /api/v1/lives/{liveId}/stream-status
+```
+
+Auth Required: **O** (본인 소유 LIVE)
+
+Response Body
+
+```json
+{ "state": "LIVE", "health": "HEALTHY", "viewerCount": 12, "startedAt": "2026-09-10T20:00:03+09:00" }
+```
+
+방송이 안 들어오고 있으면 `{ "state": "OFFLINE", "health": null, "viewerCount": 0, "startedAt": null }`.
+
+Validation / Business Rules
+
+- 판매자 송출 화면이 OBS 송출이 실제로 들어오는지 확인하는 용도다. 값은 IVS `GetStream`을 그대로 옮긴다 — `state`는 `LIVE`·`OFFLINE`, `health`는 `HEALTHY`·`STARVING`(송출 비트레이트 부족)·`UNKNOWN`.
+- **LIVE 상태 방송만 IVS에 묻는다.** 시작 전·종료 후에는 IVS를 부르지 않고 `OFFLINE`을 돌려준다 — 화면이 폴링을 계속해도 IVS 호출 한도를 쓰지 않는다.
+- **폴링 간격은 10초 이상을 권장한다.** IVS API는 계정 단위 호출 한도가 있고, 방송마다 판매자 화면이 폴링하므로 동시 방송 수만큼 호출이 늘어난다.
+- 방송 중이 아님 외의 IVS 실패(스로틀링·권한 등)는 `503`이다 — "모름"을 `OFFLINE`으로 보여주면 판매자가 멀쩡한 송출을 끊고 다시 켠다.
+- 남의 방송은 `404`(S10). 스텁 모드에선 LIVE 방송이면 늘 `LIVE`/`HEALTHY`다 — 실제 값은 `live.ivs.mode=aws` 전환 뒤에 나온다.
 
 ---
 
@@ -610,6 +663,15 @@ POST /api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer
 **미답변 창(`GET /chat/unanswered`)에서 진입한 질문 전용이다** — 근거를 찾은 질문은 채팅 배치
 응답으로 이미 즉시 답변되어 있어 이 흐름을 타지 않는다.
 
+> **근거를 찾은 AI 답변은 BE가 채팅방에 자동 게시한다**(PM ①②, AI "(a) BE가 게시"). 채팅 배치(`submitComments`)
+> 응답에 `answer`가 있는 질문만 IVS Chat `SendEvent`로 보낸다 — 이벤트 이름 **`ai-answer`**, 속성
+> `commentId`(원 채팅 ID)·`aiQuestionId`(AI 분류 ID — `seller-answer`의 `questionId`(질문 UUID)와 값이 달라 이름을 나눴다)·
+> `answer`(AI 답변 **원문 그대로**, `strict`면 가공 금지). 판매자 확인 없이 나간다.
+> - 채팅방이 없으면 건너뛰고, 게시 실패는 로그만 남긴다(`seller-answer`와 같은 방침).
+> - 속성 합계가 4KB를 넘으면 **게시하지 않는다** — 원문을 줄일 수 없고, AI 답변은 따로 조회할 경로가 없어
+>   `seller-answer`처럼 식별자만 보내는 대안이 없다.
+> - FE 표시 라벨: `seller-answer` → '판매자', `ai-answer` → 'AI 매니저'(PM 2-③).
+
 Request Body — 초안 미리보기(`GENERATE`, 아무것도 기록하지 않는다)
 
 ```json
@@ -628,7 +690,21 @@ Request Body — 등록(`SEND`)
 { "action": "SEND", "finalAnswer": "500ml/700ml 두 가지 사이즈로 제공됩니다." }
 ```
 
+Request Body — 답변 완료 처리(`MARK_DONE`, 방송 중 말로 답한 질문)
+
+```json
+{ "action": "MARK_DONE" }
+```
+
+Response Body — `{ "draftAnswer": "방송 중 답변 완료", "referenceChunks": [], "sent": true }`
+
 Validation / Business Rules
+
+- **`MARK_DONE`은 고정 문구 `"방송 중 답변 완료"`만 로컬에 기록한다.** LIVE 체크·Q&A 목록(`answered-questions`)에 이 문구가
+  답변으로 보이고(`answeredBy: SELLER`), 미답변 창에서는 답변된 쪽으로 옮겨진다. **AI `registerSellerAnswer`를 부르지 않고
+  채팅에도 게시하지 않는다** — 등록하면 Live Knowledge에 들어가 유사 질문에 이 문구가 시청자 답변(`SELLER_CONFIRMED`)으로
+  나간다(AI 회신, 등록을 끄는 플래그 없음). 이미 답변된 질문은 덮지 않고 그대로 돌려준다. `finalAnswer`는 무시한다.
+- `finalAnswer`는 1000자 이내(넘으면 `400`) — 코파일럿 `answer_text`가 1~1000자 필수다.
 
 - **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 AI의 `registerSellerAnswer`에 등록되고
   `live_question_summaries.answer_text`/`is_answered`가 채워진다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
@@ -721,11 +797,13 @@ Response Body
 ```json
 {
   "markers": [
-    { "highlightId": "0199e1...", "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연", "public": false }
+    { "highlightId": "0199e1...", "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연", "isPublic": false,
+      "generationStatus": "COMPLETED", "createdAt": "2026-09-10T21:00:00Z" }
   ],
   "clips": [
     { "highlightId": "0199e2...", "startSec": 300, "endSec": 380, "sceneLabel": "PRICE_BENEFIT",
-      "clipUrl": "<https://cdn>.../clip1.mp4", "caption": "런칭 특가 안내", "public": false, "generationStatus": "COMPLETED" }
+      "clipUrl": "<https://cdn>.../clip1.mp4", "thumbnailUrl": "<https://cdn>.../clip1.jpg", "caption": "런칭 특가 안내",
+      "isPublic": false, "generationStatus": "COMPLETED", "createdAt": "2026-09-10T21:00:00Z" }
   ]
 }
 ```
@@ -744,9 +822,8 @@ Response Body — 통계
 { "items": [ { "highlightId": "0199e2...", "viewCount": 1200, "clickCount": 85 } ] }
 ```
 
-> ⚠️ **이 엔드포인트는 P2이고 집계 주체가 미정이다.** 세 수치 모두 지금 설계로는 채워지지 않는다
-소비자 하이라이트 노출을 project-service LIVE 검증 탭에 넘겼으므로 조회·클릭이 우리를 거치지 않고,
-펀딩 전환 기여는 order 집계와 대조해야 한다.
+> ⚠️ **펀딩 전환 기여는 집계 주체가 미정이다.** 조회·클릭은 live의 소비자 공개 조회
+(`/{liveId}/highlights/public`·`/click`)가 센다. 펀딩 전환 기여는 order 집계와 대조해야 한다.
 **집계 주체(project/order/데이터팀)를 정한 뒤 구현한다.**
 >
 
@@ -758,7 +835,7 @@ Validation / Business Rules
 
 - **마커와 클립은 한 테이블(`live_highlights`)에 `kind`로 구분해 저장한다.** 응답만 두 배열로 나눠 내려준다 — 컬럼이 거의 같아 테이블을 쪼개면 수정·재생성·공개설정 API가 전부 두 벌이 된다.
 - `sceneLabel`: `DEMO`(실시간 시연) / `AUDIENCE_REACTION`(시청자 반응 집중) / `SPEC`(핵심 스펙 설명) / `PRICE_BENEFIT`(가격·혜택 안내) / `COMPARISON`(비교 설명).
-- **자동 생성 결과는 `public: false`로 시작한다.** 판매자가 확정하기 전까지 소비자 화면에 나오지 않는다(요구사항정의서 6.6.3).
+- **자동 생성 클립은 `isPublic: false`로 시작한다.** 판매자가 확정하기 전까지 소비자 화면에 나오지 않는다(요구사항정의서 6.6.3). **완료된 마커(다시보기 챕터)는 바로 공개된다**(PM-1 "생성되면 자동 공개") — 챕터를 공개할 판매자 화면이 없어 비공개면 다시보기 구간 탐색이 비어 있다. 실패한 마커와 재생성 중인 항목은 비공개다. 재생성이 완료되면 마커는 다시 공개, 클립은 비공개로 돌아간다.
 - **방송 1회당 클립은 최대 3개, 길이 60~120초**다(요구사항정의서 6.6.3).
 - **동시에 들어온 콜백도 상한을 넘기지 못한다.** 세션 행을 잠그고 센다 — 콜백은 at-least-once라 잠그지 않으면 둘 다 "0개"를 읽고 각각 3개를 넣는다.
 - **`endSec`은 `kind`가 정한다** — `CLIP`은 필수, `MARKER`는 둘 수 없다. DDL의 `end_sec`은 NULL 허용이라 DB가 막아주지 않고, 끝 없는 클립은 플레이어가 구간을 잡지 못한다.
@@ -768,6 +845,8 @@ Validation / Business Rules
 - `kind`·`sceneLabel`·`status`는 정해진 값만 받는다. 모르는 값은 `400`이다 — DB 제약까지 가면 `500`으로 보인다(S2).
 - 다시보기가 저장되지 않았거나 영상이 손상된 경우 생성 불가를 안내한다.
 - 자막은 출력 인코딩 대상이다(S2).
+- **`thumbnailUrl`은 하이라이트 AI 콜백이 채운다**(선택 필드, 클립만). 콜백 본문은 다른 필드처럼 camelCase(`thumbnailUrl`)다.
+- **소비자 노출은 live가 제공한다** — 방송 단위 `GET /{liveId}/highlights/public`, 프로젝트 단위 `GET /api/v1/lives/highlights?projectId=`(아래 소비자 절).
 
 ---
 
@@ -847,14 +926,16 @@ Response Body
 
 ```json
 [ { "liveId": "0199...", "introText": "...", "status": "LIVE", "projectId": "0198...",
-    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12, "createdAt": "2026-09-20T10:00:00Z",
-    "sellerNickname": "쓱쓱생활연구소" } ]
+    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12,
+    "actualStartAt": "2026-09-20T11:00:00Z", "createdAt": "2026-09-20T10:00:00Z",
+    "sellerId": "0198...", "sellerNickname": "쓱쓱생활연구소" } ]
 ```
 
 ```
 GET /api/v1/lives?status=LIVE&page=0&size=20
 GET /api/v1/lives?sort=viewerCount&page=0&size=20
 GET /api/v1/lives?sellerId=0198...&sellerId=0197...&page=0&size=20
+GET /api/v1/lives?status=ENDED&projectId=0198...&page=0&size=20
 ```
 
 Response Body
@@ -864,7 +945,8 @@ Response Body
   "content": [
     { "liveId": "0199...", "introText": "...", "status": "LIVE", "thumbnailUrl": "...",
       "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128,
-      "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234, "sellerNickname": "쓱쓱생활연구소" }
+      "actualStartAt": "2026-09-10T20:00:05+09:00", "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234,
+      "sellerId": "0198...", "sellerNickname": "쓱쓱생활연구소" }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
 }
@@ -884,6 +966,11 @@ Validation / Business Rules
 - **`sellerId`(팔로우한 창작자 필터)**: 다중 지정 가능. 팔로우 관계는 member-service 소관이라
   FE가 `GET /api/v1/follows`로 받은 목록을 그대로 넘겨준다 — 필터링을 위해 member-service를
   호출하지는 않는다. `sort=viewerCount`와 동시 지정은 지원하지 않는다(`sort`가 우선).
+- **`projectId`(프로젝트 필터)**: 프로젝트 상세 "LIVE 체크" 탭용이다 — 보통 `status=ENDED`와 함께 써서 그 프로젝트의
+  지난 방송을 받는다. 다른 필터·정렬과 같이 쓸 수 있다.
+- **`actualStartAt`**: 실제 방송 시작 시각. 시작 전(`SCHEDULED`)이면 `null`이다.
+- **`sellerId`(응답)**: 판매자 회원 ID. 팔로잉 목록의 "방송 중 여부"를 FE가 이 값으로 맞춘다. 우리 DB(채널) 값이라
+  `sellerNickname`과 달리 member 조회가 실패해도 채워진다. `/mine`에는 본인 ID가 들어간다.
 - **`sellerNickname`(판매자명, #154)**: 배너·소비자 목록(모든 정렬) 카드에 채운다. 페이지의 판매자들을 모아
   member-service 내부 API(`GET /internal/v1/members/nicknames`)를 **페이지당 1회** 일괄 호출한다.
   member 조회가 실패하거나(타임아웃 connect 1초/read 2초) 닉네임이 없는 판매자면 **이 필드만 생략되고
@@ -1035,6 +1122,36 @@ Validation / Business Rules
 
 ---
 
+### 프로젝트 공개 숏 클립 목록 (구매자 LIVE 체크 탭)
+
+```
+GET /api/v1/lives/highlights?projectId=0198...&page=0&size=20
+```
+
+Response Body
+
+```json
+{
+  "content": [
+    { "liveId": "0199c3a0-...", "highlightId": "0199e2...", "sceneLabel": "DEMO", "title": "실시간 시연",
+      "startSec": 300, "endSec": 380, "clipUrl": "https://cdn.../clip1.mp4", "thumbnailUrl": "https://cdn.../clip1.jpg",
+      "caption": "런칭 특가 안내", "createdAt": "2026-09-10T21:00:00Z" }
+  ],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
+}
+```
+
+Validation / Business Rules
+
+- 인증 불필요. `projectId` 필수(없으면 `400`).
+- **공개(`isPublic`)·생성 완료(`COMPLETED`)된 클립만** 나온다. 마커(다시보기 구간 탐색용)와 `DRAFT` 방송은 제외된다.
+- 여러 방송의 클립이 섞이므로 항목마다 `liveId`를 준다. 정렬은 생성 최신순. 반복 방송이 쌓이면 계속 늘어나는 목록이라 `page`/`size`(기본 20, **최대 50** — 넘으면 50으로 조정)로 나눠 `PageResponse`로 준다.
+- **조회 수를 올리지 않는다.** 방송 단위 `/{liveId}/highlights/public`은 호출마다 그 방송 공개 항목의 노출 수를 올리는데,
+  여기서도 올리면 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 같이 오른다. 클릭은 기존 `/click`을 쓴다.
+- `thumbnailUrl`은 AI 콜백이 채우기 전까지 `null`이다.
+
+---
+
 ### 다시보기(VOD) 재생 / 시간대별 채팅 조회 (요구사항정의서 11.4.4)
 
 ```
@@ -1044,9 +1161,14 @@ GET /api/v1/lives/{liveId}/vod
 Response Body
 
 ```json
-{ "vodUrl": "<https://xxx.cloudfront.net/vod/xxx.m3u8?sig=...&exp=>...", "durationSec": 580,
-  "markers": [ { "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연" } ] }
+{ "liveId": "0199c3a0-...", "type": "VOD", "playbackUrl": "https://xxx.cloudfront.net/vod/xxx.m3u8",
+  "projectId": "0198...", "likeCount": 128, "vodReadyAt": "2026-09-10T21:05:00Z" }
 ```
+
+다시보기가 아직 저장되지 않았으면 `409`("다시보기가 아직 준비되지 않았습니다"), 없는 방송·`DRAFT`는 `404`.
+
+> 응답 필드는 `vodUrl`이 아니라 **`playbackUrl`**(`type=VOD`)이다 — `/playback`과 같은 모양이다. 이전 예시의
+> `vodUrl`·`durationSec`·`markers`는 실제 응답에 없다. 챕터(마커)는 `GET /{liveId}/highlights/public`의 `markers`로 받는다.
 
 ```
 GET /api/v1/lives/{liveId}/vod/chat?fromSec=180&toSec=210
@@ -1060,8 +1182,7 @@ Response Body
 
 Validation / Business Rules
 
-- `vodUrl`도 서명·만료시간을 부여한다(S6·S7 준용).
-- 다시보기 응답에 **공개된 타임라인 마커를 함께 내려준다** — 별도 호출 없이 재생바에 표시할 수 있게 한다.
+- 다시보기 URL(`playbackUrl`)도 서명·만료시간을 부여해야 한다(S6·S7 준용) — `vod_url` 저장 작업과 함께 들어간다(미구현).
 - 채팅 조회는 초안의 단일 `position` 대신 **`fromSec`~`toSec` 범위**로 받는다. 재생 중 계속 조회하는 화면이라 시점 1개씩 왕복하면 요청 수가 방송 길이만큼 늘어난다.
 - `offsetSec`은 `sent_at - actual_start_at`으로 계산한 재생 기준 오프셋이다.
 - 조회 조건은 바인딩 변수로 처리한다(S1).

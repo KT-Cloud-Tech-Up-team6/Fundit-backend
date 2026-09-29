@@ -7,6 +7,7 @@ package com.fundit.live.domain.session;
  * DRAFT ──(예정일시 입력)──▶ SCHEDULED ──┐
  *   └────────(즉시 시작)──────────────┴──▶ LIVE ──▶ ENDED
  *                                          └──▶ ERROR (송출 실패)
+ * SCHEDULED ──(예약 해제)──▶ DRAFT
  * </pre>
  */
 public enum LiveStatus {

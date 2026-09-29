@@ -1,6 +1,7 @@
 package com.fundit.live.infrastructure.chat;
 
 import com.fundit.live.application.ai.AiClient;
+import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
@@ -15,10 +16,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -30,6 +34,7 @@ class ChatCommentBatchSenderUnitTest {
     @Mock private LiveSessionJpaRepository sessionRepository;
     @Mock private ChatMessageJpaRepository chatMessageRepository;
     @Mock private AiClient aiClient;
+    @Mock private IvsClient ivsClient;
 
     @InjectMocks private ChatCommentBatchSender sender;
 
@@ -37,6 +42,24 @@ class ChatCommentBatchSenderUnitTest {
         return LiveSessionJpaEntity.builder()
                 .id(1L).publicId(UUID.randomUUID()).status(LiveStatus.LIVE)
                 .actualStartAt(Instant.parse("2026-09-20T10:00:00Z")).build();
+    }
+
+    private LiveSessionJpaEntity sessionWithRoom() {
+        return LiveSessionJpaEntity.builder()
+                .id(1L).publicId(UUID.randomUUID()).status(LiveStatus.LIVE).ivsChatRoomArn("arn:room")
+                .actualStartAt(Instant.parse("2026-09-20T10:00:00Z")).build();
+    }
+
+    private static AiClient.AnsweredQuestion question(String commentId, AiClient.GeneratedAnswer answer) {
+        return new AiClient.AnsweredQuestion("q_" + commentId, commentId, "질문", AiClient.HandledBy.PRODUCT,
+                "배송", 0L, answer, List.of());
+    }
+
+    private void givenAiAnswers(AiClient.AnsweredQuestion... questions) {
+        given(chatMessageRepository.findFirst50BySessionIdAndSentToAiAtIsNullOrderBySentAtAsc(1L))
+                .willReturn(List.of(message(10L), message(11L)));
+        given(aiClient.submitComments(any(), any()))
+                .willReturn(new AiClient.CommentBatchResult(List.of(questions), List.of(), List.of()));
     }
 
     private ChatMessageJpaEntity message(long id) {
@@ -168,5 +191,58 @@ class ChatCommentBatchSenderUnitTest {
         ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(chatMessageRepository).markSentToAi(idsCaptor.capture(), any());
         assertThat(idsCaptor.getValue()).containsExactly(10L);
+    }
+
+    @Test
+    void 근거를_찾은_AI_답변은_채팅방에_원문_그대로_게시한다() {
+        // given — strict=true는 가공 금지라 원문 그대로 싣는다
+        givenAiAnswers(question("10", new AiClient.GeneratedAnswer("9월 15일 마감입니다",
+                AiClient.Grounding.GROUNDED, true, "KB")));
+
+        // when
+        sender.sendPendingFor(sessionWithRoom());
+
+        // then
+        verify(ivsClient).sendChatEvent("arn:room", ChatCommentBatchSender.AI_ANSWER_EVENT_NAME,
+                Map.of("commentId", "10", "aiQuestionId", "q_10", "answer", "9월 15일 마감입니다"));
+    }
+
+    @Test
+    void 답변이_없거나_비어_있으면_게시하지_않는다() {
+        // given — 근거 없는 질문은 기존대로 판매자가 AI 추천 답변을 수정해 보낸다
+        givenAiAnswers(question("10", null),
+                question("11", new AiClient.GeneratedAnswer("  ", AiClient.Grounding.GROUNDED, false, "KB")));
+
+        // when
+        sender.sendPendingFor(sessionWithRoom());
+
+        // then
+        verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void 채팅방이_없으면_게시하지_않는다() {
+        // given
+        givenAiAnswers(question("10", new AiClient.GeneratedAnswer("답변", AiClient.Grounding.GROUNDED, false, "KB")));
+
+        // when
+        sender.sendPendingFor(session());
+
+        // then
+        verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void 이벤트_한도_4KB를_넘는_답변은_줄이지_않고_건너뛴다() {
+        // given — 한글 1자 3바이트, 1400자면 4KB를 넘는다
+        givenAiAnswers(question("10", new AiClient.GeneratedAnswer("가".repeat(1400),
+                AiClient.Grounding.GROUNDED, true, "KB")));
+
+        // when
+        sender.sendPendingFor(sessionWithRoom());
+
+        // then — 게시는 건너뛰어도 전송 완료 표시는 한다
+        verify(ivsClient, never()).sendChatEvent(anyString(), anyString(), anyMap());
+        verify(chatMessageRepository).markSentToAi(any(), any());
     }
 }

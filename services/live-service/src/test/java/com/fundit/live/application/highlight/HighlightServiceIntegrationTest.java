@@ -4,6 +4,7 @@ import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
 import com.fundit.live.domain.highlight.LiveHighlightRepository;
+import com.fundit.live.domain.highlight.ProjectClip;
 import com.fundit.live.domain.highlight.SceneLabel;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -64,8 +65,17 @@ class HighlightServiceIntegrationTest {
 
     private HighlightService.GeneratedHighlight clip(int startSec) {
         return new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
-                "실시간 시연", startSec, startSec + 30, "https://clip", "자막",
+                "실시간 시연", startSec, startSec + 30, "https://clip", "https://thumb", "자막",
                 GenerationStatus.COMPLETED);
+    }
+
+    private LiveHighlight saveHighlight(Long sessionId, HighlightKind kind, GenerationStatus status, boolean isPublic) {
+        LiveHighlight highlight = LiveHighlight.generated(sessionId, kind, SceneLabel.DEMO, "제목", 10,
+                kind == HighlightKind.CLIP ? 40 : null, "https://clip", "https://thumb", "자막", status);
+        if (isPublic) {
+            highlight.changeVisibility(true);
+        }
+        return highlightRepository.save(highlight);
     }
 
     @Test
@@ -88,7 +98,7 @@ class HighlightServiceIntegrationTest {
         // when
         highlightService.applyGenerated(liveId, List.of(new HighlightService.GeneratedHighlight(
                 highlightId, HighlightKind.CLIP, SceneLabel.SPEC, "새 제목", 200, 240,
-                "https://clip/new", "새 자막", GenerationStatus.COMPLETED)));
+                "https://clip/new", "https://thumb/new", "새 자막", GenerationStatus.COMPLETED)));
 
         // then
         assertThat(highlightJpaRepository.countBySessionIdAndKind(sessionId, HighlightKind.CLIP))
@@ -97,5 +107,64 @@ class HighlightServiceIntegrationTest {
         assertThat(after.getTitle()).isEqualTo("새 제목");
         assertThat(after.getStartSec()).isEqualTo(200);
         assertThat(after.getGenerationStatus()).isEqualTo(GenerationStatus.COMPLETED);
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_공개된_완료_클립만_주고_조회수를_올리지_않는다() {
+        // given — 같은 프로젝트의 종료 방송 1개와 작성 중(DRAFT) 방송 1개
+        Long channelId = channelRepository.save(LiveChannelJpaEntity.builder()
+                .sellerId(UUID.randomUUID()).ivsChannelArn("arn-2")
+                .ivsIngestEndpoint("rtmps://ingest").ivsPlaybackUrl("https://play")
+                .active(true).build()).getId();
+        UUID projectId = UUID.randomUUID();
+        LiveSession toEnd = LiveSession.create(channelId, projectId);
+        toEnd.start(java.time.Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        toEnd.end(java.time.Instant.parse("2026-09-10T11:30:00Z"));
+        LiveSession ended = sessionRepository.save(toEnd);
+        LiveSession draft = sessionRepository.save(LiveSession.create(channelId, projectId));
+
+        LiveHighlight shown = saveHighlight(ended.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, true);
+        saveHighlight(ended.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, false);
+        saveHighlight(ended.getId(), HighlightKind.MARKER, GenerationStatus.COMPLETED, true);
+        saveHighlight(draft.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, true);
+
+        // when
+        org.springframework.data.domain.Page<ProjectClip> clips =
+                highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then — 비공개·마커·DRAFT 방송 클립은 빠지고, 썸네일이 저장·조회된다. count 쿼리도 같은 조건이다
+        assertThat(clips.getTotalElements()).isEqualTo(1);
+        assertThat(clips.getContent()).singleElement().satisfies(c -> {
+            assertThat(c.liveId()).isEqualTo(ended.getPublicId());
+            assertThat(c.clip().getPublicId()).isEqualTo(shown.getPublicId());
+            assertThat(c.clip().getThumbnailUrl()).isEqualTo("https://thumb");
+        });
+        assertThat(highlightRepository.findByPublicId(shown.getPublicId()).orElseThrow().getViewCount()).isZero();
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_페이지_크기만큼만_주고_전체_수를_알려준다() {
+        // given — 반복 방송으로 클립이 쌓이는 프로젝트
+        Long channelId = channelRepository.save(LiveChannelJpaEntity.builder()
+                .sellerId(UUID.randomUUID()).ivsChannelArn("arn-3")
+                .ivsIngestEndpoint("rtmps://ingest").ivsPlaybackUrl("https://play")
+                .active(true).build()).getId();
+        UUID projectId = UUID.randomUUID();
+        LiveSession toEnd = LiveSession.create(channelId, projectId);
+        toEnd.start(java.time.Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        toEnd.end(java.time.Instant.parse("2026-09-10T11:30:00Z"));
+        LiveSession ended = sessionRepository.save(toEnd);
+        for (int i = 0; i < 3; i++) {
+            saveHighlight(ended.getId(), HighlightKind.CLIP, GenerationStatus.COMPLETED, true);
+        }
+
+        // when
+        org.springframework.data.domain.Page<ProjectClip> page =
+                highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 2));
+
+        // then
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.hasNext()).isTrue();
     }
 }

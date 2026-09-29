@@ -13,6 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -148,6 +149,33 @@ class HttpAiClientUnitTest {
     }
 
     @Test
+    void 큐시트_요청에_판매자_답변_5가지를_최상위_snake_case_키로_펼쳐_보낸다() {
+        // given — AI가 api_ai.py에서 최상위 키로 매핑한다(묶어 보내면 못 읽는다)
+        RestClient.Builder builder = builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient client = builder.build();
+        HttpAiClient aiClient = new HttpAiClient(client, client, client, client);
+
+        server.expect(requestTo("https://ai.fundit.internal/cue-sheets"))
+                .andExpect(jsonPath("$.product_description").value("접이식 미니 가습기"))
+                .andExpect(jsonPath("$.motivation").value("자취방이 건조해서"))
+                .andExpect(jsonPath("$.expected_risks").value("초기 물량 부족"))
+                .andExpect(jsonPath("$.demo_description").value("분무량 3단계 시연"))
+                .andExpect(jsonPath("$.delivery_schedule").value("10월 둘째 주 순차 발송"))
+                .andExpect(jsonPath("$.brief").doesNotExist())
+                .andRespond(withSuccess("{\"segments\":[{\"id\":\"s1\"}]}", MediaType.APPLICATION_JSON));
+
+        // when
+        aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
+                "SCENARIO", 580, false, List.of(), null, List.of(), null, null,
+                new AiClient.SellerBrief("접이식 미니 가습기", "자취방이 건조해서", "초기 물량 부족",
+                        "분무량 3단계 시연", "10월 둘째 주 순차 발송")));
+
+        // then
+        server.verify();
+    }
+
+    @Test
     void 큐시트_요청이_성공하면_구간_JSON을_그대로_돌려준다() {
         // given — liveId는 경로가 아니라 바디에 평평하게 실려 간다(큐시트 담당과 합의한 모양)
         RestClient.Builder builder = builder();
@@ -163,7 +191,7 @@ class HttpAiClientUnitTest {
 
         // when
         String segments = aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
-                "SCENARIO", 580, false, List.of(), null, List.of(), null, null));
+                "SCENARIO", 580, false, List.of(), null, List.of(), null, null, null));
 
         // then
         assertThat(segments).contains("\"id\":\"s1\"");
@@ -185,7 +213,7 @@ class HttpAiClientUnitTest {
         // when & then — DependencyFailureException.getMessage()는 고정 문구라 원인(cause)에서 확인한다
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
-                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
+                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null, null)))
                 .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
                 .cause().hasMessageContaining("상품정보 부족");
     }
@@ -204,7 +232,7 @@ class HttpAiClientUnitTest {
         // when & then
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         aiClient.requestCueSheet("live-1", new AiClient.CueSheetRequest(
-                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null)))
+                                "SCENARIO", 580, false, List.of(), null, List.of(), null, null, null)))
                 .isInstanceOf(com.fundit.common.error.DependencyFailureException.class)
                 .cause().hasMessageContaining("빈 응답");
     }

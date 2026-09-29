@@ -18,6 +18,8 @@ public interface LiveQuestionSummaryJpaRepository extends JpaRepository<LiveQues
     List<LiveQuestionSummaryJpaEntity> findBySessionIdAndAnsweredTrueOrderByRelatedQuestionCountDesc(
             Long sessionId);
 
+    long countBySessionIdAndAnsweredTrue(Long sessionId);
+
     /**
      * <b>소속 세션을 조회에 묶는다.</b> publicId만으로 찾으면 자기 LIVE의 liveId에 남의 questionId를
      * 붙여 남의 질문을 읽거나 답변을 기록할 수 있다(IDOR). 호출부에서 {@code if}로 대조하면

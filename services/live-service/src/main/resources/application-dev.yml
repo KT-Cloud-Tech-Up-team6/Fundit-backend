@@ -29,3 +29,5 @@ live:
     # 선택 — 녹화(S3)·채팅 로깅 설정. 비어 있으면 요청에서 뺀다.
     recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
     chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
+    # IVS 채널·채팅방 생성 요청의 Environment 태그(인프라 IAM 조건). aws 모드에서만 읽는다.
+    environment: ${LIVE_IVS_ENVIRONMENT:dev}

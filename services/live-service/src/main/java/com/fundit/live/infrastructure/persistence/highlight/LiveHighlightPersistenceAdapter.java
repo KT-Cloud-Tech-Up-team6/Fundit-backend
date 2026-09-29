@@ -3,6 +3,10 @@ package com.fundit.live.infrastructure.persistence.highlight;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
 import com.fundit.live.domain.highlight.LiveHighlightRepository;
+import com.fundit.live.domain.highlight.ProjectClip;
+import com.fundit.live.domain.highlight.ProjectClipPage;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -48,6 +52,14 @@ public class LiveHighlightPersistenceAdapter implements LiveHighlightRepository 
     public List<LiveHighlight> findPublicBySessionId(Long sessionId) {
         return jpaRepository.findBySessionIdAndIsPublicTrueOrderByStartSecAsc(sessionId).stream()
                 .map(LiveHighlightMapper::toDomain).toList();
+    }
+
+    @Override
+    public ProjectClipPage findPublicClipsByProjectId(UUID projectId, int page, int size) {
+        Page<Object[]> rows = jpaRepository.findPublicClipsByProjectId(projectId, PageRequest.of(page, size));
+        return new ProjectClipPage(rows.getContent().stream()
+                .map(row -> new ProjectClip((UUID) row[0], LiveHighlightMapper.toDomain((LiveHighlightJpaEntity) row[1])))
+                .toList(), rows.getTotalElements());
     }
 
     @Override

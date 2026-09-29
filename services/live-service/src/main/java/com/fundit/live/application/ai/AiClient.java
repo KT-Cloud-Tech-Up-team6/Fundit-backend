@@ -85,10 +85,20 @@ public interface AiClient {
     /**
      * {@code product}는 {@code prepare}와 같은 모양이다 — 큐시트 담당과 합의해 파서를 공유한다.
      * {@code funding}은 "목표 현황" 구간용 캠페인 진행 현황으로, {@code context} PUT과 같은 모양이다.
+     * {@code brief}는 판매자가 큐시트 생성 전에 자유서술로 답한 5가지다.
      */
     record CueSheetRequest(String mode, int targetDurationSec, boolean demoAvailable,
                            List<String> emphasisPoints, String tone, List<String> mandatoryPhrases,
-                           PrepareRequest product, FundingInfo funding) {
+                           PrepareRequest product, FundingInfo funding, SellerBrief brief) {
+    }
+
+    /**
+     * 판매자 답변 5가지(AI-1 요청). 전부 선택이다 — 비면 AI가 "지어내지 않고 건너뛴다".
+     * HTTP 본문에서는 묶지 않고 최상위 키로 펼친다(AI가 {@code api_ai.py}에서 매핑한다). 저장하지 않고 전달만 한다.
+     */
+    record SellerBrief(String productDescription, String motivation, String expectedRisks,
+                       String demoDescription, String deliverySchedule) {
+        public static final SellerBrief EMPTY = new SellerBrief(null, null, null, null, null);
     }
 
     // ── 상품정보 색인 ──────────────────────────────────────────────

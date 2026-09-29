@@ -84,6 +84,19 @@ public class LiveSession {
     }
 
     /**
+     * 예약 해제 — 예정 시각을 지우고 SCHEDULED면 DRAFT로 되돌린다. 해제한 방송이
+     * 소비자 예정 목록에 계속 보이면 안 되고, 판매자 임시저장 목록에는 돌아와야 한다.
+     * ERROR는 송출 실패 기록이라 그대로 둔다.
+     */
+    public void clearSchedule() {
+        requireStartable();
+        this.scheduledStartAt = null;
+        if (this.status == LiveStatus.SCHEDULED) {
+            this.status = LiveStatus.DRAFT;
+        }
+    }
+
+    /**
      * 송출 시작. DRAFT(즉시 시작)와 SCHEDULED(예약분) 둘 다 허용한다.
      *
      * <p>채팅방 ARN을 여기서 받는 이유: 채팅 적재가 룸 ARN으로 세션을 찾으므로
