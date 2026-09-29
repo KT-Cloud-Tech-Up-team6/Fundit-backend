@@ -63,6 +63,28 @@ class LiveServiceLiveCardClientUnitTest {
     }
 
     @Test
+    void 판매자와_실제_시작_시각도_카드에_담는다() {
+        // given — live LiveSummaryResponse에 추가된 필드. 이름이 어긋나면 조용히 null이 된다
+        UUID sellerId = UUID.randomUUID();
+        Fixture f = fixture();
+        f.server().expect(requestTo(BASE_URL + "/api/v1/lives/banner"))
+                .andRespond(withSuccess("""
+                        [ { "liveId": "%s", "introText": "방송 중", "status": "LIVE", "projectId": "%s",
+                            "likeCount": 12, "actualStartAt": "2026-09-24T01:05:00Z",
+                            "createdAt": "2026-09-24T01:00:00Z",
+                            "sellerId": "%s", "sellerNickname": "캠핑장인" } ]
+                        """.formatted(UUID.randomUUID(), UUID.randomUUID(), sellerId), MediaType.APPLICATION_JSON));
+
+        // when
+        LiveCard card = f.client().findBanner().getFirst();
+
+        // then
+        assertThat(card.actualStartAt()).isEqualTo(Instant.parse("2026-09-24T01:05:00Z"));
+        assertThat(card.sellerId()).isEqualTo(sellerId);
+        assertThat(card.sellerNickname()).isEqualTo("캠핑장인");
+    }
+
+    @Test
     void 마지막_페이지에서도_전체_건수는_live_service가_센_값을_쓴다() {
         // given — content.size()로 재계산하면 전체 건수가 페이지 크기로 줄어든다
         Fixture f = fixture();

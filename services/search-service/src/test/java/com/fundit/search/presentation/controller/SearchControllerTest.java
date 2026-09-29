@@ -88,8 +88,8 @@ class SearchControllerTest {
         // given
         UUID liveId = UUID.randomUUID();
         LiveCard card = new LiveCard(liveId, "캠핑 의자 라이브", "SCHEDULED", UUID.randomUUID(),
-                "https://cdn/thumb.png", Instant.parse("2026-09-25T11:00:00Z"), 3,
-                Instant.parse("2026-09-20T09:00:00Z"), null);
+                "https://cdn/thumb.png", Instant.parse("2026-09-25T11:00:00Z"), 3, null,
+                Instant.parse("2026-09-20T09:00:00Z"), null, UUID.randomUUID(), "캠핑장인");
         when(liveCardClient.findPublic(any()))
                 .thenReturn(new PageImpl<>(List.of(card), PageRequest.of(0, 20), 1));
 

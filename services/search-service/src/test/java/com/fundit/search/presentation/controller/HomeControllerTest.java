@@ -79,7 +79,8 @@ class HomeControllerTest {
         UUID projectId = UUID.randomUUID();
         when(liveCardClient.findBanner()).thenReturn(List.of(new LiveCard(
                 liveId, "캠핑 의자 라이브", "LIVE", projectId, "https://cdn/thumb.png",
-                Instant.parse("2026-09-24T12:00:00Z"), 7, Instant.parse("2026-09-20T09:00:00Z"), null)));
+                Instant.parse("2026-09-24T12:00:00Z"), 7, Instant.parse("2026-09-24T12:01:00Z"),
+                Instant.parse("2026-09-20T09:00:00Z"), null, UUID.randomUUID(), "캠핑장인")));
 
         // when & then — FE가 LIVE 메인과 같은 카드 컴포넌트를 쓰므로 필드 이름이 계약이다
         mockMvc.perform(get("/api/v1/home/lives"))
@@ -90,7 +91,10 @@ class HomeControllerTest {
                 .andExpect(jsonPath("$.content[0].status").value("LIVE"))
                 .andExpect(jsonPath("$.content[0].thumbnailUrl").value("https://cdn/thumb.png"))
                 .andExpect(jsonPath("$.content[0].likeCount").value(7))
-                .andExpect(jsonPath("$.content[0].scheduledStartAt").exists());
+                .andExpect(jsonPath("$.content[0].scheduledStartAt").exists())
+                .andExpect(jsonPath("$.content[0].actualStartAt").exists())
+                .andExpect(jsonPath("$.content[0].sellerId").exists())
+                .andExpect(jsonPath("$.content[0].sellerNickname").value("캠핑장인"));
     }
 
     @Test

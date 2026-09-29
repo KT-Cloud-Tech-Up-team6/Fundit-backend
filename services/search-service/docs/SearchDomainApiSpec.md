@@ -103,7 +103,10 @@ GET /api/v1/home/lives
       "thumbnailUrl": "https://cdn.fundit.com/live/thumb.png",
       "scheduledStartAt": "2026-09-25T11:00:00Z",
       "likeCount": 12,
-      "createdAt": "2026-09-20T09:00:00Z"
+      "actualStartAt": "2026-09-25T11:02:00Z",
+      "createdAt": "2026-09-20T09:00:00Z",
+      "sellerId": "7a1e0c55-2d3b-4c6f-9e8a-1b2c3d4e5f60",
+      "sellerNickname": "캠핑장인"
     }
   ]
 }
@@ -114,6 +117,7 @@ GET /api/v1/home/lives
 - live-service `GET /api/v1/lives/banner`를 그대로 프록시한다(색인 `live_documents`는 쓰지 않는다 — `SearchERD.md` 5-③).
 - 항목 스키마는 live-service `LiveSummaryResponse`와 필드 1:1이다. FE가 LIVE 메인과 같은 카드 컴포넌트를 재사용할 수 있도록 이름을 바꾸지 않는다.
   - **`title`은 없다** — LIVE에는 제목 입력 자체가 없고(요구사항정의서 6.2.4.1) 카드 문구는 `introText`다.
+  - `actualStartAt`(실제 방송 시작 시각, 시작 전이면 없음)·`sellerId`·`sellerNickname`(판매자 닉네임, live-service가 member에서 못 받으면 없음)도 live-service 값을 그대로 담는다.
   - **`viewerCount`는 이 경로에서 채워지지 않는다** — live-service가 `sort=viewerCount`(실시간 순위)일 때만 IVS에서 가져온다. `spring.jackson.default-property-inclusion: non_null`이라 위 예시처럼 필드 자체가 응답에서 빠진다(프론트는 `undefined`로 받는다).
 - 진행 중 LIVE가 없으면 `content: []`(에러 아님). 영역 미노출은 프론트가 처리한다.
 - **live-service 장애 시에도 200 + `content: []`를 반환한다** — 홈은 피드와 LIVE가 한 화면이라 LIVE 하나로 홈 전체를 503으로 내리지 않는다. 검색 LIVE 탭(#6)은 반대로 503을 그대로 올린다.
