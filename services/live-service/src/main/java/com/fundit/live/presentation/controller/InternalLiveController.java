@@ -80,7 +80,7 @@ public class InternalLiveController {
         highlightService.applyGenerated(liveId, callbacks.stream()
                 .map(c -> new HighlightService.GeneratedHighlight(c.highlightId(), c.kind(),
                         c.sceneLabel(), c.title(), c.startSec(), c.endSec(), c.clipUrl(),
-                        c.caption(), c.status()))
+                        c.thumbnailUrl(), c.caption(), c.status()))
                 .toList());
     }
 
@@ -99,7 +99,10 @@ public class InternalLiveController {
                                     // 마커가 생겨도 아무도 모른다.
                                     @NotNull @PositiveOrZero Integer startSec,
                                     @PositiveOrZero Integer endSec,
-                                    String clipUrl, String caption,
+                                    String clipUrl,
+                                    // 선택. 클립 썸네일 — 마커는 비워 보낸다.
+                                    String thumbnailUrl,
+                                    String caption,
                                     @NotNull GenerationStatus status) {
 
         /** MARKER는 시점이라 endSec이 null이다. 있으면 뒤집힌 구간을 막는다. */

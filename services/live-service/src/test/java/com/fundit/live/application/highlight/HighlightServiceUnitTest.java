@@ -70,7 +70,7 @@ class HighlightServiceUnitTest {
 
     private HighlightService.GeneratedHighlight generatedClip() {
         return new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
-                "실시간 시연", 320, 400, "https://clip", "자막", GenerationStatus.COMPLETED);
+                "실시간 시연", 320, 400, "https://clip", "https://thumb", "자막", GenerationStatus.COMPLETED);
     }
 
     @Test
@@ -121,7 +121,7 @@ class HighlightServiceUnitTest {
         givenSessionForCallback();
         given(highlightRepository.countClips(1L)).willReturn(3L);
         var marker = new HighlightService.GeneratedHighlight(null, HighlightKind.MARKER,
-                SceneLabel.SPEC, "핵심 스펙", 120, null, null, null, GenerationStatus.COMPLETED);
+                SceneLabel.SPEC, "핵심 스펙", 120, null, null, null, null, GenerationStatus.COMPLETED);
 
         // when
         highlightService.applyGenerated(liveId, List.of(marker, marker, marker, marker, marker));
@@ -141,7 +141,7 @@ class HighlightServiceUnitTest {
         // when
         highlightService.applyGenerated(liveId, List.of(new HighlightService.GeneratedHighlight(
                 highlightId, HighlightKind.CLIP, SceneLabel.DEMO, "새 제목", 10, 30,
-                "https://new", "새 자막", GenerationStatus.COMPLETED)));
+                "https://new", "https://thumb/new", "새 자막", GenerationStatus.COMPLETED)));
 
         // then
         assertThat(existing.getTitle()).isEqualTo("새 제목");
@@ -205,6 +205,19 @@ class HighlightServiceUnitTest {
 
         // then
         verify(highlightRepository).increaseViewCount(1L);
+    }
+
+    @Test
+    void 프로젝트_클립_목록은_조회수를_올리지_않는다() {
+        // given — 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 오르면 방송 단위 노출 수가 무의미해진다
+        UUID projectId = UUID.randomUUID();
+        given(highlightRepository.findPublicClipsByProjectId(projectId)).willReturn(List.of());
+
+        // when
+        highlightService.findPublicClips(projectId);
+
+        // then
+        verify(highlightRepository, org.mockito.Mockito.never()).increaseViewCount(any());
     }
 
     @Test

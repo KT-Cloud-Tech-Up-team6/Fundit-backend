@@ -9,6 +9,7 @@ import com.fundit.live.domain.ai.GenerationStatus;
 import com.fundit.live.domain.highlight.HighlightKind;
 import com.fundit.live.domain.highlight.LiveHighlight;
 import com.fundit.live.domain.highlight.LiveHighlightRepository;
+import com.fundit.live.domain.highlight.ProjectClip;
 import com.fundit.live.domain.highlight.SceneLabel;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
@@ -138,7 +139,7 @@ public class HighlightService {
                 // 이미 자리를 차지하고 있던 행이라 개수가 늘지 않는다.
                 LiveHighlight target = requireBelongsTo(session.getId(), g.highlightId());
                 target.applyRegenerated(g.sceneLabel(), g.title(), g.startSec(), g.endSec(),
-                        g.clipUrl(), g.caption(), g.status());
+                        g.clipUrl(), g.thumbnailUrl(), g.caption(), g.status());
                 highlightRepository.save(target);
                 continue;
             }
@@ -150,7 +151,7 @@ public class HighlightService {
                 existingClips++;
             }
             highlightRepository.save(LiveHighlight.generated(session.getId(), g.kind(), g.sceneLabel(),
-                    g.title(), g.startSec(), g.endSec(), g.clipUrl(), g.caption(), g.status()));
+                    g.title(), g.startSec(), g.endSec(), g.clipUrl(), g.thumbnailUrl(), g.caption(), g.status()));
         }
         if (skipped > 0) {
             log.warn("클립 상한({})을 넘겨 {}건을 건너뛰었다. liveId={}", MAX_CLIPS_PER_LIVE, skipped, liveId);
@@ -224,9 +225,19 @@ public class HighlightService {
         return highlight;
     }
 
+    /**
+     * 프로젝트 상세 "LIVE 체크" 탭의 숏 클립 목록. 인증 불필요.
+     * <b>조회 수를 올리지 않는다</b> — {@link #findPublic}은 방송 단위 노출 수라 여기서 올리면
+     * 프로젝트 화면을 열 때마다 그 프로젝트의 모든 방송 클립 노출 수가 같이 오른다.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectClip> findPublicClips(UUID projectId) {
+        return highlightRepository.findPublicClipsByProjectId(projectId);
+    }
+
     /** {@code highlightId}는 재생성 대상이며 최초 생성은 null이다. */
     public record GeneratedHighlight(UUID highlightId, HighlightKind kind, SceneLabel sceneLabel,
                                      String title, int startSec, Integer endSec, String clipUrl,
-                                     String caption, GenerationStatus status) {
+                                     String thumbnailUrl, String caption, GenerationStatus status) {
     }
 }

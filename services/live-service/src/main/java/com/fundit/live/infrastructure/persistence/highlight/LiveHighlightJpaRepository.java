@@ -19,6 +19,22 @@ public interface LiveHighlightJpaRepository extends JpaRepository<LiveHighlightJ
 
     Optional<LiveHighlightJpaEntity> findByPublicId(UUID publicId);
 
+    /**
+     * 프로젝트의 공개 클립과 그 방송의 {@code public_id}. 세션 → 프로젝트 조인이라 세션 엔티티를 같이 본다.
+     * 결과 행은 {@code [UUID liveId, LiveHighlightJpaEntity]}.
+     */
+    @Query("""
+            select s.publicId, h from LiveHighlightJpaEntity h, com.fundit.live.infrastructure.persistence.session.LiveSessionJpaEntity s
+            where s.id = h.sessionId
+              and s.projectId = :projectId
+              and s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
+              and h.kind = com.fundit.live.domain.highlight.HighlightKind.CLIP
+              and h.isPublic = true
+              and h.generationStatus = com.fundit.live.domain.ai.GenerationStatus.COMPLETED
+            order by h.createdAt desc, h.id desc
+            """)
+    List<Object[]> findPublicClipsByProjectId(@Param("projectId") UUID projectId);
+
     /** 방송 1회당 클립 최대 3개(요구사항정의서 6.6.3) 검증용. 마커는 제한이 없다. */
     long countBySessionIdAndKind(Long sessionId, HighlightKind kind);
 

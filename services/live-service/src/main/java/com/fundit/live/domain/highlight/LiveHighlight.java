@@ -33,6 +33,7 @@ public class LiveHighlight {
     private int startSec;
     private Integer endSec;
     private String clipUrl;
+    private String thumbnailUrl;
     private String caption;
     private boolean isPublic;
     private GenerationStatus generationStatus;
@@ -43,7 +44,7 @@ public class LiveHighlight {
     /** AI 생성 결과. <b>항상 비공개로 시작한다</b> — 기본값을 뒤집으면 검수 전 내용이 그대로 샌다. */
     public static LiveHighlight generated(Long sessionId, HighlightKind kind, SceneLabel sceneLabel,
                                           String title, int startSec, Integer endSec, String clipUrl,
-                                          String caption, GenerationStatus status) {
+                                          String thumbnailUrl, String caption, GenerationStatus status) {
         requireRange(kind, startSec, endSec);
         return LiveHighlight.builder()
                 .publicId(UUID.randomUUID())
@@ -54,6 +55,7 @@ public class LiveHighlight {
                 .startSec(startSec)
                 .endSec(endSec)
                 .clipUrl(clipUrl)
+                .thumbnailUrl(thumbnailUrl)
                 .caption(caption)
                 .isPublic(false)
                 .generationStatus(status)
@@ -77,13 +79,14 @@ public class LiveHighlight {
 
     /** 재생성 결과 반영. 검토 전 내용이 새지 않게 공개 여부를 다시 내린다. */
     public void applyRegenerated(SceneLabel sceneLabel, String title, int startSec, Integer endSec,
-                                 String clipUrl, String caption, GenerationStatus status) {
+                                 String clipUrl, String thumbnailUrl, String caption, GenerationStatus status) {
         requireRange(this.kind, startSec, endSec);
         this.sceneLabel = sceneLabel;
         this.title = title;
         this.startSec = startSec;
         this.endSec = endSec;
         this.clipUrl = clipUrl;
+        this.thumbnailUrl = thumbnailUrl;
         this.caption = caption;
         this.generationStatus = status;
         this.isPublic = false;

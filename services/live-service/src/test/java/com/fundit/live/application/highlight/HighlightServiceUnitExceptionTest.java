@@ -155,7 +155,7 @@ class HighlightServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> highlightService.applyGenerated(liveId, List.of(
                 new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
-                        "시연", 10, null, "https://clip", "자막", GenerationStatus.COMPLETED))))
+                        "시연", 10, null, "https://clip", null, "자막", GenerationStatus.COMPLETED))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);
@@ -171,7 +171,7 @@ class HighlightServiceUnitExceptionTest {
         // when & then
         assertThatThrownBy(() -> highlightService.applyGenerated(liveId, List.of(
                 new HighlightService.GeneratedHighlight(null, HighlightKind.MARKER, SceneLabel.SPEC,
-                        "스펙", 10, 40, null, null, GenerationStatus.COMPLETED))))
+                        "스펙", 10, 40, null, null, null, GenerationStatus.COMPLETED))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_INPUT);

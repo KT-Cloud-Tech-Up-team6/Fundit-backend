@@ -74,7 +74,7 @@ class HighlightServiceConcurrencyTest {
 
     private HighlightService.GeneratedHighlight clip(int startSec) {
         return new HighlightService.GeneratedHighlight(null, HighlightKind.CLIP, SceneLabel.DEMO,
-                "실시간 시연", startSec, startSec + 30, "https://clip", "자막",
+                "실시간 시연", startSec, startSec + 30, "https://clip", null, "자막",
                 GenerationStatus.COMPLETED);
     }
 

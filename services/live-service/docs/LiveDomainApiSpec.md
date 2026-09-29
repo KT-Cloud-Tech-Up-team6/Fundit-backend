@@ -33,6 +33,7 @@
 | DELETE | `/api/v1/lives/{liveId}/highlights/{highlightId}` | O (본인 소유 LIVE) | 하이라이트 삭제 |
 | PATCH | `/api/v1/lives/{liveId}/highlights/{highlightId}/visibility` | O (본인 소유 LIVE) | 하이라이트 공개 설정 |
 | GET | `/api/v1/lives/{liveId}/highlights/stats` | O (본인 소유 LIVE) | 하이라이트 성과 통계 조회 |
+| POST | `/api/v1/lives/{liveId}/highlights` | O (본인 소유 LIVE) | 하이라이트 자동 생성 요청(수동·재요청용) |
 
 ### 엔드포인트 목록 — 소비자
 
@@ -48,6 +49,9 @@
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
 | GET | `/api/v1/lives/{liveId}/vod/chat` | X | 다시보기 시간대별 채팅 조회 |
+| GET | `/api/v1/lives/{liveId}/highlights/public` | X | 방송의 공개 하이라이트(마커·클립) — 호출마다 노출 수 +1 |
+| POST | `/api/v1/lives/{liveId}/highlights/{highlightId}/click` | X | 하이라이트 클릭 수 +1 |
+| GET | `/api/v1/lives/highlights?projectId=` | X | 프로젝트의 공개 숏 클립 목록(LIVE 체크 탭) — 노출 수 불변 |
 
 > **`/share-link`는 구현되어 있지 않다.** 공유 URL은 프론트 도메인·경로를 알아야 조립할 수 있는데
 > BE가 프론트 경로를 아는 순간 화면 구조가 바뀔 때마다 BE를 같이 배포해야 한다. 프론트가 `liveId`로
@@ -65,6 +69,7 @@
 | GET | `/internal/v1/lives/{liveId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 방송 상태 조회(공개 liveId 기준) — order 집계·LIVE 쿠폰 생성용 |
 | GET | `/internal/v1/lives/by-project/{projectId}/active-status` | 내부 전용 (`X-Internal-Api-Key`) | 프로젝트의 진행 중 방송 조회 — order 주문 생성 시 세션 꼬리표용 |
 | GET | `/internal/v1/lives/sessions/{sessionId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 세션 상태 조회(내부 세션 PK 기준) — order LIVE 쿠폰 검증용 |
+| POST | `/internal/v1/lives/{liveId}/highlights` | 내부 전용 (`X-Internal-Api-Key`) | 하이라이트 AI 생성 결과 수신(콜백) |
 
 ---
 
@@ -749,11 +754,13 @@ Response Body
 ```json
 {
   "markers": [
-    { "highlightId": "0199e1...", "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연", "public": false }
+    { "highlightId": "0199e1...", "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연", "isPublic": false,
+      "generationStatus": "COMPLETED", "createdAt": "2026-09-10T21:00:00Z" }
   ],
   "clips": [
     { "highlightId": "0199e2...", "startSec": 300, "endSec": 380, "sceneLabel": "PRICE_BENEFIT",
-      "clipUrl": "<https://cdn>.../clip1.mp4", "caption": "런칭 특가 안내", "public": false, "generationStatus": "COMPLETED" }
+      "clipUrl": "<https://cdn>.../clip1.mp4", "thumbnailUrl": "<https://cdn>.../clip1.jpg", "caption": "런칭 특가 안내",
+      "isPublic": false, "generationStatus": "COMPLETED", "createdAt": "2026-09-10T21:00:00Z" }
   ]
 }
 ```
@@ -772,9 +779,8 @@ Response Body — 통계
 { "items": [ { "highlightId": "0199e2...", "viewCount": 1200, "clickCount": 85 } ] }
 ```
 
-> ⚠️ **이 엔드포인트는 P2이고 집계 주체가 미정이다.** 세 수치 모두 지금 설계로는 채워지지 않는다
-소비자 하이라이트 노출을 project-service LIVE 검증 탭에 넘겼으므로 조회·클릭이 우리를 거치지 않고,
-펀딩 전환 기여는 order 집계와 대조해야 한다.
+> ⚠️ **펀딩 전환 기여는 집계 주체가 미정이다.** 조회·클릭은 live의 소비자 공개 조회
+(`/{liveId}/highlights/public`·`/click`)가 센다. 펀딩 전환 기여는 order 집계와 대조해야 한다.
 **집계 주체(project/order/데이터팀)를 정한 뒤 구현한다.**
 >
 
@@ -796,6 +802,8 @@ Validation / Business Rules
 - `kind`·`sceneLabel`·`status`는 정해진 값만 받는다. 모르는 값은 `400`이다 — DB 제약까지 가면 `500`으로 보인다(S2).
 - 다시보기가 저장되지 않았거나 영상이 손상된 경우 생성 불가를 안내한다.
 - 자막은 출력 인코딩 대상이다(S2).
+- **`thumbnailUrl`은 하이라이트 AI 콜백이 채운다**(선택 필드, 클립만). 콜백 본문은 다른 필드처럼 camelCase(`thumbnailUrl`)다.
+- **소비자 노출은 live가 제공한다** — 방송 단위 `GET /{liveId}/highlights/public`, 프로젝트 단위 `GET /api/v1/lives/highlights?projectId=`(아래 소비자 절).
 
 ---
 
@@ -1068,6 +1076,31 @@ Validation / Business Rules
 - `answeredBy`는 시안의 "판매자 · 1분 전" 표기용이다. 상대 시간은 `answeredAt`으로 클라이언트가 계산한다.
 - 답변 본문은 `live_question_summaries.answer_text`에 저장된 값이다. 채팅 스트림은 지나가면 끝이라 전송한 답변을 따로 남긴다.
 - 인증 불필요(방송 자체가 공개). 출력 시 인코딩한다(S2).
+
+---
+
+### 프로젝트 공개 숏 클립 목록 (구매자 LIVE 체크 탭)
+
+```
+GET /api/v1/lives/highlights?projectId=0198...
+```
+
+Response Body
+
+```json
+[ { "liveId": "0199c3a0-...", "highlightId": "0199e2...", "sceneLabel": "DEMO", "title": "실시간 시연",
+    "startSec": 300, "endSec": 380, "clipUrl": "https://cdn.../clip1.mp4", "thumbnailUrl": "https://cdn.../clip1.jpg",
+    "caption": "런칭 특가 안내", "createdAt": "2026-09-10T21:00:00Z" } ]
+```
+
+Validation / Business Rules
+
+- 인증 불필요. `projectId` 필수(없으면 `400`).
+- **공개(`isPublic`)·생성 완료(`COMPLETED`)된 클립만** 나온다. 마커(다시보기 구간 탐색용)와 `DRAFT` 방송은 제외된다.
+- 여러 방송의 클립이 섞이므로 항목마다 `liveId`를 준다. 정렬은 생성 최신순. 방송당 클립이 최대 3개라 페이지네이션은 없다.
+- **조회 수를 올리지 않는다.** 방송 단위 `/{liveId}/highlights/public`은 호출마다 그 방송 공개 항목의 노출 수를 올리는데,
+  여기서도 올리면 프로젝트 화면을 열 때마다 모든 방송의 노출 수가 같이 오른다. 클릭은 기존 `/click`을 쓴다.
+- `thumbnailUrl`은 AI 콜백이 채우기 전까지 `null`이다.
 
 ---
 
