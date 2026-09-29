@@ -2,7 +2,10 @@ package com.fundit.member.application.wish;
 
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
+import com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaRepository;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -15,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +33,8 @@ class WishServiceUnitTest {
     private WishJpaRepository wishJpaRepository;
     @Mock
     private MemberEventOutboxJpaRepository memberEventOutboxJpaRepository;
+    @Mock
+    private ProjectSnapshotJpaRepository projectSnapshotJpaRepository;
 
     @InjectMocks
     private WishService wishService;
@@ -134,5 +140,50 @@ class WishServiceUnitTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).projectTitle()).isEqualTo("프로젝트A");
         assertThat(result.getContent().get(0).projectPublicId()).isEqualTo(publicId);
+    }
+
+    @Nested
+    class 프로젝트_공개_id로 {
+
+        private final UUID memberId = UUID.randomUUID();
+        private final UUID publicId = UUID.randomUUID();
+
+        @BeforeEach
+        void 스냅샷이_있다() {
+            when(projectSnapshotJpaRepository.findProjectIdByPublicId(publicId)).thenReturn(Optional.of(10L));
+        }
+
+        @Test
+        void 찜하면_숫자_id로_바꿔_등록하고_아웃박스에_적재한다() {
+            // given
+            when(wishJpaRepository.insertIgnoringConflict(memberId, 10L)).thenReturn(1);
+
+            // when
+            wishService.wish(memberId, publicId);
+
+            // then
+            ArgumentCaptor<MemberEventOutboxJpaEntity> captor = ArgumentCaptor.forClass(MemberEventOutboxJpaEntity.class);
+            verify(memberEventOutboxJpaRepository).save(captor.capture());
+            assertThat(captor.getValue().getEventType()).isEqualTo(MemberEventOutboxJpaEntity.TYPE_WISHED);
+            assertThat(captor.getValue().getProjectId()).isEqualTo(10L);
+        }
+
+        @Test
+        void 해제하면_숫자_id로_바꿔_해제한다() {
+            // when
+            wishService.unwish(memberId, publicId);
+
+            // then
+            verify(wishJpaRepository).deleteByMemberIdAndProjectId(memberId, 10L);
+        }
+
+        @Test
+        void 찜_여부를_조회한다() {
+            // given
+            when(wishJpaRepository.existsByMemberIdAndProjectId(memberId, 10L)).thenReturn(true);
+
+            // when & then
+            assertThat(wishService.isWished(memberId, publicId)).isTrue();
+        }
     }
 }

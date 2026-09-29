@@ -6,9 +6,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectSnapshotJpaRepository extends JpaRepository<ProjectSnapshotJpaEntity, Long> {
+
+    /**
+     * 프로젝트 공개 id(UUID)로 숫자 id를 찾는다 — 상세 화면은 UUID만 알아서, 숫자 id로 저장하는 찜과 잇는 데 쓴다.
+     * 스냅샷(승인 이벤트)이 아직 없으면 빈 값이다.
+     */
+    @Query("select s.projectId from ProjectSnapshotJpaEntity s where s.projectPublicId = :publicId")
+    Optional<Long> findProjectIdByPublicId(@Param("publicId") UUID publicId);
 
     /**
      * 승인·수정 이벤트를 그대로 반영한다(멱등). 이미 더 최신 버전이 반영돼 있으면 무시한다 —

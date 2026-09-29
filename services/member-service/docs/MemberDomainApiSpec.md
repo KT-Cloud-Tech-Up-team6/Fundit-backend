@@ -19,6 +19,9 @@
 | PUT | `/api/v1/wishes/{projectId}` | O | 찜 등록(idempotent) |
 | DELETE | `/api/v1/wishes/{projectId}` | O | 찜 해제(idempotent) |
 | GET | `/api/v1/wishes` | O | 내 찜 **프로젝트** 목록 조회 |
+| GET | `/api/v1/wishes/projects/{projectPublicId}` | O | 프로젝트 상세(UUID)의 찜 여부 조회 |
+| PUT | `/api/v1/wishes/projects/{projectPublicId}` | O | 프로젝트 상세(UUID)에서 찜 등록(idempotent) |
+| DELETE | `/api/v1/wishes/projects/{projectPublicId}` | O | 프로젝트 상세(UUID)에서 찜 해제(idempotent) |
 | PUT | `/api/v1/follows/{sellerId}` | O | 판매자 팔로우(idempotent) |
 | DELETE | `/api/v1/follows/{sellerId}` | O | 팔로우 해제(idempotent) |
 | GET | `/api/v1/follows` | O | 내 팔로우 **판매자** 목록 조회 |
@@ -180,6 +183,51 @@ Validation / Business Rules
 
 - **Idempotent.** 찜하지 않은 프로젝트에 대한 해제 요청도 204로 응답(이미 목표 상태이므로 성공 취급).
 - 해제 시 `ProjectUnwished` 이벤트 발행.
+
+---
+
+### 프로젝트 상세(UUID) 기준 찜 여부·등록·해제 (MEMBER-005)
+
+```
+GET    /api/v1/wishes/projects/{projectPublicId}
+PUT    /api/v1/wishes/projects/{projectPublicId}
+DELETE /api/v1/wishes/projects/{projectPublicId}
+```
+
+Auth Required: **O**
+
+Path Parameter
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `projectPublicId` | UUID | Y | 프로젝트 상세 조회에 쓰는 공개 id(`projectPublicId`) |
+
+Response Body — `GET`
+
+```json
+{
+  "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+  "wished": false
+}
+```
+
+Response Body — `PUT`
+
+```json
+{
+  "projectPublicId": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f",
+  "wished": true
+}
+```
+
+Response Body — `DELETE`: 없음 (204 No Content)
+
+Validation / Business Rules
+
+- 상세 화면은 UUID만 알아서, 숫자 id를 받는 위 찜 API와 연결할 수 없어 추가했다. **숫자 id API와 같은 찜 데이터를 쓴다** — UUID로 찜해도 `GET /api/v1/wishes` 목록에 나오고, 멱등성·이벤트 발행 규칙도 같다.
+- 공개 id → 숫자 id 변환은 member-service의 `project_snapshots`로 한다(project-service 실시간 호출 없음).
+- **스냅샷이 없는 공개 id는 `404 NOT_FOUND`**("프로젝트를 찾을 수 없습니다.")다. 없는 프로젝트로 찜 행이 생기지 않게 막는다. 승인 이벤트를 구독하므로 막 승인된 프로젝트는 아주 짧은 시간(최종적 일관성) 동안 404일 수 있다.
+- UUID 형식이 아니면 `400`, 인증 헤더가 없으면 `401`(다른 찜 API와 같다).
 
 ---
 

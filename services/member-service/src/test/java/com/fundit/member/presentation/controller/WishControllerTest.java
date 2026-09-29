@@ -84,4 +84,47 @@ class WishControllerTest {
                 .andExpect(jsonPath("$.content[0].projectPublicId").value("018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f"))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
+
+    @Test
+    void 공개_id로_찜_여부를_조회한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        UUID publicId = UUID.fromString("018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f");
+        when(wishService.isWished(accountId, publicId)).thenReturn(true);
+
+        // when & then
+        mockMvc.perform(get("/api/v1/wishes/projects/" + publicId).header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projectPublicId").value(publicId.toString()))
+                .andExpect(jsonPath("$.wished").value(true));
+    }
+
+    @Test
+    void 공개_id로_찜하면_wished_true를_반환한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(put("/api/v1/wishes/projects/" + publicId).header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projectPublicId").value(publicId.toString()))
+                .andExpect(jsonPath("$.wished").value(true));
+        verify(wishService).wish(accountId, publicId);
+    }
+
+    @Test
+    void 공개_id로_찜을_해제하면_204를_반환한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/wishes/projects/" + publicId).header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key"))
+                .andExpect(status().isNoContent());
+        verify(wishService).unwish(accountId, publicId);
+    }
 }

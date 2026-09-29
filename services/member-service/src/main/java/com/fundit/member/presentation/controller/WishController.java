@@ -8,6 +8,7 @@ import com.fundit.common.webmvc.auth.LoginUser;
 import com.fundit.member.presentation.dto.PageResponse;
 import com.fundit.member.presentation.dto.WishListItemResponse;
 import com.fundit.member.presentation.dto.WishResponse;
+import com.fundit.member.presentation.dto.WishStatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 
 @RestController
@@ -38,6 +41,24 @@ public class WishController {
     @DeleteMapping("/wishes/{projectId}")
     public ResponseEntity<Void> unwish(@LoginUser CurrentUser user, @PathVariable Long projectId) {
         wishService.unwish(user.id(), projectId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 프로젝트 상세(UUID 기준) — 숫자 id API와 같은 찜 데이터를 쓴다. 스냅샷이 없는 프로젝트면 404. */
+    @GetMapping("/wishes/projects/{projectPublicId}")
+    public WishStatusResponse getWishStatus(@LoginUser CurrentUser user, @PathVariable UUID projectPublicId) {
+        return new WishStatusResponse(projectPublicId, wishService.isWished(user.id(), projectPublicId));
+    }
+
+    @PutMapping("/wishes/projects/{projectPublicId}")
+    public WishStatusResponse wishByPublicId(@LoginUser CurrentUser user, @PathVariable UUID projectPublicId) {
+        wishService.wish(user.id(), projectPublicId);
+        return new WishStatusResponse(projectPublicId, true);
+    }
+
+    @DeleteMapping("/wishes/projects/{projectPublicId}")
+    public ResponseEntity<Void> unwishByPublicId(@LoginUser CurrentUser user, @PathVariable UUID projectPublicId) {
+        wishService.unwish(user.id(), projectPublicId);
         return ResponseEntity.noContent().build();
     }
 
