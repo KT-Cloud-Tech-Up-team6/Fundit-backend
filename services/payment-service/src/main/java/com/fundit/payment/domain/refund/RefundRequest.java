@@ -40,15 +40,21 @@ public class RefundRequest {
      */
     private Instant reshipmentRequestedAt;
 
-    /** {@link #completeImmediately}가 허용하는 유형 — 실제 호출부(FundingLifecycleEventSyncService,
-     * PaymentReconciliationService, ShippingDelayRefundService) 기준. SIMPLE_CHANGE_OF_MIND는
-     * 모금 중 참여 취소 이벤트 경로로만 들어온다(성립 후 단순변심 취소는 정책상 불가). */
+    /**
+     * 토스 취소를 요청했지만 아직 확정되지 않은 금액·사유·시각(V11). 금액이 있고 상태가 PROCESSING이면
+     * "취소 요청됨"이다 — 교환의 PROCESSING(재발송 대기)은 금액이 없어 구분된다. 확정되거나 되돌려지면
+     * 요청 시각을 비워 배치 대상에서 빠진다.
+     */
+    private Long cancelAmount;
+    private String cancelReason;
+    private Instant cancelRequestedAt;
+
+    /** {@link #requestCancel}이 허용하는 유형 — 판매자/운영자 검토 없이 즉시 취소하는 경로(004/005/008/017). */
     private static final Set<RefundTriggerType> IMMEDIATE_TRIGGER_TYPES = EnumSet.of(
             RefundTriggerType.SIMPLE_CHANGE_OF_MIND, RefundTriggerType.GOAL_FAILED_AUTO,
             RefundTriggerType.SHIPPING_DELAY, RefundTriggerType.SYSTEM_RECONCILIATION);
 
-    /** {@link #awaitingAlternateAccount}가 허용하는 유형 — 대체계좌 대기 경로
-     * (executeFullRefundOrAwaitAlternateAccount)로 실제 호출되는 두 유형만 둔다. */
+    /** 원 결제수단 취소가 거절되면 대체 계좌 입력 대기로 넘기는 유형(PAYMENT-005/008 예외 처리). */
     private static final Set<RefundTriggerType> ALTERNATE_ACCOUNT_TRIGGER_TYPES = EnumSet.of(
             RefundTriggerType.GOAL_FAILED_AUTO, RefundTriggerType.SHIPPING_DELAY);
 
@@ -79,14 +85,14 @@ public class RefundRequest {
     }
 
     /**
-     * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 처리되는 유형(단순변심/미달자동/
-     * 발송지연/시스템 재조정). 토스 취소가 이미 성공했다는 전제로 곧바로 COMPLETED로 기록한다.
+     * PAYMENT-004/005/008/017 — 판매자/운영자 검토 없이 즉시 취소하는 유형. 토스를 부르기 전에 "취소 요청됨"
+     * (PROCESSING)으로 먼저 커밋한다 — 취소는 성공했는데 확정 기록이 실패해도 이 행이 남아 대사 배치가 맞춘다.
      *
-     * @param reasonDetail 취소 사유(참여 취소 사유 태그 포함). 취소 내역의 {@code reasonType}·{@code reasonDetail}이
-     *                     여기서 나온다. 없으면 null
+     * @param cancelReason 취소 사유(참여 취소 사유 태그 포함). 취소 내역의 {@code reasonType}·{@code reasonDetail}이
+     *                     여기서 나오고, 토스 취소 사유로도 그대로 쓴다
      */
-    public static RefundRequest completeImmediately(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
-                                                      boolean isFullRefund, String reasonDetail) {
+    public static RefundRequest requestCancel(RefundTriggerType triggerType, UUID fundingId, UUID paymentId,
+                                              long cancelAmount, String cancelReason) {
         if (!IMMEDIATE_TRIGGER_TYPES.contains(triggerType)) {
             throw new IllegalArgumentException(triggerType + "는 즉시 처리 대상이 아닙니다.");
         }
@@ -95,40 +101,74 @@ public class RefundRequest {
                 .fundingId(fundingId)
                 .paymentId(paymentId)
                 .triggerType(triggerType)
-                .status(RefundRequestStatus.COMPLETED)
-                .isFullRefund(isFullRefund)
-                .reasonDetail(reasonDetail)
+                .status(RefundRequestStatus.PROCESSING)
+                .reasonDetail(cancelReason)
+                .cancelAmount(cancelAmount)
+                .cancelReason(cancelReason)
+                .cancelRequestedAt(now)
                 .requestedAt(now)
-                .processedAt(now)
                 .build();
     }
 
-    /**
-     * PAYMENT-005/008 예외 처리 — 원 결제수단으로 토스 취소가 불가능해(카드 만료/해지 등)
-     * 참여자의 대체 계좌 입력을 기다려야 하는 상태. {@code COMPLETED}로 확정하지 않고
-     * {@code REQUESTED}로 남겨 재처리 대상임을 표시한다.
-     */
-    public static RefundRequest awaitingAlternateAccount(RefundTriggerType triggerType, UUID fundingId,
-                                                           UUID paymentId, String reasonDetail) {
-        if (!ALTERNATE_ACCOUNT_TRIGGER_TYPES.contains(triggerType)) {
-            throw new IllegalArgumentException(triggerType + "는 대체 계좌 대기 대상이 아닙니다.");
-        }
-        return RefundRequest.builder()
-                .fundingId(fundingId)
-                .paymentId(paymentId)
-                .triggerType(triggerType)
-                .status(RefundRequestStatus.REQUESTED)
-                .reasonDetail(reasonDetail)
-                .requestedAt(Instant.now())
-                .build();
-    }
-
-    /** PAYMENT-007 — 판매자 승인. 토스 취소 성공 후 호출한다(반품비 차감 시 부분취소 가능). */
-    public void approve(boolean isFullRefund) {
+    /** PAYMENT-007 — 판매자 승인. 토스를 부르기 전에 "취소 요청됨"으로 전이한다(반품비 차감 시 부분취소 금액). */
+    public void startCancel(long cancelAmount, String cancelReason) {
         assertDecidable();
+        this.status = RefundRequestStatus.PROCESSING;
+        this.cancelAmount = cancelAmount;
+        this.cancelReason = cancelReason;
+        this.cancelRequestedAt = Instant.now();
+    }
+
+    public boolean isCancelInFlight() {
+        return status == RefundRequestStatus.PROCESSING && cancelAmount != null;
+    }
+
+    /** 토스 취소가 확인된 뒤 확정한다. 금액·사유는 기록으로 남기고 요청 시각만 비운다. */
+    public void completeCancel(boolean isFullRefund) {
+        assertCancelInFlight();
         this.status = RefundRequestStatus.COMPLETED;
         this.isFullRefund = isFullRefund;
         this.processedAt = Instant.now();
+        this.cancelRequestedAt = null;
+    }
+
+    /** 토스가 취소를 거절했을 때 대체 계좌 입력 대기({@link #awaitAlternateAccount})로 넘길 수 있는 유형인지. */
+    public boolean canAwaitAlternateAccount() {
+        return ALTERNATE_ACCOUNT_TRIGGER_TYPES.contains(triggerType);
+    }
+
+    /**
+     * PAYMENT-005/008 예외 처리 — 원 결제수단으로 토스 취소가 거절돼(카드 만료/해지 등) 참여자의 대체 계좌
+     * 입력을 기다린다. {@code COMPLETED}로 확정하지 않고 {@code REQUESTED}로 남겨 재처리 대상임을 표시한다.
+     */
+    public void awaitAlternateAccount() {
+        assertCancelInFlight();
+        if (!canAwaitAlternateAccount()) {
+            throw new IllegalStateException(triggerType + "는 대체 계좌 대기 대상이 아닙니다.");
+        }
+        clearCancelRequest();
+    }
+
+    /** PAYMENT-007 — 승인 후 토스 취소가 거절됐다. 판매자가 다시 결정할 수 있게 검토 대기로 되돌린다. */
+    public void revertCancel() {
+        assertCancelInFlight();
+        if (!triggerType.isSellerDecisionTarget()) {
+            throw new IllegalStateException(triggerType + "는 판매자 검토 대상이 아닙니다.");
+        }
+        clearCancelRequest();
+    }
+
+    private void clearCancelRequest() {
+        this.status = RefundRequestStatus.REQUESTED;
+        this.cancelAmount = null;
+        this.cancelReason = null;
+        this.cancelRequestedAt = null;
+    }
+
+    private void assertCancelInFlight() {
+        if (!isCancelInFlight()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, "취소 요청 중인 환불이 아닙니다.");
+        }
     }
 
     /**

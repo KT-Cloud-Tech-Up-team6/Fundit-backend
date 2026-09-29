@@ -14,7 +14,7 @@ import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.domain.refund.ReturnPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
@@ -37,8 +37,12 @@ public class DefectRefundDecisionService {
     private final RefundExecutionService refundExecutionService;
     private final ExchangeService exchangeService;
     private final PaymentNotificationPublisher paymentNotificationPublisher;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    /**
+     * 메서드 전체에 트랜잭션을 걸지 않는다 — 승인 시 토스 취소는 {@link RefundExecutionService}가 트랜잭션 밖에서
+     * 부른다. 반려(상태 전이 + 알림 아웃박스)만 한 트랜잭션으로 묶고, 교환은 {@link ExchangeService}가 자체 트랜잭션을 연다.
+     */
     public DefectDecisionResult decide(UUID accountId, Long refundId, boolean approve, String reason) {
         RefundRequest refundRequest = refundRequestRepository.findById(refundId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
@@ -55,10 +59,12 @@ public class DefectRefundDecisionService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
 
         if (!approve) {
-            RefundRequest saved = refundRequestRepository.save(rejectedCopy(refundRequest, reason));
-            paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
-                    payment.getFundingId(), payment.getMemberId(), RefundNotificationStatus.REJECTED));
-            return new DefectDecisionResult(saved.getId(), saved.getStatus().name());
+            return transactionTemplate.execute(status -> {
+                RefundRequest saved = refundRequestRepository.save(rejectedCopy(refundRequest, reason));
+                paymentNotificationPublisher.publishRefundStatusChanged(new RefundStatusChangedEvent(
+                        payment.getFundingId(), payment.getMemberId(), RefundNotificationStatus.REJECTED));
+                return new DefectDecisionResult(saved.getId(), saved.getStatus().name());
+            });
         }
 
         if (refundRequest.getTriggerType() == RefundTriggerType.EXCHANGE) {

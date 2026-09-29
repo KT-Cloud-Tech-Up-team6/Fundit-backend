@@ -19,6 +19,9 @@ public class TossApiException extends RuntimeException {
     /** 조회 대상 결제가 토스에 없음 — 주문번호 조회에서 결제 인증 전이면 돌아온다. */
     public static final String NOT_FOUND_PAYMENT = "NOT_FOUND_PAYMENT";
 
+    /** 이미 전액 취소된 결제 — 취소는 성공했는데 확정 기록이 실패한 뒤 다시 취소하면 돌아온다(실패가 아니다). */
+    public static final String ALREADY_CANCELED_PAYMENT = "ALREADY_CANCELED_PAYMENT";
+
     private final String tossErrorCode;
     private final String tossMessage;
 
@@ -30,6 +33,10 @@ public class TossApiException extends RuntimeException {
 
     public boolean isAlreadyProcessed() {
         return ALREADY_PROCESSED_PAYMENT.equals(tossErrorCode);
+    }
+
+    public boolean isAlreadyCanceled() {
+        return ALREADY_CANCELED_PAYMENT.equals(tossErrorCode);
     }
 
     public boolean isSessionExpired() {

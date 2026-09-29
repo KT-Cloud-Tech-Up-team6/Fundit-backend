@@ -107,7 +107,7 @@ class PaymentConfirmServiceUnitTest {
 
     private static TossPaymentsClient.TossPaymentLookup approvedLookup(String orderId, long amount) {
         return new TossPaymentsClient.TossPaymentLookup("DONE", new TossPaymentsClient.TossPaymentResult(
-                "pay_key_1", orderId, "secret_1", "카드", null, Instant.now(), amount));
+                "pay_key_1", orderId, "secret_1", "카드", null, Instant.now(), amount), java.util.List.of());
     }
 
     @Test
