@@ -95,7 +95,7 @@ class LiveQueryServiceUnitTest {
         var pageable = PageRequest.of(0, 20);
         UUID sellerId = UUID.randomUUID();
         UUID unknownSellerId = UUID.randomUUID();
-        given(sessionRepository.findPublic(null, pageable)).willReturn(new PageImpl<>(List.of(
+        given(sessionRepository.findPublic(null, null, pageable)).willReturn(new PageImpl<>(List.of(
                 LiveSessionJpaEntity.builder().channelId(10L).status(LiveStatus.LIVE).build(),
                 LiveSessionJpaEntity.builder().channelId(20L).status(LiveStatus.SCHEDULED).build())));
         given(channelRepository.findAllById(List.of(10L, 20L))).willReturn(List.of(
@@ -105,11 +105,13 @@ class LiveQueryServiceUnitTest {
                 .willReturn(Map.of(sellerId, "쓱쓱생활연구소"));
 
         // when
-        Page<LiveSummaryResponse> page = liveQueryService.findPublic(null, null, null, pageable);
+        Page<LiveSummaryResponse> page = liveQueryService.findPublic(null, null, null, null, pageable);
 
-        // then — member에 없는 판매자는 닉네임만 비고 카드는 그대로 나간다
+        // then — member에 없는 판매자는 닉네임만 비고 카드는 그대로 나간다. sellerId는 둘 다 채운다
         assertThat(page.getContent()).extracting(LiveSummaryResponse::sellerNickname)
                 .containsExactly("쓱쓱생활연구소", null);
+        assertThat(page.getContent()).extracting(LiveSummaryResponse::sellerId)
+                .containsExactly(sellerId, unknownSellerId);
         verify(memberNicknameClient, times(1)).findNicknames(any());
     }
 
@@ -118,28 +120,30 @@ class LiveQueryServiceUnitTest {
         // given — 판매자명은 부가 정보라 member 장애가 목록 전체 503으로 번지면 안 된다
         given(sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)).willReturn(List.of(
                 LiveSessionJpaEntity.builder().channelId(10L).status(LiveStatus.LIVE).build()));
+        UUID sellerId = UUID.randomUUID();
         given(channelRepository.findAllById(any())).willReturn(List.of(
-                LiveChannelJpaEntity.builder().id(10L).sellerId(UUID.randomUUID()).build()));
+                LiveChannelJpaEntity.builder().id(10L).sellerId(sellerId).build()));
         given(memberNicknameClient.findNicknames(any())).willThrow(new DependencyFailureException(new RuntimeException()));
 
         // when
         List<LiveSummaryResponse> banner = liveQueryService.findLiveBanner();
 
-        // then
+        // then — sellerId는 우리 DB 값이라 member 장애와 무관하게 채운다
         assertThat(banner).singleElement().extracting(LiveSummaryResponse::sellerNickname).isNull();
+        assertThat(banner).singleElement().extracting(LiveSummaryResponse::sellerId).isEqualTo(sellerId);
     }
 
     @Test
     void 소비자_목록은_상태_필터를_그대로_넘긴다() {
         // given — DRAFT 제외는 쿼리에 고정돼 있어 서비스가 따로 거르지 않는다
         var pageable = PageRequest.of(0, 20);
-        given(sessionRepository.findPublic(null, pageable)).willReturn(new PageImpl<>(List.of()));
+        given(sessionRepository.findPublic(null, null, pageable)).willReturn(new PageImpl<>(List.of()));
 
         // when
-        liveQueryService.findPublic(null, null, null, pageable);
+        liveQueryService.findPublic(null, null, null, null, pageable);
 
         // then
-        verify(sessionRepository).findPublic(null, pageable);
+        verify(sessionRepository).findPublic(null, null, pageable);
     }
 
     @Test
@@ -147,14 +151,14 @@ class LiveQueryServiceUnitTest {
         // given
         var pageable = PageRequest.of(0, 20);
         List<UUID> sellerIds = List.of(UUID.randomUUID());
-        given(sessionRepository.findPublicBySellerIds(null, sellerIds, pageable))
+        given(sessionRepository.findPublicBySellerIds(null, null, sellerIds, pageable))
                 .willReturn(new PageImpl<>(List.of()));
 
         // when
-        liveQueryService.findPublic(null, null, sellerIds, pageable);
+        liveQueryService.findPublic(null, null, sellerIds, null, pageable);
 
         // then
-        verify(sessionRepository).findPublicBySellerIds(null, sellerIds, pageable);
+        verify(sessionRepository).findPublicBySellerIds(null, null, sellerIds, pageable);
     }
 
     @Test
@@ -174,11 +178,46 @@ class LiveQueryServiceUnitTest {
 
         // when
         Page<LiveSummaryResponse> page = liveQueryService.findPublic(
-                LiveStatus.ENDED, "viewerCount", null, PageRequest.of(0, 20));
+                LiveStatus.ENDED, "viewerCount", null, null, PageRequest.of(0, 20));
 
         // then — status=ENDED를 줬어도 viewerCount 정렬에선 무시되고 LIVE만 나온다
         assertThat(page.getContent()).extracting(LiveSummaryResponse::viewerCount).containsExactly(30, 3);
         assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void projectId가_있으면_쿼리에_그대로_넘긴다() {
+        // given
+        var pageable = PageRequest.of(0, 20);
+        UUID projectId = UUID.randomUUID();
+        given(sessionRepository.findPublic(LiveStatus.ENDED, projectId, pageable)).willReturn(new PageImpl<>(List.of()));
+
+        // when
+        liveQueryService.findPublic(LiveStatus.ENDED, null, null, projectId, pageable);
+
+        // then
+        verify(sessionRepository).findPublic(LiveStatus.ENDED, projectId, pageable);
+    }
+
+    @Test
+    void sort가_viewerCount이고_projectId가_있으면_그_프로젝트_방송만_남긴다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        LiveSessionJpaEntity mine = LiveSessionJpaEntity.builder()
+                .id(1L).channelId(10L).projectId(projectId).status(LiveStatus.LIVE).build();
+        LiveSessionJpaEntity other = LiveSessionJpaEntity.builder()
+                .id(2L).channelId(20L).projectId(UUID.randomUUID()).status(LiveStatus.LIVE).build();
+        given(sessionRepository.findByStatusOrderByActualStartAtDesc(LiveStatus.LIVE)).willReturn(List.of(mine, other));
+        given(channelRepository.findAllById(any())).willReturn(List.of(
+                LiveChannelJpaEntity.builder().id(10L).ivsChannelArn("arn").build()));
+        given(ivsClient.getViewerCount("arn")).willReturn(5);
+
+        // when
+        Page<LiveSummaryResponse> page = liveQueryService.findPublic(
+                null, "viewerCount", null, projectId, PageRequest.of(0, 20));
+
+        // then
+        assertThat(page.getContent()).extracting(LiveSummaryResponse::projectId).containsExactly(projectId);
     }
 
     @Test
@@ -195,7 +234,7 @@ class LiveQueryServiceUnitTest {
 
         // when
         Page<LiveSummaryResponse> page = liveQueryService.findPublic(
-                null, "viewerCount", null, PageRequest.of(2_000_000, 2000));
+                null, "viewerCount", null, null, PageRequest.of(2_000_000, 2000));
 
         // then
         assertThat(page.getContent()).isEmpty();

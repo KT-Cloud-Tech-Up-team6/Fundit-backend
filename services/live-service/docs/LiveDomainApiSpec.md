@@ -39,7 +39,7 @@
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/lives/banner` | X | 진행중 LIVE 배너 조회 |
-| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별·실시간 순위·팔로우 필터) |
+| GET | `/api/v1/lives` | X | LIVE 목록 조회(상태별·실시간 순위·팔로우·프로젝트 필터) |
 | GET | `/api/v1/lives/{liveId}/playback` | X | LIVE 시청 정보 조회 |
 | PUT | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요(idempotent) |
 | DELETE | `/api/v1/lives/{liveId}/like` | O | LIVE 좋아요 취소(idempotent) |
@@ -875,14 +875,16 @@ Response Body
 
 ```json
 [ { "liveId": "0199...", "introText": "...", "status": "LIVE", "projectId": "0198...",
-    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12, "createdAt": "2026-09-20T10:00:00Z",
-    "sellerNickname": "쓱쓱생활연구소" } ]
+    "thumbnailUrl": "...", "scheduledStartAt": null, "likeCount": 12,
+    "actualStartAt": "2026-09-20T11:00:00Z", "createdAt": "2026-09-20T10:00:00Z",
+    "sellerId": "0198...", "sellerNickname": "쓱쓱생활연구소" } ]
 ```
 
 ```
 GET /api/v1/lives?status=LIVE&page=0&size=20
 GET /api/v1/lives?sort=viewerCount&page=0&size=20
 GET /api/v1/lives?sellerId=0198...&sellerId=0197...&page=0&size=20
+GET /api/v1/lives?status=ENDED&projectId=0198...&page=0&size=20
 ```
 
 Response Body
@@ -892,7 +894,8 @@ Response Body
   "content": [
     { "liveId": "0199...", "introText": "...", "status": "LIVE", "thumbnailUrl": "...",
       "scheduledStartAt": "2026-09-10T20:00:00+09:00", "likeCount": 128,
-      "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234, "sellerNickname": "쓱쓱생활연구소" }
+      "actualStartAt": "2026-09-10T20:00:05+09:00", "createdAt": "2026-09-20T10:00:00Z", "viewerCount": 234,
+      "sellerId": "0198...", "sellerNickname": "쓱쓱생활연구소" }
   ],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "hasNext": false
 }
@@ -912,6 +915,11 @@ Validation / Business Rules
 - **`sellerId`(팔로우한 창작자 필터)**: 다중 지정 가능. 팔로우 관계는 member-service 소관이라
   FE가 `GET /api/v1/follows`로 받은 목록을 그대로 넘겨준다 — 필터링을 위해 member-service를
   호출하지는 않는다. `sort=viewerCount`와 동시 지정은 지원하지 않는다(`sort`가 우선).
+- **`projectId`(프로젝트 필터)**: 프로젝트 상세 "LIVE 체크" 탭용이다 — 보통 `status=ENDED`와 함께 써서 그 프로젝트의
+  지난 방송을 받는다. 다른 필터·정렬과 같이 쓸 수 있다.
+- **`actualStartAt`**: 실제 방송 시작 시각. 시작 전(`SCHEDULED`)이면 `null`이다.
+- **`sellerId`(응답)**: 판매자 회원 ID. 팔로잉 목록의 "방송 중 여부"를 FE가 이 값으로 맞춘다. 우리 DB(채널) 값이라
+  `sellerNickname`과 달리 member 조회가 실패해도 채워진다. `/mine`에는 본인 ID가 들어간다.
 - **`sellerNickname`(판매자명, #154)**: 배너·소비자 목록(모든 정렬) 카드에 채운다. 페이지의 판매자들을 모아
   member-service 내부 API(`GET /internal/v1/members/nicknames`)를 **페이지당 1회** 일괄 호출한다.
   member 조회가 실패하거나(타임아웃 connect 1초/read 2초) 닉네임이 없는 판매자면 **이 필드만 생략되고

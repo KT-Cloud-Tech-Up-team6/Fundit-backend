@@ -80,7 +80,7 @@ class LiveControllerTest {
     @Test
     void 소비자_목록은_인증_없이_조회된다() throws Exception {
         // given — 방송 자체가 공개다
-        when(liveQueryService.findPublic(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(liveQueryService.findPublic(any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives"))
@@ -99,7 +99,7 @@ class LiveControllerTest {
                 .status(LiveStatus.LIVE)
                 .likeCount(3)
                 .build();
-        when(liveQueryService.findLiveBanner()).thenReturn(List.of(LiveSummaryResponse.from(entity)));
+        when(liveQueryService.findLiveBanner()).thenReturn(List.of(LiveSummaryResponse.from(entity, null, null, null)));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/banner"))

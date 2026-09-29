@@ -89,24 +89,28 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
             select s from LiveSessionJpaEntity s
             where s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
               and (:status is null or s.status = :status)
+              and (:projectId is null or s.projectId = :projectId)
             order by s.createdAt desc, s.id desc
             """)
-    Page<LiveSessionJpaEntity> findPublic(@Param("status") LiveStatus status, Pageable pageable);
+    Page<LiveSessionJpaEntity> findPublic(@Param("status") LiveStatus status, @Param("projectId") UUID projectId,
+                                          Pageable pageable);
 
     /**
      * "팔로우한 창작자" 필터. {@code sellerIds}가 빈 컬렉션이면 안 부른다 — JPQL {@code IN}은
      * 바인딩 파라미터가 null이면 컬렉션 파라미터 확장이 실패한다(스칼라 {@code = :x}와 다른
-     * 함정). 그래서 필터가 없을 때 쓰는 {@link #findPublic(LiveStatus, Pageable)}와 메서드를
+     * 함정). 그래서 필터가 없을 때 쓰는 {@link #findPublic(LiveStatus, UUID, Pageable)}와 메서드를
      * 분리했다 — 하나로 합쳐 {@code :sellerIds is null}로 우회하지 않는다.
      */
     @Query("""
             select s from LiveSessionJpaEntity s
             where s.status <> com.fundit.live.domain.session.LiveStatus.DRAFT
               and (:status is null or s.status = :status)
+              and (:projectId is null or s.projectId = :projectId)
               and s.channelId in (select c.id from LiveChannelJpaEntity c where c.sellerId in :sellerIds)
             order by s.createdAt desc, s.id desc
             """)
     Page<LiveSessionJpaEntity> findPublicBySellerIds(@Param("status") LiveStatus status,
+                                                      @Param("projectId") UUID projectId,
                                                       @Param("sellerIds") List<UUID> sellerIds, Pageable pageable);
 
     /**

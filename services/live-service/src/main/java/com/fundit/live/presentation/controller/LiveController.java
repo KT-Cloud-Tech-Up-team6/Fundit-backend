@@ -89,7 +89,7 @@ public class LiveController {
                                                       @RequestParam(required = false) String q,
                                                       @PageableDefault(size = 20) Pageable pageable) {
         return PageResponse.from(liveQueryService.findMine(user.id(), status, projectId, q, pageable)
-                .map(LiveSummaryResponse::from));
+                .map(e -> LiveSummaryResponse.from(e, null, user.id(), null)));
     }
 
     /** 스튜디오 상태 탭 배지용 건수(FE 요청). {@link LiveStatus} 5종을 그대로 낸다(그룹핑은 미확정). */
@@ -145,13 +145,15 @@ public class LiveController {
      * <p>{@code sort=viewerCount}는 "실시간 순위" 전용이라 {@code status=LIVE}로 결과가
      * 한정된다(다른 상태엔 시청자 수 개념이 없다) — {@code status} 파라미터를 같이 줘도 무시된다.
      * {@code sellerId}는 "팔로우한 창작자" 필터(FE가 팔로우 목록을 조회해 넘겨준다).
+     * {@code projectId}는 프로젝트 상세의 "LIVE 체크" 탭용(보통 {@code status=ENDED}와 함께 쓴다).
      */
     @GetMapping
     public PageResponse<LiveSummaryResponse> findPublic(@RequestParam(required = false) LiveStatus status,
                                                         @RequestParam(required = false) String sort,
                                                         @RequestParam(required = false) List<UUID> sellerId,
+                                                        @RequestParam(required = false) UUID projectId,
                                                         @PageableDefault(size = 20) Pageable pageable) {
-        return PageResponse.from(liveQueryService.findPublic(status, sort, sellerId, pageable));
+        return PageResponse.from(liveQueryService.findPublic(status, sort, sellerId, projectId, pageable));
     }
 
     /** 진행중 LIVE 배너(요구사항정의서 10.1.4). 인증 불필요. */
