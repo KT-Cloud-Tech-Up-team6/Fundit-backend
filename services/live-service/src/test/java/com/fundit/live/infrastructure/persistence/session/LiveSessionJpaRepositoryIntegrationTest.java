@@ -259,4 +259,26 @@ class LiveSessionJpaRepositoryIntegrationTest {
         // then
         assertThat(page.getContent()).hasSize(1).allMatch(s -> s.getChannelId().equals(channelId));
     }
+
+    @Test
+    void 썸네일이_비어_있으면_채우고_있으면_덮지_않는다() {
+        // given — dev 목업 시더가 기존 방송에 썸네일을 보완하는 조건부 UPDATE
+        var empty = seedSession(channelId, LiveStatus.LIVE);
+        var custom = sessionRepository.save(LiveSessionJpaEntity.builder()
+                .publicId(UUID.randomUUID()).projectId(UUID.randomUUID()).channelId(channelId)
+                .introText("소개").status(LiveStatus.SCHEDULED).likeCount(0)
+                .thumbnailUrl("https://seller/own.png").build());
+
+        // when
+        int emptyUpdated = sessionRepository.fillThumbnailIfAbsent(empty.getPublicId(), "https://mock/001.png");
+        int customUpdated = sessionRepository.fillThumbnailIfAbsent(custom.getPublicId(), "https://mock/002.png");
+
+        // then
+        assertThat(emptyUpdated).isEqualTo(1);
+        assertThat(customUpdated).isZero();
+        assertThat(sessionRepository.findByPublicId(empty.getPublicId()).orElseThrow().getThumbnailUrl())
+                .isEqualTo("https://mock/001.png");
+        assertThat(sessionRepository.findByPublicId(custom.getPublicId()).orElseThrow().getThumbnailUrl())
+                .isEqualTo("https://seller/own.png");
+    }
 }

@@ -39,6 +39,9 @@ class MockLiveSeederUnitTest {
         assertThat(lives).hasSize(50);
         assertThat(lives).filteredOn(l -> l.session().status() == LiveStatus.LIVE).hasSize(25)
                 .allSatisfy(l -> assertThat(l.session().actualStartAt()).isNotNull());
+        assertThat(lives).allSatisfy(l -> assertThat(l.session().thumbnailUrl())
+                .startsWith("https://infrastudy.store/media/mock/").endsWith(".png"));
+        assertThat(lives.getFirst().session().thumbnailUrl()).endsWith("/001.png");
     }
 
     @Test
@@ -60,10 +63,11 @@ class MockLiveSeederUnitTest {
         verify(sessionRepository).save(captor.capture());
         assertThat(captor.getValue().getChannelId()).isEqualTo(7L);
         assertThat(captor.getValue().getPublicId()).isEqualTo(publicId);
+        assertThat(captor.getValue().getThumbnailUrl()).isEqualTo("https://infrastudy.store/media/mock/001.png");
     }
 
     @Test
-    void 방송이_이미_있으면_건너뛴다() {
+    void 방송이_이미_있으면_새로_만들지_않고_비어_있는_썸네일만_채운다() {
         // given — 재배포해도 중복 생성되지 않는다
         UUID sellerId = UUID.randomUUID();
         UUID publicId = UUID.randomUUID();
@@ -75,15 +79,16 @@ class MockLiveSeederUnitTest {
         // when
         int created = seeder.seed(List.of(live(sellerId, publicId)));
 
-        // then
+        // then — 채울지(비어 있는지)는 조건부 UPDATE가 판단한다
         assertThat(created).isZero();
         verify(sessionRepository, never()).save(any());
+        verify(sessionRepository).fillThumbnailIfAbsent(publicId, "https://infrastudy.store/media/mock/001.png");
     }
 
     private static MockLiveSeeder.MockLive live(UUID sellerId, UUID publicId) {
         return new MockLiveSeeder.MockLive(sellerId,
                 new MockLiveSeeder.MockChannel("arn", "rtmps://ingest", "https://playback"),
                 new MockLiveSeeder.MockSession(publicId, UUID.randomUUID(), LiveStatus.LIVE, "가전", "생활가전",
-                        "소개", Instant.now(), Instant.now(), 3));
+                        "소개", Instant.now(), Instant.now(), 3, "https://infrastudy.store/media/mock/001.png"));
     }
 }
