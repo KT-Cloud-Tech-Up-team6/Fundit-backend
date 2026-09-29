@@ -72,9 +72,11 @@ public class ProjectStatsService {
      * <p>order-service는 이 서비스의 내부 PK를 모르므로 publicId(UUID)로 보낸다 — 여기서 내부 id로
      * 변환한다. 알 수 없는 publicId(삭제/오탐)면 예외로 파티션을 막지 않고 이 메시지만 건너뛴다
      * (event-convention.md 7번, at-least-once라 재전송돼도 같은 스냅샷으로 수렴하므로 멱등).
+     *
+     * <p>{@code participantCount}가 null이면(필드가 없던 구버전 order 메시지) 참여자 수는 기존 값을 유지한다.
      */
     @Transactional
-    public void applyRewardStats(UUID projectPublicId, List<RewardStat> rewardStats) {
+    public void applyRewardStats(UUID projectPublicId, List<RewardStat> rewardStats, Integer participantCount) {
         Project project = projectRepository.findByPublicId(projectPublicId).orElse(null);
         if (project == null) {
             log.warn("알 수 없는 projectPublicId로 리워드 통계 이벤트 수신, 건너뜀. projectPublicId={}", projectPublicId);
@@ -91,8 +93,9 @@ public class ProjectStatsService {
         long currentAmount = sumRewardAmount(rewardStats);
         snapshot.replaceRewardStats(rewardStats);
         snapshot.applyFundingProgress(currentAmount, achievementRate(project.getGoalAmount(), currentAmount));
-        // ponytail: participantCount는 그대로 0이다. 이 이벤트에 참여 건수를 셀 필드가 없어
-        // order-service가 페이로드에 추가해줘야 채울 수 있다.
+        if (participantCount != null) {
+            snapshot.applyParticipantCount(participantCount);
+        }
         fundingStatusSnapshotJpaRepository.save(snapshot);
     }
 

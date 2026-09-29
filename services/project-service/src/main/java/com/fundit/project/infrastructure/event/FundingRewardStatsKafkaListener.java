@@ -22,6 +22,6 @@ public class FundingRewardStatsKafkaListener {
             return;
         }
         projectStatsService.applyRewardStats(event.projectId(),
-                event.rewardStats() == null ? List.of() : event.rewardStats());
+                event.rewardStats() == null ? List.of() : event.rewardStats(), event.participantCount());
     }
 }

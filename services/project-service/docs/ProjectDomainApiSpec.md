@@ -1232,7 +1232,7 @@ GET /api/v1/projects/{projectId}/funding-status
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 조회 가능(S4).
-- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). `currentAmount`/`achievementRate`/`participantCount`는 아직 별도 집계 이벤트가 없어 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
+- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). 같은 이벤트로 `currentAmount`(리워드 단위 합)·`achievementRate`와 `participantCount`(참여 회원 수, 중복 제외 — #180 이후 order가 싣는다. 필드가 없는 메시지면 기존 값 유지)도 갱신한다. 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
 - `optionValueId`가 null이면 옵션 없는 리워드 합계, 있으면 해당 옵션값 한정 통계다.
 - `openNotifyCount`는 `project_open_notify_requests` COUNT, `wishCount`는 `project_wish_stats` 읽기 모델(아래 #34와 동일). `remainingDays`는 `funding_deadline` 기준 계산.
 
