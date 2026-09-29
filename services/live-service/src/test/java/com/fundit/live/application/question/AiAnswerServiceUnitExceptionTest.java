@@ -39,8 +39,11 @@ class AiAnswerServiceUnitExceptionTest {
 
     @Test
     void 빈_답변은_보낼_수_없다() {
+        // given
+        String blankAnswer = "  ";
+
         // when
-        Throwable thrown = catchThrowable(() -> aiAnswerService.send(sellerId, liveId, questionId, "  "));
+        Throwable thrown = catchThrowable(() -> aiAnswerService.send(sellerId, liveId, questionId, blankAnswer));
 
         // then
         assertThat(thrown)

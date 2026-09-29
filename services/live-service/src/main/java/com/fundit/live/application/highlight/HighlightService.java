@@ -13,6 +13,7 @@ import com.fundit.live.domain.highlight.ProjectClip;
 import com.fundit.live.domain.highlight.ProjectClipPage;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.fundit.live.domain.highlight.SceneLabel;
 import com.fundit.live.domain.session.LiveSession;
@@ -43,6 +44,11 @@ public class HighlightService {
     private static final int MAX_CLIPS_PER_LIVE = 3;
     /** {@code VodChatQueryService.MAX_RANGE_SEC}와 같은 값 — 그 상한을 넘기면 예외가 난다. */
     private static final int CHAT_QUERY_RANGE_SEC = 600;
+    /**
+     * 프로젝트 클립 목록 한 페이지 상한. 인증 없는 공개 API라 Spring 기본 상한(2000)이면 요청 하나로
+     * 조인 쿼리 2000건을 돌릴 수 있다. 방송당 클립이 최대 3개라 50이면 약 16개 방송분이다.
+     */
+    static final int MAX_CLIP_PAGE_SIZE = 50;
 
     private final LiveHighlightRepository highlightRepository;
     private final LiveSessionRepository sessionRepository;
@@ -236,9 +242,11 @@ public class HighlightService {
      */
     @Transactional(readOnly = true)
     public Page<ProjectClip> findPublicClips(UUID projectId, Pageable pageable) {
+        Pageable capped = PageRequest.of(pageable.getPageNumber(),
+                Math.min(pageable.getPageSize(), MAX_CLIP_PAGE_SIZE));
         ProjectClipPage page = highlightRepository.findPublicClipsByProjectId(
-                projectId, pageable.getPageNumber(), pageable.getPageSize());
-        return new PageImpl<>(page.content(), pageable, page.totalElements());
+                projectId, capped.getPageNumber(), capped.getPageSize());
+        return new PageImpl<>(page.content(), capped, page.totalElements());
     }
 
     /** {@code highlightId}는 재생성 대상이며 최초 생성은 null이다. */

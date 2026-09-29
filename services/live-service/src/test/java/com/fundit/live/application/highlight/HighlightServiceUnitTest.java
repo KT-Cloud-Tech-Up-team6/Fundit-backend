@@ -222,6 +222,21 @@ class HighlightServiceUnitTest {
     }
 
     @Test
+    void 프로젝트_클립_목록은_페이지_크기를_50으로_제한한다() {
+        // given — 공개 API라 큰 size 한 번으로 조인 쿼리를 대량으로 돌릴 수 없어야 한다
+        UUID projectId = UUID.randomUUID();
+        given(highlightRepository.findPublicClipsByProjectId(projectId, 0, HighlightService.MAX_CLIP_PAGE_SIZE))
+                .willReturn(new com.fundit.live.domain.highlight.ProjectClipPage(List.of(), 0));
+
+        // when
+        var page = highlightService.findPublicClips(projectId, org.springframework.data.domain.PageRequest.of(0, 2000));
+
+        // then
+        verify(highlightRepository).findPublicClipsByProjectId(projectId, 0, HighlightService.MAX_CLIP_PAGE_SIZE);
+        assertThat(page.getSize()).isEqualTo(HighlightService.MAX_CLIP_PAGE_SIZE);
+    }
+
+    @Test
     void 클릭은_소속을_확인한_뒤_센다() {
         // given
         givenPublicSession();
