@@ -25,11 +25,12 @@ public interface ProjectJpaRepository extends JpaRepository<ProjectJpaEntity, Lo
     /**
      * dev 목업 시더 전용 — 커버 이미지가 <b>비어 있을 때만</b> 채운다. 이미 있는 값(판매자가 바꾼 이미지 포함)은
      * 덮지 않아 재기동해도 결과가 같다. 갱신 뒤 같은 트랜잭션에서 다시 읽으므로 영속성 컨텍스트를 비운다.
+     * 소프트 딜리트된 프로젝트는 건드리지 않는다(이 파일의 다른 조회와 같은 기준).
      *
      * @return 채운 행 수(0 또는 1)
      */
     @Modifying(clearAutomatically = true)
-    @Query("update ProjectJpaEntity p set p.coverImageUrl = :url where p.publicId = :publicId and p.coverImageUrl is null")
+    @Query("update ProjectJpaEntity p set p.coverImageUrl = :url where p.publicId = :publicId and p.coverImageUrl is null and p.deletedAt is null")
     int fillCoverImageIfAbsent(@Param("publicId") UUID publicId, @Param("url") String url);
 
     Optional<ProjectJpaEntity> findByIdAndDeletedAtIsNull(Long id);

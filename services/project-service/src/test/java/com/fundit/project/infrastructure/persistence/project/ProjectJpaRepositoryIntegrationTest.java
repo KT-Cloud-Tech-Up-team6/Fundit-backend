@@ -86,6 +86,22 @@ class ProjectJpaRepositoryIntegrationTest {
                 .isEqualTo("https://seller/own.png");
     }
 
+    @Test
+    void 삭제된_프로젝트는_커버_이미지가_비어_있어도_채우지_않는다() {
+        // given — 소프트 딜리트된 행
+        UUID deleted = UUID.randomUUID();
+        Instant now = Instant.now();
+        projectRepository.save(Project.builder()
+                .publicId(deleted).sellerId(UUID.randomUUID()).title("삭제됨").status(ProjectStatus.DRAFT)
+                .createdAt(now).updatedAt(now).deletedAt(now).build());
+
+        // when
+        int updated = projectJpaRepository.fillCoverImageIfAbsent(deleted, "https://mock/001.png");
+
+        // then
+        assertThat(updated).isZero();
+    }
+
     private void persistProject(UUID sellerId, String title, ProjectStatus status) {
         persistProject(sellerId, title, status, null);
     }
