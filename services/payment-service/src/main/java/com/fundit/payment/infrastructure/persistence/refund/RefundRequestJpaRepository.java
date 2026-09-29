@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,6 +68,12 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
 
     List<RefundRequestJpaEntity> findByTriggerTypeAndStatusAndReshipmentRequestedAtIsNullOrderByIdAsc(
             String triggerType, String status, Pageable pageable);
+
+    /** 결제당 진행 중인 취소 요청은 최대 1건이다({@code uq_refund_requests_cancel_in_flight}, V11). */
+    Optional<RefundRequestJpaEntity> findByPaymentIdAndStatusAndCancelAmountIsNotNull(UUID paymentId, String status);
+
+    List<RefundRequestJpaEntity> findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByIdAsc(
+            String status, Instant before, Pageable pageable);
 
     boolean existsByFundingOrderIdAndTriggerTypeInAndStatusIn(UUID fundingOrderId, List<String> triggerTypes,
                                                               List<String> statuses);

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,6 +48,24 @@ public class RefundRequestPersistenceAdapter implements RefundRequestRepository 
                         RefundTriggerType.EXCHANGE.name(), RefundRequestStatus.PROCESSING.name(),
                         PageRequest.of(0, limit))
                 .stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public Optional<RefundRequest> findCancelInFlightByPaymentId(UUID paymentId) {
+        return jpaRepository.findByPaymentIdAndStatusAndCancelAmountIsNotNull(paymentId,
+                RefundRequestStatus.PROCESSING.name()).map(mapper::toDomain);
+    }
+
+    @Override
+    public List<RefundRequest> findCancelsRequestedBefore(Instant before, int limit) {
+        return jpaRepository.findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByIdAsc(
+                        RefundRequestStatus.PROCESSING.name(), before, PageRequest.of(0, limit))
+                .stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public void delete(Long id) {
+        jpaRepository.deleteById(id);
     }
 
     @Override

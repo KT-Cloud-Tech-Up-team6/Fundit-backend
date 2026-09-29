@@ -1,5 +1,6 @@
 package com.fundit.payment.domain.refund;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,18 @@ public interface RefundRequestRepository {
      * 같은 주문에 아직 처리되지 않은 발송 후 신청(하자환불·교환·반품)이 있는지. 중복 접수를 막지
      * 않으면 반품비 차감 부분취소가 두 번 실행될 수 있다.
      */
+    /** 이 결제에 토스 취소를 요청했지만 아직 확정되지 않은 환불(PROCESSING + 취소 금액). 결제당 최대 1건. */
+    Optional<RefundRequest> findCancelInFlightByPaymentId(UUID paymentId);
+
+    /**
+     * 취소 요청 후 {@code before}가 지나도록 확정되지 않은 환불 — 대사 배치 대상. 방금 요청한 건은 호출이
+     * 진행 중일 수 있어 기준 시각으로 거른다.
+     */
+    List<RefundRequest> findCancelsRequestedBefore(Instant before, int limit);
+
+    /** 토스가 거절한 즉시 취소 요청을 없앤다 — 취소가 일어나지 않았으니 환불 내역에 남기지 않는다. */
+    void delete(Long id);
+
     boolean existsUnresolvedPostShipmentRequest(UUID fundingId);
 
     /**
