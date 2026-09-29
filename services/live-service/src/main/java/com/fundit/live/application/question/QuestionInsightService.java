@@ -66,13 +66,19 @@ public class QuestionInsightService {
     @Transactional
     public UnansweredView unanswered(UUID sellerId, UUID liveId, int topN) {
         LiveSession session = loadOwned(sellerId, liveId);
-        AiClient.UnansweredList result = aiClient.unanswered(liveId.toString(), topN);
+        // 답변 완료 처리(MARK_DONE)는 AI에 등록하지 않아 AI는 계속 미답변으로 준다 — 로컬에서 이미
+        // 답변된 행은 미답변에서 빼 답변 쪽으로 옮긴다. 안 옮기면 완료 처리한 질문이 창에 그대로 남는다.
+        // 빼고 나서도 topN이 남도록 로컬 답변 수만큼 더 받는다(최대로 섞여 와도 그만큼이다).
+        int localAnswered = (int) Math.min(summaryRepository.countBySessionIdAndAnsweredTrue(session.getId()),
+                Integer.MAX_VALUE - topN);
+        AiClient.UnansweredList result = aiClient.unanswered(liveId.toString(), topN + localAnswered);
         List<LiveQuestionSummaryJpaEntity> fromPending = result.pending().stream()
                 .map(item -> upsertPending(session.getId(), item))
                 .toList();
-        // 답변 완료 처리(MARK_DONE)는 AI에 등록하지 않아 AI는 계속 미답변으로 준다 — 로컬에서 이미
-        // 답변된 행은 미답변에서 빼 답변 쪽으로 옮긴다. 안 옮기면 완료 처리한 질문이 창에 그대로 남는다.
-        List<LiveQuestionSummaryJpaEntity> pending = fromPending.stream().filter(s -> !s.isAnswered()).toList();
+        List<LiveQuestionSummaryJpaEntity> pending = fromPending.stream()
+                .filter(s -> !s.isAnswered())
+                .limit(topN)
+                .toList();
         // 답변 완료 행은 AiAnswerService가 기존 행에 recordAnswer로만 만든다 — 여기서 새로 만들면
         // 답변 정보 없는 "완료" 행이 생기므로 있는 행만 돌려준다.
         List<LiveQuestionSummaryJpaEntity> answered = java.util.stream.Stream.concat(

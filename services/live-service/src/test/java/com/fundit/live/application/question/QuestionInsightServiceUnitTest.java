@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
@@ -131,6 +132,49 @@ class QuestionInsightServiceUnitTest {
         // then
         assertThat(view.pending()).extracting(LiveQuestionSummaryJpaEntity::getAiQuestionId).containsExactly("fq_0003");
         assertThat(view.answered()).containsExactly(markedDone);
+    }
+
+    @Test
+    void 로컬_답변_완료_수만큼_AI에_더_요청해_topN을_채운다() {
+        // given — 답변 완료 1건이 AI 미답변에 섞여 와도, 빼고 나서 topN(1)이 남아야 한다
+        LiveQuestionSummaryJpaEntity markedDone = q("fq_0002", 3);
+        markedDone.recordAnswer("방송 중 답변 완료", Instant.now());
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.countBySessionIdAndAnsweredTrue(1L)).willReturn(1L);
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(markedDone));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0003")).willReturn(Optional.empty());
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.unanswered(liveId.toString(), 2)).willReturn(new AiClient.UnansweredList(
+                List.of(new AiClient.UnansweredItem("fq_0002", "타이머 기능 돼요?", 3),
+                        new AiClient.UnansweredItem("fq_0003", "색상 있어요?", 1)),
+                List.of()));
+
+        // when
+        var view = questionInsightService.unanswered(sellerId, liveId, 1);
+
+        // then
+        assertThat(view.pending()).extracting(LiveQuestionSummaryJpaEntity::getAiQuestionId).containsExactly("fq_0003");
+    }
+
+    @Test
+    void 더_받은_미답변이_남으면_topN개로_자른다() {
+        // given — 로컬 답변 완료분이 이번 응답에 없으면 미답변이 topN보다 많이 온다
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.countBySessionIdAndAnsweredTrue(1L)).willReturn(1L);
+        given(summaryRepository.findBySessionIdAndAiQuestionId(anyLong(), anyString())).willReturn(Optional.empty());
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.unanswered(liveId.toString(), 2)).willReturn(new AiClient.UnansweredList(
+                List.of(new AiClient.UnansweredItem("fq_0003", "색상 있어요?", 5),
+                        new AiClient.UnansweredItem("fq_0004", "무게는요?", 2)),
+                List.of()));
+
+        // when
+        var view = questionInsightService.unanswered(sellerId, liveId, 1);
+
+        // then
+        assertThat(view.pending()).extracting(LiveQuestionSummaryJpaEntity::getAiQuestionId).containsExactly("fq_0003");
     }
 
     @Test
