@@ -61,6 +61,41 @@ class LiveSessionUnitTest {
     }
 
     @Nested
+    @DisplayName("예약 해제")
+    class 예약_해제 {
+
+        @Test
+        void SCHEDULED면_DRAFT로_돌아가고_예정시각이_지워진다() {
+            // given
+            LiveSession session = draft();
+            session.updateSettings(null, null, null, null, Instant.parse("2026-09-10T11:00:00Z"));
+
+            // when
+            session.clearSchedule();
+
+            // then — 소비자 예정 목록에서 빠지고 판매자 임시저장 목록으로 돌아간다
+            assertThat(session.getStatus()).isEqualTo(LiveStatus.DRAFT);
+            assertThat(session.getScheduledStartAt()).isNull();
+            assertThat(session.isPubliclyVisible()).isFalse();
+        }
+
+        @Test
+        void ERROR면_상태는_유지하고_예정시각만_지운다() {
+            // given
+            LiveSession session = draft();
+            session.updateSettings(null, null, null, null, Instant.parse("2026-09-10T11:00:00Z"));
+            session.markError("송출 실패", Instant.parse("2026-09-10T11:00:00Z"));
+
+            // when
+            session.clearSchedule();
+
+            // then
+            assertThat(session.getStatus()).isEqualTo(LiveStatus.ERROR);
+            assertThat(session.getScheduledStartAt()).isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("송출")
     class 송출 {
 

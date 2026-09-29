@@ -77,4 +77,18 @@ class LiveControllerExceptionTest {
                         .content("{\"introText\":\"%s\"}".formatted("가".repeat(201))))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void 예약_해제와_예약시각을_함께_보내면_400이다() throws Exception {
+        // given & when & then — 해제하면서 다시 예약하라는 요청은 어느 쪽인지 알 수 없다
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/v1/lives/{liveId}/settings", UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "clearSchedule": true, "scheduledStartAt": "2026-09-10T11:00:00Z" }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
 }

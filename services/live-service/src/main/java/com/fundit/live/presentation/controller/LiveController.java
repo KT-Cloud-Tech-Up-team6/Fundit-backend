@@ -116,7 +116,8 @@ public class LiveController {
                                              @Valid @RequestBody LiveSettingsRequest request) {
         return LiveStatusResponse.from(liveSettingsService.update(
                 user.id(), liveId, request.majorOrNull(), request.minorOrNull(),
-                request.introText(), request.thumbnailUrl(), request.scheduledStartAt()));
+                request.introText(), request.thumbnailUrl(), request.scheduledStartAt(),
+                request.clearScheduleOrFalse()));
     }
 
     /** LIVE 시작(요구사항정의서 6.3.4). */

@@ -37,7 +37,7 @@ class LiveSettingsServiceUnitTest {
 
         // when
         LiveSession updated = liveSettingsService.update(sellerId, liveId, "테크·가전", "생활가전",
-                "소개", null, Instant.parse("2026-09-10T11:00:00Z"));
+                "소개", null, Instant.parse("2026-09-10T11:00:00Z"), false);
 
         // then
         assertThat(updated.getStatus()).isEqualTo(LiveStatus.SCHEDULED);
@@ -53,10 +53,25 @@ class LiveSettingsServiceUnitTest {
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
 
         // when
-        LiveSession updated = liveSettingsService.update(sellerId, liveId, null, null, "소개만", null, null);
+        LiveSession updated = liveSettingsService.update(sellerId, liveId, null, null, "소개만", null, null, false);
 
         // then
         assertThat(updated.getStatus()).isEqualTo(LiveStatus.DRAFT);
     }
 
+    @Test
+    void 예약을_해제하면_DRAFT로_돌아가고_예정시각이_지워진다() {
+        // given
+        LiveSession scheduled = LiveSession.create(1L, UUID.randomUUID());
+        scheduled.updateSettings(null, null, null, null, Instant.parse("2026-09-10T11:00:00Z"));
+        given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.of(scheduled));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        LiveSession updated = liveSettingsService.update(sellerId, liveId, null, null, null, null, null, true);
+
+        // then
+        assertThat(updated.getStatus()).isEqualTo(LiveStatus.DRAFT);
+        assertThat(updated.getScheduledStartAt()).isNull();
+    }
 }

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -157,7 +158,7 @@ class LiveControllerTest {
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
         session.updateSettings("테크·가전", "생활가전", "소개", null,
                 java.time.Instant.parse("2026-09-10T11:00:00Z"));
-        when(liveSettingsService.update(any(), any(), any(), any(), any(), any(), any()))
+        when(liveSettingsService.update(any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
                 .thenReturn(session);
 
         // when & then

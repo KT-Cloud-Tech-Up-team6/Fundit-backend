@@ -319,6 +319,7 @@ Validation / Business Rules
 
 - 부분 업데이트다. 카테고리·소개문구는 연결된 프로젝트 값이 기본으로 채워지고 이 API로 덮어쓴다.
 - **`scheduledStartAt`이 채워지면 상태가 `DRAFT` → `SCHEDULED`로 올라간다.** 예약 없이 바로 시작하는 경우 이 필드는 비워둔 채 "LIVE 시작"로 간다.
+- **예약 해제는 `"clearSchedule": true`로 보낸다.** `scheduledStartAt`이 지워지고 `SCHEDULED` → `DRAFT`로 돌아간다(소비자 예정 목록·배너에서 빠지고 `/mine?status=DRAFT`에 나온다). `ERROR`는 상태를 유지하고 예정 시각만 지운다. `scheduledStartAt: null`은 "변경 없음"이라 해제로 쓸 수 없다. `clearSchedule`과 `scheduledStartAt`을 함께 보내면 `400`.
 - `introText`는 200자 제한. 소비자 화면에 그대로 노출되므로 출력 인코딩 대상이다(`security.md` S2).
 - **연결된 프로젝트·상품 정보는 이 API로 바꿀 수 없다**(요구사항정의서 6.2.4.1 "변경 불가"). 프로젝트를 바꾸려면 LIVE를 새로 만든다.
 - 이미 `LIVE`·`ENDED` 상태면 `409`.

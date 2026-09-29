@@ -35,7 +35,7 @@ class LiveSettingsServiceUnitExceptionTest {
         given(sessionRepository.findOwned(liveId, sellerId)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> liveSettingsService.update(sellerId, liveId, null, null, "x", null, null))
+        assertThatThrownBy(() -> liveSettingsService.update(sellerId, liveId, null, null, "x", null, null, false))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.NOT_FOUND);

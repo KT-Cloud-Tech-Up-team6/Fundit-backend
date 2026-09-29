@@ -31,6 +31,24 @@ class LiveSessionUnitExceptionTest {
     }
 
     @Test
+    void 진행중이거나_종료된_방송은_예약을_해제할_수_없다() {
+        // given
+        LiveSession live = live();
+        LiveSession ended = live();
+        ended.end(Instant.parse("2026-09-10T11:10:00Z"));
+
+        // when & then
+        assertThatThrownBy(live::clearSchedule)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+        assertThatThrownBy(ended::clearSchedule)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
     void 이미_시작된_방송은_다시_시작할_수_없다() {
         // given
         LiveSession session = live();
