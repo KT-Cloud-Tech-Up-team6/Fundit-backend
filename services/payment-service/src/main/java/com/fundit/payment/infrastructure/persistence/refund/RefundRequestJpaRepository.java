@@ -86,6 +86,17 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
             + "where r.id = :id and r.status = 'PROCESSING' and r.cancelAmount is not null")
     int deferCancelRequest(@Param("id") Long id, @Param("at") Instant at);
 
+    /**
+     * 멈춘 취소 요청의 선점(비교 후 갱신). 동시에 들어오면 뒤의 UPDATE가 행 잠금을 기다렸다가 바뀐 요청 시각으로
+     * 조건을 다시 평가해 0행이 된다. 시각은 같음이 아니라 기준 이전인지로 비교한다 — DB(마이크로초)와
+     * {@code Instant}(나노초)의 정밀도 차이로 같음 비교가 어긋나지 않게 한다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update RefundRequestJpaEntity r set r.cancelRequestedAt = :now "
+            + "where r.id = :id and r.status = 'PROCESSING' and r.cancelAmount is not null "
+            + "and r.cancelRequestedAt < :staleBefore")
+    int claimCancelRequest(@Param("id") Long id, @Param("staleBefore") Instant staleBefore, @Param("now") Instant now);
+
     boolean existsByFundingOrderIdAndTriggerTypeInAndStatusIn(UUID fundingOrderId, List<String> triggerTypes,
                                                               List<String> statuses);
 

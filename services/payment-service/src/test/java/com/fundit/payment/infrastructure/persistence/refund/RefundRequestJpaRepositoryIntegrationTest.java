@@ -205,6 +205,38 @@ class RefundRequestJpaRepositoryIntegrationTest {
         assertThat(refundRequestJpaRepository.findById(reverted.getId()).orElseThrow().getCancelRequestedAt()).isNull();
     }
 
+    @Test
+    void 멈춘_취소_요청은_한_번만_선점된다() {
+        // given — 요청 후 20분이 지난(stale 기준 5분) 취소 요청
+        Instant now = Instant.now();
+        Instant staleBefore = now.minusSeconds(300);
+        RefundRequestJpaEntity stale = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(1_200));
+
+        // when — 대사 배치와 이벤트 재수신이 차례로 선점을 시도한다
+        int first = refundRequestJpaRepository.claimCancelRequest(stale.getId(), staleBefore, now);
+        int second = refundRequestJpaRepository.claimCancelRequest(stale.getId(), staleBefore, now);
+
+        // then — 먼저 잡은 쪽만 토스를 부른다(요청 시각이 지금으로 바뀌어 두 번째는 조건에 안 맞는다)
+        assertThat(first).isEqualTo(1);
+        assertThat(second).isZero();
+    }
+
+    @Test
+    void 방금_요청된_건과_취소_요청이_아닌_건은_선점되지_않는다() {
+        // given
+        Instant now = Instant.now();
+        Instant staleBefore = now.minusSeconds(300);
+        RefundRequestJpaEntity fresh = saveCancelRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                now.minusSeconds(60));
+        RefundRequestJpaEntity reverted = saveRequest(givenCompletedPayment(UUID.randomUUID(), 23_000L),
+                "GOAL_FAILED_AUTO", "REQUESTED");
+
+        // when & then
+        assertThat(refundRequestJpaRepository.claimCancelRequest(fresh.getId(), staleBefore, now)).isZero();
+        assertThat(refundRequestJpaRepository.claimCancelRequest(reverted.getId(), staleBefore, now)).isZero();
+    }
+
     private RefundRequestJpaEntity saveCancelRequest(PaymentJpaEntity payment, Instant cancelRequestedAt) {
         return refundRequestJpaRepository.saveAndFlush(RefundRequestJpaEntity.builder()
                 .paymentId(payment.getId()).fundingOrderId(UUID.randomUUID()).triggerType("SIMPLE_CHANGE_OF_MIND")

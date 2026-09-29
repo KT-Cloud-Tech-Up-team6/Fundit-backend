@@ -275,6 +275,7 @@ class RefundExecutionServiceUnitExceptionTest {
         RefundRequest second = RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID,
                 payment.getId(), 89_000L, "사유").toBuilder().id(2L).build();
         when(refundRequestRepository.findCancelsRequestedBefore(before, 50)).thenReturn(List.of(first, second));
+        when(refundRequestRepository.claimCancelRequest(any(), eq(before), any())).thenReturn(true);
         when(paymentRepository.findById(broken.getId())).thenReturn(Optional.of(broken));
         when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
         when(tossPaymentsClient.lookup("pay_key_1"))
@@ -294,5 +295,23 @@ class RefundExecutionServiceUnitExceptionTest {
         assertThat(second.getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);
         verify(refundRequestRepository).deferCancelRequest(eq(1L), any());
         verify(refundRequestRepository, never()).deferCancelRequest(eq(2L), any());
+    }
+
+    @Test
+    void 대사_배치에서_이벤트_재수신이_먼저_선점한_건은_토스를_부르지_않는다() {
+        // given
+        Instant before = Instant.now();
+        RefundRequest claimedElsewhere = RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID,
+                UUID.randomUUID(), 89_000L, "사유").toBuilder().id(3L).build();
+        when(refundRequestRepository.findCancelsRequestedBefore(before, 50)).thenReturn(List.of(claimedElsewhere));
+        when(refundRequestRepository.claimCancelRequest(eq(3L), eq(before), any())).thenReturn(false);
+
+        // when
+        int resolved = refundExecutionService.reconcileCancelsRequestedBefore(before, 50);
+
+        // then
+        assertThat(resolved).isZero();
+        verifyNoInteractions(tossPaymentsClient, paymentEventPublisher);
+        verify(paymentRepository, never()).findById(any());
     }
 }

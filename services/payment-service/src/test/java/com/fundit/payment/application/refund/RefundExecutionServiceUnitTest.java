@@ -33,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -168,12 +169,30 @@ class RefundExecutionServiceUnitTest {
     }
 
     @Test
+    void 멈춘_취소_요청이라도_다른_호출이_먼저_선점했으면_토스를_부르지_않는다() {
+        // given — 대사 배치가 같은 요청을 먼저 이어받았다
+        Payment payment = completedPayment();
+        RefundRequest stale = staleCancelRequest(payment.getId());
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())).thenReturn(Optional.of(stale));
+        when(refundRequestRepository.claimCancelRequest(eq(5L), any(), any())).thenReturn(false);
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then
+        assertThat(result.status()).isEqualTo("PROCESSING");
+        verifyNoInteractions(tossPaymentsClient, paymentEventPublisher);
+    }
+
+    @Test
     void 진행_중인_취소_요청이_있으면_이어받고_토스에_이미_일어난_취소가_있으면_다시_취소하지_않는다() {
         // given — 이전 시도에서 토스 취소는 됐는데 확정이 실패했다(stale 기준 경과)
         Payment payment = completedPayment();
         RefundRequest inFlight = staleCancelRequest(payment.getId());
         when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
         when(refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())).thenReturn(Optional.of(inFlight));
+        when(refundRequestRepository.claimCancelRequest(eq(5L), any(), any())).thenReturn(true);
         when(tossPaymentsClient.lookup("pay_key_1")).thenReturn(lookup("CANCELED", 89_000L,
                 new TossPaymentsClient.TossCancelResult("tx_1", Instant.now(), 89_000L)));
         saveReturnsArgument();
@@ -331,6 +350,11 @@ class RefundExecutionServiceUnitTest {
     class 대사_배치 {
 
         private final Instant before = Instant.now();
+
+        @BeforeEach
+        void 선점은_성공한다() {
+            when(refundRequestRepository.claimCancelRequest(any(), eq(before), any())).thenReturn(true);
+        }
 
         @Test
         void 토스에선_취소됐는데_확정되지_않은_건을_조회한_취소로_확정한다() {

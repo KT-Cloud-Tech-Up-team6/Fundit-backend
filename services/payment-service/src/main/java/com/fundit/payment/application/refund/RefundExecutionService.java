@@ -197,7 +197,7 @@ public class RefundExecutionService {
         for (RefundRequest request : refundRequestRepository.findCancelsRequestedBefore(before, limit)) {
             boolean done = false;
             try {
-                done = reconcile(request);
+                done = reconcile(request, before);
             } catch (RuntimeException e) {
                 log.warn("환불 취소 대사 실패 — 다음 주기에 다시 시도합니다. refundRequestId={}", request.getId(), e);
             }
@@ -220,7 +220,13 @@ public class RefundExecutionService {
         }
     }
 
-    private boolean reconcile(RefundRequest request) {
+    private boolean reconcile(RefundRequest request, Instant before) {
+        if (!Boolean.TRUE.equals(transactionTemplate.execute(status ->
+                refundRequestRepository.claimCancelRequest(request.getId(), before, Instant.now())))) {
+            // 이벤트 재수신이 먼저 이어받았다 — 같은 요청으로 토스를 두 번 부르지 않는다.
+            log.info("다른 호출이 이어받은 취소 요청이라 건너뜁니다. refundRequestId={}", request.getId());
+            return false;
+        }
         Payment payment = paymentRepository.findById(request.getPaymentId())
                 .orElseThrow(() -> new IllegalStateException("취소 요청의 결제가 없습니다. paymentId=" + request.getPaymentId()));
         if (payment.isPending()) {
@@ -283,17 +289,19 @@ public class RefundExecutionService {
     /**
      * 이미 진행 중인 취소 요청이 있으면 이어받는다(이벤트 중복 수신·재시도) — 새로 만들면 같은 결제를 두 번 취소한다.
      * 방금 요청된 건이면 다른 호출이 아직 토스 응답을 기다리는 중일 수 있어 손대지 않는다({@link #cancel}).
+     * 멈춘 건도 선점({@code claimCancelRequest})에 성공할 때만 이어받는다 — 대사 배치가 같은 건을 동시에 잡을 수 있다.
+     * 선점 뒤 토스 호출이 stale 기준보다 오래 걸리면 다시 선점될 수 있지만, 토스 타임아웃이 초 단위라 현실적으로 없다.
      */
     private RequestedCancel openCancelRequest(Payment payment, RefundTriggerType triggerType, String cancelReason) {
         return refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())
-                .map(existing -> isStale(existing) ? RequestedCancel.resumed(existing) : RequestedCancel.inFlight(existing))
+                .map(existing -> refundRequestRepository.claimCancelRequest(existing.getId(), staleBefore(), Instant.now())
+                        ? RequestedCancel.resumed(existing) : RequestedCancel.inFlight(existing))
                 .orElseGet(() -> RequestedCancel.created(refundRequestRepository.save(RefundRequest.requestCancel(
                         triggerType, payment.getFundingId(), payment.getId(), payment.getAmount(), cancelReason))));
     }
 
-    private boolean isStale(RefundRequest request) {
-        return request.getCancelRequestedAt() == null
-                || request.getCancelRequestedAt().isBefore(Instant.now().minus(staleAfter));
+    private Instant staleBefore() {
+        return Instant.now().minus(staleAfter);
     }
 
     /**

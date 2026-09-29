@@ -69,6 +69,11 @@ public class RefundRequestPersistenceAdapter implements RefundRequestRepository 
     }
 
     @Override
+    public boolean claimCancelRequest(Long id, Instant staleBefore, Instant now) {
+        return jpaRepository.claimCancelRequest(id, staleBefore, now) == 1;
+    }
+
+    @Override
     public void delete(Long id) {
         jpaRepository.deleteById(id);
     }

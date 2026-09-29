@@ -30,6 +30,13 @@ public interface RefundRequestRepository {
      */
     void deferCancelRequest(Long id, Instant at);
 
+    /**
+     * 멈춘 취소 요청(요청 시각이 {@code staleBefore}보다 이전)을 이어받기 전에 선점한다 — 요청 시각을 {@code now}로
+     * 바꾸는 조건부 UPDATE라, 대사 배치와 이벤트 재수신이 같은 요청을 동시에 이어받아도 한쪽만 true를 받는다.
+     * false면 다른 호출이 가져간 것이니 토스를 부르지 않는다.
+     */
+    boolean claimCancelRequest(Long id, Instant staleBefore, Instant now);
+
     /** 토스가 거절한 즉시 취소 요청을 없앤다 — 취소가 일어나지 않았으니 환불 내역에 남기지 않는다. */
     void delete(Long id);
 
