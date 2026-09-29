@@ -58,9 +58,14 @@ public class RefundRequestPersistenceAdapter implements RefundRequestRepository 
 
     @Override
     public List<RefundRequest> findCancelsRequestedBefore(Instant before, int limit) {
-        return jpaRepository.findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByIdAsc(
+        return jpaRepository.findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByCancelRequestedAtAsc(
                         RefundRequestStatus.PROCESSING.name(), before, PageRequest.of(0, limit))
                 .stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public void deferCancelRequest(Long id, Instant at) {
+        jpaRepository.deferCancelRequest(id, at);
     }
 
     @Override

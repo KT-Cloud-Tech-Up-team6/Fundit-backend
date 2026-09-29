@@ -68,7 +68,7 @@ class RefundExecutionServiceUnitTest {
         refundExecutionService = new RefundExecutionService(paymentRepository, tossPaymentsClient,
                 paymentCancellationJpaRepository, refundRequestRepository, paymentEventPublisher,
                 paymentNotificationPublisher, settlementHoldService,
-                new TransactionTemplate(mock(PlatformTransactionManager.class)));
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), 5L);
     }
 
     private Payment completedPayment() {
@@ -142,12 +142,36 @@ class RefundExecutionServiceUnitTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);
     }
 
+    /** stale 기준(5분)이 지난 취소 요청 — 앞선 호출이 멈춘 것으로 보고 이어받는다. */
+    private static RefundRequest staleCancelRequest(UUID paymentId) {
+        return RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, paymentId, 89_000L, "사유")
+                .toBuilder().id(5L).cancelRequestedAt(Instant.now().minusSeconds(600)).build();
+    }
+
     @Test
-    void 진행_중인_취소_요청이_있으면_이어받고_토스에_이미_일어난_취소가_있으면_다시_취소하지_않는다() {
-        // given — 이전 시도에서 토스 취소는 됐는데 확정이 실패했다
+    void 방금_요청된_취소가_진행_중이면_토스를_다시_부르지_않고_처리_중으로_답한다() {
+        // given — 같은 이벤트가 중복 수신돼, 앞선 호출이 아직 토스 응답을 기다리는 중이다
         Payment payment = completedPayment();
         RefundRequest inFlight = RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID,
-                payment.getId(), 89_000L, "사유");
+                payment.getId(), 89_000L, "사유").toBuilder().id(5L).build();
+        when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
+        when(refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())).thenReturn(Optional.of(inFlight));
+
+        // when
+        var result = refundExecutionService.executeFullRefund(FUNDING_ID, RefundTriggerType.SIMPLE_CHANGE_OF_MIND, "사유");
+
+        // then
+        assertThat(result.status()).isEqualTo("PROCESSING");
+        assertThat(result.refundRequestId()).isEqualTo(5L);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        verifyNoInteractions(tossPaymentsClient, paymentEventPublisher);
+    }
+
+    @Test
+    void 진행_중인_취소_요청이_있으면_이어받고_토스에_이미_일어난_취소가_있으면_다시_취소하지_않는다() {
+        // given — 이전 시도에서 토스 취소는 됐는데 확정이 실패했다(stale 기준 경과)
+        Payment payment = completedPayment();
+        RefundRequest inFlight = staleCancelRequest(payment.getId());
         when(paymentRepository.findCompletedOrCancelledByFundingId(FUNDING_ID)).thenReturn(Optional.of(payment));
         when(refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())).thenReturn(Optional.of(inFlight));
         when(tossPaymentsClient.lookup("pay_key_1")).thenReturn(lookup("CANCELED", 89_000L,
@@ -323,10 +347,11 @@ class RefundExecutionServiceUnitTest {
             // when
             int resolved = refundExecutionService.reconcileCancelsRequestedBefore(before, 50);
 
-            // then
+            // then — 해결한 건은 미루지 않는다
             assertThat(resolved).isEqualTo(1);
             assertThat(stuck.getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+            verify(refundRequestRepository, never()).deferCancelRequest(any(), any());
             verify(settlementHoldService).releaseToRefund(payment.getId());
             verify(paymentEventPublisher).publishRefundCompleted(any());
             verify(tossPaymentsClient, never()).cancel(any(), anyLong(), any());
@@ -409,11 +434,12 @@ class RefundExecutionServiceUnitTest {
             // when
             int resolved = refundExecutionService.reconcileCancelsRequestedBefore(before, 50);
 
-            // then
+            // then — 해결 못 한 건은 요청 시각을 미뤄 다음 주기 목록의 뒤로 보낸다
             assertThat(resolved).isZero();
             assertThat(stuck.isCancelInFlight()).isTrue();
             verify(paymentRepository, never()).failIfPending(any());
             verify(refundRequestRepository, never()).delete(any());
+            verify(refundRequestRepository).deferCancelRequest(any(), any());
         }
     }
 }

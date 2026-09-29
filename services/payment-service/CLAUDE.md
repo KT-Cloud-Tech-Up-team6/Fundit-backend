@@ -207,6 +207,8 @@ PAYMENT-004/005/007/008/017은 전부 `RefundExecutionService` 한 곳을 탄다
 - **토스 거절(4xx) 시 되돌리기는 유형별이다**: `GOAL_FAILED_AUTO`/`SHIPPING_DELAY` → `REQUESTED`(대체 계좌 입력 대기, PAYMENT-005 예외 처리) / 판매자 검토 유형(007) → `REQUESTED`(재결정 가능) / `SIMPLE_CHANGE_OF_MIND`/`SYSTEM_RECONCILIATION` → 요청 삭제(취소가 없었으니 내역도 없다).
 - **대사 배치**: `RefundCancelReconcileScheduler`가 1분마다 요청 후 5분 지난 건을 본다. 완료 결제면 위 조회 → 확정(없으면 재취소). 대기 결제(PAYMENT-004 결제 전 취소에서 토스 조회 실패·`IN_PROGRESS` 등으로 판단하지 못한 건, #181)면 주문번호 조회로 승인 → 완료 후 전액 취소 / 승인 불가 → `failIfPending` + 요청 삭제 / 판단 불가 → 다음 주기. 결제 화면에서 진행 중인 정상 결제에는 취소 요청이 없어 건드리지 않는다.
 - **호출부에 트랜잭션을 걸지 않는다**(`ShippingDelayRefundService`, `DefectRefundDecisionService`) — 바깥 트랜잭션이 있으면 토스 호출이 다시 그 안으로 들어간다. 트랜잭션 경계는 `TransactionTemplate`으로 나눈다.
+- **방금 요청된 취소는 이어받지 않는다.** 이어받은 요청의 `cancel_requested_at`이 stale 기준(`refund-cancel-reconcile.stale-after-minutes`, 5분)보다 최근이면 다른 호출이 아직 토스 응답을 기다리는 중으로 보고, 토스를 부르지 않고 `PROCESSING`으로 답한다(같은 결제 동시 취소 방지). stale이 지난 요청만 조회 → 재취소한다.
+- **대사 목록은 요청 시각 오래된 순이고, 해결 못 한 건은 요청 시각을 미룬다**(`deferCancelRequest`, 아직 "취소 요청됨"인 행만 바꾸는 조건부 UPDATE). 판단 불가·실패 건이 목록 앞자리를 계속 차지하면 그런 건이 배치 크기만큼 쌓였을 때 뒤의 건이 영영 처리되지 않는다.
 - 배치는 인스턴스 1개 실행을 가정한다(다른 스케줄러와 동일). 레플리카를 늘리면 ShedLock을 도입할 것.
 
 ### PAYMENT-009 `GET /api/v1/settlements/{settlementBatchId}`

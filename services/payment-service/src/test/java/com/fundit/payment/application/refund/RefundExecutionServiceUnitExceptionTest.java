@@ -35,6 +35,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -71,7 +72,7 @@ class RefundExecutionServiceUnitExceptionTest {
         refundExecutionService = new RefundExecutionService(paymentRepository, tossPaymentsClient,
                 paymentCancellationJpaRepository, refundRequestRepository, paymentEventPublisher,
                 paymentNotificationPublisher, settlementHoldService,
-                new TransactionTemplate(mock(PlatformTransactionManager.class)));
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), 5L);
     }
 
     private Payment completedPayment() {
@@ -270,9 +271,9 @@ class RefundExecutionServiceUnitExceptionTest {
         Payment broken = completedPayment();
         Payment payment = completedPayment();
         RefundRequest first = RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID,
-                broken.getId(), 89_000L, "사유");
+                broken.getId(), 89_000L, "사유").toBuilder().id(1L).build();
         RefundRequest second = RefundRequest.requestCancel(RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID,
-                payment.getId(), 89_000L, "사유");
+                payment.getId(), 89_000L, "사유").toBuilder().id(2L).build();
         when(refundRequestRepository.findCancelsRequestedBefore(before, 50)).thenReturn(List.of(first, second));
         when(paymentRepository.findById(broken.getId())).thenReturn(Optional.of(broken));
         when(paymentRepository.findById(payment.getId())).thenReturn(Optional.of(payment));
@@ -287,9 +288,11 @@ class RefundExecutionServiceUnitExceptionTest {
         // when
         int resolved = refundExecutionService.reconcileCancelsRequestedBefore(before, 50);
 
-        // then
+        // then — 실패한 첫 건만 미뤄 다음 주기에 뒤로 보낸다
         assertThat(resolved).isEqualTo(1);
         assertThat(first.isCancelInFlight()).isTrue();
         assertThat(second.getStatus()).isEqualTo(RefundRequestStatus.COMPLETED);
+        verify(refundRequestRepository).deferCancelRequest(eq(1L), any());
+        verify(refundRequestRepository, never()).deferCancelRequest(eq(2L), any());
     }
 }

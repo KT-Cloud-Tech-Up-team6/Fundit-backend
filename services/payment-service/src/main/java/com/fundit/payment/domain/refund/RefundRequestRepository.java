@@ -24,6 +24,12 @@ public interface RefundRequestRepository {
      */
     List<RefundRequest> findCancelsRequestedBefore(Instant before, int limit);
 
+    /**
+     * 대사 배치가 해결하지 못한 취소 요청의 요청 시각을 {@code at}으로 미룬다 — 목록 앞자리를 계속 막지 않게 한다.
+     * 아직 "취소 요청됨"인 행만 바뀐다.
+     */
+    void deferCancelRequest(Long id, Instant at);
+
     /** 토스가 거절한 즉시 취소 요청을 없앤다 — 취소가 일어나지 않았으니 환불 내역에 남기지 않는다. */
     void delete(Long id);
 

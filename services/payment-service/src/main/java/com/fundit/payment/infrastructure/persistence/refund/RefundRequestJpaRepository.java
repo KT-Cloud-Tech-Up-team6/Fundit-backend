@@ -4,6 +4,7 @@ import com.fundit.payment.infrastructure.persistence.refund.query.RefundSummaryP
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -72,8 +73,18 @@ public interface RefundRequestJpaRepository extends JpaRepository<RefundRequestJ
     /** 결제당 진행 중인 취소 요청은 최대 1건이다({@code uq_refund_requests_cancel_in_flight}, V11). */
     Optional<RefundRequestJpaEntity> findByPaymentIdAndStatusAndCancelAmountIsNotNull(UUID paymentId, String status);
 
-    List<RefundRequestJpaEntity> findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByIdAsc(
+    /** 대사 배치 목록 — 오래된 요청 순. 해결하지 못한 건은 요청 시각을 미뤄 뒤로 보낸다({@link #deferCancelRequest}). */
+    List<RefundRequestJpaEntity> findByStatusAndCancelAmountIsNotNullAndCancelRequestedAtBeforeOrderByCancelRequestedAtAsc(
             String status, Instant before, Pageable pageable);
+
+    /**
+     * 아직 "취소 요청됨"일 때만 요청 시각을 미룬다(조건부 UPDATE). 대사 중 요청이 되돌려졌거나(REQUESTED·삭제)
+     * 확정됐을 수 있어, 조건 없이 갱신하면 끝난 행을 다시 건드린다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update RefundRequestJpaEntity r set r.cancelRequestedAt = :at "
+            + "where r.id = :id and r.status = 'PROCESSING' and r.cancelAmount is not null")
+    int deferCancelRequest(@Param("id") Long id, @Param("at") Instant at);
 
     boolean existsByFundingOrderIdAndTriggerTypeInAndStatusIn(UUID fundingOrderId, List<String> triggerTypes,
                                                               List<String> statuses);

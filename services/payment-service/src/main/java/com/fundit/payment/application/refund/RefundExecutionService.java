@@ -20,12 +20,13 @@ import com.fundit.payment.domain.refund.RefundRequestRepository;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import com.fundit.payment.infrastructure.persistence.payment.PaymentCancellationJpaEntity;
 import com.fundit.payment.infrastructure.persistence.payment.PaymentCancellationJpaRepository;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,7 +46,6 @@ import java.util.UUID;
  * 2~3 사이에서 멈춘 건은 {@link #reconcileCancelsRequestedBefore}(대사 배치)가 토스 조회로 맞춘다.
  */
 @Service
-@RequiredArgsConstructor
 public class RefundExecutionService {
 
     private static final Logger log = LoggerFactory.getLogger(RefundExecutionService.class);
@@ -58,6 +58,26 @@ public class RefundExecutionService {
     private final PaymentNotificationPublisher paymentNotificationPublisher;
     private final SettlementHoldService settlementHoldService;
     private final TransactionTemplate transactionTemplate;
+    /** 이 시간 안에 요청된 취소는 다른 호출이 아직 토스를 기다리는 중으로 본다 — 대사 배치와 같은 기준. */
+    private final Duration staleAfter;
+
+    public RefundExecutionService(PaymentRepository paymentRepository, TossPaymentsClient tossPaymentsClient,
+                                  PaymentCancellationJpaRepository paymentCancellationJpaRepository,
+                                  RefundRequestRepository refundRequestRepository,
+                                  PaymentEventPublisher paymentEventPublisher,
+                                  PaymentNotificationPublisher paymentNotificationPublisher,
+                                  SettlementHoldService settlementHoldService, TransactionTemplate transactionTemplate,
+                                  @Value("${refund-cancel-reconcile.stale-after-minutes:5}") long staleAfterMinutes) {
+        this.paymentRepository = paymentRepository;
+        this.tossPaymentsClient = tossPaymentsClient;
+        this.paymentCancellationJpaRepository = paymentCancellationJpaRepository;
+        this.refundRequestRepository = refundRequestRepository;
+        this.paymentEventPublisher = paymentEventPublisher;
+        this.paymentNotificationPublisher = paymentNotificationPublisher;
+        this.settlementHoldService = settlementHoldService;
+        this.transactionTemplate = transactionTemplate;
+        this.staleAfter = Duration.ofMinutes(staleAfterMinutes);
+    }
 
     /**
      * PAYMENT-004/017 — 판매자 검토 없이 즉시 전액취소하는 유형. 이벤트 중복 수신 시 이미 CANCELLED면 토스 API를
@@ -159,27 +179,45 @@ public class RefundExecutionService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         refundRequest.startCancel(cancelAmount, cancelReason);
         RefundRequest requested = transactionTemplate.execute(status -> refundRequestRepository.save(refundRequest));
-        return cancel(payment, new RequestedCancel(requested, false));
+        return cancel(payment, RequestedCancel.created(requested));
     }
 
     /**
      * 대사 배치 — 취소를 요청한 뒤 {@code before}가 지나도록 확정되지 않은 건을 토스와 맞춘다. 한 건의 실패가
-     * 나머지를 막지 않도록 건별로 처리하고, 실패한 건은 그대로 두어 다음 주기에 다시 본다.
+     * 나머지를 막지 않도록 건별로 처리한다.
+     *
+     * <p>해결하지 못한 건(판단 불가·실패)은 요청 시각을 지금으로 미뤄 목록 뒤로 보낸다. 그대로 두면 오래된 순으로
+     * {@code limit}건만 가져오는 목록 앞자리를 계속 차지해, 그런 건이 {@code limit}개 쌓이면 뒤의 건이 영영 처리되지
+     * 않는다.
      *
      * @return 이번 주기에 확정하거나 정리한 건수
      */
     public int reconcileCancelsRequestedBefore(Instant before, int limit) {
         int resolved = 0;
         for (RefundRequest request : refundRequestRepository.findCancelsRequestedBefore(before, limit)) {
+            boolean done = false;
             try {
-                if (reconcile(request)) {
-                    resolved++;
-                }
+                done = reconcile(request);
             } catch (RuntimeException e) {
                 log.warn("환불 취소 대사 실패 — 다음 주기에 다시 시도합니다. refundRequestId={}", request.getId(), e);
             }
+            if (done) {
+                resolved++;
+            } else {
+                deferQuietly(request);
+            }
         }
         return resolved;
+    }
+
+    /** 미루기 실패가 배치를 멈추지 않게 한다 — 못 미룬 건은 다음 주기에 같은 자리에서 다시 시도될 뿐이다. */
+    private void deferQuietly(RefundRequest request) {
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    refundRequestRepository.deferCancelRequest(request.getId(), Instant.now()));
+        } catch (RuntimeException e) {
+            log.warn("환불 취소 요청을 미루지 못했습니다. refundRequestId={}", request.getId(), e);
+        }
     }
 
     private boolean reconcile(RefundRequest request) {
@@ -194,7 +232,7 @@ public class RefundExecutionService {
                     payment.getStatus(), request.getId(), payment.getId());
             return false;
         }
-        cancel(payment, new RequestedCancel(request, true));
+        cancel(payment, RequestedCancel.resumed(request));
         return true;
     }
 
@@ -210,7 +248,7 @@ public class RefundExecutionService {
             markCompletedFromToss(pending, lookup.get().payment());
             transactionTemplate.executeWithoutResult(status -> paymentRepository.save(pending));
             // 대기 결제에는 취소를 부른 적이 없다 — 조회 없이 바로 취소한다.
-            cancel(pending, new RequestedCancel(request, false));
+            cancel(pending, RequestedCancel.created(request));
             return true;
         }
         if (lookup.isPresent() && !lookup.get().isNeverApprovable()) {
@@ -242,12 +280,20 @@ public class RefundExecutionService {
         return transactionTemplate.execute(status -> openCancelRequest(payment, triggerType, cancelReason));
     }
 
-    /** 이미 진행 중인 취소 요청이 있으면 이어받는다(이벤트 중복 수신·재시도) — 새로 만들면 같은 결제를 두 번 취소한다. */
+    /**
+     * 이미 진행 중인 취소 요청이 있으면 이어받는다(이벤트 중복 수신·재시도) — 새로 만들면 같은 결제를 두 번 취소한다.
+     * 방금 요청된 건이면 다른 호출이 아직 토스 응답을 기다리는 중일 수 있어 손대지 않는다({@link #cancel}).
+     */
     private RequestedCancel openCancelRequest(Payment payment, RefundTriggerType triggerType, String cancelReason) {
         return refundRequestRepository.findCancelInFlightByPaymentId(payment.getId())
-                .map(existing -> new RequestedCancel(existing, true))
-                .orElseGet(() -> new RequestedCancel(refundRequestRepository.save(RefundRequest.requestCancel(
-                        triggerType, payment.getFundingId(), payment.getId(), payment.getAmount(), cancelReason)), false));
+                .map(existing -> isStale(existing) ? RequestedCancel.resumed(existing) : RequestedCancel.inFlight(existing))
+                .orElseGet(() -> RequestedCancel.created(refundRequestRepository.save(RefundRequest.requestCancel(
+                        triggerType, payment.getFundingId(), payment.getId(), payment.getAmount(), cancelReason))));
+    }
+
+    private boolean isStale(RefundRequest request) {
+        return request.getCancelRequestedAt() == null
+                || request.getCancelRequestedAt().isBefore(Instant.now().minus(staleAfter));
     }
 
     /**
@@ -259,6 +305,12 @@ public class RefundExecutionService {
      */
     private RefundExecutionResult cancel(Payment payment, RequestedCancel requested) {
         RefundRequest request = requested.request();
+        if (requested.inFlight()) {
+            // 같은 결제를 동시에 두 번 취소하지 않는다. 앞선 호출이 확정하거나, 멈췄으면 대사 배치가 맞춘다.
+            log.info("진행 중인 취소 요청이 있어 토스를 다시 부르지 않습니다. refundRequestId={} paymentId={}",
+                    request.getId(), payment.getId());
+            return RefundExecutionResult.inProgress(request, payment);
+        }
         TossPaymentsClient.TossCancelResult result = requested.resumed()
                 ? findUnrecordedCancel(payment, request).orElse(null) : null;
         if (result == null) {
@@ -345,8 +397,22 @@ public class RefundExecutionService {
         });
     }
 
-    /** @param resumed 이미 있던 요청을 이어받았는지 — 그렇다면 토스에서 취소가 이미 일어났을 수 있다 */
-    private record RequestedCancel(RefundRequest request, boolean resumed) {
+    /**
+     * @param resumed  이미 있던 요청을 이어받았는지 — 그렇다면 토스에서 취소가 이미 일어났을 수 있다
+     * @param inFlight 방금 요청된 건이라 다른 호출이 처리 중으로 보는지 — 그렇다면 토스를 부르지 않는다
+     */
+    private record RequestedCancel(RefundRequest request, boolean resumed, boolean inFlight) {
+        static RequestedCancel created(RefundRequest request) {
+            return new RequestedCancel(request, false, false);
+        }
+
+        static RequestedCancel resumed(RefundRequest request) {
+            return new RequestedCancel(request, true, false);
+        }
+
+        static RequestedCancel inFlight(RefundRequest request) {
+            return new RequestedCancel(request, true, true);
+        }
     }
 
     public record RefundExecutionResult(Long refundRequestId, String status, boolean fullRefund) {
@@ -360,6 +426,12 @@ public class RefundExecutionService {
 
         static RefundExecutionResult pendingPaymentClosed() {
             return new RefundExecutionResult(null, "PENDING_PAYMENT_CLOSED", false);
+        }
+
+        /** 다른 호출이 같은 취소를 처리 중이다 — 확정은 그 호출이나 대사 배치가 한다. */
+        static RefundExecutionResult inProgress(RefundRequest request, Payment payment) {
+            return new RefundExecutionResult(request.getId(), "PROCESSING",
+                    request.getCancelAmount() >= payment.getAmount());
         }
 
         static RefundExecutionResult pendingPaymentUnresolved() {
