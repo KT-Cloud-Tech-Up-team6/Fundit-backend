@@ -42,6 +42,17 @@ public interface IvsClient {
     /** 서버발 이벤트. 참가자 MESSAGE가 아니라 EVENT 타입으로 도착한다 — FE가 렌더링해야 보인다. */
     void sendChatEvent(String roomArn, String eventName, java.util.Map<String, String> attributes);
 
+    /** IVS Chat SendEvent attributes 합계 상한(AWS API 문서: "4 KB total"). 넘기면 IVS가 거절한다. */
+    int CHAT_EVENT_ATTRIBUTES_MAX_BYTES = 4 * 1024;
+
+    /** attributes 키·값 UTF-8 바이트 합. 호출부가 {@link #CHAT_EVENT_ATTRIBUTES_MAX_BYTES}와 비교해 미리 거른다. */
+    static int chatEventAttributesBytes(java.util.Map<String, String> attributes) {
+        return attributes.entrySet().stream()
+                .mapToInt(e -> e.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + e.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                .sum();
+    }
+
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
     }

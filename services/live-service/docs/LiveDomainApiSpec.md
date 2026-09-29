@@ -659,6 +659,15 @@ POST /api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer
 **미답변 창(`GET /chat/unanswered`)에서 진입한 질문 전용이다** — 근거를 찾은 질문은 채팅 배치
 응답으로 이미 즉시 답변되어 있어 이 흐름을 타지 않는다.
 
+> **근거를 찾은 AI 답변은 BE가 채팅방에 자동 게시한다**(PM ①②, AI "(a) BE가 게시"). 채팅 배치(`submitComments`)
+> 응답에 `answer`가 있는 질문만 IVS Chat `SendEvent`로 보낸다 — 이벤트 이름 **`ai-answer`**, 속성
+> `commentId`(원 채팅 ID)·`aiQuestionId`(AI 분류 ID — `seller-answer`의 `questionId`(질문 UUID)와 값이 달라 이름을 나눴다)·
+> `answer`(AI 답변 **원문 그대로**, `strict`면 가공 금지). 판매자 확인 없이 나간다.
+> - 채팅방이 없으면 건너뛰고, 게시 실패는 로그만 남긴다(`seller-answer`와 같은 방침).
+> - 속성 합계가 4KB를 넘으면 **게시하지 않는다** — 원문을 줄일 수 없고, AI 답변은 따로 조회할 경로가 없어
+>   `seller-answer`처럼 식별자만 보내는 대안이 없다.
+> - FE 표시 라벨: `seller-answer` → '판매자', `ai-answer` → 'AI 매니저'(PM 2-③).
+
 Request Body — 초안 미리보기(`GENERATE`, 아무것도 기록하지 않는다)
 
 ```json

@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -42,8 +41,7 @@ public class AiAnswerService {
     private final ApplicationEventPublisher eventPublisher;
 
     static final String CHAT_EVENT_NAME = "seller-answer";
-    /** IVS Chat SendEvent attributes 합계 상한(AWS API 문서: "4 KB total"). */
-    static final int CHAT_EVENT_ATTRIBUTES_MAX_BYTES = 4 * 1024;
+    static final int CHAT_EVENT_ATTRIBUTES_MAX_BYTES = IvsClient.CHAT_EVENT_ATTRIBUTES_MAX_BYTES;
 
     /** 답변 완료 처리 때 남기는 고정 문구(PM "(a) 고정 문구"). LIVE 체크·Q&A 목록에 답변으로 보인다. */
     static final String MARK_DONE_ANSWER = "방송 중 답변 완료";
@@ -133,14 +131,8 @@ public class AiAnswerService {
     /** 한도를 넘는 긴 답변은 {@code questionId}만 보낸다 — FE가 {@code answered-questions}로 조회한다. */
     static Map<String, String> chatEventAttributes(UUID questionId, String answer) {
         Map<String, String> full = Map.of("questionId", questionId.toString(), "answer", answer);
-        int bytes = full.entrySet().stream()
-                .mapToInt(e -> utf8Length(e.getKey()) + utf8Length(e.getValue()))
-                .sum();
-        return bytes <= CHAT_EVENT_ATTRIBUTES_MAX_BYTES ? full : Map.of("questionId", questionId.toString());
-    }
-
-    private static int utf8Length(String s) {
-        return s.getBytes(StandardCharsets.UTF_8).length;
+        return IvsClient.chatEventAttributesBytes(full) <= CHAT_EVENT_ATTRIBUTES_MAX_BYTES
+                ? full : Map.of("questionId", questionId.toString());
     }
 
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {
