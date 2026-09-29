@@ -18,7 +18,7 @@
 
 남은 것:
 - **SEARCH-013(펀딩 집계 동기화)은 여전히 막혀 있습니다.** project-service PROJECT-015가 참고하는 펀딩 집계 이벤트 자체가 미확정이라(`project_documents.current_amount`/`achievement_rate`/`participant_count`), 아직 착수할 수 없습니다.
-- **project-service의 `SellerProfileClient`가 아직 Noop 구현체입니다.** member-service 동기 연동 전이라 `project_documents.seller_display_name`은 항상 `null`로 색인됩니다 — member-service 연동이 붙으면 자동으로 채워집니다(코드 변경 불필요, `SellerProfileClient` 구현체 교체만 필요).
+- **판매자명(`project_documents.seller_display_name`)은 project-service가 member 닉네임으로 채워 보냅니다(#188).** 그 전에 색인된 행은 `project.updated.v1`이 다시 올 때까지 `null`일 수 있습니다.
 - **`project.updated.v1`은 `updateBasicInfo`/`updateStory` 호출 시 프로젝트가 이미 공개(`isPublic()`) 상태일 때만 발행됩니다.** DRAFT/PENDING_REVIEW 단계의 수정은 애초에 색인에 없는 프로젝트라 발행하지 않습니다.
 
 ## 로컬 실행
@@ -96,4 +96,4 @@ cd services/search-service && docker compose up -d
 4. 인기순 정렬 산출식, 최근/인기 검색어 정책값.
 5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
 6. AI 개인화 추천(SEARCH-001 맞춤 추천 부분) 소유 서비스·구현 방식 확인.
-7. project-service `SellerProfileClient`가 member-service 실제 연동 전 Noop이라 `seller_display_name`이 계속 `null`로 색인된다 — member-service 연동 완료 시 자동 해결.
+7. ~~project-service `SellerProfileClient` Noop~~ — #188에서 member 닉네임 연동으로 해결.

@@ -17,6 +17,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,7 +70,7 @@ class ProjectInternalQueryServiceUnitTest {
             public String getThumbnailUrl() { return "https://cdn/x.png"; }
         };
         when(projectJpaRepository.findSummariesByPublicIdIn(List.of(publicId))).thenReturn(List.of(projection));
-        when(sellerProfileClient.getDisplayName(sellerId)).thenReturn(Optional.of("메이커"));
+        when(sellerProfileClient.getDisplayNames(List.of(sellerId))).thenReturn(java.util.Map.of(sellerId, "메이커"));
 
         // when
         var result = service.getSummaries(List.of(publicId));
@@ -78,6 +79,8 @@ class ProjectInternalQueryServiceUnitTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).title()).isEqualTo("프로젝트");
         assertThat(result.get(0).sellerDisplayName()).isEqualTo("메이커");
+        // 행마다가 아니라 한 번에 조회한다(N+1 방지)
+        org.mockito.Mockito.verify(sellerProfileClient, org.mockito.Mockito.times(1)).getDisplayNames(any());
     }
 
     @Test

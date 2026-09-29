@@ -366,7 +366,7 @@
 - **우선순위**: MVP
 - **입력값**: projectId
 - **중분류**: 프로젝트 상세
-- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller)만 반환. rewards는 이 API에 없고 리워드(#14)·환불·LIVE GET으로 조합. 대표이미지/소개 본문(coverImageUrl/introContent)은 이 응답에 포함. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 Noop이라 null. 미공개는 404
+- **처리 내용(기술)**: `ProjectDetailResponse`(projectId/title/status/goalAmount/coverImageUrl/introContent/fundingStatus/hasLiveVerification/seller)만 반환. rewards는 이 API에 없고 리워드(#14)·환불·LIVE GET으로 조합. 대표이미지/소개 본문(coverImageUrl/introContent)은 이 응답에 포함. fundingStatus는 스냅샷(비어 있으면 0). seller.displayName은 member 닉네임(조회 실패 시 null, #188). 미공개는 404
 - **출력값**: 프로젝트 상세 요약(대표이미지·소개 본문 포함, 리워드 목록은 미포함)
 - **트리거 방식**: API 호출
 
@@ -529,7 +529,7 @@
 - **중분류**: 프로젝트 관리
 - **처리 내용(기술)**: 필수 항목은 basicInfo/story/rewards/privacyConsent(환불정책은 불필요). 완료된 DRAFT는
   **관리자 승인 없이 바로** ONGOING으로 전환하고 이 시점에 펀딩기간을 확정(기본 30일)한 뒤 `project.approved.v1`
-  발행(payload에 `eventId`/`sourceVersion`, `sellerDisplayName`은 Noop이라 null). **판매자 알림
+  발행(payload에 `eventId`/`sourceVersion`, `sellerDisplayName`은 member 닉네임(#188)). **판매자 알림
   (`notification.raised.v1`)은 발행하지 않음**
 - **출력값**: 프로젝트 상태(ONGOING)
 - **트리거 방식**: API 호출
@@ -593,7 +593,7 @@
 
 | 기능 ID | 토픽 | 방향 | 상태 |
 | --- | --- | --- | --- |
-| PROJECT-029 | `project.approved.v1` | 발행 → search | ✅ 필수항목 완료로 공개(ONGOING) 전환 시. payload: `eventId, projectId(Long), publicId, sellerId, sellerDisplayName(현재 null/Noop), title, thumbnailUrl, categoryMajor, categoryMinor, goalAmount, fundingStartAt, fundingDeadline, createdAt, sourceVersion` |
+| PROJECT-029 | `project.approved.v1` | 발행 → search | ✅ 필수항목 완료로 공개(ONGOING) 전환 시. payload: `eventId, projectId(Long), publicId, sellerId, sellerDisplayName(member 닉네임, #188), title, thumbnailUrl, categoryMajor, categoryMinor, goalAmount, fundingStartAt, fundingDeadline, createdAt, sourceVersion` |
 | PROJECT-031 | `project.funding-deadline-reached.v1` | 발행 → order | ✅ `FundingDeadlineWatcher`가 마감 도래 프로젝트를 감지해 발행. payload: `eventId, projectId(Long), goalAmount` |
 | PROJECT-004, PROJECT-006 | `project.updated.v1` | 발행 → search | ✅ 공개 프로젝트의 기본정보/스토리 수정 시에만. payload는 공개 전환과 동일 |
 | PROJECT-007 | `reward.created.v1` / `reward.updated.v1` | 발행 → order | ✅ 생성/수정 시. `projectId`는 내부 Long. 삭제·환불정책은 미발행 |

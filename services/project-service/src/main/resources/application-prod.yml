@@ -17,6 +17,12 @@ media:
 internal-api:
   key: ${INTERNAL_API_KEY}
 
+project:
+  integration:
+    member-service:
+      # 판매자 표시명(닉네임) 일괄 조회. 틀려도 화면은 정상이고 판매자명만 빠진다.
+      base-url: ${MEMBER_SERVICE_BASE_URL:http://member-service:8080}
+
 funding-story:
   ai:
     base-url: ${FUNDING_STORY_AI_BASE_URL}
