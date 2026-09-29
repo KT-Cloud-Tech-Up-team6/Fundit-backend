@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -129,6 +130,18 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
 
     /** 소유권 검증이 필요 없는 공개 조회(시청 정보·VOD·채팅 토큰). */
     Optional<LiveSessionJpaEntity> findByPublicId(UUID publicId);
+
+    /**
+     * dev 목업 시더 전용 — 썸네일이 <b>비어 있을 때만</b> 채운다. 판매자가 설정한 썸네일은 덮지 않아 재기동해도
+     * 결과가 같다. 도메인 {@code updateSettings}는 LIVE 상태면 409라(목업 절반이 LIVE) 조건부 UPDATE로 한다.
+     * 시더에 트랜잭션이 없어 메서드가 직접 연다.
+     *
+     * @return 채운 행 수(0 또는 1)
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("update LiveSessionJpaEntity s set s.thumbnailUrl = :url where s.publicId = :publicId and s.thumbnailUrl is null")
+    int fillThumbnailIfAbsent(@Param("publicId") UUID publicId, @Param("url") String url);
 
     /** 채팅 적재에서 룸 ARN → 세션 변환. ARN이 세션 컬럼이라 조인 없이 단일 조회다. */
     Optional<LiveSessionJpaEntity> findByIvsChatRoomArn(String ivsChatRoomArn);

@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * dev 전용 라이브 목업 프로젝트 시더. PM이 고정한 {@code public_id}로 프로젝트 50건과 달성률 스냅샷을 넣는다 —
@@ -30,6 +31,9 @@ import java.util.UUID;
  *
  * <p>심사 승인과 같은 색인 이벤트도 아웃박스에 적재한다. 없으면 search(홈·검색 목록)와 member(찜 스냅샷)에
  * 목업 프로젝트가 나오지 않는다.
+ *
+ * <p>커버 이미지(#186)는 나중에 호스팅돼서, 이미 들어간 행은 <b>이미지가 비어 있을 때만</b> 채우고 수정 색인 이벤트를
+ * 낸다 — "있으면 건너뛰기"만으로는 기존 dev 행에 이미지가 영영 안 들어가고, 색인 이벤트가 없으면 search 카드에도 안 보인다.
  */
 @Slf4j
 @Component
@@ -43,6 +47,8 @@ public class MockProjectSeeder implements ApplicationRunner {
     private final ProjectIndexEventPublisher indexEventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
+    /** 로그용 — 이번 기동에서 이미지를 채운 기존 행 수. */
+    private final AtomicInteger filled = new AtomicInteger();
 
     public MockProjectSeeder(ProjectJpaRepository projectRepository,
                              FundingStatusSnapshotJpaRepository snapshotRepository,
@@ -60,7 +66,7 @@ public class MockProjectSeeder implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             int created = seed(read());
-            log.info("목업 프로젝트 시드 완료 — 신규 {}건", created);
+            log.info("목업 프로젝트 시드 완료 — 신규 {}건, 이미지 보완 {}건", created, filled.get());
         } catch (RuntimeException | IOException e) {
             // 기동은 막지 않는다 — 다음 재시작 때 이미 있는 행은 건너뛰고 나머지만 채운다.
             log.warn("목업 프로젝트 시드 실패", e);
@@ -71,6 +77,7 @@ public class MockProjectSeeder implements ApplicationRunner {
         int created = 0;
         for (MockProject p : projects) {
             if (projectRepository.existsByPublicId(p.publicId())) {
+                transactionTemplate.executeWithoutResult(status -> fillCoverImage(p));
                 continue;
             }
             // 프로젝트·스냅샷·색인 이벤트를 한 트랜잭션으로 묶는다. 나뉘면 프로젝트만 저장된 행은 다음 기동 때
@@ -91,6 +98,7 @@ public class MockProjectSeeder implements ApplicationRunner {
                 .goalAmount(p.goalAmount())
                 .fundingStartAt(p.fundingStartAt())
                 .fundingDeadline(p.fundingDeadline())
+                .coverImageUrl(p.coverImageUrl())
                 .status(ProjectStatus.ONGOING.name())
                 .build());
         MockSnapshot s = p.snapshot();
@@ -101,10 +109,24 @@ public class MockProjectSeeder implements ApplicationRunner {
                 .participantCount(s.participantCount())
                 .lastSyncedAt(s.lastSyncedAt())
                 .build());
-        indexEventPublisher.publishProjectApproved(new ProjectIndexedEvent(
-                saved.getId(), saved.getPublicId(), saved.getSellerId(), p.sellerNickname(),
-                saved.getTitle(), saved.getCoverImageUrl(), saved.getCategoryMajor(), saved.getCategoryMinor(),
-                saved.getGoalAmount(), saved.getFundingStartAt(), saved.getFundingDeadline(), saved.getCreatedAt()));
+        indexEventPublisher.publishProjectApproved(indexedEvent(saved, p.sellerNickname()));
+    }
+
+    /** 이미지가 비어 있던 기존 행만 채우고, 그때만 수정 색인 이벤트를 낸다(재기동 시 중복 이벤트 없음). */
+    private void fillCoverImage(MockProject p) {
+        if (p.coverImageUrl() == null || projectRepository.fillCoverImageIfAbsent(p.publicId(), p.coverImageUrl()) == 0) {
+            return;
+        }
+        projectRepository.findByPublicIdAndDeletedAtIsNull(p.publicId()).ifPresent(project ->
+                indexEventPublisher.publishProjectUpdated(indexedEvent(project, p.sellerNickname())));
+        filled.incrementAndGet();
+    }
+
+    private static ProjectIndexedEvent indexedEvent(ProjectJpaEntity project, String sellerNickname) {
+        return new ProjectIndexedEvent(
+                project.getId(), project.getPublicId(), project.getSellerId(), sellerNickname,
+                project.getTitle(), project.getCoverImageUrl(), project.getCategoryMajor(), project.getCategoryMinor(),
+                project.getGoalAmount(), project.getFundingStartAt(), project.getFundingDeadline(), project.getCreatedAt());
     }
 
     List<MockProject> read() throws IOException {
@@ -116,7 +138,7 @@ public class MockProjectSeeder implements ApplicationRunner {
 
     record MockProject(UUID publicId, UUID sellerId, String sellerNickname, String categoryMajor,
                        String categoryMinor, String title, Long goalAmount, Instant fundingStartAt,
-                       Instant fundingDeadline, MockSnapshot snapshot) {
+                       Instant fundingDeadline, String coverImageUrl, MockSnapshot snapshot) {
     }
 
     record MockSnapshot(Long currentAmount, Integer achievementRate, Integer participantCount,

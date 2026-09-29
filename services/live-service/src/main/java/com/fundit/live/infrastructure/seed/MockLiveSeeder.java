@@ -29,6 +29,9 @@ import java.util.UUID;
  *
  * <p>IVS 자원은 가짜 ARN이다(스텁 모드 기준). 채팅방 ARN이 없어 목업 방송은 채팅 토큰 발급 대상이 아니다.
  * {@code sellerId}는 member-service 시더와 같은 고정 UUID라 카드에 판매자명이 붙는다.
+ *
+ * <p>썸네일(#186)은 나중에 호스팅돼서, 이미 있는 방송은 <b>썸네일이 비어 있을 때만</b> 채운다 — "있으면 건너뛰기"만으로는
+ * 기존 dev 행에 이미지가 영영 안 들어간다.
  */
 @Slf4j
 @Component
@@ -41,12 +44,14 @@ public class MockLiveSeeder implements ApplicationRunner {
     private final LiveChannelJpaRepository channelRepository;
     private final LiveSessionJpaRepository sessionRepository;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    /** 로그용 — 이번 기동에서 썸네일을 채운 기존 방송 수. */
+    private int filled;
 
     @Override
     public void run(ApplicationArguments args) {
         try {
             int created = seed(read());
-            log.info("목업 라이브 시드 완료 — 신규 방송 {}건", created);
+            log.info("목업 라이브 시드 완료 — 신규 방송 {}건, 썸네일 보완 {}건", created, filled);
         } catch (RuntimeException | IOException e) {
             // 기동은 막지 않는다 — 다음 재시작 때 이미 있는 행은 건너뛰고 나머지만 채운다.
             log.warn("목업 라이브 시드 실패", e);
@@ -66,6 +71,9 @@ public class MockLiveSeeder implements ApplicationRunner {
                             .build()));
             MockSession s = live.session();
             if (sessionRepository.findByPublicId(s.publicId()).isPresent()) {
+                if (s.thumbnailUrl() != null) {
+                    filled += sessionRepository.fillThumbnailIfAbsent(s.publicId(), s.thumbnailUrl());
+                }
                 continue;
             }
             sessionRepository.save(LiveSessionJpaEntity.builder()
@@ -76,6 +84,7 @@ public class MockLiveSeeder implements ApplicationRunner {
                     .categoryMajor(s.categoryMajor())
                     .categoryMinor(s.categoryMinor())
                     .introText(s.introText())
+                    .thumbnailUrl(s.thumbnailUrl())
                     .scheduledStartAt(s.scheduledStartAt())
                     .actualStartAt(s.actualStartAt())
                     .likeCount(s.likeCount())
@@ -100,6 +109,6 @@ public class MockLiveSeeder implements ApplicationRunner {
 
     record MockSession(UUID publicId, UUID projectId, LiveStatus status, String categoryMajor,
                        String categoryMinor, String introText, Instant scheduledStartAt,
-                       Instant actualStartAt, int likeCount) {
+                       Instant actualStartAt, int likeCount, String thumbnailUrl) {
     }
 }

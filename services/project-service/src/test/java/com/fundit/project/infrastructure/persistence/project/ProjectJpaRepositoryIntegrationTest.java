@@ -67,10 +67,51 @@ class ProjectJpaRepositoryIntegrationTest {
         assertThat(page.getContent().get(0).getTitle()).isEqualTo("우산 프로젝트");
     }
 
-    private void persistProject(UUID sellerId, String title, ProjectStatus status) {
+    @Test
+    void 커버_이미지가_비어_있으면_채우고_있으면_덮지_않는다() {
+        // given — dev 목업 시더가 기존 행에 이미지를 보완하는 조건부 UPDATE
+        UUID empty = persistProject(UUID.randomUUID(), "빈 이미지", ProjectStatus.ONGOING, null);
+        UUID filled = persistProject(UUID.randomUUID(), "판매자 이미지", ProjectStatus.ONGOING, "https://seller/own.png");
+
+        // when
+        int emptyUpdated = projectJpaRepository.fillCoverImageIfAbsent(empty, "https://mock/001.png");
+        int filledUpdated = projectJpaRepository.fillCoverImageIfAbsent(filled, "https://mock/002.png");
+
+        // then
+        assertThat(emptyUpdated).isEqualTo(1);
+        assertThat(filledUpdated).isZero();
+        assertThat(projectJpaRepository.findByPublicIdAndDeletedAtIsNull(empty).orElseThrow().getCoverImageUrl())
+                .isEqualTo("https://mock/001.png");
+        assertThat(projectJpaRepository.findByPublicIdAndDeletedAtIsNull(filled).orElseThrow().getCoverImageUrl())
+                .isEqualTo("https://seller/own.png");
+    }
+
+    @Test
+    void 삭제된_프로젝트는_커버_이미지가_비어_있어도_채우지_않는다() {
+        // given — 소프트 딜리트된 행
+        UUID deleted = UUID.randomUUID();
         Instant now = Instant.now();
         projectRepository.save(Project.builder()
-                .publicId(UUID.randomUUID()).sellerId(sellerId).title(title).status(status)
+                .publicId(deleted).sellerId(UUID.randomUUID()).title("삭제됨").status(ProjectStatus.DRAFT)
+                .createdAt(now).updatedAt(now).deletedAt(now).build());
+
+        // when
+        int updated = projectJpaRepository.fillCoverImageIfAbsent(deleted, "https://mock/001.png");
+
+        // then
+        assertThat(updated).isZero();
+    }
+
+    private void persistProject(UUID sellerId, String title, ProjectStatus status) {
+        persistProject(sellerId, title, status, null);
+    }
+
+    private UUID persistProject(UUID sellerId, String title, ProjectStatus status, String coverImageUrl) {
+        UUID publicId = UUID.randomUUID();
+        Instant now = Instant.now();
+        projectRepository.save(Project.builder()
+                .publicId(publicId).sellerId(sellerId).title(title).status(status).coverImageUrl(coverImageUrl)
                 .createdAt(now).updatedAt(now).build());
+        return publicId;
     }
 }
