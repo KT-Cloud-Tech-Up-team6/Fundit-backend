@@ -111,6 +111,29 @@ class QuestionInsightServiceUnitTest {
     }
 
     @Test
+    void 답변_완료_처리한_질문은_AI가_미답변으로_줘도_답변_쪽으로_옮긴다() {
+        // given — 답변 완료(MARK_DONE)는 AI에 등록하지 않아 AI는 계속 미답변으로 준다
+        LiveQuestionSummaryJpaEntity markedDone = q("fq_0002", 3);
+        markedDone.recordAnswer("방송 중 답변 완료", Instant.now());
+        given(sessionRepository.findOwned(liveId, sellerId))
+                .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0002")).willReturn(Optional.of(markedDone));
+        given(summaryRepository.findBySessionIdAndAiQuestionId(1L, "fq_0003")).willReturn(Optional.empty());
+        given(summaryRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(aiClient.unanswered(anyString(), anyInt())).willReturn(new AiClient.UnansweredList(
+                List.of(new AiClient.UnansweredItem("fq_0002", "타이머 기능 돼요?", 3),
+                        new AiClient.UnansweredItem("fq_0003", "색상 있어요?", 1)),
+                List.of()));
+
+        // when
+        var view = questionInsightService.unanswered(sellerId, liveId, 10);
+
+        // then
+        assertThat(view.pending()).extracting(LiveQuestionSummaryJpaEntity::getAiQuestionId).containsExactly("fq_0003");
+        assertThat(view.answered()).containsExactly(markedDone);
+    }
+
+    @Test
     void unanswered_조회가_승격_표시를_지우지_않는다() {
         // given — 이미 TOP3로 승격된 행. UnansweredItem에는 promoted가 없어 기존 값을 살려야 한다
         LiveQuestionSummaryJpaEntity promoted = q("fq_0002", 3);

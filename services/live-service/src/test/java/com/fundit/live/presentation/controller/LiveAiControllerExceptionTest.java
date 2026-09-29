@@ -47,4 +47,15 @@ class LiveAiControllerExceptionTest {
                                 .formatted("가".repeat(1001))))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void 판매자_답변이_1000자를_넘으면_400이다() throws Exception {
+        // given & when & then — 코파일럿 answer_text가 1~1000자 필수라 넘기면 거기서 실패한다
+        mockMvc.perform(post("/api/v1/lives/{liveId}/chat/questions/{questionId}/ai-answer", liveId, UUID.randomUUID())
+                        .header(AuthHeaders.USER_ID, userId.toString())
+                        .header(AuthHeaders.INTERNAL_API_KEY, INTERNAL_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"SEND\",\"finalAnswer\":\"%s\"}".formatted("가".repeat(1001))))
+                .andExpect(status().isBadRequest());
+    }
 }

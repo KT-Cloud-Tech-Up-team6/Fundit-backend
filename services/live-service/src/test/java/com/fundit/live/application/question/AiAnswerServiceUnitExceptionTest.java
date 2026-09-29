@@ -59,6 +59,19 @@ class AiAnswerServiceUnitExceptionTest {
     }
 
     @Test
+    void 다른_LIVE의_질문은_답변_완료_처리할_수_없다() {
+        // given
+        givenOwned();
+        given(summaryRepository.findByPublicIdAndSessionId(questionId, 1L)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> aiAnswerService.markDone(sellerId, liveId, questionId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void 다른_LIVE의_질문으로는_초안도_만들_수_없다() {
         // given
         givenOwned();

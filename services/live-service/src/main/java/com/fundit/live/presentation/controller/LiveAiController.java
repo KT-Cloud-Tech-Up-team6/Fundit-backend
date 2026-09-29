@@ -101,6 +101,10 @@ public class LiveAiController {
             aiAnswerService.send(user.id(), liveId, questionId, request.finalAnswer());
             return new AiAnswerResponse(request.finalAnswer(), List.of(), true);
         }
+        if (request.isMarkDone()) {
+            return new AiAnswerResponse(aiAnswerService.markDone(user.id(), liveId, questionId).getAnswerText(),
+                    List.of(), true);
+        }
         AiClient.UnansweredDetail detail = aiAnswerService.draft(user.id(), liveId, questionId);
         List<String> referenceChunks = detail.reference() == null ? List.of()
                 : detail.reference().chunks().stream().map(AiClient.ReferenceChunk::text).toList();

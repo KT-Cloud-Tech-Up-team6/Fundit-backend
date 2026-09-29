@@ -677,7 +677,21 @@ Request Body — 등록(`SEND`)
 { "action": "SEND", "finalAnswer": "500ml/700ml 두 가지 사이즈로 제공됩니다." }
 ```
 
+Request Body — 답변 완료 처리(`MARK_DONE`, 방송 중 말로 답한 질문)
+
+```json
+{ "action": "MARK_DONE" }
+```
+
+Response Body — `{ "draftAnswer": "방송 중 답변 완료", "referenceChunks": [], "sent": true }`
+
 Validation / Business Rules
+
+- **`MARK_DONE`은 고정 문구 `"방송 중 답변 완료"`만 로컬에 기록한다.** LIVE 체크·Q&A 목록(`answered-questions`)에 이 문구가
+  답변으로 보이고(`answeredBy: SELLER`), 미답변 창에서는 답변된 쪽으로 옮겨진다. **AI `registerSellerAnswer`를 부르지 않고
+  채팅에도 게시하지 않는다** — 등록하면 Live Knowledge에 들어가 유사 질문에 이 문구가 시청자 답변(`SELLER_CONFIRMED`)으로
+  나간다(AI 회신, 등록을 끄는 플래그 없음). 이미 답변된 질문은 덮지 않고 그대로 돌려준다. `finalAnswer`는 무시한다.
+- `finalAnswer`는 1000자 이내(넘으면 `400`) — 코파일럿 `answer_text`가 1~1000자 필수다.
 
 - **`GENERATE`는 초안만 만든다. `SEND`를 호출해야 AI의 `registerSellerAnswer`에 등록되고
   `live_question_summaries.answer_text`/`is_answered`가 채워진다** — 자동 게시가 아니다(요구사항정의서 6.4.3).
