@@ -349,9 +349,25 @@ Request Body
   "demoAvailable": true,
   "emphasisPoints": ["10년 무상 A/S"],
   "tone": "ACTIVE",
-  "mandatoryPhrases": ["환불 규정은 상세페이지 참고"]
+  "mandatoryPhrases": ["환불 규정은 상세페이지 참고"],
+  "productDescription": "접이식 미니 가습기",
+  "motivation": "자취방이 너무 건조해서 만들었습니다",
+  "expectedRisks": "초기 물량이 부족할 수 있습니다",
+  "demoDescription": "분무량 3단계 조절 시연",
+  "deliverySchedule": "10월 둘째 주부터 순차 발송"
 }
 ```
+
+판매자 답변 5가지(AI-1) — 전부 선택, 각 1000자 이내(넘으면 `400`). 저장하지 않고 AI로 전달만 한다.
+비어 있으면 AI가 지어내지 않고 그 항목을 건너뛴다.
+
+| 의미 | 요청 필드(FE→BE) | AI로 가는 JSON 키(최상위) |
+| --- | --- | --- |
+| 제품 설명 | `productDescription` | `product_description` |
+| 개발 동기 | `motivation` | `motivation` |
+| 예상 어려움 | `expectedRisks` | `expected_risks` |
+| 시연 항목 | `demoDescription` | `demo_description` |
+| 발송 일정 | `deliverySchedule` | `delivery_schedule` |
 
 Response Body (202 Accepted)
 

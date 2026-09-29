@@ -53,7 +53,8 @@ public class LiveAiController {
     public CueSheetResponse requestCueSheet(@LoginUser CurrentUser user, @PathVariable UUID liveId,
                                             @Valid @RequestBody CueSheetGenerateRequest request) {
         cueSheetService.requestGeneration(user.id(), liveId, request.mode().name(), request.targetDurationSec(),
-                request.demoAvailableOrFalse(), request.emphasisOrEmpty(), request.tone(), request.mandatoryOrEmpty());
+                request.demoAvailableOrFalse(), request.emphasisOrEmpty(), request.tone(), request.mandatoryOrEmpty(),
+                request.sellerBrief());
         return new CueSheetResponse("GENERATING", request.mode().name(), request.targetDurationSec(), null, null);
     }
 

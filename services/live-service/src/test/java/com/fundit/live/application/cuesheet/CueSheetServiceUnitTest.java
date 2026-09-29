@@ -65,8 +65,10 @@ class CueSheetServiceUnitTest {
                 .willReturn(new AiProductContextAssembler.CueSheetInput(product, funding));
 
         // when
+        AiClient.SellerBrief brief = new AiClient.SellerBrief("접이식 미니 가습기", "자취방이 건조해서",
+                "초기 물량 부족", "분무량 3단계 시연", "10월 둘째 주 순차 발송");
         cueSheetService.requestGeneration(sellerId, liveId, "SCENARIO", 580, true,
-                List.of("10년 무상 A/S"), "ACTIVE", List.of());
+                List.of("10년 무상 A/S"), "ACTIVE", List.of(), brief);
 
         // then
         ArgumentCaptor<LiveCueSheet> captor = ArgumentCaptor.forClass(LiveCueSheet.class);
@@ -79,6 +81,7 @@ class CueSheetServiceUnitTest {
         assertThat(eventCaptor.getValue().liveId()).isEqualTo(liveId);
         assertThat(eventCaptor.getValue().request().product()).isEqualTo(product);
         assertThat(eventCaptor.getValue().request().funding()).isEqualTo(funding);
+        assertThat(eventCaptor.getValue().request().brief()).isEqualTo(brief);
         verify(aiClient, never()).requestCueSheet(any(), any());
     }
 
@@ -91,7 +94,7 @@ class CueSheetServiceUnitTest {
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.of(cueSheet));
         AiClient.CueSheetRequest request = new AiClient.CueSheetRequest("SCENARIO", 580, true,
-                List.of(), "ACTIVE", List.of(), null, null);
+                List.of(), "ACTIVE", List.of(), null, null, null);
         given(aiClient.requestCueSheet(liveId.toString(), request)).willReturn("[{\"order\":1}]");
 
         // when
@@ -111,7 +114,7 @@ class CueSheetServiceUnitTest {
                 .willReturn(Optional.of(LiveSession.builder().id(1L).publicId(liveId).build()));
         given(cueSheetRepository.findBySessionId(1L)).willReturn(Optional.of(cueSheet));
         AiClient.CueSheetRequest request = new AiClient.CueSheetRequest("SCENARIO", 580, true,
-                List.of(), "ACTIVE", List.of(), null, null);
+                List.of(), "ACTIVE", List.of(), null, null, null);
         given(aiClient.requestCueSheet(liveId.toString(), request))
                 .willThrow(new com.fundit.common.error.DependencyFailureException(
                         new RuntimeException("AI 서버 응답 없음")));
