@@ -207,8 +207,12 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 >   하면 판매자가 버튼을 누르고 그만큼 기다리게 된다. `@Async` +
 >   `@TransactionalEventListener(AFTER_COMMIT)`로 분리한다(`CueSheetService` 참고).
 >
-> **하이라이트는 여전히 계약 미정이다** — 위 문제가 그대로 남아 있다. AI가 결과를 우리 내부
-> 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어주는 콜백 구조를 유지한다.
+> **하이라이트는 AI가 `live.ended.v1`을 구독해 자동 생성한다(09-29 AI 구현 완료).** 종료 이벤트엔 녹화 위치가
+> 없고 종료 시점엔 녹화도 안 끝나 있어, AI가 `GET /api/v1/lives/{liveId}/vod`를 폴링해 준비를 확인한 뒤
+> 생성하고(약 6분 30초) 결과를 우리 내부 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어준다.
+> 수동·재생성 요청(`POST /api/v1/lives/{liveId}/highlights`)은 그대로 둔다.
+> ⚠️ 지금은 `vod_url`을 채우는 코드가 없어 `/vod`가 모든 종료 방송에 `409`다 — 녹화 완료 수신(인프라 회신 대기)이
+> 들어와야 자동 생성이 실제로 시작된다.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
 > 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
@@ -445,7 +449,7 @@ Validation / Business Rules
 - 시작은 `DRAFT`·`SCHEDULED`에서만 가능하다. 종료는 `LIVE`에서만 가능하다. 그 외는 `409`.
 - **스트림 키는 응답에 담지 않는다.** 송출 소프트웨어 설정용 키는 아래 `stream-info`로 분리하고, 여기서는 `ingestEndpoint`만 돌려준다 — 방송 시작 응답은 로그·브라우저 히스토리에 남기 쉬운 값이다.
 - 송출 오류 시 상태를 `ERROR`로 두고 `error_detail`을 함께 저장한다(요구사항정의서 6.3.4). 응답은 사유를 일반화해 내보낸다(S10).
-- **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다.
+- **종료 시 `live.ended.v1` 이벤트를 발행한다.** 이 이벤트가 AI 질문요약 생성(요구사항정의서 6.5.4.1)과 하이라이트 자동 생성(요구사항정의서 6.6.4)의 트리거다. 하이라이트 AI는 이 이벤트를 구독(확정)하고, 녹화 준비는 `/vod`를 폴링해 확인한다(payload에 녹화 위치가 없다).
 - 질문요약이 완성되면 **`live.questions-summarized.v1`을 추가로 발행**해 project-service가 LIVE 검증 탭을 채우게 한다(아래 "질문요약 발행" 절).
 - **시작 시 `live.started.v1`을 발행**한다. `notification.raised.v1`을 직접 쏘지 않는 이유: 그 토픽은
   수신자(`memberId`)가 채워져 있어야 하는데 신청자 목록(`live_notify_requests`)은 notification이 소유한다.
@@ -1152,9 +1156,14 @@ GET /api/v1/lives/{liveId}/vod
 Response Body
 
 ```json
-{ "vodUrl": "<https://xxx.cloudfront.net/vod/xxx.m3u8?sig=...&exp=>...", "durationSec": 580,
-  "markers": [ { "startSec": 320, "sceneLabel": "DEMO", "title": "실시간 시연" } ] }
+{ "liveId": "0199c3a0-...", "type": "VOD", "playbackUrl": "https://xxx.cloudfront.net/vod/xxx.m3u8",
+  "projectId": "0198...", "likeCount": 128, "vodReadyAt": "2026-09-10T21:05:00Z" }
 ```
+
+다시보기가 아직 저장되지 않았으면 `409`("다시보기가 아직 준비되지 않았습니다"), 없는 방송·`DRAFT`는 `404`.
+
+> 응답 필드는 `vodUrl`이 아니라 **`playbackUrl`**(`type=VOD`)이다 — `/playback`과 같은 모양이다. 이전 예시의
+> `vodUrl`·`durationSec`·`markers`는 실제 응답에 없다. 챕터(마커)는 `GET /{liveId}/highlights/public`의 `markers`로 받는다.
 
 ```
 GET /api/v1/lives/{liveId}/vod/chat?fromSec=180&toSec=210
@@ -1168,8 +1177,7 @@ Response Body
 
 Validation / Business Rules
 
-- `vodUrl`도 서명·만료시간을 부여한다(S6·S7 준용).
-- 다시보기 응답에 **공개된 타임라인 마커를 함께 내려준다** — 별도 호출 없이 재생바에 표시할 수 있게 한다.
+- 다시보기 URL(`playbackUrl`)도 서명·만료시간을 부여해야 한다(S6·S7 준용) — `vod_url` 저장 작업과 함께 들어간다(미구현).
 - 채팅 조회는 초안의 단일 `position` 대신 **`fromSec`~`toSec` 범위**로 받는다. 재생 중 계속 조회하는 화면이라 시점 1개씩 왕복하면 요청 수가 방송 길이만큼 늘어난다.
 - `offsetSec`은 `sent_at - actual_start_at`으로 계산한 재생 기준 오프셋이다.
 - 조회 조건은 바인딩 변수로 처리한다(S1).
