@@ -20,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -80,9 +79,15 @@ public class SearchController {
         return new ContentResponse<>(recentKeywordService.getRecentKeywords(user.id(), size));
     }
 
-    /** SEARCH-009 개별 삭제. Idempotent — 존재하지 않는 키워드도 204. */
-    @DeleteMapping("/recent-keywords/{keyword}")
-    public ResponseEntity<Void> deleteRecentKeyword(@LoginUser CurrentUser user, @PathVariable String keyword) {
+    /**
+     * SEARCH-009 개별 삭제. Idempotent — 존재하지 않는 키워드도 204.
+     *
+     * <p>검색어를 쿼리 파라미터로 받는다(FE BE-13). 경로 변수면 {@code /}가 든 검색어는 Tomcat이 거절하고,
+     * {@code .}·{@code ..}만인 검색어는 브라우저가 경로를 바꿔 다른 주소로 보낸다. {@code keyword} 없이 부르면
+     * 아래 전체 삭제로 간다.
+     */
+    @DeleteMapping(value = "/recent-keywords", params = "keyword")
+    public ResponseEntity<Void> deleteRecentKeyword(@LoginUser CurrentUser user, @RequestParam String keyword) {
         recentKeywordService.deleteKeyword(user.id(), keyword);
         return ResponseEntity.noContent().build();
     }

@@ -17,7 +17,7 @@
 | 6 | GET | `/api/v1/search/lives` | 통합 검색 — LIVE 탭(live-service 프록시, 키워드 없음) | X (공통) | SEARCH-006 |
 | 7 | GET | `/api/v1/search/sellers` | 통합 검색 — 판매자 탭 | X (공통) | SEARCH-007 |
 | 8 | GET | `/api/v1/search/recent-keywords` | 내 최근 검색어 목록 조회 | O (구매자) | SEARCH-009 |
-| 9 | DELETE | `/api/v1/search/recent-keywords/{keyword}` | 최근 검색어 개별 삭제 | O (구매자) | SEARCH-009 |
+| 9 | DELETE | `/api/v1/search/recent-keywords?keyword=` | 최근 검색어 개별 삭제 | O (구매자) | SEARCH-009 |
 | 10 | DELETE | `/api/v1/search/recent-keywords` | 최근 검색어 전체 삭제 | O (구매자) | SEARCH-009 |
 | 11 | GET | `/api/v1/search/popular-keywords` | 인기 검색어 조회 | X (공통) | SEARCH-010 |
 
@@ -306,12 +306,12 @@ GET /api/v1/search/recent-keywords
 ### 9. 최근 검색어 개별 삭제
 
 ```
-DELETE /api/v1/search/recent-keywords/{keyword}
+DELETE /api/v1/search/recent-keywords?keyword=무선 이어폰
 ```
 
 **Auth Required**: O (구매자)
 
-**Request**: Path Parameter: `keyword`
+**Request**: Query Parameter: `keyword`(필수 — 없으면 10번 전체 삭제로 간다)
 
 **Response Body**: 204 No Content
 
@@ -319,6 +319,7 @@ DELETE /api/v1/search/recent-keywords/{keyword}
 
 - **Idempotent.** 존재하지 않는 키워드 삭제 요청도 204(찜 해제와 동일 원칙, member-service MEMBER-005 참고).
 - 본인 소유 행만 삭제(S4) — `member_id`는 항상 `@LoginUser`에서 주입.
+- **검색어는 쿼리 파라미터로 받는다(#188, FE BE-13).** 경로 변수 방식(`/recent-keywords/{keyword}`)은 `/`가 든 검색어를 Tomcat이 거절하고 `.`·`..`는 브라우저가 경로를 바꿔 버려 없앴다. 이전 경로로 부르면 404다(FE 동시 전환 필요).
 
 ---
 
