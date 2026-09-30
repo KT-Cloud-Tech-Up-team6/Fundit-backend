@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * IVS 자격증명이 내려오기 전까지 쓰는 스텁. {@code live.ivs.mode=stub}(기본값)일 때 뜬다.
@@ -48,10 +49,29 @@ public class StubIvsClient implements IvsClient {
     }
 
     @Override
-    public String createChatToken(String roomArn, String userId, List<String> capabilities) {
+    public String createChatToken(String roomArn, String userId, List<String> capabilities,
+                                  Map<String, String> attributes) {
         // 실제 토큰 형식을 흉내 내지 않는다 — 흉내 내면 스텁 토큰이 진짜처럼 보여
         // 프론트가 IVS에 붙는 실패를 늦게 발견한다.
         return "stub-chat-token:" + userId + ":" + String.join(",", capabilities);
+    }
+
+    /** 실제 채팅방이 없어 받을 메시지도 없다. 열린 채로 두어 구독 루프가 매 주기 다시 열지 않게 한다. */
+    @Override
+    public ChatConnection openChatConnection(String token, Consumer<ChatMessage> onMessage) {
+        return new ChatConnection() {
+            private volatile boolean open = true;
+
+            @Override
+            public boolean isOpen() {
+                return open;
+            }
+
+            @Override
+            public void close() {
+                open = false;
+            }
+        };
     }
 
     /** ARN 문자열 해시로 채널마다 다른 값을 줘 로컬에서 정렬이 실제로 바뀌는지 확인할 수 있게 한다. */

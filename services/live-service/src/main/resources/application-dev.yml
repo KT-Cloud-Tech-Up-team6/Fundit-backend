@@ -26,8 +26,8 @@ live:
     mode: ${LIVE_IVS_MODE:stub}
     # 스텁 모드 재생 QA용 테스트 영상(m3u8). 비어 있으면 스텁 기본 URL.
     stub-playback-url: ${LIVE_IVS_STUB_PLAYBACK_URL:}
-    # 선택 — 녹화(S3)·채팅 로깅 설정. 비어 있으면 요청에서 뺀다.
+    # 선택 — 녹화(S3)·채팅 리뷰 핸들러(부적절 메시지 차단 Lambda) ARN. 비어 있으면 요청에서 뺀다.
     recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
-    chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
+    chat-review-handler-arn: ${LIVE_IVS_CHAT_REVIEW_HANDLER_ARN:}
     # IVS 채널·채팅방 생성 요청의 Environment 태그(인프라 IAM 조건). aws 모드에서만 읽는다.
     environment: ${LIVE_IVS_ENVIRONMENT:dev}

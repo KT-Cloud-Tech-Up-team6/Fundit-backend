@@ -164,11 +164,11 @@ public class LiveController {
 
     /**
      * IVS Chat 접속 토큰 발급(요구사항정의서 6.4.4.1). 판매자·소비자 공통 경로다 —
-     * 호출자가 방송 소유자인지 보고 capabilities를 정한다.
+     * 호출자가 방송 소유자인지 보고 capabilities를 정한다. 비로그인도 받는다(보기 전용 토큰).
      */
     @PostMapping("/{liveId}/chat/token")
-    public ChatTokenResponse chatToken(@LoginUser CurrentUser user, @PathVariable UUID liveId) {
-        return ChatTokenResponse.from(chatTokenService.issue(user.id(), liveId));
+    public ChatTokenResponse chatToken(@LoginUser(required = false) CurrentUser user, @PathVariable UUID liveId) {
+        return ChatTokenResponse.from(chatTokenService.issue(user == null ? null : user.id(), liveId));
     }
 
     /** LIVE 시청 정보(요구사항정의서 11.2.4). 종료된 방송은 다시보기로 자동 전환된다. */
@@ -209,9 +209,10 @@ public class LiveController {
     public List<VodChatMessageResponse> vodChat(@PathVariable UUID liveId,
                                                 @RequestParam int fromSec,
                                                 @RequestParam int toSec) {
-        var vodChat = vodChatQueryService.findByRange(liveId, fromSec, toSec);
+        var vodChat = vodChatQueryService.findForDisplay(liveId, fromSec, toSec);
         return vodChat.messages().stream()
-                .map(m -> VodChatMessageResponse.from(m, vodChat.broadcastStartedAt()))
+                .map(m -> VodChatMessageResponse.from(m, vodChat.broadcastStartedAt(),
+                        vodChat.nicknameBySenderId().get(m.getSenderId())))
                 .toList();
     }
 }

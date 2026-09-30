@@ -20,8 +20,20 @@ public interface IvsClient {
     /**
      * IVS Chat 접속 토큰 발급. CreateChatToken은 백엔드만 호출할 수 있어서
      * <b>발급 지점이 곧 인가 지점</b>이다 — 권한 판단을 클라이언트에 맡기지 않는다.
+     *
+     * <p>{@code attributes}(닉네임 등)는 이 연결로 보내는 모든 메시지의 {@code Sender.Attributes}로 실린다.
+     * 서버만 정하므로 사칭할 수 없다. 합계 1KB 제한(AWS API 문서).
      */
-    String createChatToken(String roomArn, String userId, java.util.List<String> capabilities);
+    String createChatToken(String roomArn, String userId, java.util.List<String> capabilities,
+                           java.util.Map<String, String> attributes);
+
+    /**
+     * 채팅방 구독(WebSocket). 채팅 적재용 — 받은 참가자 메시지({@code Type=MESSAGE})만 {@code onMessage}로 넘긴다.
+     * 서버발 EVENT(우리가 보낸 {@code ai-answer} 등)는 넘기지 않는다.
+     *
+     * @param token {@link #createChatToken}으로 받은 1회용 토큰
+     */
+    ChatConnection openChatConnection(String token, java.util.function.Consumer<ChatMessage> onMessage);
 
     /**
      * 현재 시청자 수. 방송 중이 아니면 0 — "실시간 순위" 정렬 대상은 이미 {@code status=LIVE}로
@@ -55,6 +67,17 @@ public interface IvsClient {
 
     /** 채널(영구 자원) 정보. 스트림 키는 값이 아니라 비밀관리 시스템의 참조만 담는다(S9). */
     record Channel(String arn, String ingestEndpoint, String playbackUrl, String streamKeyRef) {
+    }
+
+    /** 구독 중인 채팅방 연결. 끊기면 {@link #isOpen()}이 false가 되고, 호출부가 다시 연다. */
+    interface ChatConnection {
+        boolean isOpen();
+
+        void close();
+    }
+
+    /** IVS Chat Message(Subscribe) 중 적재에 필요한 값. {@code senderUserId}는 토큰 발급 때 넣은 값 그대로다. */
+    record ChatMessage(String id, String senderUserId, String content, java.time.Instant sentAt) {
     }
 
     /** {@code state}는 IVS 값 그대로(LIVE·OFFLINE), {@code health}는 HEALTHY·STARVING·UNKNOWN. */
