@@ -209,9 +209,10 @@ public class LiveController {
     public List<VodChatMessageResponse> vodChat(@PathVariable UUID liveId,
                                                 @RequestParam int fromSec,
                                                 @RequestParam int toSec) {
-        var vodChat = vodChatQueryService.findByRange(liveId, fromSec, toSec);
+        var vodChat = vodChatQueryService.findForDisplay(liveId, fromSec, toSec);
         return vodChat.messages().stream()
-                .map(m -> VodChatMessageResponse.from(m, vodChat.broadcastStartedAt()))
+                .map(m -> VodChatMessageResponse.from(m, vodChat.broadcastStartedAt(),
+                        vodChat.nicknameBySenderId().get(m.getSenderId())))
                 .toList();
     }
 }

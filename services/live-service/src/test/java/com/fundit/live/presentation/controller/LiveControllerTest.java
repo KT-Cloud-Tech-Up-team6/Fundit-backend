@@ -310,19 +310,24 @@ class LiveControllerTest {
     void VOD_채팅은_경과초를_계산해_내려준다() throws Exception {
         // given — 방송 시작 기준 60초에 온 메시지
         java.time.Instant started = java.time.Instant.parse("2026-09-10T11:00:00Z");
-        when(vodChatQueryService.findByRange(any(), org.mockito.ArgumentMatchers.anyInt(),
+        UUID senderId = UUID.randomUUID();
+        when(vodChatQueryService.findForDisplay(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyInt()))
-                .thenReturn(new VodChatQueryService.VodChat(started, List.of(
+                .thenReturn(new VodChatQueryService.VodChatView(started, List.of(
                         com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity.builder()
-                                .senderId(UUID.randomUUID()).content("좋아요")
-                                .sentAt(started.plusSeconds(60)).build())));
+                                .ivsMessageId("msg-1").senderId(senderId).content("좋아요")
+                                .sentAt(started.plusSeconds(60)).build()),
+                        java.util.Map.of(senderId, "펀딧러")));
 
         // when & then
         mockMvc.perform(get("/api/v1/lives/{liveId}/vod/chat", UUID.randomUUID())
                         .param("fromSec", "0").param("toSec", "120"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].offsetSec").value(60))
-                .andExpect(jsonPath("$[0].content").value("좋아요"));
+                .andExpect(jsonPath("$[0].content").value("좋아요"))
+                // LIVE 중 입장 시 실시간 메시지와 중복을 거르는 키, 실시간과 같은 표시명
+                .andExpect(jsonPath("$[0].messageId").value("msg-1"))
+                .andExpect(jsonPath("$[0].nickname").value("펀딧러"));
     }
 
     @Test
