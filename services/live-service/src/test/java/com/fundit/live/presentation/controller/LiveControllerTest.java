@@ -226,6 +226,21 @@ class LiveControllerTest {
     }
 
     @Test
+    void 비로그인도_채팅_토큰을_받는다() throws Exception {
+        // given — 비로그인 시청자도 채팅을 볼 수 있어야 한다(보기 전용은 서비스가 정한다)
+        UUID liveId = UUID.randomUUID();
+        when(chatTokenService.issue(any(), any())).thenReturn(
+                new ChatTokenService.ChatToken("tok", "arn:room", List.of()));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/lives/{liveId}/chat/token", liveId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.capabilities").isEmpty());
+        org.mockito.Mockito.verify(chatTokenService).issue(org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(liveId));
+    }
+
+    @Test
     void 시청_정보는_인증_없이_조회된다() throws Exception {
         // given — 방송 자체가 공개다
         when(livePlaybackService.playback(any())).thenReturn(

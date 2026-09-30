@@ -31,9 +31,9 @@ live:
     # stub으로 흘러가면 가짜 ARN으로 방송이 "성공"하고 아무도 눈치채지 못한다.
     # AWS 구현이 붙으면 LIVE_IVS_MODE=aws를 주입한다.
     mode: ${LIVE_IVS_MODE}
-    # 선택 — 녹화(S3, 다시보기·하이라이트 입력)·채팅 로깅(Firehose → 채팅 적재) 설정 ARN.
+    # 선택 — 녹화(S3, 다시보기·하이라이트 입력)·채팅 리뷰 핸들러(부적절 메시지 차단 Lambda) ARN.
     recording-configuration-arn: ${LIVE_IVS_RECORDING_CONFIG_ARN:}
-    chat-logging-configuration-arn: ${LIVE_IVS_CHAT_LOGGING_CONFIG_ARN:}
+    chat-review-handler-arn: ${LIVE_IVS_CHAT_REVIEW_HANDLER_ARN:}
     # IVS 생성 요청의 Environment 태그(인프라 IAM 조건). aws 모드면 필수 — 비면 기동 실패.
     environment: ${LIVE_IVS_ENVIRONMENT}
   ai:

@@ -37,8 +37,9 @@ public class InternalLiveController {
     private final LiveStatusQueryService liveStatusQueryService;
 
     /**
-     * 채팅 적재(요구사항정의서 11.3.4). Firehose는 재전송이 가능해서 같은 메시지가 두 번 온다 —
-     * 중복은 정상 흐름이므로 에러가 아니라 204로 조용히 흘린다.
+     * 채팅 단건 적재 — 로컬·AI팀 테스트용(stub 모드엔 IVS 채팅이 없어 구독으로 들어올 메시지가 없다).
+     * 실서버 적재는 채팅방 구독({@code ChatSubscriptionReconciler})이 한다. 같은 메시지 id 재전송은
+     * 정상 흐름이므로 에러가 아니라 204로 조용히 흘린다.
      */
     @PostMapping("/internal/v1/lives/chat/messages")
     @ResponseStatus(HttpStatus.NO_CONTENT)
