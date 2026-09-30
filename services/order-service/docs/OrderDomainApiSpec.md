@@ -148,6 +148,7 @@ POST /api/v1/orders
 - 재고 부족 시 `409 CONFLICT`(`INSUFFICIENT_STOCK`), 트랜잭션 롤백(재고 변경 없음) — 부족한 `rewardId`는 메시지에 포함한다(`ErrorResponse.detail`은 null).
 - **지정한 쿠폰을 쓸 수 없으면 주문을 만들지 않는다**(재고 차감 전). 미리보기와 생성 사이에 쿠폰이 소진·만료되면 할인 없이 주문되던 문제를 막는다. 예산 소진은 `422 COUPON_BUDGET_EXCEEDED`, 그 외(만료·미보유·조건 미달·`EXCEEDS_ORDER_AMOUNT` 등)는 `422 COUPON_NOT_APPLICABLE`. `detail`에 `{ "couponCode": ..., "reason": ... }`(미리보기 `unavailableCoupons`와 같은 사유 코드). FE는 이 코드를 받으면 금액을 다시 불러온다.
 - 쿠폰 적용 시 `funding_coupon_applications` 생성 및 `coupons.used_budget_amount` 갱신. `coupon_issuances.status`는 아직 변경하지 않음(사용확정 처리는 ORDER-015가 결제완료 이벤트로 수행할 예정 — 현재 리스너 미배선).
+- `shippingAddress.phoneNumber`는 휴대폰 번호 형식(`^01[016789]-?\d{3,4}-?\d{4}$`, 하이픈 선택)이어야 한다. 어기면 `400 INVALID_INPUT`(#209, QA-061~063). 미리보기(2번)도 같은 요청 본문이라 같이 검사한다.
 - 금액은 서버에서 재검증(클라이언트 전달값 불신, S4), 재고 차감 쿼리는 바인딩 변수 사용(S1).
 - 응답의 `orderId`는 `fundings.public_id`(UUID), `projectId`는 project-service publicId(UUID). 이후 결제 요청은 payment-service의 `POST /api/v2/payments`(`fundingId`=이 `orderId`)로 이어진다.
 - **라이브 주문 꼬리표**: 서버가 live 내부 API(`/internal/v1/lives/by-project/{projectId}/active-status`)로 그 프로젝트가 지금 방송 중인지 확인해 `fundings.live_session_id`를 채운다(비-라이브 주문은 NULL). 요청 바디에는 아무 것도 추가되지 않는다 — 클라이언트가 보낸 값을 믿지 않기 위해 서버가 직접 조회한다.
@@ -823,6 +824,7 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 
 ## 반영 이력
 
+- **[확정, 2026-09-30 #209] 주문 배송지 연락처 형식 검증**: `shippingAddress.phoneNumber`를 휴대폰 번호 형식으로 검사한다(3번, 미리보기 2번 공통). 형식이 틀리면 400 `INVALID_INPUT`.
 - **[구현 동기화, 2026-09-24]** live ↔ order 연동(#149): 주문 생성이 `fundings.live_session_id`를 채우고(3번), 방송 중 주문 집계 API(18번)와 LIVE 쿠폰 생성 경로(8번)를 열었다. LIVE 쿠폰 클레임의 "방송 중" 검증(9번)도 실제 live 조회로 해소 — **조회 실패 시 쿠폰은 거부(게이트), 주문은 진행(꼬리표)**. `fundings(live_session_id)` 부분 인덱스 V11 추가.
 - **[구현 동기화, 2026-09-18]** payment-service 결제 연동 대응 + PM 쿠폰(16장) 정책 대조 결과 반영: `/internal/fundings/{fundingId}`·`/internal/orders/{orderId}` 응답에 `sellerId`/`status`/`finalAmount`/`orderName`/`couponIssuanceId` 추가(11/12번 항목, PAYMENT-001 연동 블로커 해소), 쿠폰함 응답에 `minFundingAmount`/`perMemberLimit`/`targetScope`/`targetRefId` 추가(10번 항목), `CATEGORY`/`MAKER` 쿠폰 스코프 실제 매칭 구현(project-service 카테고리 노출 포함), preview/생성 요청에 `autoApplyBestCoupon`(최적 쿠폰 자동 추천, 16.3.4) 추가.
 - **[구현 동기화, 2026-09-17]** 현재 코드 기준으로 REST 누락분(재고 조회·내부 펀딩 API), 목록/상세 `finalAmount` 쿠폰 적용 차이, Kafka 실제 토픽·페이로드, ORDER-006 이벤트 구독, ORDER-015 리스너 미배선, ORDER-016 구현 완료, 배송비 3000원/만료 30분, `reserved_stock` 미사용, 쿠폰함 `PageResponse`, `notification.raised.v1` 발행을 반영.

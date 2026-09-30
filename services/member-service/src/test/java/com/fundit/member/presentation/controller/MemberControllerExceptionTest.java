@@ -79,6 +79,25 @@ class MemberControllerExceptionTest {
     }
 
     @Test
+    void 가입_배송지_연락처가_휴대폰_번호_형식이_아니면_400을_반환한다() throws Exception {
+        // when & then (#209)
+        mockMvc.perform(post("/api/v1/members")
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountId": "%s",
+                                  "name": "홍길동",
+                                  "nickname": "응원왕",
+                                  "phoneNumber": "01012345678",
+                                  "agreedTerms": ["SERVICE_USE", "PRIVACY", "AGE_OVER_14"],
+                                  "address": {"recipientName": "홍길동", "phoneNumber": "abc", "zipcode": "12345", "addressLine1": "테헤란로 1"}
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 잘못된_내부API키로_요청하면_401을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(post("/api/v1/members")

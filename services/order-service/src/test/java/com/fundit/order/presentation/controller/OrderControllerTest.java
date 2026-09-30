@@ -171,7 +171,7 @@ class OrderControllerTest {
                         .contentType("application/json")
                         .content("""
                                 {"projectId": "%s", "lineItems": [],
-                                 "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010","zipcode":"12345","addressLine1":"주소"}}
+                                 "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010-1234-5678","zipcode":"12345","addressLine1":"주소"}}
                                 """.formatted(PROJECT_ID)))
                 .andExpect(status().isBadRequest());
     }
