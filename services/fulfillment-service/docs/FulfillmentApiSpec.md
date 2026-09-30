@@ -25,7 +25,7 @@
 | 8 | GET | `/internal/fundings/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(UUID orderId) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 8-1 | GET | `/internal/fundings/id/{fundingId}/fulfillment-status` | 배송 상태 내부 조회(레거시 Long PK) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 8-2 | GET | `/internal/fundings/fulfillment-statuses` | 배송 상태 배치 내부 조회(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
-| 8-3 | GET | `/internal/projects/shipping-delays` | 발송지연 배치 판정(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
+| 8-3 | GET | `/internal/projects/shipping-delays` | 발송지연·진행 기록 배치 판정(order-service 주문 목록용) | 내부(게이트웨이 시크릿) | FULFILLMENT-008 |
 | 9 | GET | `/api/v2/projects/{projectId}/fulfillment` | 제작·배송 진행 현황 조회(UUID) | X (공통) | FULFILLMENT-003 |
 | 10 | PATCH | `/api/v2/projects/{projectId}/fulfillment/stage` | 단계 전환(UUID) | O (판매자) | FULFILLMENT-002 |
 | 11 | POST | `/api/v2/projects/{projectId}/fulfillment/stage-details` | 단계별 예상일정·상세 진행 내용 등록(UUID) | O (판매자) | FULFILLMENT-002 |
@@ -355,7 +355,7 @@ GET /internal/fundings/{fundingId}/fulfillment-status
 **Response Body**
 
 ```json
-{ "isAlreadyShipped": true, "isDelayed": false, "deliveredAt": "2026-09-11T09:00:00" }
+{ "isAlreadyShipped": true, "isDelayed": false, "deliveredAt": "2026-09-11T09:00:00", "hasProgressRecord": true }
 ```
 
 **Validation / Business Rules**
@@ -363,6 +363,7 @@ GET /internal/fundings/{fundingId}/fulfillment-status
 - `shipments` 레코드가 있으면 그 값을 그대로 사용해 `isAlreadyShipped`(`status IN ('SHIPPED','DELIVERED','RECEIPT_CONFIRMED')`), `deliveredAt`, `receiptConfirmedAt`을 채움. 이미 발송된 건은 `isDelayed: false`로 고정. 아직 배송완료/수령확인 전이면 해당 Instant 필드는 생략.
 - `shipments` 레코드가 없으면(아직 발송 전) order-service 내부 API `GET /internal/fundings/{fundingId}`(payment-service `OrderFundingClient`가 이미 호출 중인 것과 동일 엔드포인트)를 호출해 `projectId`를 조회한 뒤, 해당 프로젝트의 `SHIPPING_OUT` 단계 최신 `fulfillment_stage_details.planned_end_at`과 현재 시각을 비교해 `isDelayed`를 계산. 이 경우 `isAlreadyShipped: false`이고 `deliveredAt`/`receiptConfirmedAt`은 생략.
 - payment-service `ShippingStatusClient`(PAYMENT-008)가 `isAlreadyShipped`/`isDelayed`를, PAYMENT-006(하자환불 신청기간 판정)이 `receiptConfirmedAt`을 사용.
+- **`hasProgressRecord`**(신규)는 이 프로젝트의 트래커 `last_updated_at`이 채워졌는지다 — order-service 진행 단계 배지 `IN_PRODUCTION`("제작 중", PM 결정 09-29)의 판정 근거다. 판매자가 **상세 진행 내용을 등록**(API #3)할 때만 채워지므로, 일정 변경만 등록(API #4)했거나 단계 전환만(API #2) 한 경우는 `false`다(FULFILLMENT-004 "1주 미갱신 알림"과 같은 기준). `shipments` 행이 있는 경우에도 그 행의 `project_id`로 트래커를 찾아 채우므로 order-service 재조회는 없다. 기존 소비자(payment-service)는 모르는 필드를 무시하므로 영향이 없다.
 - **존재하지 않는 funding / order-service 호출 실패·타임아웃 모두 `503 DEPENDENCY_FAILURE`** — 404가 아니다. payment-service 쪽에서 재시도 또는 판정 보류로 처리.
 - **(2차 검토)** 초안은 "`shipments` 없으면 그냥 미발송으로 응답"하고 끝내려 했으나, 발송 전에는 `projectId`를 들고 있는 유일한 테이블(`shipments`)에 행이 없어 `isDelayed`를 계산할 방법 자체가 없었다 — PAYMENT-008이 실제로 궁금해하는 케이스(미발송+지연 여부)를 판정 못 하는 설계였다. order-service 내부 API로 `projectId`를 조회하도록 수정.
 
@@ -396,7 +397,7 @@ GET /internal/fundings/fulfillment-statuses?fundingIds={orderId1},{orderId2},...
 
 ---
 
-### 8-3. 발송지연 배치 판정(order-service 주문 목록 연동)
+### 8-3. 발송지연·진행 기록 배치 판정(order-service 주문 목록 연동)
 
 ```
 GET /internal/projects/shipping-delays?projectIds={projectId1},{projectId2},...
@@ -408,8 +409,8 @@ GET /internal/projects/shipping-delays?projectIds={projectId1},{projectId2},...
 
 ```json
 [
-  { "projectId": "018f2c1a-....", "isDelayed": true },
-  { "projectId": "018f2c1b-....", "isDelayed": false }
+  { "projectId": "018f2c1a-....", "isDelayed": true, "hasProgressRecord": true },
+  { "projectId": "018f2c1b-....", "isDelayed": false, "hasProgressRecord": false }
 ]
 ```
 
@@ -418,6 +419,7 @@ GET /internal/projects/shipping-delays?projectIds={projectId1},{projectId2},...
 - 판정 기준은 단건 조회(8-1)와 같다 — `SHIPPING_OUT` 단계 상세의 최신 `plannedEndAt`이 현재 시각보다 이전이면 지연이다.
 - **왜 펀딩이 아니라 프로젝트 단위인가**: 발송 전 건은 `shipments` 행이 없어 지연 판정에 `projectId`가 필요하고, 그 값은 order-service가 주문마다 이미 들고 있다. 펀딩 id로 받으면 이쪽이 order-service를 되짚어 배치 조회해야 해서(order → fulfillment → order) 왕복이 한 번 더 생긴다.
 - 트래커가 없거나 발송 예정일이 등록되지 않은 프로젝트는 `isDelayed=false`다(지연으로 단정하지 않는다). 응답 순서는 요청 순서와 같다.
+- **`hasProgressRecord`**(신규)는 단건 조회(#8)와 같은 값·같은 기준이다(트래커 `last_updated_at != null`). 진행 기록은 프로젝트 단위라 펀딩 배치(8-2)가 아니라 이 응답에 싣는다 — order-service는 목록의 `IN_PRODUCTION` 배지를 이 값으로 판정하며, 트래커가 없는 프로젝트는 `false`다.
 - "미발송"까지 합친 최종 판정은 호출부(order-service)가 한다 — 발송 여부는 펀딩 단위라 8-2가 내려준다.
 
 ## 이벤트 발행/구독

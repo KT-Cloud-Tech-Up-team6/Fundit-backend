@@ -44,18 +44,32 @@ public class FulfillmentStatusInternalService {
             Shipment s = shipment.get();
             boolean alreadyShipped = s.getStatus() != ShipmentStatus.PREPARING;
             // 이미 발송된 건은 "발송 지연" 개념 자체가 더 이상 의미가 없어 isDelayed=false로 고정한다.
-            return new FulfillmentStatusView(alreadyShipped, false, s.getDeliveredAt(), s.getReceiptConfirmedAt());
+            // 진행 기록은 프로젝트 단위라 shipments 행이 들고 있는 projectId로 트래커를 찾는다
+            // (order-service 재조회 없음).
+            return new FulfillmentStatusView(alreadyShipped, false, s.getDeliveredAt(), s.getReceiptConfirmedAt(),
+                    hasProgressRecord(trackerRepository.findByProjectId(s.getProjectId())));
         }
 
         FundingSnapshot snapshot = orderFundingClient.fetch(fundingId);
-        boolean delayed = trackerRepository.findByProjectId(snapshot.projectId())
-                .flatMap(tracker -> stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(
-                        tracker.getId(), FulfillmentStage.SHIPPING_OUT.name()))
+        Optional<FulfillmentTracker> tracker = trackerRepository.findByProjectId(snapshot.projectId());
+        boolean delayed = tracker
+                .flatMap(t -> stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(
+                        t.getId(), FulfillmentStage.SHIPPING_OUT.name()))
                 .map(FulfillmentStageDetailJpaEntity::getPlannedEndAt)
                 .map(plannedEndAt -> Instant.now().isAfter(plannedEndAt))
                 .orElse(false);
 
-        return new FulfillmentStatusView(false, delayed, null, null);
+        return new FulfillmentStatusView(false, delayed, null, null, hasProgressRecord(tracker));
+    }
+
+    /**
+     * "진행 기록 있음" 판정 — 트래커의 {@code lastUpdatedAt}이 채워졌는지만 본다. 판매자가 상세
+     * 진행 내용을 등록할 때만({@code StageProgressService.registerStageDetail}) 채워지므로,
+     * 일정 변경만 등록한 경우나 단계 전환만 한 경우는 기록으로 보지 않는다(PM 결정 09-29 —
+     * "1주 미갱신 알림"(FULFILLMENT-004) 기준과 같다).
+     */
+    private boolean hasProgressRecord(Optional<FulfillmentTracker> tracker) {
+        return tracker.map(t -> t.getLastUpdatedAt() != null).orElse(false);
     }
 
     /** v1 payment — 레거시 Long PK를 order-service에서 orderId(UUID)로 해석한 뒤 UUID 경로를 탄다. */
@@ -120,22 +134,26 @@ public class FulfillmentStatusInternalService {
                     detail.getPlannedEndAt() != null && now.isAfter(detail.getPlannedEndAt()));
         }
 
+        Map<UUID, Boolean> hasRecordByProjectId = trackers.stream()
+                .collect(Collectors.toMap(FulfillmentTracker::getProjectId, t -> t.getLastUpdatedAt() != null));
+
         return projectIds.stream()
                 .map(projectId -> new ProjectShippingDelayView(projectId,
-                        delayedByProjectId.getOrDefault(projectId, false)))
+                        delayedByProjectId.getOrDefault(projectId, false),
+                        hasRecordByProjectId.getOrDefault(projectId, false)))
                 .toList();
     }
 
     private List<ProjectShippingDelayView> notDelayed(List<UUID> projectIds) {
-        return projectIds.stream().map(projectId -> new ProjectShippingDelayView(projectId, false)).toList();
+        return projectIds.stream().map(projectId -> new ProjectShippingDelayView(projectId, false, false)).toList();
     }
 
     public record FulfillmentStatusView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,
-                                         Instant receiptConfirmedAt) {
+                                         Instant receiptConfirmedAt, boolean hasProgressRecord) {
     }
 
     /** 발송 예정일이 없거나 트래커가 없는 프로젝트는 {@code isDelayed=false}다(지연으로 단정하지 않는다). */
-    public record ProjectShippingDelayView(UUID projectId, boolean isDelayed) {
+    public record ProjectShippingDelayView(UUID projectId, boolean isDelayed, boolean hasProgressRecord) {
     }
 
     public record FulfillmentBatchStatusView(UUID fundingId, boolean isAlreadyShipped, Instant deliveredAt) {

@@ -161,6 +161,60 @@ class FulfillmentStatusInternalServiceUnitTest {
     }
 
     @Test
+    void 트래커에_마지막_갱신시각이_있으면_진행_기록이_있는_것으로_본다() {
+        // given — 판매자가 상세 진행 내용을 등록하면 lastUpdatedAt이 채워진다.
+        UUID fundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        when(shipmentRepository.findByFundingId(fundingId)).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(fundingId))
+                .thenReturn(new FundingSnapshot(projectId, UUID.randomUUID(), fundingId));
+        when(trackerRepository.findByProjectId(projectId)).thenReturn(Optional.of(
+                FulfillmentTracker.create(projectId).toBuilder().id(1L).lastUpdatedAt(Instant.now()).build()));
+
+        // when
+        var view = service.getStatus(fundingId);
+
+        // then
+        assertThat(view.hasProgressRecord()).isTrue();
+    }
+
+    @Test
+    void 트래커에_마지막_갱신시각이_없으면_진행_기록이_없는_것으로_본다() {
+        // given — 단계 전환만 했거나 일정 변경만 등록한 경우(lastUpdatedAt 미갱신).
+        UUID fundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        when(shipmentRepository.findByFundingId(fundingId)).thenReturn(Optional.empty());
+        when(orderFundingClient.fetch(fundingId))
+                .thenReturn(new FundingSnapshot(projectId, UUID.randomUUID(), fundingId));
+        when(trackerRepository.findByProjectId(projectId))
+                .thenReturn(Optional.of(FulfillmentTracker.create(projectId).toBuilder().id(1L).build()));
+
+        // when
+        var view = service.getStatus(fundingId);
+
+        // then
+        assertThat(view.hasProgressRecord()).isFalse();
+    }
+
+    @Test
+    void 발송된_건도_shipments의_projectId로_진행_기록을_판정한다() {
+        // given — order-service 재조회 없이 트래커를 찾는다.
+        UUID fundingId = UUID.fromString("00000000-0000-0000-0000-000000001024");
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        Shipment shipment = Shipment.create(fundingId, projectId);
+        shipment.registerShipment("CJ대한통운", "123456789012");
+        when(shipmentRepository.findByFundingId(fundingId)).thenReturn(Optional.of(shipment));
+        when(trackerRepository.findByProjectId(projectId)).thenReturn(Optional.of(
+                FulfillmentTracker.create(projectId).toBuilder().id(1L).lastUpdatedAt(Instant.now()).build()));
+
+        // when
+        var view = service.getStatus(fundingId);
+
+        // then
+        assertThat(view.hasProgressRecord()).isTrue();
+    }
+
+    @Test
     void 빈_목록으로_배치_조회하면_리포지토리를_호출하지_않는다() {
         // when
         var result = service.getStatuses(List.of());
@@ -175,7 +229,8 @@ class FulfillmentStatusInternalServiceUnitTest {
         UUID delayed = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
         UUID onTime = UUID.fromString("00000000-0000-0000-0000-0000000000a2");
         UUID noTracker = UUID.fromString("00000000-0000-0000-0000-0000000000a3");
-        FulfillmentTracker delayedTracker = FulfillmentTracker.create(delayed).toBuilder().id(1L).build();
+        FulfillmentTracker delayedTracker = FulfillmentTracker.create(delayed).toBuilder().id(1L)
+                .lastUpdatedAt(Instant.now()).build();
         FulfillmentTracker onTimeTracker = FulfillmentTracker.create(onTime).toBuilder().id(2L).build();
         when(trackerRepository.findByProjectIdIn(List.of(delayed, onTime, noTracker)))
                 .thenReturn(List.of(delayedTracker, onTimeTracker));
@@ -192,11 +247,12 @@ class FulfillmentStatusInternalServiceUnitTest {
         // then — 요청한 순서대로, 트래커·예정일이 없는 프로젝트는 지연 아님
         assertThat(views).extracting(
                         FulfillmentStatusInternalService.ProjectShippingDelayView::projectId,
-                        FulfillmentStatusInternalService.ProjectShippingDelayView::isDelayed)
+                        FulfillmentStatusInternalService.ProjectShippingDelayView::isDelayed,
+                        FulfillmentStatusInternalService.ProjectShippingDelayView::hasProgressRecord)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(delayed, true),
-                        org.assertj.core.groups.Tuple.tuple(onTime, false),
-                        org.assertj.core.groups.Tuple.tuple(noTracker, false));
+                        org.assertj.core.groups.Tuple.tuple(delayed, true, true),
+                        org.assertj.core.groups.Tuple.tuple(onTime, false, false),
+                        org.assertj.core.groups.Tuple.tuple(noTracker, false, false));
     }
 
     @Test

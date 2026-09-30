@@ -173,7 +173,7 @@ GET /api/v1/orders
 | `from`·`to` | 참여일(`yyyy-MM-dd`, 한국 날짜, 양 끝 포함). `from`이 `to`보다 늦으면 400 |
 | `page`·`size` | 기본 0/20 |
 
-최신 참여순으로 내린다. "배송 완료·발송 지연" 같은 진행 단계는 order DB에 없는 값이라 필터로 제공하지 않는다(응답의 `progressStage`로 표시).
+최신 참여순으로 내린다. "제작 중·배송 완료·발송 지연" 같은 진행 단계는 order DB에 없는 값이라 필터로 제공하지 않는다(응답의 `progressStage`로 표시 — FE는 받은 목록 안에서 이 값으로 분류한다).
 
 **Response Body**
 
@@ -210,7 +210,15 @@ GET /api/v1/orders
 - `rewardSummary`는 주문에 담긴 첫 리워드명 기준 `"{첫 리워드명}"` 또는(2건 이상) `"{첫 리워드명} 외 N건"`. `totalQuantity`는 라인아이템 수량 합계.
 - `availableActions`는 아래 상세 API(`GET /api/v1/orders/{orderId}`) 설명의 `availableActions` 규칙과 동일하다. 다만 `GOAL_ACHIEVED` 건의 배송 상태는 fulfillment-service 내부 배치 API(`GET /internal/fundings/fulfillment-statuses`)로 페이지 단위 1회 조회한다(상세 API는 단건 API `.../fulfillment-status`를 쓴다).
   - **발송 지연 여부는 경로가 하나 더 있다.** 배치 응답에는 `isDelayed`가 없어(발송 전 건은 프로젝트 단위 판정) `GET /internal/projects/shipping-delays?projectIds=...`(FULFILLMENT-008, 8-3)를 페이지 단위 1회 더 호출해 합친다. 두 조회 중 어느 쪽이 실패하든 목록 자체는 내려가고, 그 경우 "미발송·지연 아님"으로 간주해 취소 버튼을 내리지 않는다.
-- **`progressStage`**(신규, FE 요청)는 화면 배지용 파생값이며 `status`(주문 상태)를 대체하지 않는다. 값: `FUNDING_IN_PROGRESS`(PENDING 포함) / `FUNDING_SUCCEEDED` / `SHIPPING_DELAYED` / `SHIPPING` / `DELIVERED` / `GOAL_FAILED` / `CANCELLED` / `PAYMENT_EXPIRED` / `REFUNDED`. 성립(`GOAL_ACHIEVED`) 건은 배송 상태(발송·배송완료·지연)로 갈린다.
+- **`progressStage`**(신규, FE 요청)는 화면 배지용 파생값이며 `status`(주문 상태)를 대체하지 않는다. 값: `FUNDING_IN_PROGRESS`(PENDING 포함) / `FUNDING_SUCCEEDED` / `IN_PRODUCTION` / `SHIPPING_DELAYED` / `SHIPPING` / `DELIVERED` / `GOAL_FAILED` / `CANCELLED` / `PAYMENT_EXPIRED` / `REFUNDED`. 성립(`GOAL_ACHIEVED`) 건은 배송 상태와 판매자의 진행 기록 유무로 갈리며, **아래 순서로 먼저 맞는 값**이 된다:
+  1. 배송 완료 → `DELIVERED`
+  2. 발송됨 → `SHIPPING`
+  3. 발송 예정일 경과(미발송) → `SHIPPING_DELAYED`
+  4. 진행 기록 있음 → `IN_PRODUCTION`("제작 중", 신규 — PM 결정 09-29)
+  5. 나머지 → `FUNDING_SUCCEEDED`
+  - 기록이 있어도 발송 예정일이 지나면 `SHIPPING_DELAYED`가 우선이다 — 참여 취소(발송지연 환불)가 그 상태에서만 가능하므로 배지가 가능 액션과 어긋나면 안 된다. `IN_PRODUCTION`의 `availableActions`는 `FUNDING_SUCCEEDED`와 같다(빈 배열).
+  - "진행 기록"은 판매자가 제작·배송 현황에 **상세 진행 내용을 등록**한 적이 있는지다(fulfillment-service `fulfillment_trackers.last_updated_at`, 프로젝트 단위). 일정 변경만 등록했거나 단계 전환만 한 경우는 기록으로 보지 않는다("1주 미갱신 알림"(FULFILLMENT-004)과 같은 기준).
+  - 목록은 fulfillment-service 프로젝트 배치 API(`GET /internal/projects/shipping-delays`)의 `hasProgressRecord`로, 상세는 단건 API(`.../fulfillment-status`)의 `hasProgressRecord`로 판정한다. 조회 실패 시에는 "지연 아님·기록 없음"으로 보므로 `FUNDING_SUCCEEDED`로 내려간다.
 - **`paidAt`**(신규)은 payment-service `payment.completed.v1`의 결제 완료 시각을 저장한 값이다(`fundings.paid_at`). 결제 전이거나 이 필드가 이벤트에 실리기 전에 결제된 과거 주문은 null(백필 없음).
 - **`lineItems`**(신규)는 상세 API와 같은 구조다 — 카드의 옵션 줄을 채우는 용도로, `rewardSummary`("리워드명 외 N건")만으로는 만들 수 없다. 이미 조회한 애그리게이트 값이라 추가 쿼리는 없다.
 - **`refundRequests`**(신규)는 그 주문의 취소·반품·교환 신청 이력(최신순)이다. payment-service 내부 배치 API(`GET /internal/refunds/statuses?fundingIds=...`)로 페이지 단위 1회 조회하며, 신청이 없거나 조회가 실패하면 빈 배열이다. 각 항목은 `{ refundId, triggerType, status, requestedAt }`(값은 payment-service enum 이름).
