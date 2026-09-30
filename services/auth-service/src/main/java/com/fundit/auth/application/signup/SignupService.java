@@ -6,6 +6,7 @@ import com.fundit.auth.application.social.EmailConflictChecker;
 import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
+import com.fundit.auth.domain.account.ReservedNickname;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
@@ -32,6 +33,10 @@ public class SignupService {
     private final EmailConflictChecker emailConflictChecker;
 
     public SignupResult signup(SignupCommand command) {
+        // 본인인증 토큰은 1회 소비라 소비 전에 거절한다 — 닉네임만 고쳐 다시 보내면 된다(#206)
+        if (ReservedNickname.isReserved(command.nickname())) {
+            throw new BusinessException(AuthErrorCode.RESERVED_NICKNAME);
+        }
         // 존재 여부만 보지 않고 계정을 꺼내는 이유(정책 B): 소셜로 가입된 이메일이면
         // "이미 가입됨"이 아니라 어느 제공자로 가입됐는지 알려줘야 사용자가 소셜 로그인으로 갈 수 있다.
         if (emailConflictChecker.checkOrThrow(command.email()) != null) {

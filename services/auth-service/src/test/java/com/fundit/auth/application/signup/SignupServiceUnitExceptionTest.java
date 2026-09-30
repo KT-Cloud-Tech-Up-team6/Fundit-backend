@@ -60,6 +60,22 @@ class SignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 채팅_라벨과_같은_닉네임이면_400이고_본인인증_토큰을_소비하지_않는다() {
+        // given — 폭 없는 문자를 끼운 "판매자"(#206)
+
+        // when & then
+        assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
+                "test@fundit.com", "pw", "verify-token", "홍길동", "판​매자", "01012345678", List.of("TOS"), Map.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(AuthErrorCode.RESERVED_NICKNAME);
+        // 토큰이 남아 있어야 닉네임만 고쳐 다시 보낼 수 있다
+        verify(identityVerificationStore, never()).consume(any());
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
     void 본인인증한_이름과_전화번호로_이미_계정이_있으면_409이고_계정을_만들지_않는다() {
         // given — 이메일만 바꿔 재가입하는 경우(#150)
         when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(
