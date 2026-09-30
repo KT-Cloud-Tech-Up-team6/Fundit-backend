@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocumentJpaEntity, Long> {
@@ -54,6 +55,9 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
             """)
     Page<ProjectCardProjection> searchByKeyword(
             @Param("keyword") String keyword, @Param("statuses") List<ProjectDocumentStatus> statuses, Pageable pageable);
+
+    /** dev 시연 데이터 보정용({@code DemoProjectStatusFixer}). */
+    Optional<ProjectDocumentJpaEntity> findByProjectPublicId(UUID projectPublicId);
 
     /** SEARCH-012. 영향 행이 0이면 색인에 없는 projectId라는 뜻이다 — 호출부가 로그로 확인 대상 표시. */
     @Modifying
