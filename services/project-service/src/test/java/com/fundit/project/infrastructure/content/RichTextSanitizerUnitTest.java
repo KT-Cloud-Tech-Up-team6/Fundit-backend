@@ -151,4 +151,27 @@ class RichTextSanitizerUnitTest {
         assertThat(sanitizer.isEmptyStory(onlyImage)).isFalse();
         assertThat(sanitizer.isEmptyStory(onlyVideo)).isFalse();
     }
+
+    @Test
+    void 줄바꿈_없는_공백류만_든_문단도_빈_본문이다() {
+        // given — isBlank()의 기준인 Character.isWhitespace가 이 문자들을 공백으로 보지 않는다
+        for (String space : List.of("\u00A0", "\u2007", "\u202F")) {
+            List<IntroContentBlock> blocks = List.of(
+                    new IntroContentBlock(IntroContentType.TEXT, "<p>" + space + "</p>"));
+
+            // when & then
+            assertThat(sanitizer.isEmptyStory(blocks))
+                    .as("U+%04X", (int) space.charAt(0)).isTrue();
+        }
+    }
+
+    @Test
+    void 공백류_사이에_글자가_있으면_빈_본문이_아니다() {
+        // given
+        List<IntroContentBlock> blocks = List.of(
+                new IntroContentBlock(IntroContentType.TEXT, "<p>\u00A0\u2007\uAC00\u202F</p>"));
+
+        // when & then
+        assertThat(sanitizer.isEmptyStory(blocks)).isFalse();
+    }
 }

@@ -83,11 +83,14 @@ public class RichTextSanitizer {
 
     /**
      * 태그를 걷어낸 뒤 보이는 글자가 남는지. 에디터가 보내는 {@code <p></p>}·{@code <p>&nbsp;</p>}는
-     * 문자열로는 비어 있지 않아 {@code @NotBlank}를 통과한다(#212). Jsoup이 {@code &nbsp;}를
-     * U+00A0으로 되돌려 주므로 일반 공백으로 바꾼 뒤 판정한다 — {@code isBlank()}는 U+00A0을 공백으로 보지 않는다.
+     * 문자열로는 비어 있지 않아 {@code @NotBlank}를 통과한다(#212). {@code isBlank()}로는 부족하다 —
+     * 그 기준인 {@link Character#isWhitespace}가 줄바꿈 없는 공백류(U+00A0 {@code &nbsp;},
+     * U+2007 {@code &numsp;}, U+202F {@code &nnbsp;})를 공백으로 보지 않아서, 그 문자만 든 문단이
+     * 본문으로 통과한다. 그래서 두 판정을 모두 쓴다 — 여백류는 {@link Character#isSpaceChar} 쪽에 걸린다.
      */
     public boolean hasVisibleText(String html) {
-        return html != null && !Jsoup.parse(html).text().replace('\u00A0', ' ').isBlank();
+        return html != null && Jsoup.parse(html).text().codePoints()
+                .anyMatch(cp -> !Character.isWhitespace(cp) && !Character.isSpaceChar(cp));
     }
 
     /**
