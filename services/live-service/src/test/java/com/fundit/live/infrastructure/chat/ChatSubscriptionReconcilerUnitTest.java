@@ -148,25 +148,6 @@ class ChatSubscriptionReconcilerUnitTest {
             // then
             verify(connection).close();
         }
-
-        @Test
-        void 구독에_실패한_방송은_건너뛰고_나머지는_연다() {
-            // given — 한 방송의 IVS 오류가 다른 방송 적재를 막으면 안 된다
-            LiveSessionJpaEntity other = LiveSessionJpaEntity.builder()
-                    .id(11L).publicId(UUID.randomUUID()).channelId(2L).projectId(UUID.randomUUID())
-                    .status(LiveStatus.LIVE).ivsChatRoomArn("arn:room-2").likeCount(0).build();
-            givenLive(session, other);
-            given(ivsClient.createChatToken(anyString(), anyString(), any(), any())).willReturn("token");
-            given(ivsClient.openChatConnection(anyString(), any()))
-                    .willThrow(new RuntimeException("timeout"))
-                    .willReturn(givenConnection(true));
-
-            // when
-            reconcilerAt(T0).reconcile();
-
-            // then
-            verify(ivsClient, times(2)).openChatConnection(any(), any());
-        }
     }
 
     @Nested

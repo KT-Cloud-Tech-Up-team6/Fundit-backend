@@ -1,6 +1,5 @@
 package com.fundit.live.application.chat;
 
-import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.member.MemberNicknameClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
@@ -90,21 +89,6 @@ class VodChatQueryServiceUnitTest {
             // then
             assertThat(result.messages()).hasSize(3);
             assertThat(result.nicknameBySenderId()).containsEntry(alice, "앨리스").containsEntry(bob, "밥");
-        }
-
-        @Test
-        void 닉네임_조회에_실패해도_채팅은_돌려준다() {
-            // given — 표시용 부가 정보라 채팅 조회를 막지 않는다
-            givenMessages(from(alice));
-            given(memberNicknameClient.findNicknames(any()))
-                    .willThrow(new DependencyFailureException(new RuntimeException()));
-
-            // when
-            var result = vodChatQueryService.findForDisplay(liveId, 0, 600);
-
-            // then
-            assertThat(result.messages()).hasSize(1);
-            assertThat(result.nicknameBySenderId()).isEmpty();
         }
 
         @Test

@@ -2,6 +2,8 @@ package com.fundit.live.application.chat;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
+import com.fundit.common.error.DependencyFailureException;
+import com.fundit.live.application.member.MemberNicknameClient;
 import com.fundit.live.domain.session.LiveStatus;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaEntity;
 import com.fundit.live.infrastructure.persistence.chat.ChatMessageJpaRepository;
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +32,7 @@ class VodChatQueryServiceUnitExceptionTest {
 
     @Mock private ChatMessageJpaRepository chatMessageRepository;
     @Mock private LiveSessionJpaRepository sessionRepository;
+    @Mock private MemberNicknameClient memberNicknameClient;
 
     @InjectMocks private VodChatQueryService vodChatQueryService;
 
@@ -73,5 +77,24 @@ class VodChatQueryServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 닉네임_조회에_실패해도_채팅은_돌려준다() {
+        // given — 표시용 부가 정보라 채팅 조회를 막지 않는다
+        givenSession(STARTED);
+        UUID senderId = UUID.randomUUID();
+        given(chatMessageRepository.findBySessionIdAndSentAtBetweenOrderBySentAtAsc(any(), any(), any()))
+                .willReturn(List.of(ChatMessageJpaEntity.builder()
+                        .senderId(senderId).content("안녕").sentAt(STARTED).build()));
+        given(memberNicknameClient.findNicknames(any()))
+                .willThrow(new DependencyFailureException(new RuntimeException()));
+
+        // when
+        var result = vodChatQueryService.findForDisplay(liveId, 0, 600);
+
+        // then
+        assertThat(result.messages()).hasSize(1);
+        assertThat(result.nicknameBySenderId()).isEmpty();
     }
 }
