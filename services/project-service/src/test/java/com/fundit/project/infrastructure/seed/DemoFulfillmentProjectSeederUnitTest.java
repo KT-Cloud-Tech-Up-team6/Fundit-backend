@@ -101,8 +101,11 @@ class DemoFulfillmentProjectSeederUnitTest {
 
     @Test
     void 판매자_ID가_비어_있으면_건너뛴다() {
+        // given
+        DemoFulfillmentProjectSeeder seeder = seeder("");
+
         // when
-        boolean created = seeder("").seed(BASE);
+        boolean created = seeder.seed(BASE);
 
         // then
         assertThat(created).isFalse();

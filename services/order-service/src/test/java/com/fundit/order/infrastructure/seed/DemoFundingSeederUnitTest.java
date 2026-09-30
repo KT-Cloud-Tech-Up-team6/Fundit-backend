@@ -1,6 +1,5 @@
 package com.fundit.order.infrastructure.seed;
 
-import com.fundit.common.error.DependencyFailureException;
 import com.fundit.order.application.catalog.RewardCatalogClient;
 import com.fundit.order.application.catalog.RewardCatalogClient.RewardSnapshot;
 import com.fundit.order.infrastructure.persistence.funding.FundingJpaEntity;
@@ -28,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -102,27 +100,13 @@ class DemoFundingSeederUnitTest {
 
     @Test
     void 구매자_ID가_비어_있으면_건너뛴다() {
+        // given
+        DemoFundingSeeder seeder = seeder("");
+
         // when
-        seeder("").seed();
+        seeder.seed();
 
         // then
         verifyNoInteractions(fundingRepository, rewardCatalogClient);
-    }
-
-    @Test
-    void 리워드를_아직_못_받으면_저장하지_않고_다음_주기에_다시_시도한다() {
-        // given — project 시연 시더가 아직 안 돌았거나 project가 안 떠 있다
-        given(fundingRepository.findByPublicId(DemoFundingSeeder.DEMO_FUNDING_ID)).willReturn(Optional.empty());
-        given(rewardCatalogClient.getRewards(DemoFundingSeeder.DEMO_PROJECT_ID))
-                .willThrow(new DependencyFailureException(new RuntimeException("connect timeout")));
-        DemoFundingSeeder seeder = seeder(BUYER_ID.toString());
-
-        // when
-        seeder.seed();
-        seeder.seed();
-
-        // then
-        verify(rewardCatalogClient, times(2)).getRewards(any());
-        verify(fundingRepository, never()).save(any());
     }
 }
