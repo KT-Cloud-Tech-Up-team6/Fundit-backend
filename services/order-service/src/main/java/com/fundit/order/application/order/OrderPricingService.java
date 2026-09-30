@@ -78,7 +78,7 @@ public class OrderPricingService {
                             "존재하지 않는 리워드입니다: " + request.rewardId()));
             List<ResolvedOption> options = resolveOptions(snapshot, request.optionValueIds());
             resolvedLineItems.add(new ResolvedLineItem(snapshot.rewardId(), snapshot.name(),
-                    request.quantity(), snapshot.price(), options));
+                    request.quantity(), snapshot.price(), options, snapshot.isLimited()));
             rewardAmount += snapshot.price() * request.quantity();
         }
 
@@ -327,7 +327,7 @@ public class OrderPricingService {
     }
 
     public record ResolvedLineItem(Long rewardId, String rewardName, int quantity, long unitPrice,
-                                    List<ResolvedOption> options) {
+                                    List<ResolvedOption> options, boolean isLimited) {
     }
 
     public record ResolvedOption(Long groupId, String groupName, Long valueId, String value) {

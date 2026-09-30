@@ -62,7 +62,7 @@ class OrderCreateServiceUnitExceptionTest {
     @Test
     void 재고가_부족하면_INSUFFICIENT_STOCK_예외가_발생하고_주문이_저장되지_않는다() {
         // given
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 5, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 5, 10_000L, List.of(), true);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 50_000L, 3_000L, 0L, 53_000L, List.of(lineItem), List.of(), List.of());
         when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
@@ -81,7 +81,7 @@ class OrderCreateServiceUnitExceptionTest {
     @Test
     void 지정한_쿠폰을_쓸_수_없으면_재고_차감_전에_COUPON_NOT_APPLICABLE로_거절한다() {
         // given — 미리보기 뒤에 쿠폰이 만료됐다
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of(), true);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(),
                 List.of(new OrderPricingService.UnavailableCoupon("WELCOME", "EXPIRED")));
@@ -104,7 +104,7 @@ class OrderCreateServiceUnitExceptionTest {
     @Test
     void 쿠폰_예산이_소진됐으면_COUPON_BUDGET_EXCEEDED로_거절한다() {
         // given
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of(), true);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(),
                 List.of(new OrderPricingService.UnavailableCoupon("PLAT", "BUDGET_EXCEEDED")));
@@ -123,7 +123,7 @@ class OrderCreateServiceUnitExceptionTest {
     void 쿠폰_예산_반영에_실패하면_COUPON_BUDGET_EXCEEDED_예외가_발생한다() {
         // given — resolveSingleCoupon()이 조회 시점엔 예산이 남아있다고 판단했지만, 그 사이 다른
         // 요청이 예산을 먼저 소진시켜(레이스) increaseUsedBudget()의 조건부 UPDATE가 0건 반영된 경우.
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of(), true);
         var applied = new OrderPricingService.AppliedCoupon(5L, "RACE", IssuerType.MAKER, DiscountType.AMOUNT, 2_000L);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 2_000L, 11_000L, List.of(lineItem), List.of(applied), List.of());

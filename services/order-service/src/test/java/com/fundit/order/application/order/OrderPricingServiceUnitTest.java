@@ -92,8 +92,11 @@ class OrderPricingServiceUnitTest {
 
         // then
         assertThat(result.lineItems()).singleElement()
-                .satisfies(li -> assertThat(li.options()).containsExactly(
-                        new OrderPricingService.ResolvedOption(10L, "색상", 100L, "화이트")));
+                .satisfies(li -> {
+                    assertThat(li.options()).containsExactly(
+                            new OrderPricingService.ResolvedOption(10L, "색상", 100L, "화이트"));
+                    assertThat(li.isLimited()).isTrue();
+                });
     }
 
     @Nested

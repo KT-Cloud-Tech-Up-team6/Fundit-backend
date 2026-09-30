@@ -165,6 +165,10 @@ public class OrderCreateService {
 
     private void decreaseStockOrThrow(List<OrderPricingService.ResolvedLineItem> lineItems) {
         for (OrderPricingService.ResolvedLineItem lineItem : lineItems) {
+            if (!lineItem.isLimited()) {
+                // 무제한 리워드는 재고 원장(inventories) 행이 없다(ORDER-016) — 차감 대상이 아니다.
+                continue;
+            }
             boolean success = inventoryRepository.decreaseStock(lineItem.rewardId(), lineItem.quantity());
             if (!success) {
                 // ErrorResponse.detail은 BusinessException 경로에서 항상 null이라(GlobalExceptionHandler
