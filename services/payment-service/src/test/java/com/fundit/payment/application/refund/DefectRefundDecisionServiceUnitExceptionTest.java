@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,7 +50,8 @@ class DefectRefundDecisionServiceUnitExceptionTest {
     void setUp() {
         defectRefundDecisionService = new DefectRefundDecisionService(refundRequestRepository, paymentRepository,
                 orderFundingClient, refundExecutionService, exchangeService,
-                paymentNotificationPublisher);
+                paymentNotificationPublisher,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
 
     @Test
@@ -64,8 +68,8 @@ class DefectRefundDecisionServiceUnitExceptionTest {
     @Test
     void 하자환불_신청이_아니면_INVALID_INPUT_예외가_발생한다() {
         // given
-        RefundRequest simpleChangeRequest = RefundRequest.completeImmediately(
-                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, UUID.randomUUID(), true, null);
+        RefundRequest simpleChangeRequest = RefundRequest.requestCancel(
+                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, UUID.randomUUID(), 50_000L, "단순변심");
         when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(simpleChangeRequest));
 
         // when & then

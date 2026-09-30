@@ -57,7 +57,7 @@
 - **우선순위**: MVP
 - **입력값**: 선택 리워드/옵션/수량,주문서 정보
 - **중분류**: 펀딩 참여·결제
-- **처리 내용(기술)**: 하나의 트랜잭션으로 order-service 소유 `inventories.available_stock`을 대상으로 재고 검증 및 조건부 UPDATE(낙관적 락, `version` 컬럼)로 직접 차감(`reserved_stock`은 항상 0, 미사용) → `Funding`/`FundingLineItem` 생성(status=PENDING, `payment_expires_at`=생성시각+30분, 가격·프로젝트명 스냅샷 저장)
+- **처리 내용(기술)**: 하나의 트랜잭션으로 order-service 소유 `inventories.available_stock`을 대상으로 재고 검증 및 조건부 UPDATE(낙관적 락, `version` 컬럼)로 직접 차감(`reserved_stock`은 항상 0, 미사용. 무제한(`isLimited=false`) 리워드는 재고 원장 행이 없어 차감을 건너뜀 — project 리워드 조회의 `isLimited` 기준) → `Funding`/`FundingLineItem` 생성(status=PENDING, `payment_expires_at`=생성시각+30분, 가격·프로젝트명 스냅샷 저장)
 - **출력값**: 생성된 주문(orderId=public_id UUID, status=PENDING, paymentExpiresAt)
 - **트리거 방식**: API 호출
 - **검토의견(변경사항)**: 수정 — 기존 "project-service에 재고 차감 위임"은 ERD 정책("재고 원장·차감 로직은 order-service가 전담")과 모순되어 정정. 만료 유예는 `order.policy.payment-expiry-minutes=30`. `reserved_stock` 컬럼은 있으나 차감/원복에 쓰지 않음

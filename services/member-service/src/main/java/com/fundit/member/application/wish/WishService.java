@@ -1,7 +1,10 @@
 package com.fundit.member.application.wish;
 
+import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaEntity;
 import com.fundit.member.infrastructure.persistence.event.MemberEventOutboxJpaRepository;
+import com.fundit.member.infrastructure.persistence.projectsnapshot.ProjectSnapshotJpaRepository;
 import com.fundit.member.infrastructure.persistence.wish.WishJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +21,7 @@ public class WishService {
 
     private final WishJpaRepository wishJpaRepository;
     private final MemberEventOutboxJpaRepository memberEventOutboxJpaRepository;
+    private final ProjectSnapshotJpaRepository projectSnapshotJpaRepository;
 
     /**
      * 찜 쓰기와 <b>같은 트랜잭션</b>에서 아웃박스에 적재한다 — 찜만 커밋되고 이벤트가 사라지는
@@ -38,6 +42,32 @@ public class WishService {
         if (wishJpaRepository.deleteByMemberIdAndProjectId(memberId, projectId) > 0) {
             enqueue(MemberEventOutboxJpaEntity.TYPE_UNWISHED, memberId, projectId);
         }
+    }
+
+    /**
+     * 프로젝트 상세(UUID)에서 쓰는 찜 등록·해제·여부 조회. 숫자 id로 바꾼 뒤 위 메서드를 그대로 탄다 — 멱등성과
+     * "상태가 바뀔 때만 이벤트 적재" 규칙이 숫자 API와 같다. 자기 호출이라 위 메서드의 트랜잭션은 적용되지 않으므로
+     * 여기서 연다.
+     */
+    @Transactional
+    public void wish(UUID memberId, UUID projectPublicId) {
+        wish(memberId, projectIdOf(projectPublicId));
+    }
+
+    @Transactional
+    public void unwish(UUID memberId, UUID projectPublicId) {
+        unwish(memberId, projectIdOf(projectPublicId));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isWished(UUID memberId, UUID projectPublicId) {
+        return wishJpaRepository.existsByMemberIdAndProjectId(memberId, projectIdOf(projectPublicId));
+    }
+
+    /** 스냅샷(승인 이벤트)이 없는 프로젝트는 찜 대상으로 보지 않는다 — 없는 공개 id로 찜 행이 생기지 않게 404. */
+    private Long projectIdOf(UUID projectPublicId) {
+        return projectSnapshotJpaRepository.findProjectIdByPublicId(projectPublicId)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
     }
 
     @Transactional(readOnly = true)

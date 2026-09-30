@@ -45,6 +45,9 @@ public interface WishJpaRepository extends JpaRepository<WishJpaEntity, Long> {
             + "ON CONFLICT (member_id, project_id) DO NOTHING", nativeQuery = true)
     int insertIgnoringConflict(@Param("memberId") UUID memberId, @Param("projectId") Long projectId);
 
+    /** 상세 화면의 찜 여부 표시용. */
+    boolean existsByMemberIdAndProjectId(UUID memberId, Long projectId);
+
     /** 찜 해제도 idempotent해야 한다 — 이미 없는 대상 삭제도 정상(영향 행 0)으로 취급. 반환값의 용도는 위와 같다. */
     @Modifying
     @Query(value = "DELETE FROM wishes WHERE member_id = :memberId AND project_id = :projectId", nativeQuery = true)

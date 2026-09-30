@@ -162,7 +162,7 @@ class PaymentConfirmServiceUnitExceptionTest {
                 .thenThrow(new com.fundit.common.error.DependencyFailureException(new RuntimeException("timeout")));
         when(tossPaymentsClient.lookup("pay_key_1")).thenReturn(new TossPaymentsClient.TossPaymentLookup("DONE",
                 new TossPaymentsClient.TossPaymentResult("pay_key_1", "fundit-order-1", null, "카드", null,
-                        java.time.Instant.now(), 1_000L)));
+                        java.time.Instant.now(), 1_000L), java.util.List.of()));
 
         // when & then
         assertThatThrownBy(() -> paymentConfirmService.confirm(MEMBER_ID, "pay_key_1", "fundit-order-1", 89_000L))

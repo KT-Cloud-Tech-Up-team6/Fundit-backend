@@ -1,6 +1,7 @@
 package com.fundit.payment.application.payment;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -42,8 +43,12 @@ public interface TossPaymentsClient {
     record TossCancelResult(String transactionKey, Instant canceledAt, long cancelAmount) {
     }
 
-    /** @param status 토스 결제 상태(승인 완료는 {@code DONE}) */
-    record TossPaymentLookup(String status, TossPaymentResult payment) {
+    /**
+     * @param status  토스 결제 상태(승인 완료는 {@code DONE})
+     * @param cancels 이 결제의 취소 이력(없으면 빈 목록). 취소 결과가 불명확할 때 어떤 취소가 실제로 일어났는지
+     *                transactionKey로 대조하는 데 쓴다
+     */
+    record TossPaymentLookup(String status, TossPaymentResult payment, List<TossCancelResult> cancels) {
 
         public boolean isDone() {
             return "DONE".equals(status);

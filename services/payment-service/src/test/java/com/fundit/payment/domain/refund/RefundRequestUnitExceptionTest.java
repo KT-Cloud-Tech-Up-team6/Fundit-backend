@@ -39,24 +39,25 @@ class RefundRequestUnitExceptionTest {
     void 이미_처리된_신청은_다시_승인할_수_없다() {
         // given
         RefundRequest request = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
-        request.approve(true);
+        request.startCancel(50_000L, "하자환불 승인");
 
         // when & then
-        assertThatThrownBy(() -> request.approve(true)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> request.startCancel(50_000L, "하자환불 승인")).isInstanceOf(BusinessException.class);
     }
 
     @Test
     void DEFECT는_즉시처리로_생성할_수_없다() {
         // when & then
-        assertThatThrownBy(() -> RefundRequest.completeImmediately(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, true, null))
+        assertThatThrownBy(() -> RefundRequest.requestCancel(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, 50_000L, "하자"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 대체계좌를_입력하면_값_객체로_보관한다() {
         // given
-        RefundRequest request = RefundRequest.awaitingAlternateAccount(
-                RefundTriggerType.GOAL_FAILED_AUTO, FUNDING_ID, PAYMENT_ID, null);
+        RefundRequest request = RefundRequest.requestCancel(
+                RefundTriggerType.GOAL_FAILED_AUTO, FUNDING_ID, PAYMENT_ID, 50_000L, "목표금액 미달 자동환불");
+        request.awaitAlternateAccount();
 
         // when
         request.useAlternateAccount(new AlternateRefundAccount("국민", "홍길동", "123"));
@@ -64,5 +65,24 @@ class RefundRequestUnitExceptionTest {
         // then
         org.assertj.core.api.Assertions.assertThat(request.getAlternateRefundAccount().accountNumber()).isEqualTo("123");
         org.assertj.core.api.Assertions.assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REQUESTED);
+    }
+
+    @Test
+    void 취소_요청_중이_아니면_확정할_수_없다() {
+        // given
+        RefundRequest request = RefundRequest.requestAfterShipment(RefundTriggerType.DEFECT, FUNDING_ID, PAYMENT_ID, UUID.randomUUID(), "파손", List.of("url"));
+
+        // when & then
+        assertThatThrownBy(() -> request.completeCancel(true)).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 대체계좌_대기_대상이_아닌_유형은_대체계좌_대기로_넘길_수_없다() {
+        // given
+        RefundRequest request = RefundRequest.requestCancel(
+                RefundTriggerType.SIMPLE_CHANGE_OF_MIND, FUNDING_ID, PAYMENT_ID, 50_000L, "단순변심");
+
+        // when & then
+        assertThatThrownBy(request::awaitAlternateAccount).isInstanceOf(IllegalStateException.class);
     }
 }

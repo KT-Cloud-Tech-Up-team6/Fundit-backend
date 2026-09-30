@@ -8,7 +8,6 @@ import com.fundit.payment.domain.payment.PaymentRepository;
 import com.fundit.payment.domain.refund.RefundTriggerType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -24,7 +23,10 @@ public class ShippingDelayRefundService {
     private final ShippingStatusClient shippingStatusClient;
     private final RefundExecutionService refundExecutionService;
 
-    @Transactional
+    /**
+     * 트랜잭션을 걸지 않는다 — 여기서는 조회·검증만 하고, 토스 취소는 {@link RefundExecutionService}가 트랜잭션
+     * 밖에서 부른다(바깥에 트랜잭션이 있으면 토스 호출이 다시 그 안으로 들어간다).
+     */
     public ShippingDelayRefundResult requestCancel(UUID accountId, UUID fundingId) {
         Payment payment = paymentRepository.findCompletedByFundingId(fundingId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

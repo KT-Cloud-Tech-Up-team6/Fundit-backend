@@ -79,6 +79,17 @@ public class RefundRequestJpaEntity {
     @Column(name = "reshipment_requested_at")
     private Instant reshipmentRequestedAt;
 
+    /** 토스 취소 요청 금액 — status가 PROCESSING이고 이 값이 있으면 "취소 요청됨"(V11). */
+    @Column(name = "cancel_amount")
+    private Long cancelAmount;
+
+    @Column(name = "cancel_reason", length = 200)
+    private String cancelReason;
+
+    /** 취소 요청 시각 — 대사 배치가 일정 시간 지난 행만 집는 기준(V11). */
+    @Column(name = "cancel_requested_at")
+    private Instant cancelRequestedAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.requestedAt == null) {

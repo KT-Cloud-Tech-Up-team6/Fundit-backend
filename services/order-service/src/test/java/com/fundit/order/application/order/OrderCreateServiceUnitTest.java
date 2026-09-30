@@ -60,7 +60,7 @@ class OrderCreateServiceUnitTest {
     }
 
     private OrderPricingService.PricingResult pricingResultWithCoupon() {
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 2, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 2, 10_000L, List.of(), true);
         var applied = new OrderPricingService.AppliedCoupon(5L, "WELCOME", IssuerType.PLATFORM, DiscountType.AMOUNT, 2_000L);
         return new OrderPricingService.PricingResult(20_000L, 3_000L, 2_000L, 21_000L,
                 List.of(lineItem), List.of(applied), List.of());
@@ -103,9 +103,36 @@ class OrderCreateServiceUnitTest {
     }
 
     @Test
+    void 무제한_리워드는_재고를_차감하지_않고_주문을_생성한다() {
+        // given — 무제한 리워드는 inventories 행이 없어 decreaseStock을 부르면 false(재고 부족)가 된다
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 3, 10_000L, List.of(), false);
+        var pricing = new OrderPricingService.PricingResult(30_000L, 3_000L, 0L, 33_000L,
+                List.of(lineItem), List.of(), List.of());
+        when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);
+        when(projectSummaryClient.getProjectTitle(PROJECT_ID)).thenReturn(Optional.of("프로젝트"));
+        Funding savedFunding = Funding.builder().id(100L).publicId(UUID.randomUUID()).memberId(MEMBER_ID)
+                .projectId(PROJECT_ID).projectTitle("프로젝트")
+                .status(com.fundit.order.domain.funding.FundingStatus.PENDING)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(3_000L).paymentExpiresAt(Instant.now().plusSeconds(1800))
+                .lineItems(List.of()).createdAt(Instant.now()).build();
+        when(fundingRepository.save(any())).thenReturn(savedFunding);
+
+        // when
+        OrderCreateService.OrderCreateResult result = orderCreateService.create(MEMBER_ID, PROJECT_ID,
+                List.of(new OrderLineItemRequest(REWARD_ID, 3, null)),
+                new ShippingAddress("홍길동", "010", "12345", "주소", null), List.of(), false, null, null, null);
+
+        // then
+        assertThat(result.funding()).isEqualTo(savedFunding);
+        assertThat(result.finalAmount()).isEqualTo(33_000L);
+        verify(inventoryRepository, never()).decreaseStock(any(), anyInt());
+    }
+
+    @Test
     void 프로젝트_제목_조회에_실패해도_빈문자열로_주문이_생성된다() {
         // given
-        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of());
+        var lineItem = new OrderPricingService.ResolvedLineItem(REWARD_ID, "리워드", 1, 10_000L, List.of(), true);
         OrderPricingService.PricingResult pricing = new OrderPricingService.PricingResult(
                 10_000L, 3_000L, 0L, 13_000L, List.of(lineItem), List.of(), List.of());
         when(orderPricingService.calculate(eq(MEMBER_ID), eq(PROJECT_ID), any(), any(), anyBoolean())).thenReturn(pricing);

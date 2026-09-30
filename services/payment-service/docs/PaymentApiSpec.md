@@ -334,12 +334,12 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
 
 - **대상**: 판매자 검토가 필요한 유형만이다 — 하자환불(`DEFECT`), 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`), 교환(`EXCHANGE`). 그 외(즉시처리 유형)는 `400 INVALID_INPUT`("판매자 검토 대상 신청이 아닙니다.")로 거부한다.
 - **승인 후가 유형별로 갈린다**: 하자환불은 전액, 반품은 반품비를 뺀 금액을 PG 취소한다(응답 `status=COMPLETED`). **교환은 결제취소가 없다** — 구매자 귀책이면 교환비 결제 대기(`status=APPROVED`, 구매자가 2-2d로 결제), 판매자 귀책·기타면 즉시 fulfillment 재발송 요청(`status=PROCESSING`)이다. 반려는 세 유형이 동일하다(`status=REJECTED`, 사유 필수, 이벤트 미발행).
-- **처리 절차**: 승인 시 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(`PROCESSING` 중간 상태를 응답하지 않음). **취소 금액은 귀책에 따라 다르다**(환불 정책 V.1.0):
+- **처리 절차**: 승인 시 신청을 먼저 `PROCESSING`(취소 요청됨)으로 커밋한 뒤, 같은 요청에서 `pg_payment_key` 기준 토스 취소 API를 호출하고, 성공하면 즉시 `COMPLETED`를 반환한다(정상 흐름에서는 `PROCESSING`을 응답하지 않음). 토스 호출은 DB 트랜잭션 밖이라, 토스 취소 뒤 확정 기록이 실패하거나 토스 응답이 불명확하면(5xx·타임아웃 → `503`) 신청이 `PROCESSING`으로 남고 대사 배치(4장)가 토스 조회로 확정한다. 토스가 거절하면(`422 PG_CANCEL_FAILED`) 신청을 `REQUESTED`로 되돌려 다시 결정할 수 있다. **취소 금액은 귀책에 따라 다르다**(환불 정책 V.1.0):
   - 판매자 귀책(`DEFECT`) → `payments.amount` **전액 취소**, `is_full_refund=true`
   - 구매자 귀책 반품(`RETURN_CHANGE_OF_MIND`) → `payments.amount - 5000`(반품 배송비 차감) **부분취소**, `is_full_refund=false`. 결제 상태는 `COMPLETED`를 유지하고(전액취소 아님) 에스크로 보류도 유지된다.
 
   완료 시 `payment_event_outbox`에 `RefundCompleted` 적재 → Kafka `refund.completed.v1` 페이로드 `{ eventId, fundingId, couponIssuanceIds, refundReason, fullRefund }`. `refundReason`은 `DEFECT`면 `POST_SUCCESS_DEFECT`(`fullRefund=true`), 반품이면 `POST_SUCCESS_RETURN`(`fullRefund=false`)이다. 같은 트랜잭션에서 `notification.raised.v1`(notifType=`REFUND_STATUS`)도 적재한다. 반려 시에는 `RefundCompleted`를 발행하지 않고, 환불 상태 알림(`REJECTED`)만 발행한다.
-- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `INVALID_INPUT`(400, 판매자 검토 대상 유형 아님), `PG_CANCEL_FAILED`(422), `NOT_FOUND`(404)
+- **주요 에러 코드**: `FORBIDDEN`(403, 타 판매자), `REASON_REQUIRED`(400, 반려인데 사유 없음), `INVALID_INPUT`(400, 판매자 검토 대상 유형 아님), `PG_CANCEL_FAILED`(422, 토스 거절 — 신청은 `REQUESTED`로 되돌아감), `DEPENDENCY_FAILURE`(503, 토스 응답 불명확 — 신청은 `PROCESSING`으로 남아 자동 확정), `CONFLICT`(409, 이미 결정했거나 취소 처리 중인 신청), `NOT_FOUND`(404)
 
 ---
 
@@ -359,8 +359,8 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
 { "refundId": 502, "status": "COMPLETED" }
 ```
 
-- **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`/`isDelayed`를 함께 확인한다(`FulfillmentDelayed` 이벤트는 구독하지 않고 동기 조회 결과만 씀). 이미 발송이면 `409 ALREADY_SHIPPED`. 미발송이어도 아직 발송 예정일이 지나지 않았으면(`isDelayed=false`) `422 NOT_YET_DELAYED`. 미발송이고 지연된 상태면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재.
-- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_YET_DELAYED`(422, 아직 발송 지연 상태 아님), `NOT_FOUND`(404), `FORBIDDEN`(403)
+- **비고**: fulfillment-service 내부 API(`GET /internal/fundings/{fundingId}/fulfillment-status`, 헤더 `X-Internal-Api-Key`) 응답의 `isAlreadyShipped`/`isDelayed`를 함께 확인한다(`FulfillmentDelayed` 이벤트는 구독하지 않고 동기 조회 결과만 씀). 이미 발송이면 `409 ALREADY_SHIPPED`. 미발송이어도 아직 발송 예정일이 지나지 않았으면(`isDelayed=false`) `422 NOT_YET_DELAYED`. 미발송이고 지연된 상태면 UNDER_REVIEW 단계 없이 즉시 전액 취소 → `refund.completed.v1`(`refundReason`=`POST_SUCCESS_DELAY`, `fullRefund`=`true`) 및 `notification.raised.v1` 적재. 원 결제수단 취소가 거절되면 대체 계좌 입력 대기(`status=AWAITING_ALTERNATE_ACCOUNT`, `refundId=null`)로 응답한다. 토스 응답이 불명확하면(5xx·타임아웃) `503`이지만 취소는 `PROCESSING`으로 접수돼 대사 배치(4장)가 확정한다 — 환불 목록(2-1)에 "진행 중"으로 보이고, 같은 요청을 다시 보내도 이중 취소되지 않는다.
+- **주요 에러 코드**: `ALREADY_SHIPPED`(409, 이미 발송 시작됨), `NOT_YET_DELAYED`(422, 아직 발송 지연 상태 아님), `DEPENDENCY_FAILURE`(503, 토스 응답 불명확 — 위 비고), `NOT_FOUND`(404), `FORBIDDEN`(403)
 
 ---
 
@@ -526,13 +526,14 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
 
 | 기능 ID | 트리거 | 비고 |
 |---|---|---|
-| PAYMENT-004 | 이벤트 구독(`funding.cancelled-by-member.v1`) | 입력 `{ eventId, fundingId, projectId, memberId }`. 참여 취소 전액 환불 → `refund.completed.v1`(`refundReason`=`CANCELLED_BY_MEMBER`, `fullRefund`=`true`). **결제 전 참여 취소**(완료 결제 없음)면 대기 중인 결제를 닫기 전에 주문번호로 토스를 조회한다(`GET /v1/payments/orders/{orderId}`). 토스에서 이미 승인됐으면(승인 응답 5xx 등) 완료로 맞춘 뒤 전액 환불하고, 결제 없음·`READY`·`ABORTED`·`EXPIRED`면 `FAILED`로 닫아 뒤늦게 확정되지 않게 한다(조건부 갱신 — 동시에 끝난 승인을 덮지 않음). 승인 진행 중(`IN_PROGRESS`)·이미 취소됨 등은 `PENDING`으로 둔다(승인이 끝나면 order 조정 환불로 이어진다). 조회 실패도 `PENDING` 유지 |
+| PAYMENT-004 | 이벤트 구독(`funding.cancelled-by-member.v1`) | 입력 `{ eventId, fundingId, projectId, memberId }`. 참여 취소 전액 환불 → `refund.completed.v1`(`refundReason`=`CANCELLED_BY_MEMBER`, `fullRefund`=`true`). **결제 전 참여 취소**(완료 결제 없음)면 대기 중인 결제를 닫기 전에 주문번호로 토스를 조회한다(`GET /v1/payments/orders/{orderId}`). 토스에서 이미 승인됐으면(승인 응답 5xx 등) 완료로 맞춘 뒤 전액 환불하고, 결제 없음·`READY`·`ABORTED`·`EXPIRED`면 `FAILED`로 닫아 뒤늦게 확정되지 않게 한다(조건부 갱신 — 동시에 끝난 승인을 덮지 않음). 승인 진행 중(`IN_PROGRESS`)·이미 취소됨 등이나 조회 실패는 `PENDING`으로 두고 취소 요청(`refund_requests` `PROCESSING`)을 남겨 대사 배치가 다시 대조한다 |
 | PAYMENT-005 | 이벤트 구독(`funding.goal-failed.v1`) | 입력 `{ eventId, fundingId, projectId }`. **펀딩 1건당 1이벤트**(프로젝트 단위 일괄 처리 아님) → `refund.completed.v1`(`refundReason`=`GOAL_FAILURE_AUTO_REFUND`, `fullRefund`=`true`) |
 | PAYMENT-012 | 배치(정산 처리 시) | 쿠폰 정산 차감 계산(메이커 발급 쿠폰만) |
 | PAYMENT-013 | 이벤트 구독(`funding.succeeded.v1`) + 스케줄 | 입력 `{ eventId, fundingId, projectId, sellerId, achievedAt }`. 달성확정일+5영업일 후 선정산 배치. `totalAmount`는 순액 100% |
 | PAYMENT-014 | 이벤트 구독(`shipping.completed.v1`) + 스케줄 | 배송완료 +14일 후 최종정산 배치 생성 |
 | PAYMENT-015 | 스케줄러(매주 금요일) | 정산 지급 실행(`PENDING`만, `ON_HOLD` 제외) |
 | PAYMENT-016 | 내부 스케줄러(폴링) | `payment_event_outbox` 미발행 건을 `payment.completed.v1` / `refund.completed.v1`로 발행 |
+| — (#182) | 내부 스케줄러(`RefundCancelReconcileScheduler`, 1분 주기) | **환불 취소 대사.** 토스 취소는 DB 트랜잭션 밖에서 호출한다(취소 요청 커밋 → 토스 취소 → 확정 커밋). 취소 요청 후 5분이 지나도록 확정되지 않은 건(`refund_requests.status='PROCESSING' AND cancel_amount IS NOT NULL`)을 토스와 대조한다. 완료 결제면 결제 조회(`GET /v1/payments/{paymentKey}`)의 `cancels`에서 로컬 취소 내역에 없는 취소를 찾아 확정하고, 없으면 다시 취소한다(`ALREADY_CANCELED_PAYMENT`도 조회로 확정). 대기 결제(PAYMENT-004 결제 전 취소에서 판단하지 못한 건)면 주문번호 조회로 승인 → 완료 후 전액 취소 / 승인 불가 → `FAILED` + 요청 정리 / 판단 불가 → 다음 주기. 프로퍼티 `refund-cancel-reconcile.poll-interval-ms`(60000)·`batch-size`(50)·`stale-after-minutes`(5)·`worker-enabled`(true), 전부 코드 기본값 |
 | PAYMENT-017 | 이벤트 구독(`payment.reconciliation-required.v1`) | **리스너·전액취소 로직은 payment 쪽에 구현됨.** order-service가 아직 이 토픽을 발행하지 않아 실제 트래픽은 없음. 발행되면 `trigger_type=SYSTEM_RECONCILIATION`으로 전액취소 |
 
 ### 발행 이벤트 계약 (Kafka, 봉투 없이 평평한 JSON)
