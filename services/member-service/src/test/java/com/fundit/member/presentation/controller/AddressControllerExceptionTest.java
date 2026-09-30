@@ -5,6 +5,8 @@ import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.member.infrastructure.security.InternalEndpointConfig;
 import com.fundit.member.presentation.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -16,6 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 정상 흐름은 {@link AddressControllerTest} 참고. */
@@ -48,5 +52,32 @@ class AddressControllerExceptionTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    // QA-061·062·063(#209)
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "010123", "00000000000"})
+    void 연락처가_휴대폰_번호_형식이_아니면_등록과_수정_모두_400을_반환한다(String phoneNumber) throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        String body = """
+                {"recipientName": "홍길동", "phoneNumber": "%s", "zipcode": "12345", "addressLine1": "테헤란로 1"}
+                """.formatted(phoneNumber);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/addresses")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        mockMvc.perform(put("/api/v1/addresses/1")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 }

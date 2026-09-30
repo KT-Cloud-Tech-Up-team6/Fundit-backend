@@ -77,6 +77,24 @@ class AddressControllerTest {
     }
 
     @Test
+    void 하이픈이_있는_연락처로도_배송지를_등록한다() throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        when(addressService.register(eq(accountId), any())).thenReturn(
+                new AddressService.AddressItem(1L, "홍길동", "010-1234-5678", "12345", "테헤란로 1", null, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/addresses")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"recipientName": "홍길동", "phoneNumber": "010-1234-5678", "zipcode": "12345", "addressLine1": "테헤란로 1"}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void 인증헤더_없이_배송지목록을_조회하면_401을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/addresses"))
