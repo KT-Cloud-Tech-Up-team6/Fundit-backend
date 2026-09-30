@@ -217,7 +217,8 @@ public class Funding {
      * 화면 배지용 진행 단계(FE 요청). {@link #availableActions}와 같은 입력을 쓰므로 호출부가
      * fulfillment-service 조회 결과를 한 번만 받아 둘을 함께 만든다.
      */
-    public FundingProgressStage progressStage(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt) {
+    public FundingProgressStage progressStage(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,
+                                               boolean hasProgressRecord) {
         return switch (status) {
             case PENDING, FUNDING_IN_PROGRESS -> FundingProgressStage.FUNDING_IN_PROGRESS;
             case GOAL_ACHIEVED -> {
@@ -227,7 +228,14 @@ public class Funding {
                 if (isAlreadyShipped) {
                     yield FundingProgressStage.SHIPPING;
                 }
-                yield isDelayed ? FundingProgressStage.SHIPPING_DELAYED : FundingProgressStage.FUNDING_SUCCEEDED;
+                if (isDelayed) {
+                    yield FundingProgressStage.SHIPPING_DELAYED;
+                }
+                // 진행 기록보다 지연을 먼저 본다 — 기록이 있어도 예정일이 지났으면 발송지연 배지여야
+                // 참여 취소 버튼(SHIPPING_DELAY_REFUND_REQUEST)과 화면이 어긋나지 않는다.
+                yield hasProgressRecord
+                        ? FundingProgressStage.IN_PRODUCTION
+                        : FundingProgressStage.FUNDING_SUCCEEDED;
             }
             case GOAL_FAILED_REFUNDED -> FundingProgressStage.GOAL_FAILED;
             case CANCELLED_BY_MEMBER -> FundingProgressStage.CANCELLED;

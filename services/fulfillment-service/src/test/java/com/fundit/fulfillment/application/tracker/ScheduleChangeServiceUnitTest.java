@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -114,5 +115,23 @@ class ScheduleChangeServiceUnitTest {
                 ArgumentCaptor.forClass(FulfillmentStageDetailJpaEntity.class);
         verify(stageDetailJpaRepository).save(detailCaptor.capture());
         assertThat(detailCaptor.getValue().getDetailText()).isEqualTo("[일정 변경] 착수 지연");
+    }
+    @Test
+    void 일정_변경만_등록하면_마지막_갱신시각은_그대로다() {
+        // given — PM 결정(09-29): 일정 변경은 "진행 기록"으로 보지 않는다(1주 미갱신 알림 기준과 동일).
+        UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+        FulfillmentTracker tracker = FulfillmentTracker.create(projectId).toBuilder().id(1L).build();
+        when(trackerRepository.findByProjectId(projectId)).thenReturn(Optional.of(tracker));
+        when(stageDetailJpaRepository.findFirstByTrackerIdAndStageOrderByUpdatedAtDesc(1L, "SHIPPING_OUT"))
+                .thenReturn(Optional.empty());
+        when(scheduleChangeJpaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        service.registerScheduleChange(projectId, sellerId, FulfillmentStage.SHIPPING_OUT,
+                ScheduleChangeReasonType.START_DELAY, "착수 지연", Instant.parse("2026-09-10T00:00:00Z"));
+
+        // then — 트래커를 저장하지도, lastUpdatedAt을 채우지도 않는다(order의 IN_PRODUCTION 배지 근거)
+        assertThat(tracker.getLastUpdatedAt()).isNull();
+        verify(trackerRepository, never()).save(any());
     }
 }

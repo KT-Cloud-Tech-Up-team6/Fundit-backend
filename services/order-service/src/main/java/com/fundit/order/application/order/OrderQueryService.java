@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /** ORDER-004(내 펀딩 참여 목록)/ORDER-005(개별 참여 상세) 조회 전용. */
@@ -53,9 +52,9 @@ public class OrderQueryService {
         List<Funding> achieved = fundings.stream().filter(f -> f.getStatus() == FundingStatus.GOAL_ACHIEVED).toList();
         Map<UUID, FulfillmentStatusClient.FulfillmentStatus> fulfillmentStatuses = fulfillmentStatusClient.fetchBatch(
                 achieved.stream().map(Funding::getPublicId).toList());
-        // 발송지연은 프로젝트 단위 판정이라 위 배치(펀딩 단위)와 경로가 다르다.
-        Set<UUID> delayedProjectIds = fulfillmentStatusClient.fetchDelayedProjectIds(
-                achieved.stream().map(Funding::getProjectId).distinct().toList());
+        // 발송지연·진행 기록은 프로젝트 단위 판정이라 위 배치(펀딩 단위)와 경로가 다르다.
+        Map<UUID, FulfillmentStatusClient.ProjectFulfillment> projectFulfillments = fulfillmentStatusClient
+                .fetchProjectStatuses(achieved.stream().map(Funding::getProjectId).distinct().toList());
         Map<UUID, List<RefundStatusClient.RefundStatus>> refundStatuses = refundStatusClient.fetchBatch(
                 fundings.stream().map(Funding::getPublicId).toList());
         Map<Long, Long> discountByFundingId = couponApplicationJpaRepository
@@ -66,7 +65,8 @@ public class OrderQueryService {
 
         return page.map(funding -> {
             FulfillmentView view = FulfillmentView.of(fulfillmentStatuses.get(funding.getPublicId()),
-                    delayedProjectIds.contains(funding.getProjectId()));
+                    projectFulfillments.getOrDefault(funding.getProjectId(),
+                            FulfillmentStatusClient.ProjectFulfillment.NONE));
             long discountAmount = discountByFundingId.getOrDefault(funding.getId(), 0L);
             return new OrderListItem(funding, summaries.get(funding.getProjectId()), discountAmount,
                     view.availableActions(funding), view.progressStage(funding),
@@ -124,20 +124,26 @@ public class OrderQueryService {
      */
     private FulfillmentView resolveFulfillmentView(Funding funding) {
         if (funding.getStatus() != FundingStatus.GOAL_ACHIEVED) {
-            return new FulfillmentView(false, false, null);
+            return new FulfillmentView(false, false, null, false);
         }
         FulfillmentStatusClient.FulfillmentStatus status = fulfillmentStatusClient.fetch(funding.getPublicId());
-        return new FulfillmentView(status.isAlreadyShipped(), status.isDelayed(), status.deliveredAt());
+        return new FulfillmentView(status.isAlreadyShipped(), status.isDelayed(), status.deliveredAt(),
+                status.hasProgressRecord());
     }
 
     /** 가능 액션과 진행 단계가 같은 입력(배송 상태)을 쓰므로 한 번 모아서 두 곳에 넘긴다. */
-    private record FulfillmentView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt) {
+    private record FulfillmentView(boolean isAlreadyShipped, boolean isDelayed, Instant deliveredAt,
+                                    boolean hasProgressRecord) {
 
-        /** 조회 실패(값 없음)는 "미발송·지연 아님"으로 본다 — 누를 수 없는 버튼을 보여주지 않는 쪽. */
-        static FulfillmentView of(FulfillmentStatusClient.FulfillmentStatus status, boolean projectDelayed) {
+        /**
+         * 조회 실패(값 없음)는 "미발송·지연 아님·기록 없음"으로 본다 — 누를 수 없는 버튼이나 근거
+         * 없는 "제작 중" 배지를 보여주지 않는 쪽.
+         */
+        static FulfillmentView of(FulfillmentStatusClient.FulfillmentStatus status,
+                                   FulfillmentStatusClient.ProjectFulfillment project) {
             boolean shipped = status != null && status.isAlreadyShipped();
-            return new FulfillmentView(shipped, !shipped && projectDelayed,
-                    status == null ? null : status.deliveredAt());
+            return new FulfillmentView(shipped, !shipped && project.isDelayed(),
+                    status == null ? null : status.deliveredAt(), project.hasProgressRecord());
         }
 
         List<String> availableActions(Funding funding) {
@@ -145,7 +151,7 @@ public class OrderQueryService {
         }
 
         FundingProgressStage progressStage(Funding funding) {
-            return funding.progressStage(isAlreadyShipped, isDelayed, deliveredAt);
+            return funding.progressStage(isAlreadyShipped, isDelayed, deliveredAt, hasProgressRecord);
         }
     }
 

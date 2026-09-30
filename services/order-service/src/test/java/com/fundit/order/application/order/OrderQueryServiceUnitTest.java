@@ -104,7 +104,7 @@ class OrderQueryServiceUnitTest {
         when(projectSummaryClient.getSummaries(List.of(projectId))).thenReturn(java.util.Map.of(projectId,
                 new ProjectSummaryClient.ProjectSummary("프로젝트", "https://cdn/x.png", "메이커")));
         when(fulfillmentStatusClient.fetchBatch(List.of())).thenReturn(java.util.Map.of());
-        when(fulfillmentStatusClient.fetchDelayedProjectIds(List.of())).thenReturn(java.util.Set.of());
+        when(fulfillmentStatusClient.fetchProjectStatuses(List.of())).thenReturn(java.util.Map.of());
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
@@ -135,19 +135,49 @@ class OrderQueryServiceUnitTest {
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
         when(fulfillmentStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of(orderId,
-                new FulfillmentStatusClient.FulfillmentStatus(false, false, null)));
-        when(fulfillmentStatusClient.fetchDelayedProjectIds(List.of(projectId)))
-                .thenReturn(java.util.Set.of(projectId));
+                new FulfillmentStatusClient.FulfillmentStatus(false, false, null, false)));
+        when(fulfillmentStatusClient.fetchProjectStatuses(List.of(projectId))).thenReturn(java.util.Map.of(projectId,
+                new FulfillmentStatusClient.ProjectFulfillment(true, true)));
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
         var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
                 org.springframework.data.domain.PageRequest.of(0, 20));
 
-        // then
+        // then — 진행 기록(hasProgressRecord=true)이 있어도 예정일이 지났으면 발송지연이 우선이다
         OrderQueryService.OrderListItem item = result.getContent().get(0);
         assertThat(item.progressStage()).isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
         assertThat(item.availableActions()).containsExactly("SHIPPING_DELAY_REFUND_REQUEST");
+    }
+
+    @Test
+    void 목록조회시_진행_기록이_있는_프로젝트의_미발송건은_제작중으로_내려간다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(projectId)
+                .status(FundingStatus.GOAL_ACHIEVED)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800)).lineItems(List.of())
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByMemberId(any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(fulfillmentStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of(orderId,
+                new FulfillmentStatusClient.FulfillmentStatus(false, false, null, false)));
+        when(fulfillmentStatusClient.fetchProjectStatuses(List.of(projectId))).thenReturn(java.util.Map.of(projectId,
+                new FulfillmentStatusClient.ProjectFulfillment(false, true)));
+        when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
+
+        // when
+        var result = orderQueryService.listMyOrders(memberId, com.fundit.order.domain.funding.MemberOrderFilter.ofStatus(null),
+                org.springframework.data.domain.PageRequest.of(0, 20));
+
+        // then — 가능 액션은 FUNDING_SUCCEEDED와 같다(배지만 갈린다)
+        OrderQueryService.OrderListItem item = result.getContent().get(0);
+        assertThat(item.progressStage()).isEqualTo(FundingProgressStage.IN_PRODUCTION);
+        assertThat(item.availableActions()).isEmpty();
     }
 
     @Test
@@ -166,7 +196,7 @@ class OrderQueryServiceUnitTest {
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
         // 조회 실패 시 어댑터가 빈 값을 돌려준다(목록 자체는 내려가야 한다).
         when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
-        when(fulfillmentStatusClient.fetchDelayedProjectIds(any())).thenReturn(java.util.Set.of());
+        when(fulfillmentStatusClient.fetchProjectStatuses(any())).thenReturn(java.util.Map.of());
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
 
         // when
@@ -193,7 +223,7 @@ class OrderQueryServiceUnitTest {
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(funding)));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
         when(fulfillmentStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
-        when(fulfillmentStatusClient.fetchDelayedProjectIds(any())).thenReturn(java.util.Set.of());
+        when(fulfillmentStatusClient.fetchProjectStatuses(any())).thenReturn(java.util.Map.of());
         when(refundStatusClient.fetchBatch(any())).thenReturn(java.util.Map.of());
         when(couponApplicationJpaRepository.sumDiscountAmountByFundingIdIn(List.of(1L)))
                 .thenReturn(List.of(discountProjection(1L, 3_000L)));
@@ -238,6 +268,31 @@ class OrderQueryServiceUnitTest {
     }
 
     @Test
+    void 상세조회도_진행_기록이_있으면_제작중을_내려준다() {
+        // given
+        UUID memberId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Funding funding = Funding.builder().id(1L).publicId(orderId).memberId(memberId).projectId(UUID.randomUUID())
+                .status(FundingStatus.GOAL_ACHIEVED)
+                .shippingAddress(new ShippingAddress("홍길동", "010", "12345", "주소", null))
+                .shippingFee(0L).paymentExpiresAt(Instant.now().plusSeconds(1800)).lineItems(List.of())
+                .createdAt(Instant.now()).build();
+        when(fundingRepository.findByPublicId(orderId)).thenReturn(Optional.of(funding));
+        when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
+        when(fulfillmentStatusClient.fetch(orderId))
+                .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(false, false, null, true));
+        when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
+        when(refundStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of());
+
+        // when
+        OrderQueryService.FundingDetail detail = orderQueryService.getDetail(memberId, orderId);
+
+        // then
+        assertThat(detail.progressStage()).isEqualTo(FundingProgressStage.IN_PRODUCTION);
+        assertThat(detail.availableActions()).isEmpty();
+    }
+
+    @Test
     void GOAL_ACHIEVED_상태만_fulfillment_service를_조회해_가능한_액션을_채운다() {
         // given
         UUID memberId = UUID.randomUUID();
@@ -250,7 +305,7 @@ class OrderQueryServiceUnitTest {
         when(couponApplicationJpaRepository.findByFundingId(1L)).thenReturn(List.of());
         when(fulfillmentStatusClient.fetch(orderId))
                 .thenReturn(new FulfillmentStatusClient.FulfillmentStatus(true, false,
-                        Instant.now().minus(java.time.Duration.ofDays(2))));
+                        Instant.now().minus(java.time.Duration.ofDays(2)), true));
         when(projectSummaryClient.getSummaries(any())).thenReturn(java.util.Map.of());
         when(refundStatusClient.fetchBatch(List.of(orderId))).thenReturn(java.util.Map.of(orderId,
                 List.of(new RefundStatusClient.RefundStatus(7L, "DEFECT", "REQUESTED", Instant.now()))));
