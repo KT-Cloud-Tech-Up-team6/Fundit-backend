@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,8 +52,9 @@ class ProjectServiceUnitTest {
     private ProjectIndexEventPublisher projectIndexEventPublisher;
     @Mock
     private SellerProfileClient sellerProfileClient;
-    @Mock
-    private RichTextSanitizer richTextSanitizer;
+    // 실제 구현을 쓴다 — 빈 본문 판정(#212)이 Jsoup 결과에 달려 있어 목으로는 확인할 수 없다.
+    @Spy
+    private RichTextSanitizer richTextSanitizer = new RichTextSanitizer();
 
     @Mock
 
@@ -240,6 +243,24 @@ class ProjectServiceUnitTest {
             // then
             assertThat(result.getIntroContent()).containsExactly(new IntroContentBlock(IntroContentType.TEXT, "<b>굵게</b>"));
         }
+
+        @Test
+        void DRAFT는_작성중_저장이라_빈_본문도_저장된다() {
+            // given — 임시저장 겸용 API다(#212)
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedDraftProject(sellerId, publicId);
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(projectRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            Project result = projectService.updateStory(sellerId, publicId,
+                    new ProjectService.UpdateStoryCommand(null, null, List.of(
+                            new IntroContentBlock(IntroContentType.TEXT, "<p>&nbsp;</p>"))));
+
+            // then
+            assertThat(result.getIntroContent()).hasSize(1);
+        }
     }
 
     @Nested
@@ -292,6 +313,27 @@ class ProjectServiceUnitTest {
             verify(projectIndexEventPublisher).publishProjectApproved(any());
             // 상세 AI 요약 생성 대상으로 올린다(#169)
             verify(pageSummaryService).markDirtyIfPublic(result);
+        }
+
+        @Test
+        void 보이는_글자가_없는_본문만_있으면_공개할_수_없다() {
+            // given — <p></p>는 빈 리스트가 아니라 hasStory()를 통과한다(#212)
+            UUID sellerId = UUID.randomUUID();
+            UUID publicId = UUID.randomUUID();
+            Project project = ownedDraftProject(sellerId, publicId).toBuilder()
+                    .businessType(com.fundit.project.domain.project.BusinessType.SOLE)
+                    .categoryMajor("테크·가전").categoryMinor("생활가전")
+                    .title("제목").goalAmount(1_000_000L)
+                    .introContent(List.of(new IntroContentBlock(IntroContentType.TEXT, "<p></p>")))
+                    .build();
+            when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+            when(rewardJpaRepository.existsByProjectIdAndDeletedAtIsNull(1L)).thenReturn(true);
+            when(privacyConsentJpaRepository.existsByProjectIdAndAgreedTrue(1L)).thenReturn(true);
+
+            // when & then
+            assertThatThrownBy(() -> projectService.submit(sellerId, publicId))
+                    .isInstanceOf(com.fundit.common.error.BusinessException.class)
+                    .hasMessageContaining("story");
         }
     }
 }

@@ -176,6 +176,10 @@ public class ProjectService {
         }
         List<IntroContentBlock> introContent = command.introContent() == null ? null
                 : sanitizeIntroContent(publicId, command.introContent());
+        // 임시저장 겸용이라 DRAFT는 빈 본문도 받는다. 이미 공개된 프로젝트는 상세에 그대로 반영되므로 거절한다(#212).
+        if (introContent != null && project.isPublic() && richTextSanitizer.isEmptyStory(introContent)) {
+            throw new BusinessException(ProjectErrorCode.STORY_CONTENT_REQUIRED);
+        }
         project.updateStory(command.title(), command.coverImageUrl(), introContent);
         Project saved = projectRepository.save(project);
         publishIndexUpdateIfPublic(saved);
@@ -264,7 +268,7 @@ public class ProjectService {
     private List<String> missingRequiredItems(Project project) {
         List<String> missing = new ArrayList<>();
         if (!project.hasCompletedBasicInfo()) missing.add("basicInfo");
-        if (!project.hasStory()) missing.add("story");
+        if (richTextSanitizer.isEmptyStory(project.getIntroContent())) missing.add("story");
         if (!rewardJpaRepository.existsByProjectIdAndDeletedAtIsNull(project.getId())) missing.add("rewards");
         if (!privacyConsentJpaRepository.existsByProjectIdAndAgreedTrue(project.getId())) missing.add("privacyConsent");
         return missing;
