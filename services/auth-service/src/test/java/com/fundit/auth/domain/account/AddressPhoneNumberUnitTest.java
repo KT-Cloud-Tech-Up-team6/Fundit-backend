@@ -47,7 +47,19 @@ class AddressPhoneNumberUnitTest {
         assertThat(AddressPhoneNumber.isInvalid(null)).isFalse();
         assertThat(AddressPhoneNumber.isInvalid(Map.of())).isFalse();
         assertThat(AddressPhoneNumber.isInvalid(nullPhone)).isFalse();
-        assertThat(AddressPhoneNumber.isInvalid(Map.of("phoneNumber", ""))).isFalse();
+    }
+
+    @Test
+    void 주소를_넣었는데_연락처가_없거나_비어_있으면_잘못된_연락처다() {
+        // given — member가 부분 입력으로 거절하면 503이 되고 토큰도 이미 소비된 뒤다
+        Map<String, Object> nullPhone = new HashMap<>(Map.of("recipientName", "홍길동"));
+        nullPhone.put("phoneNumber", null);
+
+        // when & then
+        assertThat(AddressPhoneNumber.isInvalid(Map.of("recipientName", "홍길동", "zipcode", "12345"))).isTrue();
+        assertThat(AddressPhoneNumber.isInvalid(nullPhone)).isTrue();
+        assertThat(AddressPhoneNumber.isInvalid(Map.of("recipientName", "홍길동", "phoneNumber", ""))).isTrue();
+        assertThat(AddressPhoneNumber.isInvalid(Map.of("phoneNumber", " "))).isTrue();
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.fundit.auth.domain.account;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -16,15 +17,14 @@ public final class AddressPhoneNumber {
     private AddressPhoneNumber() {
     }
 
-    /** 주소를 안 넣었거나 연락처가 비어 있으면 false — 비었는지·일부만 넣었는지는 member가 판정한다. */
+    /**
+     * 주소 없음(null 또는 값이 전부 null)이면 false — member {@code CompleteAddressValidator}와 같은 기준이다.
+     * 값이 하나라도 있으면 연락처는 필수다. 없거나 빈 값이어도 member가 부분 입력으로 거절해 503이 되기 때문이다.
+     */
     public static boolean isInvalid(Map<String, Object> address) {
-        if (address == null) {
+        if (address == null || address.values().stream().allMatch(Objects::isNull)) {
             return false;
         }
-        Object phone = address.get("phoneNumber");
-        if (phone == null || (phone instanceof String s && s.isBlank())) {
-            return false;
-        }
-        return !(phone instanceof String s && PHONE.matcher(s).matches());
+        return !(address.get("phoneNumber") instanceof String s && PHONE.matcher(s).matches());
     }
 }
