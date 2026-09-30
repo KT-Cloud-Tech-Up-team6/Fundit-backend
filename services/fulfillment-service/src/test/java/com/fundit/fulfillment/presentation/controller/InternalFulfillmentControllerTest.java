@@ -44,28 +44,30 @@ class InternalFulfillmentControllerTest {
     void 내부_키가_있으면_UUID_경로로_배송상태를_반환한다() throws Exception {
         // given
         when(fulfillmentStatusInternalService.getStatus(ORDER_ID))
-                .thenReturn(new FulfillmentStatusView(true, false, Instant.parse("2026-09-11T09:00:00Z"), null));
+                .thenReturn(new FulfillmentStatusView(true, false, Instant.parse("2026-09-11T09:00:00Z"), null, true));
 
         // when & then
         mockMvc.perform(get("/internal/fundings/" + ORDER_ID + "/fulfillment-status")
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isAlreadyShipped").value(true))
-                .andExpect(jsonPath("$.isDelayed").value(false));
+                .andExpect(jsonPath("$.isDelayed").value(false))
+                .andExpect(jsonPath("$.hasProgressRecord").value(true));
     }
 
     @Test
     void 레거시_PK_경로로도_배송상태를_반환한다() throws Exception {
         // given
         when(fulfillmentStatusInternalService.getStatus(1024L))
-                .thenReturn(new FulfillmentStatusView(false, true, null, null));
+                .thenReturn(new FulfillmentStatusView(false, true, null, null, false));
 
         // when & then
         mockMvc.perform(get("/internal/fundings/id/1024/fulfillment-status")
                         .header("X-Internal-Api-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isAlreadyShipped").value(false))
-                .andExpect(jsonPath("$.isDelayed").value(true));
+                .andExpect(jsonPath("$.isDelayed").value(true))
+                .andExpect(jsonPath("$.hasProgressRecord").value(false));
     }
 
     @Test

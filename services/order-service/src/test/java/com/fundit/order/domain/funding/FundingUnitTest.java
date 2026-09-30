@@ -247,12 +247,12 @@ class FundingUnitTest {
         @Test
         void PENDING과_모금중은_펀딩_진행중이다() {
             Funding funding = newFunding();
-            assertThat(funding.progressStage(false, false, null))
+            assertThat(funding.progressStage(false, false, null, false))
                     .isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
 
             funding.markPaymentCompleted(Instant.now());
 
-            assertThat(funding.progressStage(false, false, null))
+            assertThat(funding.progressStage(false, false, null, false))
                     .isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
         }
 
@@ -263,21 +263,57 @@ class FundingUnitTest {
             funding.markGoalAchieved();
 
             // then
-            assertThat(funding.progressStage(false, false, null)).isEqualTo(FundingProgressStage.FUNDING_SUCCEEDED);
-            assertThat(funding.progressStage(false, true, null)).isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
-            assertThat(funding.progressStage(true, false, null)).isEqualTo(FundingProgressStage.SHIPPING);
-            assertThat(funding.progressStage(true, false, Instant.now())).isEqualTo(FundingProgressStage.DELIVERED);
+            assertThat(funding.progressStage(false, false, null, false))
+                    .isEqualTo(FundingProgressStage.FUNDING_SUCCEEDED);
+            assertThat(funding.progressStage(false, true, null, false)).isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
+            assertThat(funding.progressStage(true, false, null, false)).isEqualTo(FundingProgressStage.SHIPPING);
+            assertThat(funding.progressStage(true, false, Instant.now(), false))
+                    .isEqualTo(FundingProgressStage.DELIVERED);
+        }
+
+        @Test
+        void 성립_후_판매자의_진행_기록이_있으면_제작중이다() {
+            // given
+            Funding funding = newFunding();
+            funding.markGoalAchieved();
+
+            // then — 기록이 없으면 "펀딩 성공", 한 번이라도 올라오면 "제작 중"
+            assertThat(funding.progressStage(false, false, null, false))
+                    .isEqualTo(FundingProgressStage.FUNDING_SUCCEEDED);
+            assertThat(funding.progressStage(false, false, null, true))
+                    .isEqualTo(FundingProgressStage.IN_PRODUCTION);
+        }
+
+        @Test
+        void 진행_기록이_있어도_발송지연과_발송완료가_제작중보다_우선이다() {
+            // given
+            Funding funding = newFunding();
+            funding.markGoalAchieved();
+
+            // then — 참여 취소(발송지연 환불)가 가능한 상태를 배지가 가려선 안 된다
+            assertThat(funding.progressStage(false, true, null, true))
+                    .isEqualTo(FundingProgressStage.SHIPPING_DELAYED);
+            assertThat(funding.progressStage(true, false, null, true)).isEqualTo(FundingProgressStage.SHIPPING);
+            assertThat(funding.progressStage(true, false, Instant.now(), true))
+                    .isEqualTo(FundingProgressStage.DELIVERED);
+        }
+
+        @Test
+        void 진행_기록은_성립_전후_다른_상태의_배지를_바꾸지_않는다() {
+            Funding funding = newFunding();
+            assertThat(funding.progressStage(false, false, null, true))
+                    .isEqualTo(FundingProgressStage.FUNDING_IN_PROGRESS);
         }
 
         @Test
         void 목표미달과_취소는_각각의_단계를_돌려준다() {
             Funding failed = newFunding();
             failed.markGoalFailed();
-            assertThat(failed.progressStage(false, false, null)).isEqualTo(FundingProgressStage.GOAL_FAILED);
+            assertThat(failed.progressStage(false, false, null, false)).isEqualTo(FundingProgressStage.GOAL_FAILED);
 
             Funding cancelled = newFunding();
             cancelled.cancelByMember(null, null);
-            assertThat(cancelled.progressStage(false, false, null)).isEqualTo(FundingProgressStage.CANCELLED);
+            assertThat(cancelled.progressStage(false, false, null, false)).isEqualTo(FundingProgressStage.CANCELLED);
         }
     }
 
