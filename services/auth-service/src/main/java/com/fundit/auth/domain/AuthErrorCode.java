@@ -12,7 +12,9 @@ public enum AuthErrorCode implements ErrorCode {
     /** 일반 회원가입 — 본인인증한 이름+전화번호로 이미 계정이 있다(#150). */
     ACCOUNT_ALREADY_EXISTS(409, "이미 계정이 존재합니다."),
     /** 정책 B·C — 어느 제공자인지는 응답 detail의 provider로 알려준다. */
-    SOCIAL_ACCOUNT_EXISTS(409, "이미 소셜 로그인으로 가입된 이메일입니다.");
+    SOCIAL_ACCOUNT_EXISTS(409, "이미 소셜 로그인으로 가입된 이메일입니다."),
+    /** 가입 — LIVE 채팅 화면 라벨("판매자" 등)과 같은 닉네임. 사칭 방지(#206). */
+    RESERVED_NICKNAME(400, "사용할 수 없는 닉네임입니다.");
 
     private final int httpStatus;
     private final String message;

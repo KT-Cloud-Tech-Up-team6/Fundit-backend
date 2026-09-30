@@ -57,6 +57,21 @@ class SocialSignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 채팅_라벨과_같은_닉네임이면_400이고_가입토큰을_소비하지_않는다() {
+        // given — 대소문자·공백만 바꾼 "AI 매니저"(#206)
+
+        // when & then
+        assertThatThrownBy(() -> service().signup(commandWithNickname("Ai 매니저")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(AuthErrorCode.RESERVED_NICKNAME);
+        // 토큰이 남아 있어야 소셜 로그인부터 다시 하지 않고 닉네임만 고쳐 보낼 수 있다
+        verify(signupTokenStore, never()).consumeSignup(any());
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
     void 그_사이_같은_소셜로_가입이_끝났으면_409로_막는다() {
         // given — 다른 탭에서 먼저 가입이 끝난 경우. 여기서 계속 진행하면 uq_accounts_social 위반이다
         givenValidTokens();
