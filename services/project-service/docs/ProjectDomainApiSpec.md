@@ -291,10 +291,10 @@ PATCH /api/v1/projects/{projectId}/story
 
 **Request**: {
 "title": "세상에 없는 프라이팬",
-"coverImageUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2.jpg",
+"coverImageUrl": "https://{cdn-domain}/media/projects/018f2c1a-.../a1b2.jpg",
 "introContent": [
 { "type": "TEXT", "value": "..." },
-{ "type": "IMAGE", "value": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../c3d4.jpg" },
+{ "type": "IMAGE", "value": "https://{cdn-domain}/media/projects/018f2c1a-.../c3d4.jpg" },
 { "type": "VIDEO_URL", "value": "https://youtube.com/..." }
 ]
 }
@@ -337,7 +337,7 @@ POST /api/v1/projects/{projectId}/media/upload-url
 ```json
 {
   "uploadUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2c3d4.jpg?X-Amz-...",
-  "fileUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2c3d4.jpg"
+  "fileUrl": "https://{cdn-domain}/media/projects/018f2c1a-.../a1b2c3d4.jpg"
 }
 ```
 
@@ -364,7 +364,7 @@ POST /api/v1/projects/{projectId}/rewards
 **Request**: {
 "name": "얼리버드 패키지",
 "description": "...",
-"imageUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../r1.jpg",
+"imageUrl": "https://{cdn-domain}/media/projects/018f2c1a-.../r1.jpg",
 "price": 39000,
 "isLimited": true,
 "quantity": 100,
@@ -1350,7 +1350,7 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
   "sellerId": "018e9a10-....",
   "sellerDisplayName": null,
   "title": "세상에 없는 프라이팬",
-  "thumbnailUrl": "https://{bucket}.s3.{region}.amazonaws.com/projects/018f2c1a-.../a1b2.jpg",
+  "thumbnailUrl": "https://{cdn-domain}/media/projects/018f2c1a-.../a1b2.jpg",
   "categoryMajor": "테크·가전",
   "categoryMinor": "생활가전",
   "goalAmount": 5000000,

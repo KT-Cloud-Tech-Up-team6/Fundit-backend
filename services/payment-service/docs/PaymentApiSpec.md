@@ -377,7 +377,7 @@ PROCESSING ──재발송분 발송(판매자 새 운송장 등록)──> COMP
 - **Response 200 OK**
 
 ```json
-{ "uploadUrl": "https://fundit-media.s3.ap-northeast-2.amazonaws.com/refunds/....?X-Amz-...", "fileUrl": "https://fundit-media.s3.ap-northeast-2.amazonaws.com/refunds/018f9a1b-..../<uuid>.jpg" }
+{ "uploadUrl": "https://fundit-media.s3.ap-northeast-2.amazonaws.com/refunds/....?X-Amz-...", "fileUrl": "https://{cdn-domain}/media/refunds/018f9a1b-..../<uuid>.jpg" }
 ```
 
 - **비고**: project-service `POST /api/v1/projects/{projectId}/media/upload-url`은 프로젝트 소유자(판매자)만 쓸 수 있어 구매자는 접근할 수 없다 — 이 엔드포인트가 구매자용 별도 경로다. `orderId`가 실제 이 회원의 것인지는 order-service `OrderFundingClient.fetch(orderId).memberId()`로 서버에서 검증한다(경로/바디의 식별자만으로 신뢰하지 않음, S4). S3 키는 `refunds/{orderId}/{uuid}.{ext}` 네임스페이스를 쓴다(project-service의 `projects/{projectId}/...`와 같은 버킷, 다른 프리픽스). 파일 바이트는 이 서버를 거치지 않고 클라이언트가 `uploadUrl`로 S3에 직접 PUT한다. 이미지만 허용(jpg/jpeg/png/webp, 10MB) — 업로드 완료 여부 확인(HeadObject)은 이번 범위에서 하지 않는다(신청 시 `evidenceUrls` 비어있으면 `EVIDENCE_REQUIRED`로만 막는다).
