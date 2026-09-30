@@ -3,11 +3,13 @@ package com.fundit.search.infrastructure.seed;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentJpaEntity;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentJpaRepository;
 import com.fundit.search.infrastructure.persistence.projectdocument.ProjectDocumentStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
 
@@ -22,8 +24,17 @@ import static org.mockito.Mockito.verify;
 class DemoProjectStatusFixerUnitTest {
 
     @Mock private ProjectDocumentJpaRepository projectDocumentRepository;
+    @Mock private TransactionTemplate transactionTemplate;
 
-    @InjectMocks private DemoProjectStatusFixer fixer;
+    private DemoProjectStatusFixer fixer;
+
+    @BeforeEach
+    void setUp() {
+        fixer = new DemoProjectStatusFixer(projectDocumentRepository, transactionTemplate);
+        // 커밋까지 정상으로 끝나는 트랜잭션
+        given(transactionTemplate.execute(any())).willAnswer(inv ->
+                inv.<TransactionCallback<?>>getArgument(0).doInTransaction(null));
+    }
 
     private ProjectDocumentJpaEntity document(ProjectDocumentStatus status) {
         return ProjectDocumentJpaEntity.builder()
@@ -31,7 +42,7 @@ class DemoProjectStatusFixerUnitTest {
     }
 
     @Test
-    void 색인된_문서가_진행중이면_성립으로_맞추고_이후엔_아무것도_안_한다() {
+    void 색인된_문서가_진행중이면_성립으로_맞추고_커밋_후엔_아무것도_안_한다() {
         // given — 최초 색인은 상태를 ONGOING으로 고정한다
         given(projectDocumentRepository.findByProjectPublicId(DemoProjectStatusFixer.DEMO_PROJECT_ID))
                 .willReturn(Optional.of(document(ProjectDocumentStatus.ONGOING)));
