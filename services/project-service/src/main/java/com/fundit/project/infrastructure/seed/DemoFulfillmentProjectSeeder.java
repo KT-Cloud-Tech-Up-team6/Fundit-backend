@@ -100,7 +100,7 @@ public class DemoFulfillmentProjectSeeder implements ApplicationRunner {
                 .goalAmount(3_000_000L)
                 .fundingStartAt(daysFrom(base, -45))
                 .fundingDeadline(deadline)
-                .coverImageUrl("https://infrastudy.store/media/mock/051.png")
+                .coverImageUrl("https://infrastudy.store/media/mock/demo-cover.png")
                 .status(ProjectStatus.SUCCEEDED.name())
                 .deadlineNotifiedAt(deadline)
                 .build());

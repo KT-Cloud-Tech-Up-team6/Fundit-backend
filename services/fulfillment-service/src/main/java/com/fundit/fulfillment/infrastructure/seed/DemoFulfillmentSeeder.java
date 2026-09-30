@@ -47,10 +47,10 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
     static final List<SeedDetail> DETAILS = List.of(
             new SeedDetail("PRODUCTION_START", -14, -11,
                     "최종 샘플의 크기와 봉제 사양을 확정하고 원단 재단 준비를 마쳤습니다. 협력 작업장에 총 150개 제작을 발주했습니다.",
-                    "051-production-start.png", -11),
+                    "demo-production-start-1.png", -11),
             new SeedDetail("MANUFACTURING", -10, 7,
                     "손잡이 자재가 입고되어 봉제 작업을 재개하고 있습니다. 총 150개 중 90개 제작을 마쳤으며, 나머지 60개를 제작 중입니다.",
-                    "051-manufacturing.png", -2),
+                    "demo-manufacturing-1.png", -2),
             new SeedDetail("INSPECTION", 8, 10, "검수 예정입니다.", null, -4),
             new SeedDetail("SHIPPING_OUT", 11, 13, "출고 예정입니다.", null, -4),
             new SeedDetail("DELIVERY", 14, 17, "배송 예정입니다.", null, -4));

@@ -81,7 +81,7 @@ class DemoFulfillmentSeederUnitTest {
         assertThat(details).filteredOn(d -> d.getStage().equals("MANUFACTURING"))
                 .singleElement().satisfies(d -> {
                     assertThat(d.getUpdatedAt()).isEqualTo(days(-2));
-                    assertThat(d.getPhotoUrls()).containsExactly("https://infrastudy.store/media/mock/051-manufacturing.png");
+                    assertThat(d.getPhotoUrls()).containsExactly("https://infrastudy.store/media/mock/demo-manufacturing-1.png");
                 });
 
         ArgumentCaptor<FulfillmentScheduleChangeJpaEntity> change = ArgumentCaptor.forClass(FulfillmentScheduleChangeJpaEntity.class);
