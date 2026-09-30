@@ -65,7 +65,7 @@ final class StubBackendFixture implements AutoCloseable {
                     String path = exchange.getRequestURI().getPath();
                     byte[] bytes = exchange.getRequestBody().readAllBytes();
                     Object response;
-                    if (path.startsWith("/projects/")) {
+                    if (path.startsWith("/media/projects/")) {
                         assertThat(exchange.getRequestMethod()).isEqualTo("PUT");
                         assertThat(exchange.getRequestHeaders().getFirst("Content-Type")).isEqualTo("image/png");
                         var png = ImageIO.read(new ByteArrayInputStream(bytes));
@@ -79,7 +79,7 @@ final class StubBackendFixture implements AutoCloseable {
                         if (path.equals("/internal/ai/media/upload-targets")) {
                             var request = json.readValue(bytes, UploadTargetsRequest.class);
                             response = new UploadTargetsResponse(request.outputs().stream().map(output -> {
-                                String url = base() + "/projects/" + projectId + "/ai/" + output.slot_id() + ".png";
+                                String url = base() + "/media/projects/" + projectId + "/ai/" + output.slot_id() + ".png";
                                 return new UploadTarget(output.slot_id(), url, url, Instant.now().plusSeconds(60));
                             }).toList());
                         } else {

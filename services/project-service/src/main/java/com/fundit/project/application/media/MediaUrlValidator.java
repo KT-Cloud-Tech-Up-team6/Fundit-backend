@@ -23,8 +23,9 @@ public class MediaUrlValidator {
         String key = storageClient.extractKey(fileUrl)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL));
 
-        String expectedPrefix = "projects/" + projectPublicId + "/";
-        if (!key.startsWith(expectedPrefix)) {
+        String expectedPrefix = "media/projects/" + projectPublicId + "/";
+        String legacyPrefix = "projects/" + projectPublicId + "/";
+        if (!key.startsWith(expectedPrefix) && !key.startsWith(legacyPrefix)) {
             throw new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL);
         }
 

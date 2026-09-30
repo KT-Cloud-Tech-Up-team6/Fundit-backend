@@ -41,8 +41,8 @@ class MediaUrlValidatorUnitExceptionTest {
     void 다른_프로젝트_경로면_예외가_발생한다() {
         // given
         UUID projectId = UUID.randomUUID();
-        String key = "projects/" + UUID.randomUUID() + "/a.jpg";
-        String fileUrl = "https://bucket.s3.ap-northeast-2.amazonaws.com/" + key;
+        String key = "media/projects/" + UUID.randomUUID() + "/ai/a.png";
+        String fileUrl = "https://infrastudy.store/" + key;
         when(storageClient.extractKey(fileUrl)).thenReturn(Optional.of(key));
 
         // when & then

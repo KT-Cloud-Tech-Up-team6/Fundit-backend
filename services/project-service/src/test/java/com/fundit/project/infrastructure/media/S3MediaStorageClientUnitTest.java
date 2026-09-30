@@ -5,7 +5,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -17,6 +21,7 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -30,7 +35,7 @@ class S3MediaStorageClientUnitTest {
     private static final String REGION = "ap-northeast-2";
     private static final String CDN_BASE = "https://infrastudy.store/media/";
     private static final String LEGACY_BASE = "https://fundit-media-dev-team6.s3.ap-northeast-2.amazonaws.com/";
-    private static final String KEY = "projects/01a0ec3c-ea07-705a-945e-c793ff219fb0/01a0ec3e.png";
+    private static final String KEY = "media/projects/01a0ec3c-ea07-705a-945e-c793ff219fb0/01a0ec3e.png";
 
     @Mock
     private S3Client s3Client;
@@ -58,8 +63,12 @@ class S3MediaStorageClientUnitTest {
                 storageClient.presignPut(KEY, "image/png", Duration.ofMinutes(5));
 
         // then
-        assertThat(upload.fileUrl()).isEqualTo(CDN_BASE + KEY);
+        assertThat(upload.fileUrl()).isEqualTo(CDN_BASE + KEY.substring("media/".length()));
         assertThat(upload.uploadUrl()).startsWith("https://s3-presigned.example/put");
+        ArgumentCaptor<PutObjectPresignRequest> signed = ArgumentCaptor.forClass(PutObjectPresignRequest.class);
+        verify(s3Presigner).presignPutObject(signed.capture());
+        assertThat(signed.getValue().putObjectRequest().key()).isEqualTo(KEY);
+        assertThat(storageClient.extractKey(upload.fileUrl())).contains(KEY);
     }
 
     @Test
@@ -77,18 +86,40 @@ class S3MediaStorageClientUnitTest {
                 client.presignPut(KEY, "image/png", Duration.ofMinutes(5));
 
         // then
-        assertThat(upload.fileUrl()).isEqualTo(CDN_BASE + KEY);
+        assertThat(upload.fileUrl()).isEqualTo(CDN_BASE + KEY.substring("media/".length()));
     }
 
     @Test
     void CDN_형식_URL에서_키를_추출한다() {
         // when & then
-        assertThat(storageClient.extractKey(CDN_BASE + KEY)).contains(KEY);
+        assertThat(storageClient.extractKey(CDN_BASE + KEY.substring("media/".length()))).contains(KEY);
+    }
+
+    @Test
+    void AI_이미지의_서명된_S3_경로와_CDN_경로가_일치한다() {
+        // given — 서명은 로컬에서 계산하며 AWS 호출은 없다.
+        String key = "media/projects/01a0ec3c-ea07-705a-945e-c793ff219fb0/ai/01a0ec3e.png";
+        try (S3Presigner presigner = S3Presigner.builder()
+                .region(Region.AP_NORTHEAST_2)
+                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")))
+                .build()) {
+            S3MediaStorageClient client = new S3MediaStorageClient(s3Client, presigner, BUCKET, REGION, CDN_BASE);
+
+            // when
+            MediaStorageClient.PresignedUpload upload = client.presignPut(key, "image/png", Duration.ofMinutes(5));
+
+            // then
+            assertThat(URI.create(upload.uploadUrl()).getPath()).isEqualTo("/" + key);
+            assertThat(upload.fileUrl()).isEqualTo("https://infrastudy.store/" + key);
+            assertThat(client.extractKey(upload.fileUrl())).contains(key);
+        }
     }
 
     @Test
     void 기존_S3_형식_URL에서도_키를_추출한다() {
         // when & then
+        String legacyKey = KEY.substring("media/".length());
+        assertThat(storageClient.extractKey(LEGACY_BASE + legacyKey)).contains(legacyKey);
         assertThat(storageClient.extractKey(LEGACY_BASE + KEY)).contains(KEY);
     }
 

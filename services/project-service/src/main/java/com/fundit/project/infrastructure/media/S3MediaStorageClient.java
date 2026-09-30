@@ -15,13 +15,14 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.net.URI;
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 
 /**
  * MediaStorageClient의 AWS S3 구현체. 발급하는 fileUrl은 CDN 공개 주소
- * ({@code media.public-base-url} + key)다 — FE가 S3를 직접 호출하면 CDN(캐시·도메인 정책)을
+ * ({@code media.public-base-url}의 origin + key)다. CloudFront는 공개 경로를 S3 key로 그대로 전달한다.
+ * FE가 S3를 직접 호출하면 CDN(캐시·도메인 정책)을
  * 거치지 않고, 인프라가 S3 직접 접근을 막는 순간 이미지가 전부 깨진다.
  *
  * <p>키를 되찾는 {@link #extractKey}는 CDN 형식과 기존 S3 가상 호스팅 형식
@@ -37,6 +38,7 @@ public class S3MediaStorageClient implements MediaStorageClient {
     private final S3Presigner s3Presigner;
     private final String bucket;
     private final String publicBaseUrl;
+    private final String publicOriginUrl;
     /** 기존 데이터 호환용 — 읽기(extractKey)에만 쓰고 발급에는 쓰지 않는다. */
     private final String legacyS3BaseUrl;
 
@@ -48,6 +50,7 @@ public class S3MediaStorageClient implements MediaStorageClient {
         this.s3Presigner = s3Presigner;
         this.bucket = bucket;
         this.publicBaseUrl = publicBaseUrl.endsWith("/") ? publicBaseUrl : publicBaseUrl + "/";
+        this.publicOriginUrl = URI.create(this.publicBaseUrl).resolve("/").toString();
         this.legacyS3BaseUrl = "https://%s.s3.%s.amazonaws.com/".formatted(bucket, region);
     }
 
@@ -63,7 +66,7 @@ public class S3MediaStorageClient implements MediaStorageClient {
                 .putObjectRequest(putObjectRequest)
                 .build();
         PresignedPutObjectRequest presigned = s3Presigner.presignPutObject(presignRequest);
-        return new PresignedUpload(presigned.url().toString(), publicBaseUrl + key);
+        return new PresignedUpload(presigned.url().toString(), publicOriginUrl + key);
     }
 
     @Override
@@ -85,10 +88,12 @@ public class S3MediaStorageClient implements MediaStorageClient {
         if (fileUrl == null) {
             return Optional.empty();
         }
-        for (String base : List.of(publicBaseUrl, legacyS3BaseUrl)) {
-            if (fileUrl.startsWith(base)) {
-                return Optional.of(fileUrl.substring(base.length()));
-            }
+        if (fileUrl.startsWith(publicBaseUrl)) {
+            // /media/는 CDN 전용 접두사가 아니라 S3 key의 일부다.
+            return Optional.of(fileUrl.substring(publicOriginUrl.length()));
+        }
+        if (fileUrl.startsWith(legacyS3BaseUrl)) {
+            return Optional.of(fileUrl.substring(legacyS3BaseUrl.length()));
         }
         return Optional.empty();
     }

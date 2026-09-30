@@ -308,7 +308,7 @@ PATCH /api/v1/projects/{projectId}/story
 **Validation / Business Rules**
 
 - `title` 40자 제한(DB 컬럼 제약과 동일).
-- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
+- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`media/projects/{projectId}/`로 시작, 기존 S3 key의 `projects/{projectId}/`도 허용)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
 - `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
 - `type=TEXT`의 `value`는 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 아래 허용 목록만 남기고 나머지(스크립트, 이벤트 속성, `url()` 등 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다. AI Funding Story 완료 결과의 TEXT 블록도 같은 정제를 거친다(#153).
   - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
@@ -901,8 +901,10 @@ POST /api/v1/community/posts/{postId}/answer
 | 정보 수집 | sessions · messages · SSE · confirm | 같은 경로로 AI에 전달, Core DTO는 BE가 구성 |
 | 전체 생성 | `POST /api/v1/ai/runs` | 확인 시점과 최신 Core fingerprint가 다르면 `409`, `detail.action=reconfirm_summary` |
 | 결과 조회 | `GET /api/v1/ai/runs/{runId}` | AI로 전달하지 않고 BE 저장 결과 반환 |
-| 이미지 전달 | AI → `/internal/ai/media/upload-targets` | `projects/{projectId}/ai/` 아래 presigned PUT 발급 |
+| 이미지 전달 | AI → `/internal/ai/media/upload-targets` | S3 key `media/projects/{projectId}/ai/{fileId}.png`의 presigned PUT 발급 |
 | 완료 통지 | AI → `/internal/ai/runs/{runId}/completion` | 경로·존재·크기·MIME 검증 후 결과 확정 |
+
+AI 이미지 공개 URL은 `https://infrastudy.store/media/projects/{projectId}/ai/{fileId}.png`입니다. BE가 S3 key와 presigned PUT·공개 URL을 발급하고, AI는 받은 URL로 업로드합니다. CloudFront는 `/media/`를 포함한 경로를 S3에 그대로 전달하며, 완료 검증에서도 같은 key를 사용합니다.
 
 **공통 헤더**
 

@@ -22,6 +22,20 @@ class MediaUrlValidatorUnitTest {
     private MediaUrlValidator mediaUrlValidator;
 
     @Test
+    void CDN_AI_이미지의_media_경로도_저장할_수_있다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        String key = "media/projects/" + projectId + "/ai/hero.png";
+        String fileUrl = "https://infrastudy.store/" + key;
+        when(storageClient.extractKey(fileUrl)).thenReturn(Optional.of(key));
+        when(storageClient.headObject(key)).thenReturn(Optional.of(new MediaStorageClient.StoredObject(1024L)));
+
+        // when & then
+        assertThatCode(() -> mediaUrlValidator.validate(projectId, fileUrl, MediaCategory.IMAGE))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void 경로와_실존_크기가_모두_유효하면_통과한다() {
         // given
         UUID projectId = UUID.randomUUID();
