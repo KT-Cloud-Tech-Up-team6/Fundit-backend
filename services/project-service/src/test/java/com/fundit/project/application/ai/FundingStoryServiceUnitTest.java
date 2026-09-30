@@ -135,8 +135,8 @@ class FundingStoryServiceUnitTest {
         UUID runId = UUID.randomUUID();
         Project project = ownedProject(sellerId, projectId);
         FundingStorySession run = FundingStorySession.trackRun(runId, project.getId(), sellerId, UUID.randomUUID());
-        String validUrl = "https://bucket/projects/" + projectId + "/ai/valid.png";
-        String invalidUrl = "https://bucket/projects/" + projectId + "/ai/missing.png";
+        String validUrl = "https://bucket/media/projects/" + projectId + "/ai/valid.png";
+        String invalidUrl = "https://bucket/media/projects/" + projectId + "/ai/missing.png";
         RunCompletionRequest request = new RunCompletionRequest(
                 "succeeded",
                 new GeneratedBody("hero", List.of(
@@ -151,12 +151,12 @@ class FundingStoryServiceUnitTest {
         when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
         when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
         when(storageClient.extractKey(validUrl))
-                .thenReturn(Optional.of("projects/" + projectId + "/ai/valid.png"));
+                .thenReturn(Optional.of("media/projects/" + projectId + "/ai/valid.png"));
         when(storageClient.extractKey(invalidUrl))
-                .thenReturn(Optional.of("projects/" + projectId + "/ai/missing.png"));
-        when(storageClient.headObject("projects/" + projectId + "/ai/valid.png"))
+                .thenReturn(Optional.of("media/projects/" + projectId + "/ai/missing.png"));
+        when(storageClient.headObject("media/projects/" + projectId + "/ai/valid.png"))
                 .thenReturn(Optional.of(new MediaStorageClient.StoredObject(100L, "image/png")));
-        when(storageClient.headObject("projects/" + projectId + "/ai/missing.png"))
+        when(storageClient.headObject("media/projects/" + projectId + "/ai/missing.png"))
                 .thenReturn(Optional.empty());
         when(projectRepository.save(project)).thenReturn(project);
         when(sessionRepository.save(run)).thenReturn(run);
@@ -384,7 +384,7 @@ class FundingStoryServiceUnitTest {
         UUID runId = UUID.randomUUID();
         Project project = project(UUID.randomUUID(), projectId, ProjectStatus.ONGOING);
         FundingStorySession run = FundingStorySession.trackRun(runId, project.getId(), project.getSellerId(), UUID.randomUUID());
-        String url = "https://bucket/projects/" + projectId + "/ai/hero.png";
+        String url = "https://bucket/media/projects/" + projectId + "/ai/hero.png";
         RunCompletionRequest request = new RunCompletionRequest(
                 "succeeded",
                 new GeneratedBody("hero", List.of(new GeneratedContentBlock("IMAGE", null, "hero"),
@@ -394,8 +394,8 @@ class FundingStoryServiceUnitTest {
 
         when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
         when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
-        when(storageClient.extractKey(url)).thenReturn(Optional.of("projects/" + projectId + "/ai/hero.png"));
-        when(storageClient.headObject("projects/" + projectId + "/ai/hero.png"))
+        when(storageClient.extractKey(url)).thenReturn(Optional.of("media/projects/" + projectId + "/ai/hero.png"));
+        when(storageClient.headObject("media/projects/" + projectId + "/ai/hero.png"))
                 .thenReturn(Optional.of(new MediaStorageClient.StoredObject(100L, "image/png")));
         when(projectRepository.save(project)).thenReturn(project);
         when(sellerProfileClient.getDisplayName(project.getSellerId())).thenReturn(Optional.of("판매자"));

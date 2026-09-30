@@ -242,7 +242,8 @@ public class FundingStoryService {
         Duration ttl = Duration.ofMinutes(uploadTtlMinutes);
         Instant expiresAt = Instant.now().plus(ttl);
         List<UploadTarget> targets = request.outputs().stream().map(output -> {
-            String key = "projects/%s/ai/%s.png".formatted(projectPublicId, UUID.randomUUID());
+            String key = MediaStorageClient.KEY_PREFIX
+                    + "projects/%s/ai/%s.png".formatted(projectPublicId, UUID.randomUUID());
             MediaStorageClient.PresignedUpload upload = storageClient.presignPut(key, PNG, ttl);
             return new UploadTarget(output.slot_id(), upload.uploadUrl(), upload.fileUrl(), expiresAt);
         }).toList();
@@ -276,7 +277,7 @@ public class FundingStoryService {
         Map<String, String> validImages = new LinkedHashMap<>();
         List<FundingStoryFailedSlot> failures = new ArrayList<>();
         request.failed_slots().forEach(slot -> failures.add(toDomain(slot)));
-        String expectedPrefix = "projects/" + projectPublicId + "/ai/";
+        String expectedPrefix = MediaStorageClient.KEY_PREFIX + "projects/" + projectPublicId + "/ai/";
 
         for (SuccessfulImage image : request.successful_images()) {
             String key = storageClient.extractKey(image.file_url()).orElse(null);

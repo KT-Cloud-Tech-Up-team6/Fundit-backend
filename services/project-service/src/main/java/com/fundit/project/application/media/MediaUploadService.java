@@ -17,7 +17,7 @@ import java.util.UUID;
 /**
  * 이미지/영상 업로드 주소 발급(S3 Presigned URL, 할일 D) — 파일 바이트는 이 서비스를 거치지 않고
  * 클라이언트가 발급받은 uploadUrl로 S3에 직접 PUT한다. 리워드 이미지도 이 프로젝트 네임스페이스
- * (projects/{projectId}/...)를 쓰므로 소유권은 "프로젝트 소유자(seller)" 하나로 통일해서 검증한다.
+ * (media/projects/{projectId}/...)를 쓰므로 소유권은 "프로젝트 소유자(seller)" 하나로 통일해서 검증한다.
  */
 @Service
 public class MediaUploadService {
@@ -50,7 +50,7 @@ public class MediaUploadService {
         }
 
         // 클라이언트가 보낸 fileName은 키에 사용하지 않는다(추측 불가 파일명, S5) — 확장자만 재사용.
-        String key = "projects/%s/%s.%s".formatted(
+        String key = MediaStorageClient.KEY_PREFIX + "projects/%s/%s.%s".formatted(
                 projectPublicId, UuidCreator.getTimeOrderedEpoch(), extension.toLowerCase(Locale.ROOT));
         return storageClient.presignPut(key, contentType, presignTtl);
     }
