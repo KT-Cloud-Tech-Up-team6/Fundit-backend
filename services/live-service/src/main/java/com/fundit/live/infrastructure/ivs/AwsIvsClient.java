@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -134,17 +135,21 @@ public class AwsIvsClient implements IvsClient {
     @Override
     public ChatConnection openChatConnection(String token, Consumer<ChatMessage> onMessage) {
         ChatListener listener = new ChatListener(onMessage);
+        CompletableFuture<WebSocket> connecting = httpClient.newWebSocketBuilder()
+                .subprotocols(token)
+                .connectTimeout(connectTimeout)
+                .buildAsync(chatEndpoint, listener);
         WebSocket webSocket;
         try {
-            webSocket = httpClient.newWebSocketBuilder()
-                    .subprotocols(token)
-                    .connectTimeout(connectTimeout)
-                    .buildAsync(chatEndpoint, listener)
-                    .get(connectTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            webSocket = connecting.get(connectTimeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
+            abortWhenConnected(connecting);
             Thread.currentThread().interrupt();
             throw new DependencyFailureException(e);
-        } catch (ExecutionException | TimeoutException e) {
+        } catch (TimeoutException e) {
+            abortWhenConnected(connecting);
+            throw new DependencyFailureException(e);
+        } catch (ExecutionException e) {
             throw new DependencyFailureException(e);
         }
         return new ChatConnection() {
@@ -159,6 +164,14 @@ public class AwsIvsClient implements IvsClient {
                 webSocket.abort();
             }
         };
+    }
+
+    /**
+     * 기다리다 포기한 연결이 뒤늦게 성립하면 바로 끊는다 — 그대로 두면 아무도 닫지 않는 연결이 남아
+     * 메시지를 계속 받고, 구독 루프는 실패로 보고 새 연결을 또 열어 재시도마다 쌓인다(PR 리뷰 지적).
+     */
+    private static void abortWhenConnected(CompletableFuture<WebSocket> connecting) {
+        connecting.thenAccept(WebSocket::abort);
     }
 
     /**
