@@ -14,7 +14,6 @@ import org.springframework.web.client.RestClientException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -48,7 +47,7 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
                 throw new DependencyFailureException(new IllegalStateException("fulfillment-service 응답 본문 없음"));
             }
             return new FulfillmentStatus(response.isAlreadyShipped(), response.isDelayed(),
-                    response.deliveredAt());
+                    response.deliveredAt(), response.hasProgressRecord());
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
@@ -71,9 +70,9 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
             if (response == null) {
                 return Map.of();
             }
-            // 배치 응답에는 지연 여부가 없다(프로젝트 단위 판정) — fetchDelayedProjectIds가 채운다.
+            // 배치 응답에는 지연 여부·진행 기록이 없다(프로젝트 단위 판정) — fetchProjectStatuses가 채운다.
             return response.stream().collect(Collectors.toMap(InternalBatchStatusResponse::fundingId,
-                    r -> new FulfillmentStatus(r.isAlreadyShipped(), false, r.deliveredAt())));
+                    r -> new FulfillmentStatus(r.isAlreadyShipped(), false, r.deliveredAt(), false)));
         } catch (RestClientException e) {
             log.warn("fulfillment-service 배치 조회 실패(가능 액션/배지 없이 진행)", e);
             return Map.of();
@@ -81,9 +80,9 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
     }
 
     @Override
-    public Set<UUID> fetchDelayedProjectIds(List<UUID> projectIds) {
+    public Map<UUID, ProjectFulfillment> fetchProjectStatuses(List<UUID> projectIds) {
         if (projectIds.isEmpty()) {
-            return Set.of();
+            return Map.of();
         }
         try {
             List<InternalProjectShippingDelayResponse> response = fulfillmentServiceRestClient.get()
@@ -94,24 +93,25 @@ public class FulfillmentServiceFulfillmentStatusClient implements FulfillmentSta
                     .body(new ParameterizedTypeReference<List<InternalProjectShippingDelayResponse>>() {
                     });
             if (response == null) {
-                return Set.of();
+                return Map.of();
             }
-            return response.stream().filter(InternalProjectShippingDelayResponse::isDelayed)
-                    .map(InternalProjectShippingDelayResponse::projectId)
-                    .collect(Collectors.toSet());
+            return response.stream().collect(Collectors.toMap(InternalProjectShippingDelayResponse::projectId,
+                    r -> new ProjectFulfillment(r.isDelayed(), r.hasProgressRecord())));
         } catch (RestClientException e) {
-            log.warn("fulfillment-service 발송지연 배치 조회 실패(지연 아님으로 진행)", e);
-            return Set.of();
+            log.warn("fulfillment-service 프로젝트 배치 조회 실패(지연 아님·기록 없음으로 진행)", e);
+            return Map.of();
         }
     }
 
     private record InternalFulfillmentStatusResponse(boolean isAlreadyShipped, boolean isDelayed,
-                                                       Instant deliveredAt, Instant receiptConfirmedAt) {
+                                                       Instant deliveredAt, Instant receiptConfirmedAt,
+                                                       boolean hasProgressRecord) {
     }
 
     private record InternalBatchStatusResponse(UUID fundingId, boolean isAlreadyShipped, Instant deliveredAt) {
     }
 
-    private record InternalProjectShippingDelayResponse(UUID projectId, boolean isDelayed) {
+    private record InternalProjectShippingDelayResponse(UUID projectId, boolean isDelayed,
+                                                          boolean hasProgressRecord) {
     }
 }
