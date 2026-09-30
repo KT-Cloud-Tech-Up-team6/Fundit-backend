@@ -13,6 +13,8 @@ media:
   s3:
     bucket: ${MEDIA_S3_BUCKET}
     region: ${AWS_REGION}
+  # 공개(CDN) 주소 — 환경마다 도메인이 달라 주입만 받는다(기본값 없음: 미주입이면 기동 실패로 드러난다).
+  public-base-url: ${MEDIA_PUBLIC_BASE_URL}
 
 internal-api:
   key: ${INTERNAL_API_KEY}

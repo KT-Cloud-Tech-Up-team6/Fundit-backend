@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
         "payment.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "toss.payments.secret-key=test_sk_dummy",
         "media.s3.bucket=unused", "media.s3.region=ap-northeast-2",
+        "media.public-base-url=https://cdn.test/media/",
         "refund-cancel-reconcile.worker-enabled=false"
 })
 class RefundExecutionServiceRecoveryIntegrationTest {

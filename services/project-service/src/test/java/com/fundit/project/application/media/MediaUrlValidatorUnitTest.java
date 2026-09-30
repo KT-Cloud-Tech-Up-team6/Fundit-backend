@@ -34,4 +34,18 @@ class MediaUrlValidatorUnitTest {
         assertThatCode(() -> mediaUrlValidator.validate(projectId, fileUrl, MediaCategory.IMAGE))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void 기존_S3_형식으로_저장된_URL로_재저장해도_통과한다() {
+        // given — CDN 주소로 바꾸기 전(#193)에 저장된 프로젝트를 수정하는 경우
+        UUID projectId = UUID.randomUUID();
+        String key = "projects/" + projectId + "/a.jpg";
+        String legacyFileUrl = "https://fundit-media-dev-team6.s3.ap-northeast-2.amazonaws.com/" + key;
+        when(storageClient.extractKey(legacyFileUrl)).thenReturn(Optional.of(key));
+        when(storageClient.headObject(key)).thenReturn(Optional.of(new MediaStorageClient.StoredObject(1024L)));
+
+        // when & then
+        assertThatCode(() -> mediaUrlValidator.validate(projectId, legacyFileUrl, MediaCategory.IMAGE))
+                .doesNotThrowAnyException();
+    }
 }

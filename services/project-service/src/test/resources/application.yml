@@ -19,6 +19,9 @@ media:
   s3:
     bucket: unused
     region: ap-northeast-2
+  # 발급 fileUrl의 공개(CDN) base. 운영에서 기본값 없이 주입만 받으므로(#193) 여기서 채워야
+  # S3MediaStorageClient 빈이 뜬다 — 값 자체는 사용되지 않는다.
+  public-base-url: https://cdn.test/media/
 
 # CommonWebConfig(InternalGatewaySecretFilter)가 빈 생성 시 필수로 참조한다 — scanBasePackages가
 # com.fundit로 넓어지면서 @SpringBootTest(전체 컨텍스트)마다 필요해졌다. 실제 검증이 필요한

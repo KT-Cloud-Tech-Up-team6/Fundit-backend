@@ -13,6 +13,10 @@ media:
   s3:
     bucket: ${MEDIA_S3_BUCKET}
     region: ${AWS_REGION}
+  # 공개(CDN) 주소 — 업로드 주소 발급 시 fileUrl이 이 값 + S3 키로 조립된다.
+  # S3 직접 주소를 내려주면 FE가 CDN(캐시·도메인 정책)을 우회하고, 인프라가 S3 직접 접근을
+  # 막는 순간 이미지가 전부 깨진다. 공개 도메인이라 비밀이 아니므로 dev는 기본값을 둔다.
+  public-base-url: ${MEDIA_PUBLIC_BASE_URL:https://infrastudy.store/media/}
 
 internal-api:
   key: ${INTERNAL_API_KEY}
