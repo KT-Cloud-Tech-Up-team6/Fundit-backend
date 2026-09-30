@@ -54,6 +54,7 @@ cd services/project-service && docker compose up -d
 - 커뮤니티 답변은 UPSERT: 게시글당 답변은 1개(DB 유니크 제약)이므로, 답변 등록 API를 호출할 때마다 새로 만들지 말고 기존 답변이 있으면 갱신한다.
 - categories는 읽기 전용 마스터 데이터: 프로젝트 생성/수정 시 존재 여부만 검증(FK)하고, project-service가 카테고리를 생성·수정하는 API는 만들지 않는다(시드 데이터로만 관리).
 - 이미지/영상은 반드시 `POST /api/v1/projects/{projectId}/media/upload-url`로 발급받은 `fileUrl`만 저장 가능: 프론트가 직접 만든 URL 문자열은 스토리(coverImageUrl/introContent의 IMAGE 블록)·리워드(imageUrl) 저장 시 거부된다(경로가 `projects/{projectId}/`로 시작하는지, S3에 실제 업로드됐는지, 크기 제한을 넘지 않는지 검증). 파일 바이트는 백엔드를 거치지 않고 클라이언트가 S3에 직접 PUT한다.
+- 미디어 키는 **논리 키와 S3 key를 구분한다**: application 계층은 `projects/{projectId}/...`(논리 키)만 다루고, 실제 S3 object key는 `S3MediaStorageClient`가 `media/`를 붙인 `media/projects/{projectId}/...`다. CloudFront가 `/media/*` 요청을 S3의 `media/*` key로 넘기면서 `/media` 접두사를 떼지 않기 때문 — 공개 URL은 `media.public-base-url`(끝이 `/media/`) + 논리 키로 만든다. application 계층에서 키에 `media/`를 직접 붙이지 말 것(공개 URL이 `/media/media/`가 된다).
 
 ## 에러 코드
 

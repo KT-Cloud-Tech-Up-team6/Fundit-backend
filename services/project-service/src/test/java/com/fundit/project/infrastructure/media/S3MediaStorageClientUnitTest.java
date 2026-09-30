@@ -4,10 +4,15 @@ import com.fundit.project.application.media.MediaStorageClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -17,11 +22,15 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * 발급 fileUrl이 CDN 형식인지, 기존 S3 형식으로 저장된 URL도 키로 되돌릴 수 있는지 검증한다 —
  * 후자가 깨지면 이미 저장된 프로젝트의 수정·AI 스토리 생성이 전부 막힌다(#193).
+ *
+ * <p>여기에 더해 S3를 실제로 호출할 때만 {@code media/} 접두사가 붙는지 확인한다(#205) —
+ * 접두사가 빠지면 CloudFront가 원본을 못 찾아 404, 공개 URL에까지 붙으면 {@code /media/media/}가 된다.
  */
 @ExtendWith(MockitoExtension.class)
 class S3MediaStorageClientUnitTest {
@@ -30,7 +39,9 @@ class S3MediaStorageClientUnitTest {
     private static final String REGION = "ap-northeast-2";
     private static final String CDN_BASE = "https://infrastudy.store/media/";
     private static final String LEGACY_BASE = "https://fundit-media-dev-team6.s3.ap-northeast-2.amazonaws.com/";
+    /** application 계층이 쓰는 논리 키. 실제 S3 key는 여기에 media/가 붙는다. */
     private static final String KEY = "projects/01a0ec3c-ea07-705a-945e-c793ff219fb0/01a0ec3e.png";
+    private static final String S3_KEY = "media/" + KEY;
 
     @Mock
     private S3Client s3Client;
@@ -63,6 +74,69 @@ class S3MediaStorageClientUnitTest {
     }
 
     @Test
+    void 업로드는_media_접두사가_붙은_S3_key로_발급하고_공개URL에는_media가_한번만_들어간다() throws Exception {
+        // given
+        PresignedPutObjectRequest presigned = mock(PresignedPutObjectRequest.class);
+        when(presigned.url()).thenReturn(URI.create("https://s3-presigned.example/put").toURL());
+        ArgumentCaptor<PutObjectPresignRequest> captor = ArgumentCaptor.forClass(PutObjectPresignRequest.class);
+        when(s3Presigner.presignPutObject(captor.capture())).thenReturn(presigned);
+
+        // when
+        MediaStorageClient.PresignedUpload upload =
+                storageClient.presignPut(KEY, "image/png", Duration.ofMinutes(5));
+
+        // then
+        assertThat(captor.getValue().putObjectRequest().key()).isEqualTo(S3_KEY);
+        assertThat(upload.fileUrl()).isEqualTo("https://infrastudy.store/media/" + KEY);
+        assertThat(upload.fileUrl()).doesNotContain("/media/media/");
+    }
+
+    @Test
+    void 읽기_주소_발급도_media_접두사가_붙은_S3_key를_쓴다() throws Exception {
+        // given
+        PresignedGetObjectRequest presigned = mock(PresignedGetObjectRequest.class);
+        when(presigned.url()).thenReturn(URI.create("https://s3-presigned.example/get").toURL());
+        ArgumentCaptor<GetObjectPresignRequest> captor = ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+        when(s3Presigner.presignGetObject(captor.capture())).thenReturn(presigned);
+
+        // when
+        storageClient.presignGet(KEY, Duration.ofMinutes(5));
+
+        // then
+        assertThat(captor.getValue().getObjectRequest().key()).isEqualTo(S3_KEY);
+    }
+
+    @Test
+    void 실존_확인도_media_접두사가_붙은_S3_key를_조회한다() {
+        // given
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder().contentLength(10L).contentType("image/png").build());
+
+        // when
+        storageClient.headObject(KEY);
+
+        // then
+        ArgumentCaptor<HeadObjectRequest> captor = ArgumentCaptor.forClass(HeadObjectRequest.class);
+        verify(s3Client).headObject(captor.capture());
+        assertThat(captor.getValue().key()).isEqualTo(S3_KEY);
+    }
+
+    @Test
+    void 이미_media로_시작하는_키는_접두사를_두번_붙이지_않는다() {
+        // given
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder().contentLength(10L).contentType("image/png").build());
+
+        // when
+        storageClient.headObject(S3_KEY);
+
+        // then
+        ArgumentCaptor<HeadObjectRequest> captor = ArgumentCaptor.forClass(HeadObjectRequest.class);
+        verify(s3Client).headObject(captor.capture());
+        assertThat(captor.getValue().key()).isEqualTo(S3_KEY);
+    }
+
+    @Test
     void base_URL_끝에_슬래시가_없어도_키와_사이에_슬래시가_하나만_들어간다() throws Exception {
         // given
         S3MediaStorageClient client = new S3MediaStorageClient(
@@ -81,8 +155,8 @@ class S3MediaStorageClientUnitTest {
     }
 
     @Test
-    void CDN_형식_URL에서_키를_추출한다() {
-        // when & then
+    void CDN_형식_URL에서_논리_키를_추출한다() {
+        // when & then — media/가 빠진 논리 키를 돌려준다(application 계층의 경로 검증 규칙과 일치)
         assertThat(storageClient.extractKey(CDN_BASE + KEY)).contains(KEY);
     }
 
