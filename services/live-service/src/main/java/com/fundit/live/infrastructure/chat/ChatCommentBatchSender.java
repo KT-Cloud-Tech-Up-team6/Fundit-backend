@@ -29,9 +29,9 @@ import java.util.stream.Collectors;
 /**
  * 방송 중 채팅을 3초마다 모아 AI에 배치로 넘긴다(AI팀 실계약 A-3, 최대 50건/배치 권장).
  *
- * <p>Firehose가 메시지 단위로 호출하는 {@code ChatIngestService.ingest()}에 AI 호출을 직접
- * 끼우지 않는 이유와 같다 — 그건 동기 경로라 거기서 AI를 부르면 우리가 느려질 때
- * 시청자 채팅이 같이 느려진다. 배치·주기를 분리해 이 스케줄러만 AI 지연을 흡수한다.
+ * <p>메시지 단위로 불리는 {@code ChatIngestService.ingest()}(채팅방 구독 경로)에 AI 호출을 직접
+ * 끼우지 않는 이유: 거기서 AI를 부르면 AI가 느려질 때 구독 수신이 같이 밀린다.
+ * 배치·주기를 분리해 이 스케줄러만 AI 지연을 흡수한다.
  *
  * <p><b>AI 호출이 실패해도 채팅 저장·송출에는 영향이 없다</b>(CLAUDE.md 원칙) — 실패한 세션은
  * {@code sent_to_ai_at}을 채우지 않고 다음 주기에 그대로 재시도한다.

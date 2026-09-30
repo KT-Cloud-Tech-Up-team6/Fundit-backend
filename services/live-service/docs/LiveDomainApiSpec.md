@@ -48,7 +48,7 @@
 | GET | `/api/v1/lives/{liveId}/share-link` | X | LIVE 공유 링크 생성 — **미구현**(아래 참고) |
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
-| GET | `/api/v1/lives/{liveId}/vod/chat` | X | 다시보기 시간대별 채팅 조회 |
+| GET | `/api/v1/lives/{liveId}/vod/chat` | X | 시간대별 채팅 조회 — 다시보기, LIVE 중간 입장 시 이전 채팅 |
 | GET | `/api/v1/lives/{liveId}/highlights/public` | X | 방송의 공개 하이라이트(마커·클립) — 호출마다 노출 수 +1 |
 | POST | `/api/v1/lives/{liveId}/highlights/{highlightId}/click` | X | 하이라이트 클릭 수 +1 |
 | GET | `/api/v1/lives/highlights?projectId=` | X | 프로젝트의 공개 숏 클립 목록(LIVE 체크 탭) — 노출 수 불변 |
@@ -64,8 +64,8 @@
 
 | method | path | auth required | 설명 |
 | --- | --- | --- | --- |
-| POST | `/api/v1/lives/{liveId}/chat/token` | O | IVS Chat 접속 토큰 발급(판매자·소비자 공통) |
-| POST | `/internal/v1/lives/chat/messages` | 내부 전용 (Firehose) | 채팅 메시지 적재 — 게이트웨이 경유 아님 |
+| POST | `/api/v1/lives/{liveId}/chat/token` | 선택 | IVS Chat 접속 토큰 발급(판매자·소비자 공통, 비로그인은 보기 전용) |
+| POST | `/internal/v1/lives/chat/messages` | 내부 전용 (`X-Internal-Api-Key`) | 채팅 단건 적재 — 로컬·AI팀 테스트용. 실서버 적재는 BE 채팅방 구독 |
 | GET | `/internal/v1/lives/{liveId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 방송 상태 조회(공개 liveId 기준) — order 집계·LIVE 쿠폰 생성용 |
 | GET | `/internal/v1/lives/by-project/{projectId}/active-status` | 내부 전용 (`X-Internal-Api-Key`) | 프로젝트의 진행 중 방송 조회 — order 주문 생성 시 세션 꼬리표용 |
 | GET | `/internal/v1/lives/sessions/{sessionId}/status` | 내부 전용 (`X-Internal-Api-Key`) | 세션 상태 조회(내부 세션 PK 기준) — order LIVE 쿠폰 검증용 |
@@ -89,7 +89,7 @@
 ```
 클라이언트 ──(IVS Chat WebSocket)──▶ IVS Chat
                                       ├─ 리뷰 핸들러 Lambda : 부적절 메시지 필터링
-                                      └─ Chat Logging → Firehose(10초) ──▶ live-service 적재
+                                      └─ (구독) ◀── live-service가 보기 전용 토큰으로 WebSocket 구독 → 적재
        ▲
        └── 접속 토큰만 우리 REST로 발급: POST /api/v1/lives/{liveId}/chat/token
 ```
@@ -106,6 +106,7 @@
 | --- | --- |
 | 방송 소유자(`live_channels.seller_id`) | `SEND_MESSAGE`, `DELETE_MESSAGE`, `DISCONNECT_USER` |
 | 그 외 로그인 사용자 | `SEND_MESSAGE` |
+| 비로그인 | 없음(보기 전용) |
 
 메시지 **보기 권한은 IVS가 암묵적으로 포함**하므로 따로 부여하지 않는다.
 
@@ -121,11 +122,12 @@
 - 우리가 죽으면 룸에 설정한 `FallbackResult`에 따라 **채팅이 막히거나(DENY) 필터링 없이 통과(ALLOW)** 한다
 
 둘 다 방송을 직접 해친다.
-**리뷰 핸들러는 필터링만 하고, 적재는 Chat Logging으로 분리한다.**
+**리뷰 핸들러는 필터링만 하고, 적재는 BE 채팅방 구독으로 분리한다**(#197).
 
-전송 대상은 **Kinesis Data Firehose**다.
-로깅 전파 지연이 S3는 5분, CloudWatch·Firehose는 10초인데, AI 대표질문 집계가 **3분 주기**(요구사항정의서 6.4.4.3)라 5분 지연으로는 맞출 수 없다.
-10초는 다시보기 채팅·AI 집계 양쪽에 충분하다.
+live-service가 진행 중인 방송의 채팅방에 보기 전용 토큰으로 붙어 시청자와 똑같이 메시지를 받는다.
+방송 경로 밖이다 — 우리가 느려지거나 죽어도 시청자 채팅은 영향이 없고, 적재만 밀리거나 빠진다.
+처음엔 Chat Logging → Firehose(10초)였지만 Firehose를 쓰지 못할 수 있고, S3 로깅(5분)은 AI 대표질문 집계
+**3분 주기**(요구사항정의서 6.4.4.3)에 못 맞추며, 로그 레코드엔 채팅방 ARN도 없어 구독으로 바꿨다(아래 "채팅 적재는 … BE 구독으로 한다" 절).
 
 ### AI 연동 — live가 컨텍스트를 조립해 호출한다 (AI ↔ BE/FE 협의 확정)
 
@@ -226,16 +228,16 @@ AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 두지 �
 
 ---
 
-### ⚠️ 적재 엔드포인트는 기존 내부 인증 방식이 통하지 않는다
+### 채팅 적재는 IVS Chat 로깅이 아니라 BE 구독으로 한다 (#197)
 
-```
-POST /internal/v1/lives/chat/messages
-```
+초안은 IVS Chat 로깅 → Firehose → 내부 수신 API였다. 다음 이유로 바꿨다.
 
-`modules:common-webmvc`의 `InternalGatewaySecretFilter`는 **게이트웨이가 주입한`X-Internal-Api-Key`** 를 전제한다.
-Firehose는 게이트웨이를 거치지 않으므로 이 필터를 그대로 적용하면 **전량 401이 난다.**
+- Firehose를 쓰지 못할 수 있고, S3 로깅은 전달 지연이 약 5분이라 AI 3분 집계에 못 맞춘다.
+- 로그 레코드(`payload` = Message(Subscribe))에는 **채팅방 ARN이 없다** — 어느 방송의 채팅인지 알 수 없다.
+- Firehose는 게이트웨이를 거치지 않아 `InternalGatewaySecretFilter`로 막을 수 없고, 외부 수신 URL·별도 인증이 필요하다.
 
-→ Firehose HTTP 엔드포인트의 access key 헤더를 쓰는 별도 인증 경로를 두고, 이 경로는 게이트웨이 라우팅에서 제외한다(외부 노출 차단).
+→ BE가 진행 중인 방송의 채팅방에 **보기 전용 토큰으로 WebSocket 구독**해 받는 즉시 적재한다(아래 "채팅 메시지 적재" 절).
+인프라 구성이 필요 없고, 방별 연결이라 방송 매핑이 자명하며, 지연이 거의 없다.
 
 ---
 
@@ -509,7 +511,7 @@ Validation / Business Rules
 POST /api/v1/lives/{liveId}/chat/token
 ```
 
-Auth Required: **O** (로그인). 판매자·소비자 공통이다.
+Auth Required: **선택**. 판매자·소비자 공통이다. 비로그인은 보기 전용 토큰을 받는다(#197).
 
 Request Body: 없음
 
@@ -518,12 +520,12 @@ Response Body
 ```json
 {
   "token": "AQICAHj...",
-  "sessionExpirationTime": "2026-09-10T21:00:00+09:00",
-  "tokenExpirationTime": "2026-09-10T20:01:00+09:00",
   "roomArn": "arn:aws:ivschat:ap-northeast-2:123456789012:room/abc123",
   "capabilities": ["SEND_MESSAGE"]
 }
 ```
+
+만료 시각은 주지 않는다. 연결이 끊기면(세션 만료 포함) 이 API로 새 토큰을 받아 다시 연결한다.
 
 Validation / Business Rules
 
@@ -531,9 +533,13 @@ Validation / Business Rules
 - **capabilities는 호출자를 보고 서버가 정한다. 요청 본문으로 받지 않는다.**
     - 방송 소유자: `SEND_MESSAGE`, `DELETE_MESSAGE`, `DISCONNECT_USER`
     - 그 외 로그인 사용자: `SEND_MESSAGE`
+    - 비로그인: `[]`(보기 전용). IVS userId는 `guest-{랜덤 UUID}`
     - 보기 권한은 IVS가 암묵적으로 포함하므로 부여하지 않는다
-- 진행 중(`LIVE`)이 아닌 방송에는 발급하지 않는다 — `409`.
-- 표시명·프로필 등은 토큰 `attributes`에 실어 매 메시지에 함께 전달한다. **클라이언트가 보낸 표시명을 그대로 싣지 않는다** — 타인 사칭이 가능해진다.
+- 진행 중(`LIVE`)이 아닌 방송에는 발급하지 않는다 — `409`. 채팅방은 종료 후에도 남아 있어 상태로 판단한다.
+- 표시명은 토큰 `attributes`에 서버가 실어 매 메시지의 `Sender.Attributes`로 전달된다. **클라이언트가 보낸 표시명을 그대로 싣지 않는다** — 타인 사칭이 가능해진다.
+    - 로그인 사용자: `{ "nickname": "펀딧러" }`(member 조회). 조회 실패·탈퇴 회원이면 `nickname` 없이 발급한다 — 채팅 접속을 막지 않는다. FE는 속성이 없으면 기본 표시("시청자")를 쓴다
+    - 비로그인: 속성 없음
+    - `attributes`는 합계 1KB 제한(AWS `CreateChatToken`)
 - 세션 수명(`sessionDurationInMinutes`)은 방송 길이(10분 이내)를 고려해 짧게 잡고, 만료 시 재발급한다.
 - AI 추천답변 전송(요구사항정의서 6.4.4.6)도 서버가 이 경로로 얻은 토큰으로 보낸다 — 별도 전송 경로를 만들지 않는다.
 
@@ -542,31 +548,38 @@ Validation / Business Rules
 
 ---
 
-### 채팅 메시지 적재 (요구사항정의서 11.3.4, 내부 전용)
+### 채팅 메시지 적재 (요구사항정의서 11.3.4)
+
+**BE가 진행 중인 방송의 채팅방을 직접 구독해 적재한다**(#197, `ChatSubscriptionReconciler`). 외부에서 부르는 API가 아니다.
+
+- 3초마다 `LIVE` 세션과 구독 연결을 맞춘다 — 새 방송은 구독하고, 끊긴 연결은 다시 열고, 끝난 방송은 닫는다. 방송 시작·종료·서버 재기동이 같은 경로로 처리된다.
+- 구독 토큰은 보기 전용(`capabilities: []`, userId `live-service-ingest`). 세션 기본 수명 60분이라 50분이 지나면 새 연결을 먼저 열고 기존 연결을 닫는다.
+- 연결 주소: `wss://edge.ivschat.{live.ivs.region}.amazonaws.com`, 토큰은 핸드셰이크의 `Sec-WebSocket-Protocol`로 보낸다.
+- 받는 프레임 중 **참가자 메시지(`Type: MESSAGE`)만** 적재한다. 서버발 이벤트(`EVENT` — 우리가 보낸 `ai-answer`·`seller-answer` 등)와 `ERROR`는 적재하지 않는다.
+
+```json
+{ "Type": "MESSAGE", "Id": "AYk6xK...", "Content": "사이즈가 어떻게 되나요?", "SendTime": "2026-09-10T11:03:11.123Z",
+  "Attributes": {}, "Sender": { "UserId": "0199...", "Attributes": { "nickname": "펀딧러" } } }
+```
+
+- 방별 연결이라 `roomArn`을 알고 있다 → `live_sessions.ivs_chat_room_arn`으로 세션을 찾아 `Id`·`Sender.UserId`·`Content`·`SendTime`을 저장한다. `Sender.UserId`가 회원 UUID가 아니면 건너뛴다.
+- **`Id` 기준으로 멱등 처리한다** — `ON CONFLICT DO NOTHING`. 연결 교체 구간·배포 중 파드 2개가 같은 메시지를 받아도 한 번만 쌓인다.
+- 한계: 파드가 내려가 있는 사이의 메시지는 유실된다. 파드마다 구독하므로 replica를 늘리면 한 파드만 구독하도록 바꿔야 한다(현재 1개).
+
+#### 내부 단건 적재 — 로컬·AI팀 테스트용
 
 ```
 POST /internal/v1/lives/chat/messages
 ```
 
-Auth Required: **내부 전용** — Firehose access key 헤더. 게이트웨이를 경유하지 않는다.
-
-Request Body (Firehose 배치)
+Auth Required: **내부 전용** — `X-Internal-Api-Key`. 게이트웨이 라우팅에 없다. stub 모드엔 IVS 채팅이 없어 구독으로 들어올 메시지가 없으므로 테스트할 때 직접 넣는다.
 
 ```json
-{
-  "records": [
-    { "roomArn": "arn:aws:ivschat:...:room/abc123", "messageId": "AYk6xK...", "senderId": "0199...",
-      "content": "사이즈가 어떻게 되나요?", "sentAt": "2026-09-10T20:03:11Z" }
-  ]
-}
+{ "roomArn": "arn:aws:ivschat:...:room/abc123", "ivsMessageId": "AYk6xK...", "senderId": "0199...",
+  "content": "사이즈가 어떻게 되나요?", "sentAt": "2026-09-10T20:03:11Z" }
 ```
 
-Validation / Business Rules
-
-- **Chat Logging → Firehose 경로로 들어온다.** 전파 지연 약 10초.
-- `roomArn`으로 `live_sessions.ivs_chat_room_arn`을 찾아 적재한다(조인 없는 단일 조회). 모르는 룸이면 그 레코드만 건너뛴다.
-- **`messageId` 기준으로 멱등 처리한다** — `ON CONFLICT DO NOTHING`. Firehose는 재전송이 가능해서 이 제약이 없으면 같은 메시지가 여러 번 쌓인다.
-- 한 레코드가 실패해도 배치 전체를 실패시키지 않는다.
+- 성공·중복 모두 `204`. 모르는 채팅방이면 `404`.
 - **이 엔드포인트를 게이트웨이 라우팅에 노출하지 말 것** — 노출되면 외부에서 임의 채팅을 주입할 수 있다.
 
 ---
@@ -1072,19 +1085,21 @@ Validation / Business Rules
 **이 서비스에 채팅 송수신 엔드포인트는 없다.** 클라이언트는 위 `POST /chat/token`으로 받은 토큰으로
 IVS Chat에 직접 연결해 주고받는다.
 
-부적절 메시지(욕설·XSS 등) 필터링은 **IVS Chat 리뷰 핸들러(Lambda)** 가 담당한다.
+부적절 메시지(욕설·XSS 등) 필터링은 **IVS Chat 리뷰 핸들러(Lambda)** 가 담당한다. Lambda는 인프라가 만들고,
+BE는 채팅방 생성 시 `live.ivs.chat-review-handler-arn`(`LIVE_IVS_CHAT_REVIEW_HANDLER_ARN`) 값이 있으면 연결한다(#197).
+비어 있으면 필터 없이 동작한다. 채팅방 생성 시점에 붙으므로 값을 넣은 뒤 시작한 방송부터 적용된다.
 
 | 항목 | 내용 |
 | --- | --- |
 | 호출 시점 | 룸으로 오는 모든 `SendMessage` |
-| 반환 | `ALLOW` / `DENY` / 내용 수정 |
-| 차단 시 | 발신자에게 WebSocket `406`, `Attributes.Reason`에 사유 |
+| 반환 | `{ "ReviewResult": "ALLOW"\|"DENY", "Content": ..., "Attributes": {...} }` — 내용 수정 가능 |
+| 차단 시 | 발신자에게만 WebSocket 오류 `{ "Type": "ERROR", "ErrorCode": 406, "ErrorMessage": ... }`. Lambda가 `Attributes.Reason`을 주면 그 사유가 `ErrorMessage`에 담긴다. 별도 사유 필드는 없다 — FE는 `406`이면 토스트 |
 | 핸들러 장애 | 룸에 설정한 `FallbackResult`에 따라 통과/차단 |
 
 Validation / Business Rules
 
 - **`FallbackResult`는 `DENY`로 설정한다.** 필터가 죽었을 때 걸러지지 않은 메시지가 전 시청자에게 퍼지는 것보다, 그동안 채팅이 막히는 편이 낫다(`security.md` S2).
-- **리뷰 핸들러에서 live-service DB를 호출하지 않는다.** 동기 경로라 우리가 느려지면 채팅이 느려지고, 우리가 죽으면 채팅이 막힌다. 적재는 Chat Logging으로 분리돼 있다.
+- **리뷰 핸들러에서 live-service DB를 호출하지 않는다.** 동기 경로라 우리가 느려지면 채팅이 느려지고, 우리가 죽으면 채팅이 막힌다. 적재는 BE 채팅방 구독으로 분리돼 있다.
 - 진행 중이 아닌 방송에는 토큰이 발급되지 않으므로 전송 자체가 불가능하다.
 
 ---
@@ -1177,8 +1192,22 @@ GET /api/v1/lives/{liveId}/vod/chat?fromSec=180&toSec=210
 Response Body
 
 ```json
-{ "fromSec": 180, "toSec": 210, "messages": [ { "content": "...", "offsetSec": 185, "sentAt": "..." } ] }
+[
+  { "messageId": "AYk6xK...", "senderId": "0199...", "nickname": "펀딧러", "content": "사이즈가 어떻게 되나요?", "offsetSec": 185 }
+]
 ```
+
+- `messageId`: IVS 메시지 `Id`와 같은 값(`chat_messages.ivs_message_id`).
+- `nickname`: 조회 시점의 member 닉네임. 조회 실패·탈퇴 회원이면 `null` — 채팅 조회 자체는 막지 않는다.
+
+**LIVE 중간 입장 시 이전 채팅 채우기** (#197)
+
+IVS Chat은 새로 연결한 클라이언트에 지난 메시지를 보내 주지 않는다. 방송 중에도 이 API가 동작하므로(상태 제한 없음)
+입장 시 `fromSec=0&toSec={경과초}`로 한 번 조회해 채팅창을 채운다. 방송 최대 길이(10분)가 구간 상한(600초)과 같아 한 번이면 된다.
+
+- 입장 직전 메시지는 이 조회와 실시간 수신 양쪽에 올 수 있다 → 실시간 메시지의 `Id`와 `messageId`로 중복을 거른다.
+- 적재는 BE 구독이 받는 즉시 하지만, 조회와 연결 사이의 짧은 틈에 온 메시지는 실시간 쪽으로 받는다(먼저 IVS에 연결한 뒤 조회하면 틈이 없다).
+- AI 답변·판매자 답변(`ai-answer`·`seller-answer` EVENT)은 채팅 저장 대상이 아니라 여기 없다 — "답변된 질문 모아보기"(채팅창 Q&A 버튼)로 본다.
 
 Validation / Business Rules
 

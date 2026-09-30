@@ -60,7 +60,7 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 - **`liveId`는 `public_id`(UUID)다**: API 경로·공유 링크가 전부 이 값이다. 내부 PK(BIGINT)를 URL에 노출하면 전체 방송 수가 추측된다. 서비스 간 통신에서만 BIGINT를 쓴다.
 - **`projectId`는 바깥에서 UUID, 안에서 BIGINT**: 외부 API는 project-service의 `public_id`를 받고, 저장은 내부 `id`로 변환한다. 초안이 이 둘을 섞어 써서 타입이 어긋나 있었다.
 - **자체 WebSocket 서버를 만들지 않는다**: 채팅 전송 계층은 IVS Chat이고, 클라이언트는 `POST /api/v1/lives/{liveId}/chat/token`으로 받은 토큰으로 IVS에 직접 붙는다. 우리가 중계하면 동시 접속만큼의 커넥션을 떠안으면서 얻는 게 없다. `CreateChatToken`은 백엔드만 호출할 수 있어 **발급 지점이 곧 인가 지점**이다.
-- **리뷰 핸들러(필터링)와 적재를 분리한다**: 리뷰 핸들러는 `SendMessage`마다 호출되는 동기 경로다. 거기서 live-service DB를 호출하면 우리가 느려질 때 시청자 채팅이 느려지고, 우리가 죽으면 `FallbackResult`에 따라 채팅이 막히거나 필터링 없이 통과한다. 적재는 Chat Logging(Firehose, 지연 10초) → 내부 수집 엔드포인트로 뺀다. S3(5분)는 AI 3분 주기 집계에 못 맞춘다.
+- **리뷰 핸들러(필터링)와 적재를 분리한다**: 리뷰 핸들러는 `SendMessage`마다 호출되는 동기 경로다. 거기서 live-service DB를 호출하면 우리가 느려질 때 시청자 채팅이 느려지고, 우리가 죽으면 `FallbackResult`에 따라 채팅이 막히거나 필터링 없이 통과한다. 적재는 BE가 진행 중인 방송의 채팅방을 보기 전용 토큰으로 구독해 받는다(`ChatSubscriptionReconciler`, #197). Chat Logging은 쓰지 않는다 — Firehose는 쓰지 못할 수 있고 S3(5분)는 AI 3분 주기 집계에 못 맞추며, 로그 레코드엔 채팅방 ARN이 없다.
 - **AI 실패가 방송을 막지 않는다**: 큐시트·대표질문·하이라이트 API가 실패해도 송출과 채팅은 정상이어야 한다(`PRD` 6.4.4.2). AI 호출을 방송 시작·채팅 전송 경로의 동기 의존으로 만들지 말 것.
 - **AI는 우리가 조립한 컨텍스트만 받는다**: 흐름은 `FE → BE → AI → BE → FE`이고 FE는 AI 서버를 직접 부르지 않는다(협의 확정). 호출 구현은 `auth-service`의 `PortOneRestClient` 패턴을 그대로 쓴다 — `RestClient` + connect/read 타임아웃 명시, 실패는 `DependencyFailureException`, 응답은 구조 검증 후 사용(S7). 기본 타임아웃을 그대로 두면 AI가 느려질 때 방송 화면이 같이 멈춘다.
 - **자동 생성 클립은 비공개로 시작한다**: 클립은 `is_public=false`가 기본이고 판매자가 확정해야 소비자에게 보인다(`PRD` 6.6.3). 기본값을 TRUE로 바꾸면 검수 전 내용이 그대로 새어나간다. 예외는 **완료된 마커(다시보기 챕터)** 하나다 — PM 결정(PM-1 "생성되면 자동 공개")으로 바로 공개한다(`LiveHighlight.generated`).
@@ -113,5 +113,6 @@ IVS·AI 연동 실패는 `DependencyFailureException`으로 감싼다(infrastruc
 - **다른 서비스 테이블에 직접 접근하지 말 것** — 프로젝트·리워드 정보는 API 또는 이벤트로만 가져온다(루트 `CLAUDE.md`)
 - **채팅 토큰을 클라이언트가 만들게 하지 말 것** — `CreateChatToken`은 서버만 호출한다. 클라이언트에 AWS 자격증명이 나가면 임의 권한 토큰을 스스로 발급한다
 - **capabilities·표시명을 요청 본문으로 받지 말 것** — 호출자를 보고 서버가 정한다. 클라이언트가 보낸 표시명을 토큰 `attributes`에 그대로 실으면 타인 사칭이 된다
-- **채팅 적재 엔드포인트(`/internal/v1/lives/chat/messages`)를 게이트웨이 라우팅에 노출하지 말 것** — 노출되면 외부에서 임의 채팅을 주입할 수 있다. Firehose는 게이트웨이를 경유하지 않으므로 `InternalGatewaySecretFilter`를 그대로 적용하면 전량 401이 난다 — 별도 인증 경로가 필요하다
+- **채팅 단건 적재 엔드포인트(`/internal/v1/lives/chat/messages`)를 게이트웨이 라우팅에 노출하지 말 것** — 노출되면 외부에서 임의 채팅을 주입할 수 있다. 실서버 적재는 채팅방 구독이 하고, 이 경로는 로컬·AI팀 테스트용이다
+- **채팅방 구독을 여러 파드에서 늘리기 전에 한 파드만 구독하게 바꿀 것** — 지금은 파드마다 구독한다(현재 1개). 중복은 메시지 id로 걸러지지만 연결이 파드 수만큼 늘어난다
 - **`X-User-Id` 헤더를 직접 파싱하지 말 것** — `@LoginUser CurrentUser`로 주입받는다(루트 `CLAUDE.md` 공통 규칙)

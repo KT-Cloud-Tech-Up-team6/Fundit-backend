@@ -1,6 +1,7 @@
 package com.fundit.live.infrastructure.ivs;
 
 import com.fundit.live.application.ivs.IvsClient;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
@@ -18,10 +19,13 @@ import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenResponse;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomRequest;
 import software.amazon.awssdk.services.ivschat.model.CreateRoomResponse;
+import software.amazon.awssdk.services.ivschat.model.FallbackResult;
 import software.amazon.awssdk.services.ivschat.model.SendEventRequest;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,7 +51,7 @@ class AwsIvsClientUnitTest {
     void 채널을_만들면_스트림_키는_값이_아니라_ARN만_담는다() {
         // given
         givenChannelCreated();
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         IvsClient.Channel channel = client.createChannel("seller-1");
@@ -66,8 +70,8 @@ class AwsIvsClientUnitTest {
         ArgumentCaptor<CreateChannelRequest> captor = ArgumentCaptor.forClass(CreateChannelRequest.class);
 
         // when
-        new AwsIvsClient(ivs, ivschat, "arn:recording", "", "dev").createChannel("s1");
-        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChannel("s2");
+        new AwsIvsClient(ivs, ivschat, "arn:recording", "", "dev", "ap-northeast-2", 3000).createChannel("s1");
+        new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000).createChannel("s2");
 
         // then
         verify(ivs, org.mockito.Mockito.times(2)).createChannel(captor.capture());
@@ -82,18 +86,81 @@ class AwsIvsClientUnitTest {
                 .willReturn(CreateRoomResponse.builder().arn("arn:room").build());
         given(ivschat.createChatToken(any(CreateChatTokenRequest.class)))
                 .willReturn(CreateChatTokenResponse.builder().token("chat-token").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "arn:logging", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         String roomArn = client.createChatRoom("live-1");
-        String token = client.createChatToken(roomArn, "user-1", List.of("SEND_MESSAGE"));
+        String token = client.createChatToken(roomArn, "user-1", List.of("SEND_MESSAGE"), Map.of("nickname", "펀딧러"));
 
-        // then
-        ArgumentCaptor<CreateRoomRequest> room = ArgumentCaptor.forClass(CreateRoomRequest.class);
-        verify(ivschat).createRoom(room.capture());
-        assertThat(room.getValue().loggingConfigurationIdentifiers()).containsExactly("arn:logging");
+        // then — 닉네임은 서버가 정해 토큰에 싣는다(클라이언트 입력이면 사칭 가능)
+        ArgumentCaptor<CreateChatTokenRequest> request = ArgumentCaptor.forClass(CreateChatTokenRequest.class);
+        verify(ivschat).createChatToken(request.capture());
+        assertThat(request.getValue().attributes()).containsEntry("nickname", "펀딧러");
         assertThat(roomArn).isEqualTo("arn:room");
         assertThat(token).isEqualTo("chat-token");
+    }
+
+    @Test
+    void 리뷰_핸들러가_있으면_장애_시_차단으로_채팅방에_연결하고_없으면_뺀다() {
+        // given
+        given(ivschat.createRoom(any(CreateRoomRequest.class)))
+                .willReturn(CreateRoomResponse.builder().arn("arn:room").build());
+        ArgumentCaptor<CreateRoomRequest> captor = ArgumentCaptor.forClass(CreateRoomRequest.class);
+
+        // when
+        new AwsIvsClient(ivs, ivschat, "", "arn:lambda", "dev", "ap-northeast-2", 3000).createChatRoom("live-1");
+        new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000).createChatRoom("live-2");
+
+        // then — 필터가 죽었을 때 걸러지지 않은 메시지가 퍼지는 것보다 채팅이 막히는 편이 낫다
+        verify(ivschat, org.mockito.Mockito.times(2)).createRoom(captor.capture());
+        assertThat(captor.getAllValues().get(0).messageReviewHandler().uri()).isEqualTo("arn:lambda");
+        assertThat(captor.getAllValues().get(0).messageReviewHandler().fallbackResult()).isEqualTo(FallbackResult.DENY);
+        assertThat(captor.getAllValues().get(1).messageReviewHandler()).isNull();
+    }
+
+    @Nested
+    class 채팅_프레임_해석 {
+
+        @Test
+        void 참가자_메시지는_적재할_값으로_바꾼다() {
+            // given — AWS Chat Messaging API "Message (Subscribe)" 형식
+            String frame = """
+                    {"Type":"MESSAGE","Id":"msg-1","RequestId":"r-1","Content":"사이즈가 어떻게 되나요?",
+                     "SendTime":"2026-09-30T11:03:11.123Z","Attributes":{},
+                     "Sender":{"UserId":"0199aaaa-0000-7000-8000-000000000001","Attributes":{"nickname":"펀딧러"}}}
+                    """;
+
+            // when
+            Optional<IvsClient.ChatMessage> message = AwsIvsClient.parseChatFrame(frame);
+
+            // then
+            assertThat(message).contains(new IvsClient.ChatMessage("msg-1",
+                    "0199aaaa-0000-7000-8000-000000000001", "사이즈가 어떻게 되나요?",
+                    Instant.parse("2026-09-30T11:03:11.123Z")));
+        }
+
+        @Test
+        void 서버발_이벤트는_적재하지_않는다() {
+            // given — 우리가 SendEvent로 보낸 ai-answer 등이 되돌아온 것
+            String frame = """
+                    {"Type":"EVENT","Id":"evt-1","EventName":"ai-answer","SendTime":"2026-09-30T11:03:11Z",
+                     "Attributes":{"answer":"500ml입니다"}}
+                    """;
+
+            // when & then
+            assertThat(AwsIvsClient.parseChatFrame(frame)).isEmpty();
+        }
+
+        @Test
+        void 오류_프레임은_적재하지_않는다() {
+            // given
+            String frame = """
+                    {"Type":"ERROR","Id":"e-1","ErrorCode":401,"ErrorMessage":"token expired"}
+                    """;
+
+            // when & then
+            assertThat(AwsIvsClient.parseChatFrame(frame)).isEmpty();
+        }
     }
 
     @Test
@@ -102,7 +169,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
                 .stream(Stream.builder().viewerCount(42L).build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
@@ -117,7 +184,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStreamKey(any(GetStreamKeyRequest.class))).willReturn(GetStreamKeyResponse.builder()
                 .streamKey(StreamKey.builder().arn("arn:stream-key").value("sk_secret").build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         String value = client.getStreamKeyValue("arn:stream-key");
@@ -132,7 +199,7 @@ class AwsIvsClientUnitTest {
     @Test
     void 채팅_이벤트는_방_이름_속성을_그대로_보낸다() {
         // given
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         client.sendChatEvent("arn:room", "seller-answer", Map.of("answer", "500ml입니다"));
@@ -152,7 +219,7 @@ class AwsIvsClientUnitTest {
         given(ivs.getStream(any(GetStreamRequest.class))).willReturn(GetStreamResponse.builder()
                 .stream(Stream.builder().state("LIVE").health("STARVING").viewerCount(42L).startTime(startedAt).build())
                 .build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         IvsClient.StreamStatus status = client.getStreamStatus("arn:channel");
@@ -166,7 +233,7 @@ class AwsIvsClientUnitTest {
         // given — IVS는 송출이 없으면 예외로 알려준다
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
 
         // when & then
         assertThat(client.getStreamStatus("arn:channel")).isEqualTo(IvsClient.StreamStatus.OFFLINE);
@@ -179,7 +246,7 @@ class AwsIvsClientUnitTest {
         ArgumentCaptor<CreateChannelRequest> captor = ArgumentCaptor.forClass(CreateChannelRequest.class);
 
         // when
-        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChannel("seller-1");
+        new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000).createChannel("seller-1");
 
         // then
         verify(ivs).createChannel(captor.capture());
@@ -194,7 +261,7 @@ class AwsIvsClientUnitTest {
         ArgumentCaptor<CreateRoomRequest> captor = ArgumentCaptor.forClass(CreateRoomRequest.class);
 
         // when
-        new AwsIvsClient(ivs, ivschat, "", "", "dev").createChatRoom("live-1");
+        new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000).createChatRoom("live-1");
 
         // then
         verify(ivschat).createRoom(captor.capture());
