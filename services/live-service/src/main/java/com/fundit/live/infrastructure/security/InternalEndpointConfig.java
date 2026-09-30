@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class InternalEndpointConfig {
 
-    /** IVS Chat Logging(Firehose)이 채팅을 적재하는 경로. 열려 있으면 임의 채팅 주입이 가능하다. */
+    /** 채팅 단건 적재 경로(로컬·AI팀 테스트용). 열려 있으면 임의 채팅 주입이 가능하다. */
     @Bean
     public InternalEndpoint chatIngestEndpoint() {
         return new InternalEndpoint("POST", "/internal/v1/lives/chat/messages");

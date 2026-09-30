@@ -12,7 +12,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 채팅 적재(요구사항정의서 11.3.4). IVS Chat Logging → Firehose가 호출하는 내부 경로다.
+ * 채팅 적재(요구사항정의서 11.3.4). 채팅방 구독({@code ChatSubscriptionReconciler})이 메시지마다 부른다.
+ * 내부 단건 경로({@code POST /internal/v1/lives/chat/messages})도 같은 메서드를 쓴다 — 로컬·AI팀 테스트용.
  *
  * <p>리뷰 핸들러(부적절 메시지 필터링)와 분리한 이유: 리뷰 핸들러는 {@code SendMessage}마다
  * 호출되는 <b>동기 경로</b>라 거기에 DB를 끼우면 우리가 느려질 때 시청자 채팅이 같이 느려지고,

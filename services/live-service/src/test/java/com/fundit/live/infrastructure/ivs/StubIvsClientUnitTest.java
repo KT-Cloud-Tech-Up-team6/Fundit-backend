@@ -34,10 +34,23 @@ class StubIvsClientUnitTest {
     @Test
     void 채팅_토큰은_실제_형식을_흉내_내지_않는다() {
         // given & when
-        String token = client.createChatToken("room-arn", "user-1", List.of("SEND_MESSAGE"));
+        String token = client.createChatToken("room-arn", "user-1", List.of("SEND_MESSAGE"), java.util.Map.of());
 
         // then — 진짜처럼 보이면 프론트가 IVS에 못 붙는 걸 늦게 발견한다
         assertThat(token).startsWith("stub-chat-token:").contains("user-1").contains("SEND_MESSAGE");
+    }
+
+    @Test
+    void 채팅_구독은_받을_메시지가_없고_닫기_전까지_열려_있다() {
+        // given & when
+        IvsClient.ChatConnection connection = client.openChatConnection("token", message -> {
+            throw new AssertionError("스텁엔 채팅이 없다");
+        });
+
+        // then — 열린 채로 있어야 구독 루프가 매 주기 토큰을 새로 받지 않는다
+        assertThat(connection.isOpen()).isTrue();
+        connection.close();
+        assertThat(connection.isOpen()).isFalse();
     }
 
     @Test

@@ -22,7 +22,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.createChannel(any(CreateChannelRequest.class)))
                 .willThrow(SdkClientException.create("timeout"));
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev", "ap-northeast-2", 3000);
 
         // when & then
         assertThatThrownBy(() -> client.createChannel("seller-1"))
@@ -35,7 +35,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
@@ -51,7 +51,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(SdkClientException.create("throttled"));
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev", "ap-northeast-2", 3000);
 
         // when
         int viewerCount = client.getViewerCount("arn:channel");
@@ -66,11 +66,21 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
         given(ivs.getStream(any(GetStreamRequest.class)))
                 .willThrow(SdkClientException.create("throttled"));
-        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev");
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev", "ap-northeast-2", 3000);
 
         // when & then
         assertThatThrownBy(() -> client.getStreamStatus("arn:channel"))
                 .isInstanceOf(DependencyFailureException.class);
+    }
+
+    @Test
+    void 깨진_채팅_프레임은_예외로_알린다() {
+        // given — 구독 리스너가 잡아 로그만 남기고 연결은 유지한다
+        String frame = "{not-json";
+
+        // when & then
+        assertThatThrownBy(() -> AwsIvsClient.parseChatFrame(frame))
+                .isInstanceOf(RuntimeException.class);
     }
 
     @Test
@@ -79,7 +89,7 @@ class AwsIvsClientUnitExceptionTest {
         software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
 
         // when & then
-        assertThatThrownBy(() -> new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", " "))
+        assertThatThrownBy(() -> new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", " ", "ap-northeast-2", 3000))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("LIVE_IVS_ENVIRONMENT");
     }
