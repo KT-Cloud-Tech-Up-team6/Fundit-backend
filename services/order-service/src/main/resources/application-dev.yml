@@ -22,3 +22,9 @@ order:
       base-url: ${PAYMENT_SERVICE_BASE_URL:http://payment-service:8080}
     live-service:
       base-url: ${LIVE_SERVICE_BASE_URL:http://live-service:8080}
+
+# 시연 데이터(#202) — 시연 펀딩의 구매자. dev에 이미 있는 QA 구매자 계정(qa-supporter)의 회원 ID다.
+# 식별자라 비밀이 아니다. dev DB를 초기화하면 계정이 새 UUID로 다시 만들어지므로 로그인 후
+# GET /api/v1/members/me로 다시 확인해 바꾼다(비면 시연 펀딩 시드만 건너뛴다).
+demo:
+  buyer-member-id: 01a0ec1e-e96e-7740-b178-e1e530d21aa6
