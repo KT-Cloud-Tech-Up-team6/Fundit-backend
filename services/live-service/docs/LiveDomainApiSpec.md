@@ -48,7 +48,7 @@
 | GET | `/api/v1/lives/{liveId}/share-link` | X | LIVE 공유 링크 생성 — **미구현**(아래 참고) |
 | GET | `/api/v1/lives/{liveId}/chat/answered-questions` | X | 답변된 질문 모아보기 (채팅창 Q&A 버튼) |
 | GET | `/api/v1/lives/{liveId}/vod` | X | 다시보기(VOD) 재생 정보 조회 |
-| GET | `/api/v1/lives/{liveId}/vod/chat` | X | 다시보기 시간대별 채팅 조회 |
+| GET | `/api/v1/lives/{liveId}/vod/chat` | X | 시간대별 채팅 조회 — 다시보기, LIVE 중간 입장 시 이전 채팅 |
 | GET | `/api/v1/lives/{liveId}/highlights/public` | X | 방송의 공개 하이라이트(마커·클립) — 호출마다 노출 수 +1 |
 | POST | `/api/v1/lives/{liveId}/highlights/{highlightId}/click` | X | 하이라이트 클릭 수 +1 |
 | GET | `/api/v1/lives/highlights?projectId=` | X | 프로젝트의 공개 숏 클립 목록(LIVE 체크 탭) — 노출 수 불변 |
@@ -1192,8 +1192,22 @@ GET /api/v1/lives/{liveId}/vod/chat?fromSec=180&toSec=210
 Response Body
 
 ```json
-{ "fromSec": 180, "toSec": 210, "messages": [ { "content": "...", "offsetSec": 185, "sentAt": "..." } ] }
+[
+  { "messageId": "AYk6xK...", "senderId": "0199...", "nickname": "펀딧러", "content": "사이즈가 어떻게 되나요?", "offsetSec": 185 }
+]
 ```
+
+- `messageId`: IVS 메시지 `Id`와 같은 값(`chat_messages.ivs_message_id`).
+- `nickname`: 조회 시점의 member 닉네임. 조회 실패·탈퇴 회원이면 `null` — 채팅 조회 자체는 막지 않는다.
+
+**LIVE 중간 입장 시 이전 채팅 채우기** (#197)
+
+IVS Chat은 새로 연결한 클라이언트에 지난 메시지를 보내 주지 않는다. 방송 중에도 이 API가 동작하므로(상태 제한 없음)
+입장 시 `fromSec=0&toSec={경과초}`로 한 번 조회해 채팅창을 채운다. 방송 최대 길이(10분)가 구간 상한(600초)과 같아 한 번이면 된다.
+
+- 입장 직전 메시지는 이 조회와 실시간 수신 양쪽에 올 수 있다 → 실시간 메시지의 `Id`와 `messageId`로 중복을 거른다.
+- 적재는 BE 구독이 받는 즉시 하지만, 조회와 연결 사이의 짧은 틈에 온 메시지는 실시간 쪽으로 받는다(먼저 IVS에 연결한 뒤 조회하면 틈이 없다).
+- AI 답변·판매자 답변(`ai-answer`·`seller-answer` EVENT)은 채팅 저장 대상이 아니라 여기 없다 — "답변된 질문 모아보기"(채팅창 Q&A 버튼)로 본다.
 
 Validation / Business Rules
 
