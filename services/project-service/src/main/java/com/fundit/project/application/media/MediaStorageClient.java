@@ -9,6 +9,16 @@ import java.util.Optional;
  */
 public interface MediaStorageClient {
 
+    /**
+     * 모든 미디어 S3 object key의 접두사. CloudFront가 {@code /media/*} 요청을 S3의
+     * {@code media/*} key로 그대로 넘기면서 {@code /media}를 떼지 않으므로, 키 자체가 이 값으로
+     * 시작해야 공개 URL로 원본을 찾을 수 있다(#205).
+     *
+     * <p>키를 만드는 곳이 여럿이라(업로드 주소 발급·AI 이미지 발급·저장 시 경로 검증) 리터럴을
+     * 각자 들고 있으면 한 곳만 빠뜨렸을 때 그 경로만 조용히 404가 된다 — 반드시 이 상수를 쓴다.
+     */
+    String KEY_PREFIX = "media/";
+
     /** 업로드 주소 발급. presigned PUT URL과 업로드 완료 후 접근할 fileUrl을 함께 반환한다. */
     PresignedUpload presignPut(String key, String contentType, Duration ttl);
 

@@ -61,6 +61,6 @@ class MediaUploadServiceUnitTest {
         assertThat(result.fileUrl()).isEqualTo("https://file");
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(storageClient).presignPut(keyCaptor.capture(), eq("image/png"), any());
-        assertThat(keyCaptor.getValue()).startsWith("projects/" + projectId + "/").endsWith(".png");
+        assertThat(keyCaptor.getValue()).startsWith("media/projects/" + projectId + "/").endsWith(".png");
     }
 }

@@ -23,8 +23,9 @@ public class MediaUrlValidator {
         String key = storageClient.extractKey(fileUrl)
                 .orElseThrow(() -> new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL));
 
-        String expectedPrefix = "projects/" + projectPublicId + "/";
-        if (!key.startsWith(expectedPrefix)) {
+        // 기존 S3 형식 URL은 접두사 없는 키로 추출된다(그 객체는 실제로 media/ 밖에 있다) — 둘 다 받는다.
+        String projectPrefix = "projects/" + projectPublicId + "/";
+        if (!key.startsWith(MediaStorageClient.KEY_PREFIX + projectPrefix) && !key.startsWith(projectPrefix)) {
             throw new BusinessException(ProjectErrorCode.INVALID_MEDIA_URL);
         }
 

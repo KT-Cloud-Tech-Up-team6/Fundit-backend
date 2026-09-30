@@ -901,7 +901,7 @@ POST /api/v1/community/posts/{postId}/answer
 | 정보 수집 | sessions · messages · SSE · confirm | 같은 경로로 AI에 전달, Core DTO는 BE가 구성 |
 | 전체 생성 | `POST /api/v1/ai/runs` | 확인 시점과 최신 Core fingerprint가 다르면 `409`, `detail.action=reconfirm_summary` |
 | 결과 조회 | `GET /api/v1/ai/runs/{runId}` | AI로 전달하지 않고 BE 저장 결과 반환 |
-| 이미지 전달 | AI → `/internal/ai/media/upload-targets` | S3 key `media/projects/{projectId}/ai/` 아래 presigned PUT 발급(공개 URL은 `https://{cdn-domain}/media/projects/{projectId}/ai/{fileId}.png`) |
+| 이미지 전달 | AI → `/internal/ai/media/upload-targets` | S3 key `media/projects/{projectId}/ai/` 아래 presigned PUT 발급 — `/media`는 CDN 전용 접두사가 아니라 키의 일부다(공개 URL `https://{cdn-domain}/media/projects/{projectId}/ai/{fileId}.png`) |
 | 완료 통지 | AI → `/internal/ai/runs/{runId}/completion` | 경로·존재·크기·MIME 검증 후 결과 확정 |
 
 **공통 헤더**
