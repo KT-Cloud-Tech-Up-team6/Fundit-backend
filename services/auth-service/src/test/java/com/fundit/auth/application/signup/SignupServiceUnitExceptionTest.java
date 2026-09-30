@@ -76,6 +76,23 @@ class SignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 가입_배송지_연락처_형식이_틀리면_400이고_본인인증_토큰을_소비하지_않는다() {
+        // given (#209) — member에서 거절되면 503이 되고 토큰도 이미 소비된 뒤다
+        Map<String, Object> address = Map.of("recipientName", "홍길동", "phoneNumber", "abc",
+                "zipcode", "12345", "addressLine1", "테헤란로 1");
+
+        // when & then
+        assertThatThrownBy(() -> signupService.signup(new SignupService.SignupCommand(
+                "test@fundit.com", "pw", "verify-token", "홍길동", "응원왕", "01012345678", List.of("TOS"), address)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+        verify(identityVerificationStore, never()).consume(any());
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
     void 본인인증한_이름과_전화번호로_이미_계정이_있으면_409이고_계정을_만들지_않는다() {
         // given — 이메일만 바꿔 재가입하는 경우(#150)
         when(identityVerificationStore.consume("verify-token")).thenReturn(Optional.of(

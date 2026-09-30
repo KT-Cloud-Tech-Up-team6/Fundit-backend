@@ -1,10 +1,13 @@
 package com.fundit.member.presentation.dto;
 
+import com.fundit.member.application.member.MemberSignupService.AddressPayload;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 public record AddressRegisterRequest(
         @NotBlank String recipientName,
-        @NotBlank String phoneNumber,
+        @NotBlank @Pattern(regexp = AddressPayload.PHONE_PATTERN, message = AddressPayload.PHONE_MESSAGE)
+        String phoneNumber,
         @NotBlank String zipcode,
         @NotBlank String addressLine1,
         String addressLine2,

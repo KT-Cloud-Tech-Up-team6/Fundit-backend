@@ -67,10 +67,28 @@ class OrderControllerExceptionTest {
                         .contentType("application/json")
                         .content("""
                                 {"projectId": "%s", "lineItems": [{"rewardId":1,"quantity":100}],
-                                 "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010","zipcode":"12345","addressLine1":"주소"}}
+                                 "shippingAddress": {"recipientName":"홍길동","phoneNumber":"010-1234-5678","zipcode":"12345","addressLine1":"주소"}}
                                 """.formatted(UUID.randomUUID())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+    }
+
+    @Test
+    void 배송지_연락처가_휴대폰_번호_형식이_아니면_400이다() throws Exception {
+        // given (QA-061·062·063, #209)
+        UUID memberId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content("""
+                                {"projectId": "%s", "lineItems": [{"rewardId":1,"quantity":1}],
+                                 "shippingAddress": {"recipientName":"홍길동","phoneNumber":"abc","zipcode":"12345","addressLine1":"주소"}}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
     @Test

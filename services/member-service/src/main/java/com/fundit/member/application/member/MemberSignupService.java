@@ -11,6 +11,7 @@ import com.fundit.member.infrastructure.persistence.member.MemberJpaRepository;
 import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreementJpaEntity;
 import com.fundit.member.infrastructure.persistence.termsagreement.TermsAgreementJpaRepository;
 import com.fundit.member.infrastructure.terms.TermsCatalog;
+import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -141,11 +142,14 @@ public class MemberSignupService {
     @CompleteAddress
     public record AddressPayload(
             String recipientName,
-            String phoneNumber,
+            @Pattern(regexp = PHONE_PATTERN, message = PHONE_MESSAGE) String phoneNumber,
             String zipcode,
             String addressLine1,
             String addressLine2,
             Boolean isDefault
     ) {
+        /** 휴대폰 번호, 하이픈 선택. 배송지 등록·수정({@code AddressRegisterRequest})도 같이 쓴다. */
+        public static final String PHONE_PATTERN = "^01[016789]-?\\d{3,4}-?\\d{4}$";
+        public static final String PHONE_MESSAGE = "연락처는 휴대폰 번호 형식이어야 합니다.";
     }
 }
