@@ -35,7 +35,8 @@ import static org.assertj.core.api.Assertions.tuple;
         "internal-api.key=test-only-internal-api-key",
         "payment.encryption.key=Oz9qy5geAzhDXyHfZdFB3WPwVH8/sx/uD2j5rX5DGkY=",
         "toss.payments.secret-key=test_sk_dummy",
-        "media.s3.bucket=unused", "media.s3.region=ap-northeast-2"
+        "media.s3.bucket=unused", "media.s3.region=ap-northeast-2",
+        "media.public-base-url=https://cdn.test/media/"
 })
 @Transactional
 class RefundRequestJpaRepositoryIntegrationTest {
