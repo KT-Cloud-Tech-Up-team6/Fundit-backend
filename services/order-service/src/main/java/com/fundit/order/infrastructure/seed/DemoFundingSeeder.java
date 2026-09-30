@@ -9,6 +9,7 @@ import com.fundit.order.infrastructure.persistence.funding.FundingLineItemJpaEnt
 import com.fundit.order.infrastructure.persistence.funding.FundingLineItemJpaRepository;
 import com.fundit.order.infrastructure.persistence.funding.ShippingAddressJson;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -54,6 +55,8 @@ public class DemoFundingSeeder {
     private final Clock clock;
     private volatile boolean done;
 
+    /** 생성자가 둘이라(테스트용 {@link Clock} 주입) Spring이 쓸 쪽을 지정한다 — 없으면 빈 생성이 실패한다. */
+    @Autowired
     public DemoFundingSeeder(FundingJpaRepository fundingRepository,
                              FundingLineItemJpaRepository lineItemRepository,
                              RewardCatalogClient rewardCatalogClient,
