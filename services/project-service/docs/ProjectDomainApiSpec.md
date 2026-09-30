@@ -269,7 +269,7 @@ POST /api/v1/projects/{projectId}/submit
 
 **Validation / Business Rules**
 
-- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
+- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(**보이는 내용이 있는** 소개 콘텐츠 1블록 이상 — 이미지/영상 블록이거나, 태그를 걷어낸 글자가 남는 TEXT 블록. `<p></p>`·`<p>&nbsp;</p>`만 있으면 미작성, #212)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
 - 위 항목이 모두 채워진 `DRAFT`만 **관리자 승인 없이 바로** `status=ONGOING`으로 전환. 미완료 시
   `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
 - 전환과 같은 트랜잭션에서 `funding_start_at`/`funding_deadline`을 확정(모금기간 기본값 30일, 코드 상수)하고
@@ -314,6 +314,10 @@ PATCH /api/v1/projects/{projectId}/story
   - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
   - 허용 CSS 선언: `color`(hex) · `text-align`(left/center/right/justify) · `font-weight`(bold/normal/100~900) · `font-size`(px) · `line-height`(단위 없는 숫자 또는 px) · `border`(`0` 또는 `Npx solid #hex`) · `border-top`/`border-left`(`Npx solid #hex`) · `padding-left`(px) · `margin`(0·px 값 1~4개)
 - 임시저장 겸용이며 부분 필드만 전달해도 저장 가능.
+- **빈 본문 규칙(#212)**: `introContent`가 "실질적으로 빈 본문"인지 — 이미지/영상 블록이 하나도 없고, TEXT 블록에서 태그를 걷어낸 글자가 전부 공백(`&nbsp;` 포함) — 를 서버가 판정한다. `@NotBlank`는 `<p></p>`·`<p>&nbsp;</p>` 같은 에디터 기본값을 걸러내지 못하기 때문이다.
+  - DRAFT는 작성 중 저장이므로 빈 본문도 **그대로 저장한다**(블록을 버리지도 않는다 — 에디터의 빈 줄이 사라지지 않게).
+  - 이미 공개된 프로젝트(`ONGOING`/`SUCCEEDED`/`FAILED`)를 빈 본문으로 수정하면 `400 STORY_CONTENT_REQUIRED`로 거절한다 — 공개 상세에 그대로 반영되기 때문.
+  - 공개(#11 발행) 시점에도 같은 판정을 쓴다 — 아래 필수 작성 항목 참고.
 - 프로젝트가 이미 공개 상태이면 저장 후 `project.updated.v1`을 발행한다(#4와 동일 조건). 스토리 GET API는 별도로 두지 않는다.
 
 ---

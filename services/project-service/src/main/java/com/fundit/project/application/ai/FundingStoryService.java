@@ -262,7 +262,8 @@ public class FundingStoryService {
                 : verifiedResult(projectPublicId, request);
         boolean changed = run.finishRun(result);
         if (changed) {
-            if (!"failed".equals(result.status())) {
+            // 빈 본문이면 기존 스토리를 덮지 않는다 — 공개된 프로젝트라면 상세가 그대로 비어 버린다(#212).
+            if (!"failed".equals(result.status()) && !richTextSanitizer.isEmptyStory(result.introContent())) {
                 project.updateStory(null, result.coverImageUrl(), result.introContent());
                 Project saved = projectRepository.save(project);
                 publishIndexUpdateIfPublic(saved);

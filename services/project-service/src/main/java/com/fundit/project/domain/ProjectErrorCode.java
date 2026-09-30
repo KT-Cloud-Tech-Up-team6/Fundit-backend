@@ -19,6 +19,7 @@ public enum ProjectErrorCode implements ErrorCode {
     PRIVACY_CONSENT_REQUIRED(422, "개인정보 수집 동의가 필요합니다."),
     PROJECT_NOT_DELETABLE(422, "준비중 상태의 프로젝트만 삭제할 수 있습니다."),
     PROJECT_NOT_SUBMITTABLE(422, "필수 작성 항목이 완료되지 않아 공개할 수 없습니다."),
+    STORY_CONTENT_REQUIRED(400, "스토리 본문을 입력해 주세요."),
     UNSUPPORTED_MEDIA_TYPE(400, "지원하지 않는 파일 형식입니다."),
     MEDIA_TOO_LARGE(400, "파일 용량이 허용 범위를 초과했습니다."),
     INVALID_MEDIA_URL(400, "업로드가 확인되지 않았거나 올바르지 않은 파일 주소입니다."),

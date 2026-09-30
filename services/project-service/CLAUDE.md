@@ -69,6 +69,7 @@ cd services/project-service && docker compose up -d
 | PRIVACY_CONSENT_REQUIRED | 422 | 개인정보 수집 동의 없이 다음 단계 진행 |
 | PROJECT_NOT_DELETABLE | 422 | DRAFT가 아닌 프로젝트 삭제 시도 |
 | PROJECT_NOT_SUBMITTABLE | 422 | 필수 작성 항목 미완료 상태로 공개(발행) 시도 |
+| STORY_CONTENT_REQUIRED | 400 | 공개된 프로젝트의 스토리를 빈 본문(보이는 글자·이미지 없음)으로 수정 시도 |
 | INVALID_EARLY_BIRD_DISCOUNT | 400 | 얼리버드 할인 방식/값 정합성 위반 |
 | UNSUPPORTED_MEDIA_TYPE | 400 | 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반 |
 | MEDIA_TOO_LARGE | 400 | 업로드 주소 발급 또는 fileUrl 저장 시 용량 제한 초과 |

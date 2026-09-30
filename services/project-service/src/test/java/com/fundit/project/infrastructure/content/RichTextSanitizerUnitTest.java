@@ -1,6 +1,10 @@
 package com.fundit.project.infrastructure.content;
 
+import com.fundit.project.domain.project.IntroContentBlock;
+import com.fundit.project.domain.project.IntroContentType;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -104,5 +108,70 @@ class RichTextSanitizerUnitTest {
     @Test
     void null_입력은_null을_반환한다() {
         assertThat(sanitizer.sanitize(null)).isNull();
+    }
+
+    @Test
+    void 빈_배열은_빈_본문이다() {
+        assertThat(sanitizer.isEmptyStory(List.of())).isTrue();
+        assertThat(sanitizer.isEmptyStory(null)).isTrue();
+    }
+
+    @Test
+    void 보이는_글자가_없는_TEXT_블록만_있으면_빈_본문이다() {
+        // given — 에디터가 실제로 보내는 형태(#212)
+        for (String html : List.of("<p></p>", "<p>&nbsp;</p>", "<p> </p>", "<p><br></p>", "")) {
+            List<IntroContentBlock> blocks = List.of(new IntroContentBlock(IntroContentType.TEXT, html));
+
+            // when & then
+            assertThat(sanitizer.isEmptyStory(blocks)).as(html).isTrue();
+        }
+    }
+
+    @Test
+    void 글자가_한_자라도_있으면_빈_본문이_아니다() {
+        // given
+        List<IntroContentBlock> blocks = List.of(
+                new IntroContentBlock(IntroContentType.TEXT, "<p>&nbsp;</p>"),
+                new IntroContentBlock(IntroContentType.TEXT, "<p><b>가</b></p>"));
+
+        // when & then
+        assertThat(sanitizer.isEmptyStory(blocks)).isFalse();
+    }
+
+    @Test
+    void 이미지나_영상_블록만_있어도_빈_본문이_아니다() {
+        // given
+        List<IntroContentBlock> onlyImage = List.of(
+                new IntroContentBlock(IntroContentType.TEXT, "<p></p>"),
+                new IntroContentBlock(IntroContentType.IMAGE, "https://cdn/media/projects/1/a.jpg"));
+        List<IntroContentBlock> onlyVideo = List.of(
+                new IntroContentBlock(IntroContentType.VIDEO_URL, "https://youtube.com/watch?v=1"));
+
+        // when & then
+        assertThat(sanitizer.isEmptyStory(onlyImage)).isFalse();
+        assertThat(sanitizer.isEmptyStory(onlyVideo)).isFalse();
+    }
+
+    @Test
+    void 줄바꿈_없는_공백류만_든_문단도_빈_본문이다() {
+        // given — isBlank()의 기준인 Character.isWhitespace가 이 문자들을 공백으로 보지 않는다
+        for (String space : List.of("\u00A0", "\u2007", "\u202F")) {
+            List<IntroContentBlock> blocks = List.of(
+                    new IntroContentBlock(IntroContentType.TEXT, "<p>" + space + "</p>"));
+
+            // when & then
+            assertThat(sanitizer.isEmptyStory(blocks))
+                    .as("U+%04X", (int) space.charAt(0)).isTrue();
+        }
+    }
+
+    @Test
+    void 공백류_사이에_글자가_있으면_빈_본문이_아니다() {
+        // given
+        List<IntroContentBlock> blocks = List.of(
+                new IntroContentBlock(IntroContentType.TEXT, "<p>\u00A0\u2007\uAC00\u202F</p>"));
+
+        // when & then
+        assertThat(sanitizer.isEmptyStory(blocks)).isFalse();
     }
 }
