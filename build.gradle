@@ -33,6 +33,7 @@ subprojects {
         set('springCloudVersion', '2025.1.2')
         set('springModulithVersion', "2.1.0")
         // ponytail: 보안 패치(SAST 1·6, #220) — Boot BOM 속성 덮어쓰기. Boot 4.1.x GA가 이 버전 이상을 관리하면 두 줄 제거
+        // 주의: Boot 4.1.1이 검증한 조합(Tomcat 11.0.24·Netty 4.2.17)이 아니다 — #220 로컬 스모크(auth·gateway)로만 확인. 기동·통신 이상 시 먼저 의심할 것
         // (mavenBom의 bomProperty는 Boot 플러그인이 같은 BOM을 따로 import해서 적용되지 않는다)
         set('tomcat.version', '11.0.26')      // CVE-2026-65637, 11.0.20~11.0.24 영향
         set('netty.version', '4.2.18.Final')  // CVE-2026-89044 (gateway 요청 스머글링)
