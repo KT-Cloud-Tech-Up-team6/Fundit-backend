@@ -4,10 +4,10 @@ run-name: "CD - ${{ github.event.workflow_run.name }}"
 # CI가 성공하면 그 CI가 올린 JAR artifact를 받아 이미지로 만들어 ECR에 push한다.
 # CI에서 테스트를 통과한 결과물을 그대로 쓰므로 여기서 다시 빌드하지 않는다.
 #
-# 새 서비스 추가 시: 아래 workflows 목록에 "CI - <서비스명>" 한 줄만 추가한다.
-# 단, artifact를 올리지 않는 CI는 넣지 않는다 — CI - modules는 라이브러리라 bootJar이 없다.
+# 새 서비스 추가 시: 아래 workflows 목록과 GitOps dispatch allow-list를 함께 갱신한다.
+# artifact를 올리지 않는 CI는 넣지 않는다 — CI - modules는 라이브러리라 bootJar이 없다.
 #
-# EC2 배포(SSM)는 이 워크플로에 없다. 인프라 세팅 확인 후 별도 PR에서 붙인다.
+# ECR push 성공 후 GitOps 이미지 갱신 workflow를 호출한다. EC2·SSM 배포는 사용하지 않는다.
 
 on:
   workflow_run:
@@ -111,10 +111,12 @@ jobs:
       # 태그가 반드시 `sha-`로 시작해야 한다 — ECR 수명주기(Lifecycle) 정책이 이 접두사를 기준으로
       # 잡혀 있다. 그래서 latest 태그는 붙이지 않는다(규칙 위반이고 정책 대상에서 어긋난다).
       - name: Build and push image
+        id: push-image
         env:
           IMAGE: ${{ steps.ecr.outputs.registry }}/fundit-backend
           IMAGE_TAG: sha-${{ needs.resolve.outputs.service }}-${{ github.event.workflow_run.head_sha }}
         run: |
+          set -euo pipefail
           JAR=$(ls build-jar/*.jar | head -n 1)
           echo "이미지: $IMAGE:$IMAGE_TAG (jar: $JAR)"
           docker build \
@@ -124,4 +126,40 @@ jobs:
             --build-arg SERVER_PORT=8080 \
             -t "$IMAGE:$IMAGE_TAG" \
             .
-          docker push "$IMAGE:$IMAGE_TAG"
+          push_log="$RUNNER_TEMP/fundit-backend-push.log"
+          docker push "$IMAGE:$IMAGE_TAG" | tee "$push_log"
+          image_digest="$(sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' "$push_log" | tail -n 1)"
+          if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Could not read the pushed image digest.'
+            exit 1
+          fi
+          printf 'image_digest=%s\n' "$image_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch GitOps image update
+        env:
+          GH_TOKEN: ${{ secrets.FUNDIT_GITOPS_TOKEN }}
+          IMAGE_DIGEST: ${{ steps.push-image.outputs.image_digest }}
+          IMAGE_TAG: sha-${{ needs.resolve.outputs.service }}-${{ github.event.workflow_run.head_sha }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo '::error::Missing FUNDIT_GITOPS_TOKEN Actions secret.'
+            exit 1
+          fi
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Missing valid digest from the Docker push step.'
+            exit 1
+          fi
+
+          service_key="${SERVICE%-service}"
+          gh workflow run cd-dispatch-backend-image.yml \
+            --repo KT-Cloud-Tech-Up-team6/Fundit-GitOps \
+            --ref main \
+            -f service="$service_key" \
+            -f image_tag="$IMAGE_TAG" \
+            -f image_digest="$IMAGE_DIGEST" \
+            -f source_sha="$SOURCE_SHA"
+
+          printf 'GitOps image update requested for `%s` (`%s`).\n' \
+            "$IMAGE_TAG" "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
