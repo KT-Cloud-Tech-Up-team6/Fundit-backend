@@ -10,14 +10,14 @@
 ## 먼저 읽을 문서
 구현을 시작하기 전에 **`services/search-service/docs/SearchDomainFunctionalSpec.md`(SEARCH-001~015)를 먼저 읽으세요 — 그중에서도 SEARCH-011을 가장 먼저** 읽어야 합니다. API 계약은 `SearchDomainApiSpec.md`, DDL·설계 결정·확인 필요 사항은 `SearchERD.md`입니다. 이 CLAUDE.md는 그 문서들의 핵심만 요약한 것이지 대체하지 않습니다.
 
-## ⚠️ 아직 남은 것 — SEARCH-013
+## ⚠️ 알아둘 제약
 
 **SEARCH-011은 해결됐습니다.** project-service가 `project.approved.v1`/`project.updated.v1`을 발행하고(`ProjectIndexEventPublisher`/`ProjectIndexEventOutboxWorker`), 이 서비스가 `ProjectIndexEventKafkaListener` → `ProjectDocumentIndexSyncService`로 구독해 `project_documents`를 upsert합니다(`ProjectDocumentJpaRepository.upsertProjectInfo`). 게이트웨이 라우팅도 `platform:gateway-service` `application.yml`에 추가됐습니다(`/api/v1/home/**`, `/api/v1/categories/**`, `/api/v1/search/**` → `${downstream.search-service-base-url}`, 환경변수 `SEARCH_SERVICE_BASE_URL`).
 
 **SEARCH-002/006(LIVE)도 해결됐습니다.** live-service 공개 API 프록시로 연결했습니다(`LiveCardClient` → `LiveServiceLiveCardClient`).
 
-남은 것:
-- **SEARCH-013(펀딩 집계 동기화)은 여전히 막혀 있습니다.** project-service PROJECT-015가 참고하는 펀딩 집계 이벤트 자체가 미확정이라(`project_documents.current_amount`/`achievement_rate`/`participant_count`), 아직 착수할 수 없습니다.
+알아둘 제약:
+- **카드 통계(`current_amount`/`achievement_rate`/`participant_count`)는 1일 주기 스냅샷입니다(SEARCH-013, #216).** order-service가 배치로 발행하는 `project.funding-reward-stats-updated.v1`을 구독해 채우므로 실시간이 아니고, 주문이 한 번도 없었던 프로젝트(dev 목업 등)는 집계 이벤트가 오지 않아 0으로 남습니다 — dev는 `DemoFundingStatsFixer`가 보정합니다.
 - **판매자명(`project_documents.seller_display_name`)은 project-service가 member 닉네임으로 채워 보냅니다(#188).** 그 전에 색인된 행은 `project.updated.v1`이 다시 올 때까지 `null`일 수 있습니다.
 - **`project.updated.v1`은 `updateBasicInfo`/`updateStory` 호출 시 프로젝트가 이미 공개(`isPublic()`) 상태일 때만 발행됩니다.** DRAFT/PENDING_REVIEW 단계의 수정은 애초에 색인에 없는 프로젝트라 발행하지 않습니다.
 
@@ -48,7 +48,7 @@ cd services/search-service && docker compose up -d
 9. **이벤트 구독 — 찜 카운트(SEARCH-014)** — 멱등 가드 테이블 마이그레이션, `search_wish_stat_members` 네이티브 쿼리(project-service `project_wish_stat_members`와 동일 패턴), `WishEventKafkaListener`.
 10. **이벤트 구독 — 프로젝트 색인 생성/갱신(SEARCH-011)** — project-service가 `project.approved.v1`/`project.updated.v1`을 발행하도록 먼저 만들어야 했다(아웃박스+Kafka, `RewardEventPublisher`와 동일 패턴). `ProjectIndexEventListener`/`ProjectDocumentIndexSyncService`/`ProjectIndexEventKafkaListener` + `ProjectDocumentJpaRepository.upsertProjectInfo`(project.approved.v1/updated.v1 공용 upsert, SEARCH-012/013/014가 관리하는 컬럼은 건드리지 않음). **완료됨.**
 
-**SEARCH-013은 여전히 이 순서 밖이다** — project-service PROJECT-015의 펀딩 집계 이벤트 자체가 미확정이라 착수 불가. 이벤트가 확정되면 별도 PR로 진행한다.
+11. **이벤트 구독 — 펀딩 통계(SEARCH-013)** — order-service가 PROJECT-015용으로 이미 발행하는 `project.funding-reward-stats-updated.v1`에 컨슈머 그룹만 얹었다(#216). `FundingRewardStatsEventListener`/`ProjectDocumentFundingStatsSyncService`/`FundingRewardStatsKafkaListener` + `ProjectDocumentJpaRepository.updateFundingStats`(통계 컬럼만 UPDATE — `upsertProjectInfo`가 이 컬럼들을 건드리지 않는 원칙의 반대쪽 짝). **완료됨.**
 
 ## 도메인 테이블 (스키마 확정 — `V1__init_schema.sql`)
 - `categories` — project-service `categories`의 읽기 전용 미러. 이벤트 동기화 대상이 아니다(마스터 데이터, Flyway 시드로만 관리). **전체 체계가 project-service와 아직 완전히 일치하지 않는다** — `SearchERD.md` 5-④ 참고.
@@ -74,7 +74,7 @@ cd services/search-service && docker compose up -d
 | --- | --- | --- | --- |
 | SEARCH-011 | `project.approved.v1`/`project.updated.v1`(신설됨) | project-service | ✅ 완료 |
 | SEARCH-012 | `funding.succeeded.v1`/`funding.goal-failed.v1`(기존) | order-service | ✅ 컨슈머 그룹만 추가하면 됨 |
-| SEARCH-013 | 펀딩 집계 이벤트(미확정, project-service PROJECT-015와 공유) | order-service | ❌ project-service 쪽도 미확정 |
+| SEARCH-013 | `project.funding-reward-stats-updated.v1`(기존, PROJECT-015와 공유) | order-service | ✅ 완료(그룹 `search-service`) |
 | SEARCH-014 | `project.wished.v1`/`project.unwished.v1`(기존) | member-service | ✅ 컨슈머 그룹만 추가하면 됨 |
 | SEARCH-015 | 스케줄러(내부 배치, Kafka 아님) | - | - |
 
@@ -91,10 +91,9 @@ cd services/search-service && docker compose up -d
 - **검색 키워드를 SQL에 직접 결합하지 말 것** — `pg_trgm` 질의도 반드시 바인딩 변수로 전달한다(`security.md` S1).
 
 ## 남은 확인 필요 사항 (상세는 `docs/SearchERD.md` 5번, `docs/SearchDomainFunctionalSpec.md` 하단)
-1. **[최우선] 펀딩 집계 이벤트 확정** — SEARCH-013, project-service PROJECT-015와 공동 이슈. 확정 전까지 카드의 달성률/참여자수는 계속 0이다.
-2. 검색 LIVE 탭의 키워드 검색 — live-service 공개 목록에 키워드 파라미터가 없어(판매자 전용 `/lives/mine`에만 있음) 현재 `/api/v1/search/lives`는 `keyword`를 받지 않는다. 필요해지면 live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다.
-3. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
-4. 인기순 정렬 산출식, 최근/인기 검색어 정책값.
-5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
-6. AI 개인화 추천(SEARCH-001 맞춤 추천 부분) 소유 서비스·구현 방식 확인.
-7. ~~project-service `SellerProfileClient` Noop~~ — #188에서 member 닉네임 연동으로 해결.
+1. 검색 LIVE 탭의 키워드 검색 — live-service 공개 목록에 키워드 파라미터가 없어(판매자 전용 `/lives/mine`에만 있음) 현재 `/api/v1/search/lives`는 `keyword`를 받지 않는다. 필요해지면 live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다.
+2. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
+3. 인기순 정렬 산출식, 최근/인기 검색어 정책값.
+4. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
+5. AI 개인화 추천(SEARCH-001 맞춤 추천 부분) 소유 서비스·구현 방식 확인.
+6. ~~project-service `SellerProfileClient` Noop~~ — #188에서 member 닉네임 연동으로 해결.

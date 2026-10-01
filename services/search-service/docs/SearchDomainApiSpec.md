@@ -1,7 +1,7 @@
 # Search 도메인 API 명세서
 
 > `SearchDomainFunctionalSpec.md`(SEARCH-001~015)의 REST 계약입니다. 공통 규칙은 `api-convention.md`/`error-handling.md`를 따릅니다.
-> SEARCH-011(`project.approved.v1`/`project.updated.v1` 구독)은 구현됐습니다. #1·#4·#5·#7은 `project_documents` 색인을 조회하며, 색인이 비어 있으면(콜드 스타트) `content: []`를 반환합니다 — 에러가 아닙니다. 달성률·참여자수는 SEARCH-013(펀딩 집계 이벤트, 미확정)이 붙기 전까지 0입니다.
+> SEARCH-011(`project.approved.v1`/`project.updated.v1` 구독)·SEARCH-013(`project.funding-reward-stats-updated.v1` 구독)은 구현됐습니다. #1·#4·#5·#7은 `project_documents` 색인을 조회하며, 색인이 비어 있으면(콜드 스타트) `content: []`를 반환합니다 — 에러가 아닙니다.
 >
 > 경로 프리픽스는 project-service가 이미 쓰고 있는 `/api/v1/projects`와 겹치지 않도록 `/api/v1/home`, `/api/v1/categories`, `/api/v1/search` 하위로 분리했습니다. 게이트웨이는 `/api/v1/home/**`, `/api/v1/categories/**`, `/api/v1/search/**`를 search-service로 라우팅합니다.
 
@@ -56,7 +56,9 @@ GET /api/v1/home/feed
       "categoryMajor": "테크·가전",
       "categoryMinor": "생활가전",
       "status": "ONGOING",
+      "currentAmount": 640000,
       "achievementRate": 64,
+      "participantCount": 32,
       "remainingDays": 5,
       "sellerDisplayName": "프라이팬장인"
     }
@@ -72,7 +74,7 @@ GET /api/v1/home/feed
   - `DEADLINE`: 마감이 지나지 않은(`funding_deadline >= 지금`) 프로젝트만, `funding_deadline ASC`. 마감이 지났는데 아직 `ONGOING`으로 색인된 프로젝트(마감 처리 반영 전)가 맨 앞에 오지 않게 하기 위해서다
   - `RECENT`: 마감이 지나지 않은 프로젝트만, `project_created_at DESC`
   - `DEADLINE`·`RECENT`는 같은 값이면 `projectId ASC`로 순서를 고정한다
-- `achievementRate`/`remainingDays`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다(SEARCH-013 동기화 주기에 종속, 미연동 동안 0).
+- `currentAmount`/`achievementRate`/`participantCount`는 `project_documents.funding_stats_synced_at` 기준 스냅샷이며 실시간이 아니다 — order-service 집계 배치 주기(1일)를 따른다(SEARCH-013). 프로젝트 상세(project-service)도 같은 이벤트를 원천으로 쓰므로 카드와 상세 값은 어긋나지 않는다. 집계 이벤트가 아직 한 번도 오지 않은 프로젝트는 0이다.
 - 색인이 비어 있으면(콜드 스타트) `content: []` 반환 — 에러 아님.
 - **카드에서 상세로 이동할 때 쓰는 값은 `projectPublicId`(UUID)다.** `projectId`는 색인 내부 PK(숫자)이고
   `projectDisplayCode` 생성 재료일 뿐이라, 상세 API(`GET /api/v1/projects/{projectId}`)에 넣으면 안 된다 —
@@ -404,7 +406,7 @@ REST로 노출되지 않는 이벤트/배치 기반 기능(SEARCH-011~015)은 �
 | --- | --- | --- | --- |
 | SEARCH-011 | 이벤트 구독 | `project.approved.v1`/`project.updated.v1`(발행·구독 완료) → `project_documents` upsert. payload에 `sourceVersion`(아웃박스 id)을 실어 낮은 버전은 덮어쓰지 않음. INSERT 시 `search_wish_stat_members` 행 수로 `wish_count` 재구성 | project-service → search-service |
 | SEARCH-012 | 이벤트 구독 | `funding.succeeded.v1`/`funding.goal-failed.v1` → `status` 전이. 색인이 없으면 재시도 후 DLT | order-service → search-service |
-| SEARCH-013 | 이벤트 구독 | 펀딩 집계 이벤트(**미확정** — project-service PROJECT-015와 공동 이슈) → 펀딩 통계 동기화 | order-service → search-service |
+| SEARCH-013 | 이벤트 구독 | `project.funding-reward-stats-updated.v1`(order 1일 배치, 컨슈머 그룹 `search-service`) → `current_amount`/`achievement_rate`/`participant_count`/`funding_stats_synced_at` 갱신. 색인에 없는 `project_public_id`는 로그만 남기고 건너뜀(다음 배치가 수렴) | order-service → search-service |
 | SEARCH-014 | 이벤트 구독 | `project.wished.v1`/`project.unwished.v1` → `wish_count` 증감. 색인이 없으면 가드 테이블을 건드리지 않고 재시도 후 DLT | member-service → search-service |
 | SEARCH-015 | 스케줄러 | 인기 검색어 집계(Kafka 아님, 내부 배치) | - |
 
@@ -414,7 +416,6 @@ REST로 노출되지 않는 이벤트/배치 기반 기능(SEARCH-011~015)은 �
 
 ## ⚠️ 남은 확인 필요 사항
 
-- **펀딩 집계 이벤트 확정**(SEARCH-013) — 그 전까지 카드의 달성률/참여자수는 0.
 - LIVE 관련(#2, #6) — live-service 착수 대기, 현재는 빈 배열 스텁.
 - 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
 - 인기순 정렬 산출식, 최근/인기 검색어 정책값.

@@ -65,6 +65,30 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
     int updateStatus(@Param("projectId") Long projectId, @Param("status") ProjectDocumentStatus status);
 
     /**
+     * SEARCH-013. order-service 1일 배치 스냅샷 반영 — 통계 컬럼만 바꾼다
+     * ({@code upsertProjectInfo}가 이 컬럼들을 건드리지 않는 원칙의 반대쪽 짝).
+     *
+     * <p>달성률을 자바가 아니라 여기서 계산하는 이유: 색인 행에 {@code goal_amount}가 이미 있어
+     * 엔티티를 읽어올 필요가 없다(read-modify-write 왕복·경합 제거). 정수 나눗셈이라
+     * project-service {@code ProjectStatsService.achievementRate}와 같은 값이고,
+     * 목표금액이 0이면 계산 근거가 없어 0으로 둔다.
+     *
+     * <p>{@code participantCount}가 null이면(필드가 없던 구버전 order 메시지) 기존 값을 유지한다.
+     * 영향 행이 0이면 색인에 없는 publicId라는 뜻이다 — 호출부가 로그만 남기고 건너뛴다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE project_documents SET
+                current_amount = :currentAmount,
+                achievement_rate = CASE WHEN goal_amount > 0 THEN (:currentAmount * 100 / goal_amount) ELSE 0 END,
+                participant_count = COALESCE(:participantCount, participant_count),
+                funding_stats_synced_at = now()
+            WHERE project_public_id = :publicId
+            """, nativeQuery = true)
+    int updateFundingStats(@Param("publicId") UUID publicId, @Param("currentAmount") long currentAmount,
+                           @Param("participantCount") Integer participantCount);
+
+    /**
      * SEARCH-014 멱등 가드. project-service {@code ProjectWishStatJpaRepository}와 동일하게, 이 리포지토리가
      * project_documents 애그리거트 하나만 다루더라도 그 위에 얹힌 보조 테이블(search_wish_stat_members)
      * 쿼리를 같이 둔다 — 별도 엔티티/리포지토리를 만들 필요가 없는 경우다.

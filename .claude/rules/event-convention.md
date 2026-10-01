@@ -57,7 +57,7 @@ reward.create.v1           ❌  과거형 아님
 | `payment.completed.v1` | payment | order (쿠폰, 결제일) | `fundingId` |
 | `refund.completed.v1` | payment | order (쿠폰) | `fundingId` |
 | `project.funding-deadline-reached.v1` | project | order | `projectId` |
-| `project.funding-reward-stats-updated.v1` | order | project (판매자 펀딩현황 rewardStats) | `projectId` |
+| `project.funding-reward-stats-updated.v1` | order | project (판매자 펀딩현황 rewardStats), search (카드 모금액·달성률·참여자수, SEARCH-013) | `projectId` |
 | `shipping.completed.v1` | fulfillment | payment (정산) | `fundingId` |
 | `shipment.shipped.v1` | fulfillment | order (판매자 발송목록 발송상태 필터·건수 캐시) | `fundingId` |
 | `payment.reconciliation-required.v1` | order (결제 완료 시 주문이 이미 만료·취소) | payment | `fundingId` |

@@ -8,7 +8,7 @@
 
 이 문서는 search-service가 담당하는 **홈피드 상품 노출, 카테고리 탐색, 통합 키워드 검색(상품/LIVE/판매자), 최근·인기 검색어**를 다룹니다. 전부 조회 전용이며, 이 서비스가 원본 데이터를 생성·수정하는 기능은 없습니다 — 있는 것은 "다른 서비스가 만든 사실을 색인에 반영하는" 이벤트 구독 기능뿐입니다.
 
-SEARCH-011(`project.approved.v1`/`project.updated.v1`)은 구현됐습니다. SEARCH-001·004·005·007은 `project_documents` 색인을 조회하며, 색인이 비어 있으면(콜드 스타트) 빈 결과를 반환합니다. 달성률·참여자수는 SEARCH-013이 붙기 전까지 0입니다.
+SEARCH-011(`project.approved.v1`/`project.updated.v1`)·SEARCH-013(`project.funding-reward-stats-updated.v1`)은 구현됐습니다. SEARCH-001·004·005·007은 `project_documents` 색인을 조회하며, 색인이 비어 있으면(콜드 스타트) 빈 결과를 반환합니다. 모금액·달성률·참여자수는 order-service 집계 배치 주기(1일)를 따르는 스냅샷입니다.
 
 AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기반 맞춤 추천")은 별도 AI 솔루션 영역으로 보고 이 문서 범위에서는 **비로그인/미동의 기준 인기순**만 다룹니다 — 현재 홈 피드는 `personalized` 쿼리를 받지 않습니다(`sort`는 #188부터 받음).
 
@@ -260,15 +260,15 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **대분류**: 공통
 - **보안/권한 고려사항**: [S1] 이벤트/응답 소스 검증
 - **소분류**: 달성률·참여자 수 동기화
-- **예외 처리**: 동기화 실패(대상 프로젝트 색인 없음 등) → 해당 건만 스킵, 다음 주기에 재시도
+- **예외 처리**: 색인에 없는 `project_public_id`(SEARCH-011이 아직 도착하지 않은 경우) → 해당 건만 로그 남기고 스킵. 1일 배치라 다음 주기에 같은 스냅샷이 다시 와서 수렴하므로 재시도·DLT로 보내지 않는다(SEARCH-012와 다른 점)
 - **요구사항**: 프로젝트 카드에 노출할 현재 펀딩금액·달성률·참여자 수를 최신화한다
-- **우선순위**: MVP — **선행 조건 미충족(아래 참고)**
-- **입력값**: project-service PROJECT-015가 참고하는 것과 동일한 order-service 펀딩 집계 이벤트(미확정)
+- **우선순위**: MVP
+- **입력값**: `project.funding-reward-stats-updated.v1`(order-service 1일 배치, PROJECT-015와 같은 이벤트) — `projectId`(project publicId), `rewardStats[] = {rewardId, optionValueId, purchasedQuantity, purchasedAmount}`, `participantCount`. 컨슈머 그룹은 `search-service`(project-service와 달라야 양쪽이 모두 받는다)
 - **중분류**: 색인 동기화
-- **처리 내용(기술)**: 수신 데이터로 `project_documents.current_amount/achievement_rate/participant_count/funding_stats_synced_at` UPDATE
+- **처리 내용(기술)**: `project_public_id`로 색인 행을 찾아 `project_documents.current_amount/achievement_rate/participant_count/funding_stats_synced_at`만 UPDATE(`upsertProjectInfo`는 이 컬럼들을 건드리지 않는다). 달성률은 색인 행의 `goal_amount`로 SQL에서 계산한다
 - **출력값**: 없음
-- **트리거 방식**: 이벤트 구독(또는 배치 폴링 — 아래 참고)
-- **검토의견(변경사항)**: `SearchERD.md` 5-②와 동일 — project-service의 `PROJECT-015`(펀딩 현황 조회) 문서조차 "order-service가 발행하는 펀딩 집계 이벤트를 구독(갱신 주기 1일)"이라고만 적었을 뿐 그 이벤트가 `event-convention.md`에 없다. **project-service 담당자가 이 이벤트를 확정하는 시점에 search-service도 동일 이벤트에 컨슈머 그룹만 추가하면 되므로, 별도로 새 이벤트를 만들 필요는 없다** — 다만 그 전까지는 이 기능도 착수 불가.
+- **트리거 방식**: 이벤트 구독
+- **검토의견(변경사항)**: 새 이벤트를 만들지 않고 PROJECT-015가 이미 쓰는 이벤트에 컨슈머 그룹만 추가했다(#216). 계산 규칙은 project-service `ProjectStatsService.applyRewardStats`와 같다 — 모금액은 `optionValueId == null` 행의 `purchasedAmount` 합(옵션 행까지 더하면 중복 계상), 달성률은 `모금액 × 100 / goal_amount`(목표금액이 없거나 0이면 0), `participantCount`가 null인 구버전 메시지는 기존 값 유지. 상세와 카드가 같은 이벤트를 원천으로 쓰므로 두 화면 값이 어긋나지 않는다.
 
 ### 14. SEARCH-014 — 찜 이벤트 구독 (인기도 집계)
 
@@ -333,7 +333,7 @@ search-service는 **이벤트를 발행하지 않고 전부 구독만** 합니�
 | --- | --- | --- | --- |
 | SEARCH-011 | `project.approved.v1` / `project.updated.v1` | project-service | ✅ 발행·구독 완료(`sourceVersion` 포함) |
 | SEARCH-012 | `funding.succeeded.v1` / `funding.goal-failed.v1`(기존) | order-service | ✅ 구독(색인 미도착 시 재시도 후 DLT) |
-| SEARCH-013 | 펀딩 집계 이벤트(미확정, project-service PROJECT-015와 공유) | order-service | ❌ 미확정 — 달성률/참여자수는 0 |
+| SEARCH-013 | `project.funding-reward-stats-updated.v1`(PROJECT-015와 공유, 1일 배치) | order-service | ✅ 구독(색인 미도착 시 로그만 남기고 스킵) |
 | SEARCH-014 | `project.wished.v1` / `project.unwished.v1`(기존) | member-service | ✅ 구독(색인 미도착 시 가드 미반영, 재시도 후 DLT) |
 | SEARCH-015 | 스케줄러(내부 배치, Kafka 아님) | - | ✅ 구현 |
 
@@ -343,9 +343,8 @@ search-service는 **이벤트를 발행하지 않고 전부 구독만** 합니�
 
 ## ⚠️ 남은 확인 필요 사항 (요약 — 상세는 `SearchERD.md` 5번)
 
-1. **펀딩 집계 이벤트 확정** — SEARCH-013, project-service PROJECT-015와 공동 이슈. 그 전까지 카드 달성률/참여자수는 0.
-2. 검색 LIVE 탭 키워드 검색(SEARCH-006) — live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다. 목록 연동 자체(SEARCH-002/006)는 완료.
-3. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
-4. 인기순 정렬 산출식, 최근/인기 검색어 정책값(보관 개수·집계 주기·노출 개수).
-5. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
+1. 검색 LIVE 탭 키워드 검색(SEARCH-006) — live-service `GET /api/v1/lives`에 `q` 추가가 선행돼야 한다. 목록 연동 자체(SEARCH-002/006)는 완료.
+2. 카테고리 전체 체계 확정 및 project-service·search-service 간 동기화 방법.
+3. 인기순 정렬 산출식, 최근/인기 검색어 정책값(보관 개수·집계 주기·노출 개수).
+4. 비로그인 사용자의 최근 검색어 처리 방식(서버 저장 여부).
 6. AI 개인화 추천(SEARCH-001의 맞춤 추천 부분) 소유 서비스·구현 방식 확인.
