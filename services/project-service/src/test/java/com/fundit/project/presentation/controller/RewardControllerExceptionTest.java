@@ -19,6 +19,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 정상 흐름은 {@link RewardControllerTest} 참고. */
@@ -86,6 +87,26 @@ class RewardControllerExceptionTest {
                                 {"name":"얼리버드","description":"설명","price":39000,"isLimited":true}
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 정률_얼리버드_할인이_100퍼센트면_400을_반환한다() throws Exception {
+        // given — 100%면 구매 가격이 0원이 된다(#214). 상한은 99%
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        when(rewardService.create(org.mockito.ArgumentMatchers.eq(sellerId), org.mockito.ArgumentMatchers.eq(projectId), any(), any(), any()))
+                .thenThrow(new BusinessException(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/projects/" + projectId + "/rewards")
+                        .header("X-User-Id", sellerId.toString()).header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"얼리버드","description":"설명","price":39000,"isLimited":true,"quantity":100,
+                                 "isEarlyBird":true,"earlyBirdDiscountType":"RATE","earlyBirdDiscountValue":100}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_EARLY_BIRD_DISCOUNT"));
     }
 
     @Test

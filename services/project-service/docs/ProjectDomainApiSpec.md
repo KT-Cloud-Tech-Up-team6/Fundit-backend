@@ -269,7 +269,7 @@ POST /api/v1/projects/{projectId}/submit
 
 **Validation / Business Rules**
 
-- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(소개 콘텐츠 1블록 이상)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
+- 필수 작성 항목은 `basicInfo`(사업자유형·카테고리·제목·목표금액 — **공백뿐인 제목은 미작성**, #188)·`story`(**보이는 내용이 있는** 소개 콘텐츠 1블록 이상 — 이미지/영상 블록이거나, 태그를 걷어낸 글자가 남는 TEXT 블록. `<p></p>`·`<p>&nbsp;</p>`만 있으면 미작성, #212)·`rewards`(미삭제 리워드 1개 이상)·`privacyConsent`(동의 이력)이다. 환불정책 특이사항은 필수값이 **아니다**.
 - 위 항목이 모두 채워진 `DRAFT`만 **관리자 승인 없이 바로** `status=ONGOING`으로 전환. 미완료 시
   `422 PROJECT_NOT_SUBMITTABLE`(메시지에 누락 키 목록 포함: `basicInfo`, `story`, `rewards`, `privacyConsent`).
 - 전환과 같은 트랜잭션에서 `funding_start_at`/`funding_deadline`을 확정(모금기간 기본값 30일, 코드 상수)하고
@@ -314,6 +314,10 @@ PATCH /api/v1/projects/{projectId}/story
   - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
   - 허용 CSS 선언: `color`(hex) · `text-align`(left/center/right/justify) · `font-weight`(bold/normal/100~900) · `font-size`(px) · `line-height`(단위 없는 숫자 또는 px) · `border`(`0` 또는 `Npx solid #hex`) · `border-top`/`border-left`(`Npx solid #hex`) · `padding-left`(px) · `margin`(0·px 값 1~4개)
 - 임시저장 겸용이며 부분 필드만 전달해도 저장 가능.
+- **빈 본문 규칙(#212)**: `introContent`가 "실질적으로 빈 본문"인지 — 이미지/영상 블록이 하나도 없고, TEXT 블록에서 태그를 걷어낸 글자가 전부 공백(`&nbsp;` 포함) — 를 서버가 판정한다. `@NotBlank`는 `<p></p>`·`<p>&nbsp;</p>` 같은 에디터 기본값을 걸러내지 못하기 때문이다.
+  - DRAFT는 작성 중 저장이므로 빈 본문도 **그대로 저장한다**(블록을 버리지도 않는다 — 에디터의 빈 줄이 사라지지 않게).
+  - 이미 공개된 프로젝트(`ONGOING`/`SUCCEEDED`/`FAILED`)를 빈 본문으로 수정하면 `400 STORY_CONTENT_REQUIRED`로 거절한다 — 공개 상세에 그대로 반영되기 때문.
+  - 공개(#11 발행) 시점에도 같은 판정을 쓴다 — 아래 필수 작성 항목 참고.
 - 프로젝트가 이미 공개 상태이면 저장 후 `project.updated.v1`을 발행한다(#4와 동일 조건). 스토리 GET API는 별도로 두지 않는다.
 
 ---
@@ -408,7 +412,7 @@ POST /api/v1/projects/{projectId}/rewards
 - **배송비/예상 발송일**(둘 다 선택값, 미전달 시 `null`): `shippingFee`는 리워드별 배송비(0 이상, 0=무료배송), `estimatedDeliveryDays`는 "펀딩 종료 후 N일" 상대값(0 이상)이다. 값이 있는데 음수면 `400 INVALID_REWARD_SHIPPING_INFO`. **주의**: 배송비가 리워드별인지 프로젝트 공통인지, 예상 발송일이 상대값인지 고정 일자인지는 아직 기획 미확정이라 스키마가 바뀔 수 있다(`ProjectDomainPendingWork.md` #1 참고).
 - 얼리버드 할인: `isEarlyBird=false`면 `earlyBirdDiscountType`/`earlyBirdDiscountValue`는 반드시 없어야 하고,
   `true`면 `earlyBirdDiscountType`(`AMOUNT` 정액(원) 또는 `RATE` 정률(%))과 `earlyBirdDiscountValue`가 필수다.
-  `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~100 사이 정수만 허용(DB CHECK
+  `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~99 사이 정수만 허용(DB CHECK
   `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
   할인 적용가로, 얼리버드가 아니면 `null`이다.
 - `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).

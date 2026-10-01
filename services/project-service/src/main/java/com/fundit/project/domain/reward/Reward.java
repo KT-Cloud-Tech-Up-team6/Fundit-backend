@@ -170,7 +170,7 @@ public class Reward {
         }
         boolean valid = switch (type) {
             case AMOUNT -> value > 0 && value < price;
-            case RATE -> value >= 0 && value <= 100;
+            case RATE -> value >= 0 && value <= 99;
         };
         if (!valid) {
             throw new BusinessException(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);

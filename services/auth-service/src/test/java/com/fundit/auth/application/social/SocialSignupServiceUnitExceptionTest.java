@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -66,6 +67,23 @@ class SocialSignupServiceUnitExceptionTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AuthErrorCode.RESERVED_NICKNAME);
         // 토큰이 남아 있어야 소셜 로그인부터 다시 하지 않고 닉네임만 고쳐 보낼 수 있다
+        verify(signupTokenStore, never()).consumeSignup(any());
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
+    void 가입_배송지_연락처_형식이_틀리면_400이고_가입토큰을_소비하지_않는다() {
+        // given (#209)
+        var command = new SocialSignupService.SocialSignupCommand(
+                "token", null, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"),
+                Map.of("recipientName", "홍길동", "phoneNumber", "010123", "zipcode", "12345", "addressLine1", "테헤란로 1"));
+
+        // when & then
+        assertThatThrownBy(() -> service().signup(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
         verify(signupTokenStore, never()).consumeSignup(any());
         verify(accountRepository, never()).save(any());
         verify(memberServiceClient, never()).createProfile(any());

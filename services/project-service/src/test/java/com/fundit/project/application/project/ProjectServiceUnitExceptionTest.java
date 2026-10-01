@@ -7,6 +7,7 @@ import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.Project;
 import com.fundit.project.domain.project.ProjectRepository;
 import com.fundit.project.domain.project.ProjectStatus;
+import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import com.fundit.project.infrastructure.persistence.category.CategoryJpaRepository;
 import com.fundit.project.infrastructure.persistence.privacyconsent.ProjectPrivacyConsentJpaRepository;
 import com.fundit.project.infrastructure.persistence.project.ProjectJpaRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -41,6 +43,9 @@ class ProjectServiceUnitExceptionTest {
     private RewardJpaRepository rewardJpaRepository;
     @Mock
     private MediaUrlValidator mediaUrlValidator;
+    // 실제 구현을 쓴다 — 빈 본문 판정(#212)이 Jsoup 결과에 달려 있어 목으로는 확인할 수 없다.
+    @Spy
+    private RichTextSanitizer richTextSanitizer = new RichTextSanitizer();
 
     @Mock
 
@@ -176,5 +181,24 @@ class ProjectServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.PROJECT_NOT_SUBMITTABLE);
+    }
+
+    @Test
+    void 공개된_프로젝트의_스토리를_빈_본문으로_수정하면_400_예외가_발생한다() {
+        // given — 공개 상세에 그대로 반영되므로 임시저장과 달리 거절한다(#212)
+        UUID sellerId = UUID.randomUUID();
+        UUID publicId = UUID.randomUUID();
+        Project project = ownedDraftProject(sellerId, publicId).toBuilder()
+                .status(ProjectStatus.ONGOING).build();
+        when(projectRepository.findByPublicId(publicId)).thenReturn(Optional.of(project));
+
+        // when & then
+        assertThatThrownBy(() -> projectService.updateStory(sellerId, publicId,
+                new ProjectService.UpdateStoryCommand(null, null, java.util.List.of(
+                        new com.fundit.project.domain.project.IntroContentBlock(
+                                com.fundit.project.domain.project.IntroContentType.TEXT, "<p>&nbsp;</p>")))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.STORY_CONTENT_REQUIRED);
     }
 }

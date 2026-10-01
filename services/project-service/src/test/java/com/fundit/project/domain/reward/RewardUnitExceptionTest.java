@@ -68,10 +68,10 @@ class RewardUnitExceptionTest {
     }
 
     @Test
-    void 정률할인이_100을_초과하면_예외가_발생한다() {
+    void 정률할인이_99를_초과하면_예외가_발생한다() {
         // when & then
         assertThatThrownBy(() -> Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, true,
-                EarlyBirdDiscountType.RATE, 101L, null, null, null))
+                EarlyBirdDiscountType.RATE, 100L, null, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.INVALID_EARLY_BIRD_DISCOUNT);

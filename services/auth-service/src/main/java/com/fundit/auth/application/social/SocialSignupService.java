@@ -5,6 +5,7 @@ import com.fundit.auth.application.token.TokenIssuer;
 import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
+import com.fundit.auth.domain.account.AddressPhoneNumber;
 import com.fundit.auth.domain.account.ReservedNickname;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.common.error.BusinessException;
@@ -49,6 +50,9 @@ public class SocialSignupService {
         // signupToken은 1회 소비라 소비 전에 거절한다 — 소셜 로그인부터 다시 하지 않아도 된다(#206)
         if (ReservedNickname.isReserved(command.nickname())) {
             throw new BusinessException(AuthErrorCode.RESERVED_NICKNAME);
+        }
+        if (AddressPhoneNumber.isInvalid(command.address())) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "배송지 연락처는 휴대폰 번호 형식이어야 합니다.");
         }
         var pending = signupTokenStore.consumeSignup(command.signupToken())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_EXPIRED));
