@@ -65,7 +65,7 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
     int updateStatus(@Param("projectId") Long projectId, @Param("status") ProjectDocumentStatus status);
 
     /**
-     * SEARCH-013. order-service 1일 배치 스냅샷 반영 — 통계 컬럼만 바꾼다
+     * SEARCH-013. order-service 집계 스냅샷 반영 — 통계 컬럼만 바꾼다
      * ({@code upsertProjectInfo}가 이 컬럼들을 건드리지 않는 원칙의 반대쪽 짝).
      *
      * <p>달성률을 자바가 아니라 여기서 계산하는 이유: 색인 행에 {@code goal_amount}가 이미 있어

@@ -260,10 +260,10 @@ AI 개인화 추천(홈피드의 "관심 카테고리·시청·펀딩 이력 기
 - **대분류**: 공통
 - **보안/권한 고려사항**: [S1] 이벤트/응답 소스 검증
 - **소분류**: 달성률·참여자 수 동기화
-- **예외 처리**: 색인에 없는 `project_public_id`(SEARCH-011이 아직 도착하지 않은 경우) → 해당 건만 로그 남기고 스킵. 1일 배치라 다음 주기에 같은 스냅샷이 다시 와서 수렴하므로 재시도·DLT로 보내지 않는다(SEARCH-012와 다른 점)
+- **예외 처리**: 색인에 없는 `project_public_id`(SEARCH-011이 아직 도착하지 않은 경우) → 해당 건만 로그 남기고 스킵. 전체 교체 스냅샷이라 다음 발행분이 같은 상태로 수렴시키므로 재시도·DLT로 보내지 않는다(SEARCH-012와 다른 점)
 - **요구사항**: 프로젝트 카드에 노출할 현재 펀딩금액·달성률·참여자 수를 최신화한다
 - **우선순위**: MVP
-- **입력값**: `project.funding-reward-stats-updated.v1`(order-service 1일 배치, PROJECT-015와 같은 이벤트) — `projectId`(project publicId), `rewardStats[] = {rewardId, optionValueId, purchasedQuantity, purchasedAmount}`, `participantCount`. 컨슈머 그룹은 `search-service`(project-service와 달라야 양쪽이 모두 받는다)
+- **입력값**: `project.funding-reward-stats-updated.v1`(order-service가 상태 전이 시 즉시 발행, PROJECT-015와 같은 이벤트) — `projectId`(project publicId), `rewardStats[] = {rewardId, optionValueId, purchasedQuantity, purchasedAmount}`, `participantCount`. 컨슈머 그룹은 `search-service`(project-service와 달라야 양쪽이 모두 받는다)
 - **중분류**: 색인 동기화
 - **처리 내용(기술)**: `project_public_id`로 색인 행을 찾아 `project_documents.current_amount/achievement_rate/participant_count/funding_stats_synced_at`만 UPDATE(`upsertProjectInfo`는 이 컬럼들을 건드리지 않는다). 달성률은 색인 행의 `goal_amount`로 SQL에서 계산한다
 - **출력값**: 없음
@@ -333,7 +333,7 @@ search-service는 **이벤트를 발행하지 않고 전부 구독만** 합니�
 | --- | --- | --- | --- |
 | SEARCH-011 | `project.approved.v1` / `project.updated.v1` | project-service | ✅ 발행·구독 완료(`sourceVersion` 포함) |
 | SEARCH-012 | `funding.succeeded.v1` / `funding.goal-failed.v1`(기존) | order-service | ✅ 구독(색인 미도착 시 재시도 후 DLT) |
-| SEARCH-013 | `project.funding-reward-stats-updated.v1`(PROJECT-015와 공유, 1일 배치) | order-service | ✅ 구독(색인 미도착 시 로그만 남기고 스킵) |
+| SEARCH-013 | `project.funding-reward-stats-updated.v1`(PROJECT-015와 공유, 상태 전이 시 즉시 발행) | order-service | ✅ 구독(색인 미도착 시 로그만 남기고 스킵) |
 | SEARCH-014 | `project.wished.v1` / `project.unwished.v1`(기존) | member-service | ✅ 구독(색인 미도착 시 가드 미반영, 재시도 후 DLT) |
 | SEARCH-015 | 스케줄러(내부 배치, Kafka 아님) | - | ✅ 구현 |
 

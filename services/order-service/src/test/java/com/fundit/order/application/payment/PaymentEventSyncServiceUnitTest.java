@@ -34,6 +34,8 @@ class PaymentEventSyncServiceUnitTest {
     private CouponIssuanceRepository couponIssuanceRepository;
     @Mock
     private com.fundit.order.application.funding.FundingEventPublisher fundingEventPublisher;
+    @Mock
+    private com.fundit.order.application.funding.FundingRewardStatsBatchService fundingRewardStatsBatchService;
 
     @InjectMocks
     private PaymentEventSyncService paymentEventSyncService;
@@ -66,6 +68,8 @@ class PaymentEventSyncServiceUnitTest {
         assertThat(funding.getPaidAt()).isEqualTo(paidAt);
         assertThat(issuance.getStatus()).isEqualTo(com.fundit.order.domain.coupon.CouponIssuanceStatus.USED);
         assertThat(issuance.getUsedFundingId()).isEqualTo(1L);
+        // #230 — 배치를 기다리지 않고 그 자리에서 재집계한다
+        verify(fundingRewardStatsBatchService).recomputeOne(funding.getProjectId());
     }
 
     @Test
@@ -82,7 +86,7 @@ class PaymentEventSyncServiceUnitTest {
         assertThat(funding.getStatus()).isEqualTo(FundingStatus.PAYMENT_EXPIRED);
         verify(fundingEventPublisher).publishPaymentReconciliationRequired(
                 new com.fundit.order.application.funding.FundingEventPublisher.PaymentReconciliationRequiredEvent(1L));
-        verifyNoInteractions(couponIssuanceRepository);
+        verifyNoInteractions(couponIssuanceRepository, fundingRewardStatsBatchService);
     }
 
     @Test
@@ -109,8 +113,8 @@ class PaymentEventSyncServiceUnitTest {
         paymentEventSyncService.onPaymentCompleted(
                 new PaymentEventListener.PaymentCompletedEvent(ORDER_ID, List.of(5L), Instant.now()));
 
-        // then — 정상 주문을 환불하면 안 된다
-        verifyNoInteractions(fundingEventPublisher, couponIssuanceRepository);
+        // then — 정상 주문을 환불하면 안 되고, 통계도 다시 건드리지 않는다
+        verifyNoInteractions(fundingEventPublisher, couponIssuanceRepository, fundingRewardStatsBatchService);
     }
 
     @Test
@@ -192,6 +196,8 @@ class PaymentEventSyncServiceUnitTest {
             // then
             assertThat(issuance.isAvailable()).isTrue();
             assertThat(funding.getStatus()).isEqualTo(FundingStatus.REFUNDED_AFTER_SUCCESS);
+            // #230 — 집계 대상에서 빠지므로 모금액·후원자 수가 줄어야 한다
+            verify(fundingRewardStatsBatchService).recomputeOne(funding.getProjectId());
         }
 
         @Test

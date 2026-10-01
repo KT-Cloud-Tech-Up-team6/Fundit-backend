@@ -1,6 +1,7 @@
 package com.fundit.order.application.payment;
 
 import com.fundit.order.application.funding.FundingEventPublisher;
+import com.fundit.order.application.funding.FundingRewardStatsBatchService;
 import com.fundit.order.domain.coupon.CouponIssuance;
 import com.fundit.order.domain.coupon.CouponIssuanceRepository;
 import com.fundit.order.domain.coupon.CouponIssuanceStatus;
@@ -25,6 +26,7 @@ public class PaymentEventSyncService implements PaymentEventListener {
     private final FundingRepository fundingRepository;
     private final CouponIssuanceRepository couponIssuanceRepository;
     private final FundingEventPublisher fundingEventPublisher;
+    private final FundingRewardStatsBatchService fundingRewardStatsBatchService;
 
     @Override
     @Transactional
@@ -51,6 +53,8 @@ public class PaymentEventSyncService implements PaymentEventListener {
         }
         funding.markPaymentCompleted(event.paidAt());
         fundingRepository.save(funding);
+        // 저장 뒤에 호출해야 한다 — 재집계가 네이티브 쿼리라 바뀐 status가 DB에 반영된 뒤에 읽어야 한다(#230).
+        fundingRewardStatsBatchService.recomputeOne(funding.getProjectId());
 
         for (Long couponIssuanceId : orEmpty(event.couponIssuanceIds())) {
             couponIssuanceRepository.findById(couponIssuanceId).ifPresent(issuance -> {
@@ -89,6 +93,7 @@ public class PaymentEventSyncService implements PaymentEventListener {
             fundingRepository.findByPublicId(event.fundingId()).ifPresent(funding -> {
                 funding.markRefundedAfterSuccess();
                 fundingRepository.save(funding);
+                fundingRewardStatsBatchService.recomputeOne(funding.getProjectId());
             });
         }
     }

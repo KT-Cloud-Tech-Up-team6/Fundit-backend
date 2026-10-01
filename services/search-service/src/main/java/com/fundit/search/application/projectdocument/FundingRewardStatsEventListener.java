@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * SEARCH-013 인바운드 포트 — order-service가 1일 배치로 이미 발행 중인
+ * SEARCH-013 인바운드 포트 — order-service가 이미 발행 중인
  * {@code project.funding-reward-stats-updated.v1}을 재사용한다(새 이벤트 신설 불필요).
  * project-service {@code ProjectFundingRewardStatsUpdatedEvent}와 동일 계약이다
  * (event-convention.md 4번 — JSON이 계약, 레코드는 서비스마다 따로 선언).

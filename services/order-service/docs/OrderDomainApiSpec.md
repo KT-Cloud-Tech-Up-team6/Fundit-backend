@@ -793,7 +793,7 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 
 `paymentId`는 order가 모르는 값이라 항상 null이다 — payment-service는 `orderId`로 완료 결제를 찾는다.
 
-**`project.funding-reward-stats-updated.v1`** (PROJECT-015, 1일 배치. 파티션 키=`projectId` 내부 Long. 전체 교체)
+**`project.funding-reward-stats-updated.v1`** (PROJECT-015. 결제완료·참여취소·성립후환불 시 즉시 발행 + 매일 03:00 전체 재계산(안전망). 파티션 키=`projectId` 내부 Long. 전체 교체)
 
 ```json
 {
@@ -819,7 +819,7 @@ REST로 노출되지 않는 배치·이벤트 기반 기능은 아래와 같이 
 | ORDER-014 | API 호출 후 발행 | 참여 취소 확정 → `funding.cancelled-by-member.v1` | order-service → payment-service |
 | ORDER-015 | 로직만 존재 | `PaymentEventSyncService`가 결제완료/환불완료 시 쿠폰 사용·복원 및 `PENDING`→`FUNDING_IN_PROGRESS` 전이를 수행하도록 짜여 있으나, Kafka 리스너가 없어 트리거되지 않음 | (미배선) |
 | ORDER-016 | 이벤트 구독 | `reward.created.v1`/`reward.updated.v1` → `inventories` 델타 동기화. 품절→재입고 시 `notification.raised.v1` | project-service → order-service |
-| PROJECT-015 | 스케줄러 후 발행 | 1일 배치 → `project.funding-reward-stats-updated.v1` (옵션값 단위 rewardStats) | order-service → project-service |
+| PROJECT-015 | 상태 전이 후 발행 | 결제완료·참여취소·성립후환불 시 즉시 재집계 + 1일 배치(안전망) → `project.funding-reward-stats-updated.v1` (옵션값 단위 rewardStats) | order-service → project-service |
 
 ---
 

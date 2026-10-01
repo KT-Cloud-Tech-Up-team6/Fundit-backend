@@ -1241,7 +1241,7 @@ GET /api/v1/projects/{projectId}/funding-status
 **Validation / Business Rules**
 
 - 본인 소유 프로젝트만 조회 가능(S4).
-- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 하루 한 번 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). 같은 이벤트로 `currentAmount`(리워드 단위 합)·`achievementRate`와 `participantCount`(참여 회원 수, 중복 제외 — #180 이후 order가 싣는다. 필드가 없는 메시지면 기존 값 유지)도 갱신한다. 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
+- `funding_status_snapshots` 테이블을 읽는다. `rewardStats`는 order-service가 결제완료·참여취소·성립후환불 시점에 발행하는 `project.funding-reward-stats-updated.v1`로 채워진다(옵션값 단위, `optionValueId` 포함). 같은 이벤트로 `currentAmount`(리워드 단위 합)·`achievementRate`와 `participantCount`(참여 회원 수, 중복 제외 — #180 이후 order가 싣는다. 필드가 없는 메시지면 기존 값 유지)도 갱신한다. 행이 없으면 0, `lastSyncedAt`은 reward_stats 반영 시각이다.
 - `optionValueId`가 null이면 옵션 없는 리워드 합계, 있으면 해당 옵션값 한정 통계다.
 - `openNotifyCount`는 `project_open_notify_requests` COUNT, `wishCount`는 `project_wish_stats` 읽기 모델(아래 #34와 동일). `remainingDays`는 `funding_deadline` 기준 계산.
 
@@ -1341,7 +1341,7 @@ GET /internal/projects/summaries?ids={publicId1},{publicId2},...
 | PROJECT-029 | 발행 | `project.approved.v1` | 필수항목 완료로 ONGOING 전환 시 아웃박스 적재. 파티션 키: 내부 `projectId`(Long). 구독: search-service(SEARCH-011) |
 | PROJECT-004, PROJECT-006 | 발행 | `project.updated.v1` | 공개(`isPublic()`) 프로젝트의 기본정보/스토리 수정 시에만. DRAFT 수정은 발행하지 않음. payload 계약은 공개 전환 이벤트와 동일 |
 | PROJECT-007 | 발행 | `reward.created.v1` / `reward.updated.v1` | 리워드 생성/수정 시(삭제·환불정책 PATCH는 미발행). 파티션 키: `rewardId`. `projectId`는 **내부 Long** |
-| PROJECT-015 | 구독 | `project.funding-reward-stats-updated.v1` | order-service 1일 배치. `reward_stats` 전체 교체. 파티션 키: 내부 `projectId` |
+| PROJECT-015 | 구독 | `project.funding-reward-stats-updated.v1` | order-service가 상태 전이 시 즉시 발행(+1일 배치는 안전망). `reward_stats` 전체 교체. 파티션 키: 내부 `projectId` |
 | PROJECT-016 | 구독 | `project.wished.v1` / `project.unwished.v1` | 찜 통계 |
 | PROJECT-014, PROJECT-019 | 구독 | `live.questions-summarized.v1` | live-service 방송 종료 질문요약. LIVE검증 탭 질문 문구·건수의 **유일한 출처**. 파티션 키: `liveId` |
 | PROJECT-018, PROJECT-029, PROJECT-030 반려 | 발행 | (없음) | `notification.raised.v1`를 발행하지 않음 |

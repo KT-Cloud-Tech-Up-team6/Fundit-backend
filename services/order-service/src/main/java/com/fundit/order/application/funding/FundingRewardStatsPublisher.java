@@ -5,8 +5,10 @@ import java.util.UUID;
 
 /**
  * PROJECT-015 — 리워드 단위 펀딩 구매 통계를 project-service에 통지하는 아웃바운드 포트
- * (`project.funding-reward-stats-updated.v1`). PRD 7.1.3이 "데이터 갱신 주기 24시간"을
- * 명시해 실시간 반영 없이 하루 한 번 배치로 계산·발행한다({@link FundingRewardStatsBatchService}).
+ * (`project.funding-reward-stats-updated.v1`). PRD 7.1.3 개정(실시간)에 따라 펀딩이 집계 대상
+ * 상태를 드나들 때마다 그 자리에서 재계산해 발행한다({@link FundingRewardStatsBatchService#recomputeOne},
+ * #230). 하루 한 번 도는 전체 재계산({@link FundingRewardStatsBatchService#recomputeAll})은
+ * 이벤트 누락·발행 실패를 다음 날 수습하는 안전망으로 남겨 둔다.
  *
  * <p>호출부는 같은 트랜잭션에서 아웃박스에만 적재한다.
  * {@code optionValueId}가 null이면 <b>리워드 전체 합계</b>(옵션이 있는 리워드도 항상 이 행을 포함),
