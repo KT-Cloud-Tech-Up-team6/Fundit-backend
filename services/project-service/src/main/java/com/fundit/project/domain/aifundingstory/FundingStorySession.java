@@ -30,6 +30,8 @@ public class FundingStorySession {
     private FundingStorySessionStatus status;
     private List<FundingStoryAdditionalQuestion> additionalQuestions;
     private FundingStoryResult result;
+    /** run 추적자와 폐기 선점 행만 채운다 — run ID를 받기 전 폐기 요청을 매칭하는 유일한 식별자. */
+    private String idempotencyKey;
     private final Instant createdAt;
     private Instant updatedAt;
 
@@ -57,6 +59,26 @@ public class FundingStorySession {
         return create(runId, projectId, sellerId, RUN_PREFIX + sessionId, List.of(), List.of());
     }
 
+    public static FundingStorySession trackRun(
+            UUID runId, Long projectId, UUID sellerId, UUID sessionId, String idempotencyKey) {
+        FundingStorySession run = trackRun(runId, projectId, sellerId, sessionId);
+        run.idempotencyKey = idempotencyKey;
+        return run;
+    }
+
+    /**
+     * run ID를 받기 전에 폐기 요청이 온 경우의 선점 행(QA-189). {@code createRun}이 같은 키로 이 행을
+     * 발견하면 그때 만드는 run 추적자를 바로 폐기 상태로 저장한다.
+     */
+    public static FundingStorySession preemptiveDiscard(
+            UUID id, Long projectId, UUID sellerId, String idempotencyKey) {
+        FundingStorySession preempt = create(
+                id, projectId, sellerId, RUN_PREFIX + "discard-preempt", List.of(), List.of());
+        preempt.idempotencyKey = idempotencyKey;
+        preempt.status = FundingStorySessionStatus.DISCARDED;
+        return preempt;
+    }
+
     public boolean isSessionTracker() {
         return productDescription != null && productDescription.startsWith(SESSION_PREFIX);
     }
@@ -80,6 +102,22 @@ public class FundingStorySession {
         return sellerId != null && sellerId.equals(accountId);
     }
 
+    public boolean isDiscarded() {
+        return status == FundingStorySessionStatus.DISCARDED;
+    }
+
+    /** 생성 중인 run을 폐기한다. 이미 폐기면 no-op, 이미 터미널이면 반영된 결과를 되돌리지 않는다. */
+    public boolean discard() {
+        if (!isRunTracker()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        if (status != FundingStorySessionStatus.GENERATING) {
+            return false;
+        }
+        this.status = FundingStorySessionStatus.DISCARDED;
+        return true;
+    }
+
     public boolean isCompleted() {
         return status == FundingStorySessionStatus.COMPLETED;
     }
@@ -95,6 +133,10 @@ public class FundingStorySession {
     public boolean finishRun(FundingStoryResult terminalResult) {
         if (!isRunTracker()) {
             throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        if (isDiscarded()) {
+            // 폐기된 run은 결과를 확정하지 않는다. CONFLICT를 던지면 AI가 callback을 재시도한다(QA-189).
+            return false;
         }
         if (status != FundingStorySessionStatus.GENERATING) {
             if (Objects.equals(result, terminalResult)) {

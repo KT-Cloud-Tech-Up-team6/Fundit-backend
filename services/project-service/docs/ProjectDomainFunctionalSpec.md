@@ -214,7 +214,7 @@
 - **우선순위**: P1
 - **입력값**: 작업ID,(수정시)수정 내용
 - **중분류**: 상세페이지
-- **처리 내용(기술)**: 생성 결과 조회 후 OVERWRITE/COPY로 프로젝트 스토리에 반영. IMAGE 블록은 `MediaUrlValidator` S3 검증을 `updateStory`와 동일하게 적용
+- **처리 내용(기술)**: 생성 결과 조회 후 OVERWRITE/COPY로 프로젝트 스토리에 반영. IMAGE 블록은 `MediaUrlValidator` S3 검증을 `updateStory`와 동일하게 적용. 생성 중 창을 닫고 폐기를 선택하면(`POST /api/v1/ai/runs/discard`) run을 `DISCARDED`로 두고, 완료 callback이 와도 스토리·색인을 갱신하지 않는다 — AI 작업은 취소할 수 없다(#226, QA-189). run ID를 받기 전 폐기는 `idempotency_key`로 매칭한다
 - **출력값**: 반영된 상세페이지 콘텐츠
 - **트리거 방식**: API 호출
 

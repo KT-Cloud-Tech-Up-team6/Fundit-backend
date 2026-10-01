@@ -36,6 +36,7 @@
 | 22-6 | POST | `/api/v1/ai/sessions/{sessionId}/confirm` | 요약 revision 확인 | O (판매자) | PROJECT-011 |
 | 23 | POST | `/api/v1/ai/runs` | 전체 상세페이지 생성 | O (판매자) | PROJECT-012 |
 | 24 | GET | `/api/v1/ai/runs/{runId}` | BE 소유 생성 상태·결과 조회 | O (판매자) | PROJECT-012 |
+| 24-3 | POST | `/api/v1/ai/runs/discard` | 생성 중 run 폐기 | O (판매자) | PROJECT-012 |
 | 24-1 | POST | `/internal/ai/media/upload-targets` | AI 최종 PNG 업로드 대상 발급 | 내부 키 | PROJECT-012 |
 | 24-2 | POST | `/internal/ai/runs/{runId}/completion` | AI 생성 완료 callback | 내부 키 | PROJECT-012 |
 | 25 | GET | `/api/v1/projects/{projectId}/preview` | 프로젝트 미리보기 조회(판매자) | O (판매자) | PROJECT-013 |
@@ -905,6 +906,7 @@ POST /api/v1/community/posts/{postId}/answer
 | 정보 수집 | sessions · messages · SSE · confirm | 같은 경로로 AI에 전달, Core DTO는 BE가 구성 |
 | 전체 생성 | `POST /api/v1/ai/runs` | 확인 시점과 최신 Core fingerprint가 다르면 `409`, `detail.action=reconfirm_summary` |
 | 결과 조회 | `GET /api/v1/ai/runs/{runId}` | AI로 전달하지 않고 BE 저장 결과 반환 |
+| 생성 중 폐기 | `POST /api/v1/ai/runs/discard` | `{run_id}` 또는 `{idempotency_key}`(둘 중 하나 필수, 없으면 `400`) → `204`. run을 `DISCARDED`로 두고 AI로 전달하지 않는다 |
 | 이미지 전달 | AI → `/internal/ai/media/upload-targets` | S3 key `media/projects/{projectId}/ai/` 아래 presigned PUT 발급 — `/media`는 CDN 전용 접두사가 아니라 키의 일부다(공개 URL `https://{cdn-domain}/media/projects/{projectId}/ai/{fileId}.png`) |
 | 완료 통지 | AI → `/internal/ai/runs/{runId}/completion` | 경로·존재·크기·MIME 검증 후 결과 확정 |
 
@@ -923,11 +925,13 @@ POST /api/v1/community/posts/{postId}/answer
   FE가 이 둘을 화면에서 구분해야 하면 AI 쪽에 "처리 시작" 통지가 새로 필요한 별도 작업이다
   (2026-09-22 확인, 필요성 확인 전까지 보류).
 - 전체 재생성만 지원한다. 부분/슬롯 재생성과 별도 export/apply API는 없다.
+- 폐기된 run은 조회 시 `discarded`로 내려가고, 완료 callback이 와도 스토리·색인·요약을 갱신하지 않고 `{"status":"discarded"}`로 끝낸다 — 4xx를 주면 AI가 재시도한다(#226, QA-189). AI 작업 자체는 취소할 수 없다.
+- run ID를 받기 전에 닫은 경우는 `idempotency_key`로 폐기한다 — 선점 행(`ai_funding_story_sessions.idempotency_key`)을 남겨 두고, 뒤늦게 만들어지는 run 추적자를 바로 폐기 상태로 저장한다. 이미 반영이 끝난(`succeeded`) 결과는 되돌리지 않는다.
 - 객체 검증 실패가 일부이면 `partially_succeeded`, 사용 가능한 결과가 없으면 `failed`로 낮춘다.
 - 완료 callback을 제한 시간 안에 받지 못하면 조회 시 `failed/RUN_CALLBACK_TIMEOUT`으로 종료한다.
 - 성공·부분 성공의 본문과 검증된 URL은 기존 `projects.cover_image_url`, `projects.intro_content`에 반영한다.
-- `ai_funding_story_sessions`는 세션/run 식별·상태·Core fingerprint 추적에 재사용한다.
-- 별도 Funding Story 테이블·자산 테이블·DB migration·ERD 변경은 없다.
+- `ai_funding_story_sessions`는 세션/run 식별·상태·Core fingerprint 추적에 재사용한다. 상태에 `DISCARDED`, 컬럼에 `idempotency_key`(부분 유니크)가 추가됐다(`V21`).
+- 별도 Funding Story 테이블·자산 테이블·ERD 변경은 없다.
 - DTO 필드와 SSE/callback 형식은 DTO 계약, 호출 순서는 통합 인터페이스 명세를 따른다.
 - 세션 응답(`SessionResponse`)과 최신 세션 응답은 값이 없는 필드도 키를 유지한다 — `confirmed_revision`·`summary`·`active_chat_id`는 `null`로, 세션이 없으면 `{"session": null}`로 내려간다(서비스 기본값 `non_null`의 예외, #152).
 

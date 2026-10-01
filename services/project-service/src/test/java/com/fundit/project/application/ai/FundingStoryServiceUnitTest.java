@@ -18,6 +18,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunRespon
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SuccessfulImage;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTargetsRequest;
@@ -285,7 +286,7 @@ class FundingStoryServiceUnitTest {
         when(contextFactory.create(project, List.of())).thenReturn(context);
         when(fundingStoryAiClient.createRun(eq(projectId), any())).thenReturn(response);
         when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
-        when(sessionRepository.save(any(FundingStorySession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(true);
 
         // when
         var actual = fundingStoryService.createRun(sellerId, projectId, request);
@@ -293,8 +294,10 @@ class FundingStoryServiceUnitTest {
         // then
         assertThat(actual).isEqualTo(response);
         ArgumentCaptor<FundingStorySession> saved = ArgumentCaptor.forClass(FundingStorySession.class);
-        verify(sessionRepository).save(saved.capture());
+        verify(sessionRepository).insertIfKeyFree(saved.capture());
         assertThat(saved.getValue().isRunTracker()).isTrue();
+        assertThat(saved.getValue().getIdempotencyKey()).isEqualTo("run-key");
+        verify(sessionRepository, never()).save(any());
         verify(fundingStoryAiClient).createRun(eq(projectId), any());
     }
 
@@ -408,6 +411,185 @@ class FundingStoryServiceUnitTest {
         assertThat(status).isEqualTo("succeeded");
         assertThat(project.getCoverImageUrl()).isEqualTo(url);
         verify(projectIndexEventPublisher).publishProjectUpdated(any(ProjectIndexEventPublisher.ProjectIndexedEvent.class));
+    }
+
+    @Test
+    void 폐기된_run의_완료_callback은_스토리와_색인을_갱신하지_않는다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession run = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, UUID.randomUUID(), "run-key");
+        run.discard();
+        String url = "https://bucket/media/projects/" + projectId + "/ai/cover.png";
+        RunCompletionRequest request = new RunCompletionRequest(
+                "succeeded",
+                new GeneratedBody("cover", List.of(new GeneratedContentBlock("TEXT", "본문", null))),
+                List.of(new SuccessfulImage("cover", url, "image/png", 100L, 10, 10)),
+                List.of(), null);
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+
+        // when
+        RunCompletionResponse response = fundingStoryService.completeRun(projectId, runId, request);
+
+        // then
+        assertThat(response.status()).isEqualTo("discarded");
+        assertThat(project.getCoverImageUrl()).isNull();
+        verify(projectRepository, never()).save(any());
+        verify(projectIndexEventPublisher, never()).publishProjectUpdated(any());
+        verify(pageSummaryService, never()).markDirtyIfPublic(any());
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    void 폐기된_run_조회는_discarded를_반환해_폴링을_끝낸다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = project(sellerId, projectId, ProjectStatus.DRAFT);
+        FundingStorySession run = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, UUID.randomUUID(), "run-key");
+        run.discard();
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+
+        // when
+        PublicRunResponse response = fundingStoryService.getRun(sellerId, projectId, runId);
+
+        // then
+        assertThat(response.status()).isEqualTo("discarded");
+        assertThat(response.result()).isNull();
+    }
+
+    @Test
+    void run_ID로_폐기하면_폐기_상태만_저장한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession run = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, UUID.randomUUID(), "run-key");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+
+        // when
+        fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(runId, null));
+
+        // then
+        assertThat(run.isDiscarded()).isTrue();
+        verify(sessionRepository).save(run);
+    }
+
+    @Test
+    void 같은_run을_두_번_폐기해도_추가_저장은_없다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession run = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, UUID.randomUUID(), "run-key");
+        run.discard();
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+
+        // when
+        fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(runId, null));
+
+        // then
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    void run_ID를_받기_전_idempotency_key로_폐기하면_선점행을_남긴다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
+                .thenReturn(Optional.empty());
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(true);
+
+        // when
+        fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(null, "run-key"));
+
+        // then
+        ArgumentCaptor<FundingStorySession> inserted = ArgumentCaptor.forClass(FundingStorySession.class);
+        verify(sessionRepository).insertIfKeyFree(inserted.capture());
+        assertThat(inserted.getValue().isDiscarded()).isTrue();
+        assertThat(inserted.getValue().getIdempotencyKey()).isEqualTo("run-key");
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    void 선점_저장이_키_경합에_지면_키를_쥔_run_추적자를_폐기한다() {
+        // given — 폐기 조회 직후 createRun이 추적자를 커밋한 경우
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession raced = FundingStorySession.trackRun(
+                UUID.randomUUID(), project.getId(), sellerId, UUID.randomUUID(), "run-key");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
+                .thenReturn(Optional.empty(), Optional.of(raced));
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(false);
+
+        // when
+        fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(null, "run-key"));
+
+        // then
+        assertThat(raced.isDiscarded()).isTrue();
+        verify(sessionRepository).save(raced);
+    }
+
+    @Test
+    void 선점_폐기된_키로_생성을_등록하면_run_추적자가_폐기_상태로_저장된다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = project(sellerId, projectId, ProjectStatus.DRAFT);
+        FundingStorySession session = FundingStorySession.trackSession(sessionId, project.getId(), sellerId, "fingerprint");
+        FundingStoryContext context = new FundingStoryContext(
+                new ProjectFact("SOLE", null, "프로젝트", 1_000_000L), List.of(), List.of());
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of());
+        when(contextFactory.fingerprint(project, List.of())).thenReturn("fingerprint");
+        when(contextFactory.create(project, List.of())).thenReturn(context);
+        when(fundingStoryAiClient.createRun(eq(projectId), any()))
+                .thenReturn(new RunAcceptedResponse(runId, "queued"));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(false);
+        when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
+                .thenReturn(Optional.of(FundingStorySession.preemptiveDiscard(
+                        UUID.randomUUID(), project.getId(), sellerId, "run-key")));
+        when(sessionRepository.save(any(FundingStorySession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        fundingStoryService.createRun(sellerId, projectId, new PublicRunCreateRequest(sessionId, 4, "run-key"));
+
+        // then
+        ArgumentCaptor<FundingStorySession> saved = ArgumentCaptor.forClass(FundingStorySession.class);
+        verify(sessionRepository).save(saved.capture());
+        assertThat(saved.getValue().isRunTracker()).isTrue();
+        assertThat(saved.getValue().isDiscarded()).isTrue();
+        // 선점행이 키를 점유하므로 추적자는 키를 비운다(부분 유니크 인덱스 충돌 방지)
+        assertThat(saved.getValue().getIdempotencyKey()).isNull();
     }
 
     Project ownedProject(UUID sellerId, UUID publicId) {

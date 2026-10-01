@@ -39,6 +39,68 @@ class FundingStorySessionUnitTest {
     }
 
     @Test
+    void 생성중_run을_폐기하면_DISCARDED가_되고_완료_callback은_결과를_확정하지_않는다() {
+        // given
+        FundingStorySession run = FundingStorySession.trackRun(
+                UUID.randomUUID(), 1L, UUID.randomUUID(), UUID.randomUUID(), "run-key");
+
+        // when
+        boolean discarded = run.discard();
+        boolean changed = run.finishRun(new FundingStoryResult("succeeded", "https://cdn/cover.png", List.of(), List.of(), null));
+
+        // then
+        assertThat(discarded).isTrue();
+        assertThat(run.isDiscarded()).isTrue();
+        assertThat(changed).isFalse();
+        assertThat(run.getResult()).isNull();
+        assertThat(run.getStatus()).isEqualTo(FundingStorySessionStatus.DISCARDED);
+    }
+
+    @Test
+    void 이미_폐기된_run을_다시_폐기하면_변화가_없다() {
+        // given
+        FundingStorySession run = FundingStorySession.trackRun(
+                UUID.randomUUID(), 1L, UUID.randomUUID(), UUID.randomUUID(), "run-key");
+        run.discard();
+
+        // when
+        boolean discarded = run.discard();
+
+        // then
+        assertThat(discarded).isFalse();
+        assertThat(run.isDiscarded()).isTrue();
+    }
+
+    @Test
+    void 이미_완료된_run을_폐기하면_반영된_결과를_되돌리지_않는다() {
+        // given
+        FundingStorySession run = FundingStorySession.trackRun(
+                UUID.randomUUID(), 1L, UUID.randomUUID(), UUID.randomUUID(), "run-key");
+        FundingStoryResult result = new FundingStoryResult("succeeded", "https://cdn/cover.png", List.of(), List.of(), null);
+        run.finishRun(result);
+
+        // when
+        boolean discarded = run.discard();
+
+        // then
+        assertThat(discarded).isFalse();
+        assertThat(run.getStatus()).isEqualTo(FundingStorySessionStatus.COMPLETED);
+        assertThat(run.getResult()).isEqualTo(result);
+    }
+
+    @Test
+    void run_ID를_받기_전_폐기는_키를_든_DISCARDED_선점행으로_저장된다() {
+        // when
+        FundingStorySession preempt = FundingStorySession.preemptiveDiscard(
+                UUID.randomUUID(), 1L, UUID.randomUUID(), "run-key");
+
+        // then
+        assertThat(preempt.isRunTracker()).isTrue();
+        assertThat(preempt.isDiscarded()).isTrue();
+        assertThat(preempt.getIdempotencyKey()).isEqualTo("run-key");
+    }
+
+    @Test
     void GENERATING에서_fail하면_FAILED가_된다() {
         // given
         FundingStorySession session = generatingSession();

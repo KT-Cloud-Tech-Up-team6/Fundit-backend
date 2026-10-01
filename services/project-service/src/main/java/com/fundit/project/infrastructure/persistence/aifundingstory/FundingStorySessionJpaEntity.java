@@ -61,6 +61,9 @@ public class FundingStorySessionJpaEntity {
     @Column(columnDefinition = "jsonb")
     private FundingStoryResult result;
 
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

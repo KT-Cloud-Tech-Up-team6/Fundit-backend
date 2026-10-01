@@ -104,6 +104,10 @@ public final class FundingStoryAiContracts {
     public record RunAcceptedResponse(UUID run_id, String status) {
     }
 
+    /** 생성 중 폐기 요청(QA-189) — run ID를 아직 못 받았으면 생성 요청에 쓴 idempotency key로 보낸다. */
+    public record RunDiscardRequest(UUID run_id, String idempotency_key) {
+    }
+
     public record OutputDescriptor(
             String slot_id, String file_name, String content_type, long file_size) {
     }

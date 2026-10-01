@@ -18,6 +18,7 @@ class FundingStorySessionMapper {
                 .status(FundingStorySessionStatus.valueOf(entity.getStatus()))
                 .additionalQuestions(entity.getAdditionalQuestions())
                 .result(entity.getResult())
+                .idempotencyKey(entity.getIdempotencyKey())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -34,6 +35,7 @@ class FundingStorySessionMapper {
                 .status(domain.getStatus().name())
                 .additionalQuestions(domain.getAdditionalQuestions())
                 .result(domain.getResult())
+                .idempotencyKey(domain.getIdempotencyKey())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
                 .build();
