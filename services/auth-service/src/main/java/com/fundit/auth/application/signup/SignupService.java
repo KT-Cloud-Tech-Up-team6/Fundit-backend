@@ -7,6 +7,7 @@ import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.AddressPhoneNumber;
+import com.fundit.auth.domain.account.AddressRecipientName;
 import com.fundit.auth.domain.account.ReservedNickname;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.common.error.BusinessException;
@@ -40,6 +41,9 @@ public class SignupService {
         }
         if (AddressPhoneNumber.isInvalid(command.address())) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "배송지 연락처는 휴대폰 번호 형식이어야 합니다.");
+        }
+        if (AddressRecipientName.isInvalid(command.address())) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "배송지 받는 분 이름을 입력해 주세요.");
         }
         // 존재 여부만 보지 않고 계정을 꺼내는 이유(정책 B): 소셜로 가입된 이메일이면
         // "이미 가입됨"이 아니라 어느 제공자로 가입됐는지 알려줘야 사용자가 소셜 로그인으로 갈 수 있다.

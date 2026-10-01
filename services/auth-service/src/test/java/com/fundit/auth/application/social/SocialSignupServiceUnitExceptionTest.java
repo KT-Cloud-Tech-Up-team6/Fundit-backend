@@ -90,6 +90,23 @@ class SocialSignupServiceUnitExceptionTest {
     }
 
     @Test
+    void 가입_배송지_받는_사람이_보이지_않는_문자뿐이면_400이고_가입토큰을_소비하지_않는다() {
+        // given (#218) — 폭 없는 공백 + 점자 공백
+        var command = new SocialSignupService.SocialSignupCommand(
+                "token", null, "홍길동", "응원왕", "01012345678", List.of("SERVICE_USE", "PRIVACY", "AGE_OVER_14"),
+                Map.of("recipientName", "\u200B\u2800", "phoneNumber", "01012345678", "zipcode", "12345", "addressLine1", "테헤란로 1"));
+
+        // when & then
+        assertThatThrownBy(() -> service().signup(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+        verify(signupTokenStore, never()).consumeSignup(any());
+        verify(accountRepository, never()).save(any());
+        verify(memberServiceClient, never()).createProfile(any());
+    }
+
+    @Test
     void 그_사이_같은_소셜로_가입이_끝났으면_409로_막는다() {
         // given — 다른 탭에서 먼저 가입이 끝난 경우. 여기서 계속 진행하면 uq_accounts_social 위반이다
         givenValidTokens();
