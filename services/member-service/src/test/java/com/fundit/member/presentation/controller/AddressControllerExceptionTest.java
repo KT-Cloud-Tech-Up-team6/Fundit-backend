@@ -80,4 +80,31 @@ class AddressControllerExceptionTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
+
+    // QA-064(#218) — JSON 이스케이프로 보낸다: 한글 채움, 폭 없는 공백+점자 공백, NBSP+BOM, 제어 문자
+    @ParameterizedTest
+    @ValueSource(strings = {"\\u3164", "\\u200B\\u2800", "\\u00A0\\uFEFF", "\\u0001"})
+    void 받는_사람이_보이지_않는_문자뿐이면_등록과_수정_모두_400을_반환한다(String recipientName) throws Exception {
+        // given
+        UUID accountId = UUID.randomUUID();
+        String body = """
+                {"recipientName": "%s", "phoneNumber": "01012345678", "zipcode": "12345", "addressLine1": "테헤란로 1"}
+                """.formatted(recipientName);
+
+        // when & then
+        mockMvc.perform(post("/api/v1/addresses")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        mockMvc.perform(put("/api/v1/addresses/1")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
 }
