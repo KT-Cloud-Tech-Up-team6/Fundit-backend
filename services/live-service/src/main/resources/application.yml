@@ -29,6 +29,15 @@ live:
     region: ap-northeast-2
     # SDK 호출 1회 시도 타임아웃(ms). 전체 호출(재시도 포함)은 이 값의 2배까지 기다린다.
     api-timeout-ms: 3000
+  vod:
+    # 다시보기 URL 앞부분(#222). 녹화 완료 이벤트의 HLS 경로를 붙여 CloudFront /ivs/* 로 재생한다.
+    # 기본값은 dev CloudFront 도메인이다. 다른 도메인이 필요하면 환경변수로 덮는다.
+    cdn-base-url: ${LIVE_VOD_CDN_BASE_URL:https://infrastudy.store}
+  recording:
+    # 녹화 완료 이벤트 큐(EventBridge → SQS, #222). 비면 폴러가 뜨지 않는다(로컬·테스트).
+    queue-url: ${LIVE_RECORDING_QUEUE_URL:}
+    # 녹화 완료는 드문 이벤트라 짧은 폴링으로 충분하다(롱 폴링은 단일 스케줄러 스레드를 붙잡는다).
+    poll-interval-ms: 5000
   ai:
     # stub | http — AI 서버 주소·계약이 확정되기 전까지 stub이다.
     # 값이 없으면 스텁도 안 뜬다(matchIfMissing=false) — 여기 기본값이 그 안전망이다.
