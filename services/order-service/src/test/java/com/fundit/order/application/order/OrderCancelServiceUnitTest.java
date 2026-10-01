@@ -1,6 +1,7 @@
 package com.fundit.order.application.order;
 
 import com.fundit.order.application.funding.FundingEventPublisher;
+import com.fundit.order.application.funding.FundingRewardStatsBatchService;
 import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
@@ -33,6 +34,8 @@ class OrderCancelServiceUnitTest {
     private InventoryRepository inventoryRepository;
     @Mock
     private FundingEventPublisher fundingEventPublisher;
+    @Mock
+    private FundingRewardStatsBatchService fundingRewardStatsBatchService;
 
     @InjectMocks
     private OrderCancelService orderCancelService;
@@ -65,5 +68,7 @@ class OrderCancelServiceUnitTest {
         // projectId(Long)는 cross-service ID 통일(#69) 이후 Funding이 더 이상 추적하지 않아 null로 발행한다.
         verify(fundingEventPublisher).publishFundingCancelledByMember(
                 new FundingEventPublisher.FundingCancelledByMemberEvent(1L, null, memberId));
+        // #230 — 취소분이 바로 빠져야 판매자 화면의 모금액·후원자 수가 줄어든다
+        verify(fundingRewardStatsBatchService).recomputeOne(funding.getProjectId());
     }
 }

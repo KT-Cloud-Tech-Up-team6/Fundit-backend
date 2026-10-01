@@ -16,8 +16,9 @@ import java.util.UUID;
  *
  * <p>색인에 없는 publicId는 예외로 파티션을 막지 않고 이 메시지만 건너뛴다(project-service와 같은 규칙,
  * event-convention.md 7번). SEARCH-012와 달리 {@link SearchIndexNotReadyException}으로 재시도하지 않는 이유:
- * 이 이벤트는 1일 배치라 다음 주기에 같은 스냅샷이 다시 와서 수렴한다 — 짧은 백오프를 소진해 DLT로 보내도
- * 얻는 게 없다.
+ * 이 이벤트는 전체 교체 스냅샷이라 다음 발행분이 같은 상태로 수렴시킨다 — 짧은 백오프를 소진해 DLT로 보내도
+ * 얻는 게 없다. #230으로 발행이 실시간이 되면서 "다음 발행"까지의 간격은 오히려 짧아졌고(최후 보루인
+ * order 쪽 전체 재계산 배치는 그대로 남아 있다), 이 판단은 그대로 유효하다.
  */
 @Slf4j
 @Service

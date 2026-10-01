@@ -3,6 +3,7 @@ package com.fundit.order.application.order;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.order.application.funding.FundingEventPublisher;
+import com.fundit.order.application.funding.FundingRewardStatsBatchService;
 import com.fundit.order.domain.funding.CancelReason;
 import com.fundit.order.domain.funding.Funding;
 import com.fundit.order.domain.funding.FundingLineItem;
@@ -26,6 +27,7 @@ public class OrderCancelService {
     private final FundingRepository fundingRepository;
     private final InventoryRepository inventoryRepository;
     private final FundingEventPublisher fundingEventPublisher;
+    private final FundingRewardStatsBatchService fundingRewardStatsBatchService;
 
     @Transactional
     public Funding cancel(UUID memberId, UUID orderId, CancelReason cancelReason, String cancelReasonDetail) {
@@ -43,6 +45,8 @@ public class OrderCancelService {
         }
 
         Funding saved = fundingRepository.save(funding);
+        // 저장 뒤에 호출해야 한다 — 재집계가 네이티브 쿼리라 바뀐 status가 DB에 반영된 뒤에 읽어야 한다(#230).
+        fundingRewardStatsBatchService.recomputeOne(saved.getProjectId());
 
         // FundingCancelledByMemberEvent.projectId는 이벤트 계약(Long, project-service 내부 PK)이 그대로인데
         // Funding은 cross-service ID 통일(#69) 이후 UUID만 들고 있어 값을 채울 수 없다 — 알려진 한계로

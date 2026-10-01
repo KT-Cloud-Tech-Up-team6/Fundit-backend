@@ -406,7 +406,7 @@ REST로 노출되지 않는 이벤트/배치 기반 기능(SEARCH-011~015)은 �
 | --- | --- | --- | --- |
 | SEARCH-011 | 이벤트 구독 | `project.approved.v1`/`project.updated.v1`(발행·구독 완료) → `project_documents` upsert. payload에 `sourceVersion`(아웃박스 id)을 실어 낮은 버전은 덮어쓰지 않음. INSERT 시 `search_wish_stat_members` 행 수로 `wish_count` 재구성 | project-service → search-service |
 | SEARCH-012 | 이벤트 구독 | `funding.succeeded.v1`/`funding.goal-failed.v1` → `status` 전이. 색인이 없으면 재시도 후 DLT | order-service → search-service |
-| SEARCH-013 | 이벤트 구독 | `project.funding-reward-stats-updated.v1`(order 1일 배치, 컨슈머 그룹 `search-service`) → `current_amount`/`achievement_rate`/`participant_count`/`funding_stats_synced_at` 갱신. 색인에 없는 `project_public_id`는 로그만 남기고 건너뜀(다음 배치가 수렴) | order-service → search-service |
+| SEARCH-013 | 이벤트 구독 | `project.funding-reward-stats-updated.v1`(order가 상태 전이 시 즉시 발행, 컨슈머 그룹 `search-service`) → `current_amount`/`achievement_rate`/`participant_count`/`funding_stats_synced_at` 갱신. 색인에 없는 `project_public_id`는 로그만 남기고 건너뜀(다음 발행분이 수렴) | order-service → search-service |
 | SEARCH-014 | 이벤트 구독 | `project.wished.v1`/`project.unwished.v1` → `wish_count` 증감. 색인이 없으면 가드 테이블을 건드리지 않고 재시도 후 DLT | member-service → search-service |
 | SEARCH-015 | 스케줄러 | 인기 검색어 집계(Kafka 아님, 내부 배치) | - |
 
