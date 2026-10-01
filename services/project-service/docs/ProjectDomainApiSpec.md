@@ -412,7 +412,7 @@ POST /api/v1/projects/{projectId}/rewards
 - **배송비/예상 발송일**(둘 다 선택값, 미전달 시 `null`): `shippingFee`는 리워드별 배송비(0 이상, 0=무료배송), `estimatedDeliveryDays`는 "펀딩 종료 후 N일" 상대값(0 이상)이다. 값이 있는데 음수면 `400 INVALID_REWARD_SHIPPING_INFO`. **주의**: 배송비가 리워드별인지 프로젝트 공통인지, 예상 발송일이 상대값인지 고정 일자인지는 아직 기획 미확정이라 스키마가 바뀔 수 있다(`ProjectDomainPendingWork.md` #1 참고).
 - 얼리버드 할인: `isEarlyBird=false`면 `earlyBirdDiscountType`/`earlyBirdDiscountValue`는 반드시 없어야 하고,
   `true`면 `earlyBirdDiscountType`(`AMOUNT` 정액(원) 또는 `RATE` 정률(%))과 `earlyBirdDiscountValue`가 필수다.
-  `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~100 사이 정수만 허용(DB CHECK
+  `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~99 사이 정수만 허용(DB CHECK
   `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
   할인 적용가로, 얼리버드가 아니면 `null`이다.
 - `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).

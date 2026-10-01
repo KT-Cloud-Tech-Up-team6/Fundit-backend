@@ -82,6 +82,16 @@ class RewardUnitTest {
         }
 
         @Test
+        void 정률_할인_상한인_99퍼센트여도_적용가는_0원이_아니다() {
+            // when
+            Reward reward = Reward.create(1L, "얼리버드", "설명", null, 40000L, false, null, true,
+                    EarlyBirdDiscountType.RATE, 99L, null, null, null);
+
+            // then
+            assertThat(reward.getEarlyBirdDiscountedPrice()).isEqualTo(400L);
+        }
+
+        @Test
         void 얼리버드가_아니면_적용가가_없다() {
             // when
             Reward reward = Reward.create(1L, "얼리버드", "설명", null, 39000L, false, null, false, null, null, null, null, null);
