@@ -95,6 +95,24 @@ class AddressControllerTest {
     }
 
     @Test
+    void 받는_사람_이름_중간에_보이지_않는_문자가_섞여_있으면_그대로_등록한다() throws Exception {
+        // given (#218 — 다듬지 않고 거절만 한다)
+        UUID accountId = UUID.randomUUID();
+        when(addressService.register(eq(accountId), any())).thenReturn(
+                new AddressService.AddressItem(1L, "홍​길동", "01012345678", "12345", "테헤란로 1", null, false));
+
+        // when & then
+        mockMvc.perform(post("/api/v1/addresses")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"recipientName": "홍\\u200B길동", "phoneNumber": "01012345678", "zipcode": "12345", "addressLine1": "테헤란로 1"}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void 인증헤더_없이_배송지목록을_조회하면_401을_반환한다() throws Exception {
         // when & then
         mockMvc.perform(get("/api/v1/addresses"))

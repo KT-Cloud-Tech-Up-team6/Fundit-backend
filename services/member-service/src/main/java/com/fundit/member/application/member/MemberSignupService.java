@@ -141,7 +141,7 @@ public class MemberSignupService {
      */
     @CompleteAddress
     public record AddressPayload(
-            String recipientName,
+            @Pattern(regexp = RECIPIENT_NAME_PATTERN, message = RECIPIENT_NAME_MESSAGE) String recipientName,
             @Pattern(regexp = PHONE_PATTERN, message = PHONE_MESSAGE) String phoneNumber,
             String zipcode,
             String addressLine1,
@@ -151,5 +151,16 @@ public class MemberSignupService {
         /** 휴대폰 번호, 하이픈 선택. 배송지 등록·수정({@code AddressRegisterRequest})도 같이 쓴다. */
         public static final String PHONE_PATTERN = "^01[016789]-?\\d{3,4}-?\\d{4}$";
         public static final String PHONE_MESSAGE = "연락처는 휴대폰 번호 형식이어야 합니다.";
+
+        /**
+         * 보이는 문자가 하나는 있어야 한다(#218, QA-064). 공백·제어(Cc)·서식(Cf)·Default Ignorable·U+2800만으로
+         * 된 이름을 막는다 — FE {@code /[\s\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}⠀]/gu}와 같은 집합.
+         * Java 정규식엔 Default_Ignorable 속성이 없어 Cf가 아닌 것(U+3164 한글 채움 등)을 직접 나열한다.
+         * 배송지 등록·수정({@code AddressRegisterRequest})도 같이 쓴다.
+         */
+        public static final String RECIPIENT_NAME_PATTERN = "(?s).*[^\\p{IsWhite_Space}\\p{Cc}\\p{Cf}"
+                + "\\u034F\\u115F\\u1160\\u17B4\\u17B5\\u180B-\\u180F\\u2065\\u3164\\uFE00-\\uFE0F\\uFFA0\\uFFF0-\\uFFF8"
+                + "\\x{E0000}-\\x{E0FFF}\\u2800].*";
+        public static final String RECIPIENT_NAME_MESSAGE = "받는 분 이름을 입력해 주세요.";
     }
 }

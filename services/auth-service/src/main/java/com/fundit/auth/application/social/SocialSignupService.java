@@ -6,6 +6,7 @@ import com.fundit.auth.domain.AuthErrorCode;
 import com.fundit.auth.domain.account.Account;
 import com.fundit.auth.domain.account.AccountRepository;
 import com.fundit.auth.domain.account.AddressPhoneNumber;
+import com.fundit.auth.domain.account.AddressRecipientName;
 import com.fundit.auth.domain.account.ReservedNickname;
 import com.fundit.auth.domain.account.Role;
 import com.fundit.common.error.BusinessException;
@@ -53,6 +54,9 @@ public class SocialSignupService {
         }
         if (AddressPhoneNumber.isInvalid(command.address())) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "배송지 연락처는 휴대폰 번호 형식이어야 합니다.");
+        }
+        if (AddressRecipientName.isInvalid(command.address())) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "배송지 받는 분 이름을 입력해 주세요.");
         }
         var pending = signupTokenStore.consumeSignup(command.signupToken())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.TOKEN_EXPIRED));

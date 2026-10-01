@@ -92,6 +92,24 @@ class OrderControllerExceptionTest {
     }
 
     @Test
+    void 배송지_받는_사람이_보이지_않는_문자뿐이면_400이다() throws Exception {
+        // given (QA-064, #218 — 폭 없는 공백 + 점자 공백, JSON 이스케이프로 보낸다)
+        UUID memberId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(post("/api/v1/orders")
+                        .header("X-User-Id", memberId.toString())
+                        .header("X-Internal-Api-Key", INTERNAL_KEY)
+                        .contentType("application/json")
+                        .content("""
+                                {"projectId": "%s", "lineItems": [{"rewardId":1,"quantity":1}],
+                                 "shippingAddress": {"recipientName":"\\u200B\\u2800","phoneNumber":"01012345678","zipcode":"12345","addressLine1":"주소"}}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
     void 존재하지_않는_주문을_취소하면_404를_반환한다() throws Exception {
         // given
         UUID memberId = UUID.randomUUID();

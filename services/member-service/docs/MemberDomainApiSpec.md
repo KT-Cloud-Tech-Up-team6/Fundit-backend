@@ -83,7 +83,7 @@ Request Body
 | `nickname` | String | **Y** | 닉네임(표시명). 공개 화면에서 실명 대신 쓴다 — **실명으로 대신 채우지 않는다**(security.md S9) |
 | `phoneNumber` | String | Y | 휴대전화번호 (본인인증 성공 여부와 무관하게 입력값 그대로 저장) |
 | `agreedTerms` | Array\<String\> | Y | 동의한 약관 코드 목록 `["SERVICE_USE", "PRIVACY", ...]` |
-| `address` | Object | N | 선택 입력 주소. 넣으면 `address.phoneNumber`는 휴대폰 번호 형식(`^01[016789]-?\d{3,4}-?\d{4}$`, 하이픈 선택)이어야 하고, 어기면 400 `INVALID_INPUT`(#209) |
+| `address` | Object | N | 선택 입력 주소. 넣으면 `address.phoneNumber`는 휴대폰 번호 형식(`^01[016789]-?\d{3,4}-?\d{4}$`, 하이픈 선택)이어야 하고, 어기면 400 `INVALID_INPUT`(#209). `address.recipientName`이 보이지 않는 문자(공백·Cc·Cf·Default Ignorable·U+2800)뿐이어도 400 `INVALID_INPUT`(#218) |
 
 > 2026-09-03 정정: `agreedTerms`는 원안(`[{code, agreed}]`)이 아니라 auth-service의 실제 코드 계약(`MemberServiceClient.CreateMemberProfileCommand`)을 기준으로 `List<String>`(동의한 약관 코드만)으로 구현함. `email`도 실제로는 함께 전달되나 member-service 스키마에는 저장하지 않음.
 
@@ -435,6 +435,7 @@ Validation / Business Rules
 - `addressLine1`은 프론트엔드가 도로명주소 API로 직접 검색해 채운 값을 그대로 받는다.
 - 필수값 누락 시 400.
 - `phoneNumber`는 휴대폰 번호 형식(`^01[016789]-?\d{3,4}-?\d{4}$`)이어야 한다. 하이픈은 있어도 없어도 된다(`010-1234-5678`, `01012345678`). 어기면 400 `INVALID_INPUT`(#209, QA-061~063). 이미 저장된 값은 바꾸지 않는다.
+- `recipientName`이 공백·제어 문자(Cc)·서식 문자(Cf)·Default Ignorable 문자·U+2800만으로 되어 있으면 400 `INVALID_INPUT`(#218, QA-064). 이름 중간에 섞인 경우는 통과하고 값은 다듬지 않는다. 이미 저장된 값은 바꾸지 않는다.
 - 개인정보(주소)는 저장·전송 시 암호화.
 - `isDefault=true`로 등록하면 기존 기본 배송지가 해제된다. **회원당 기본 배송지는 최대 1개**다(DB 부분 유니크 인덱스로 보장).
 
@@ -488,6 +489,7 @@ Validation / Business Rules
 ## 반영 이력
 
 - **[확정, 2026-09-30 #209] 배송지 연락처 형식 검증**: 배송지 등록·수정과 가입 배송지의 `phoneNumber`를 휴대폰 번호 형식으로 검사한다(QA-061~063). 가입 배송지는 auth 가입 진입점에서도 같은 형식으로 먼저 거절한다(AUTH-007·008).
+- **[확정, 2026-10-01 #218] 배송지 받는 사람 검증**: 배송지 등록·수정과 가입 배송지의 `recipientName`이 보이지 않는 문자(공백·Cc·Cf·Default Ignorable·U+2800)뿐이면 400 `INVALID_INPUT`(QA-064). 가입 배송지는 auth 가입 진입점에서도 먼저 거절한다(AUTH-007·008).
 - **[확정] 내부 전용 엔드포인트 방어**: 게이트웨이 라우팅 제외(네트워크 격리) + `X-Internal-Api-Key` 공유 시크릿 헤더 조합.
 - **[확정] 권한 부여 범위**: 회원가입 시 구매자·판매자 권한 모두 부여, PM 확인 완료.
 - **[확정] 찜 목록 프로젝트 정보**: `wishes` 테이블에 스냅샷 컬럼 추가(SQL 스키마 반영 완료), catalog-service 이벤트 구독으로 동기화.
