@@ -213,8 +213,7 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 > 없고 종료 시점엔 녹화도 안 끝나 있어, AI가 `GET /api/v1/lives/{liveId}/vod`를 폴링해 준비를 확인한 뒤
 > 생성하고(약 6분 30초) 결과를 우리 내부 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어준다.
 > 수동·재생성 요청(`POST /api/v1/lives/{liveId}/highlights`)은 그대로 둔다.
-> ⚠️ 지금은 `vod_url`을 채우는 코드가 없어 `/vod`가 모든 종료 방송에 `409`다 — 녹화 완료 수신(인프라 회신 대기)이
-> 들어와야 자동 생성이 실제로 시작된다.
+> `vod_url`은 IVS 녹화 완료 이벤트(SQS)를 받아 채운다(#222) — 아래 "다시보기 준비(녹화 완료 수신)" 참고.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP
 > 응답으로 바로 답변이 오고(`submitComments`), 나머지(`faq`/`unanswered`/`faqComments`)는
@@ -1181,6 +1180,20 @@ Response Body
 ```
 
 다시보기가 아직 저장되지 않았으면 `409`("다시보기가 아직 준비되지 않았습니다"), 없는 방송·`DRAFT`는 `404`.
+
+#### 다시보기 준비(녹화 완료 수신) — HTTP API 없음 (#222, 2026-10-01 확정)
+
+- **경로**: IVS Recording State Change → EventBridge → **SQS 큐(DLQ 포함)** → live가 꺼내 처리(`RecordingQueuePoller`).
+  HTTP 엔드포인트를 두지 않은 이유는 파드 재배포 중에도 이벤트를 잃지 않기 위해서다(인프라 결정).
+  큐 주소는 `LIVE_RECORDING_QUEUE_URL`(`live.recording.queue-url`)이고, 비면 폴러가 뜨지 않는다(로컬·테스트).
+- **읽는 필드**(EventBridge 원문): `resources[0]`(채널 ARN), `detail.recording_status`, `detail.recording_s3_key_prefix`.
+- **저장 URL**: `{live.vod.cdn-base-url}/{recording_s3_key_prefix}/media/hls/master.m3u8` — CloudFront `/ivs/*`가 VOD 버킷으로
+  보낸다. S3 presign이 아닌 이유: HLS는 하위 `.ts` 청크까지 서명이 필요해 m3u8만 서명하면 403이 난다.
+- **대상 방송**: 채널 ARN → `live_channels` → 그 채널에서 **가장 최근에 실제 방송한(`actual_start_at`) 1건**.
+  이미 `vod_url`이 있으면 덮지 않는다 — 같은 이벤트 재수신에도 결과가 같고, 이전 방송으로 넘어가 붙지도 않는다.
+- **무시**(메시지는 삭제): `Recording End`가 아닌 이벤트(시작·실패), 모르는 채널, 녹화 경로 없음, 이미 저장됨.
+- **재시도**: 처리 중 예외(깨진 JSON·DB 오류)면 메시지를 지우지 않는다 → visibility timeout 뒤 재수신, 계속 실패하면 DLQ.
+- 주기는 5초 짧은 폴링이다(롱 폴링은 단일 스케줄러 스레드를 붙잡아 채팅 배치 전송을 늦춘다).
 
 > 응답 필드는 `vodUrl`이 아니라 **`playbackUrl`**(`type=VOD`)이다 — `/playback`과 같은 모양이다. 이전 예시의
 > `vodUrl`·`durationSec`·`markers`는 실제 응답에 없다. 챕터(마커)는 `GET /{liveId}/highlights/public`의 `markers`로 받는다.
