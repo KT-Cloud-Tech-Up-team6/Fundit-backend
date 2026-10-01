@@ -17,6 +17,8 @@ dependencies {
     implementation 'software.amazon.awssdk:ivschat'
     // IRSA(web identity token) 자격증명 교환에 필요 — 없으면 LIVE_IVS_MODE=aws에서 IVS 자격증명을 얻지 못한다
     implementation 'software.amazon.awssdk:sts'
+    // 녹화 완료 이벤트 큐 수신(EventBridge → SQS, #222). spring-cloud-aws 대신 SDK만 쓴다
+    implementation 'software.amazon.awssdk:sqs'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     // testcontainers-bom(2.0.4)과 spring-boot-testcontainers는 루트 공통 블록에 이미 있다.

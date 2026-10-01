@@ -1,0 +1,20 @@
+{
+  "version": "0",
+  "id": "e6a12b45-1234-5678-abcd-ef0123456789",
+  "detail-type": "IVS Recording State Change",
+  "source": "aws.ivs",
+  "account": "899957568205",
+  "time": "2026-10-01T06:00:00Z",
+  "region": "ap-northeast-2",
+  "resources": [
+    "arn:aws:ivs:ap-northeast-2:899957568205:channel/fundit-dev-channel-1"
+  ],
+  "detail": {
+    "channel_name": "fundit-dev-channel-1",
+    "stream_id": "st-1234567890abcdef",
+    "recording_status": "Recording End",
+    "recording_status_reason": "",
+    "recording_s3_bucket_name": "fundit-video-dev-team6",
+    "recording_s3_key_prefix": "ivs/v1/899957568205/fundit-dev-channel-1/2026/10/1/6/0/st-1234567890abcdef"
+  }
+}

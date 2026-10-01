@@ -15,6 +15,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -280,5 +281,48 @@ class LiveSessionJpaRepositoryIntegrationTest {
                 .isEqualTo("https://mock/001.png");
         assertThat(sessionRepository.findByPublicId(custom.getPublicId()).orElseThrow().getThumbnailUrl())
                 .isEqualTo("https://seller/own.png");
+    }
+
+    private LiveSessionJpaEntity seedStarted(Long channel, LiveStatus status, Instant startedAt, String vodUrl) {
+        return sessionRepository.saveAndFlush(LiveSessionJpaEntity.builder()
+                .publicId(UUID.randomUUID()).projectId(UUID.randomUUID()).channelId(channel)
+                .introText("소개").status(status).likeCount(0)
+                .actualStartAt(startedAt).vodUrl(vodUrl).build());
+    }
+
+    @Test
+    void 녹화_완료_다시보기는_채널의_최신_방송에만_채운다() {
+        // given (#222) — 같은 채널에 이전 방송·최신 방송·미송출 방송이 있다
+        Instant now = Instant.parse("2026-10-01T10:00:00Z");
+        var older = seedStarted(channelId, LiveStatus.ENDED, now.minusSeconds(86400), null);
+        var latest = seedStarted(channelId, LiveStatus.ENDED, now, null);
+        var neverStarted = seedSession(channelId, LiveStatus.SCHEDULED);
+
+        // when
+        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/latest.m3u8", now);
+
+        // then
+        assertThat(updated).isEqualTo(1);
+        assertThat(sessionRepository.findByPublicId(latest.getPublicId()).orElseThrow().getVodUrl())
+                .isEqualTo("https://cdn/latest.m3u8");
+        assertThat(sessionRepository.findByPublicId(older.getPublicId()).orElseThrow().getVodUrl()).isNull();
+        assertThat(sessionRepository.findByPublicId(neverStarted.getPublicId()).orElseThrow().getVodUrl()).isNull();
+    }
+
+    @Test
+    void 최신_방송에_이미_다시보기가_있으면_덮지도_이전_방송으로_넘어가지도_않는다() {
+        // given (#222) — 같은 이벤트 재전송, 또는 한 방송에 녹화가 두 번 끝난 경우
+        Instant now = Instant.parse("2026-10-01T10:00:00Z");
+        var older = seedStarted(channelId, LiveStatus.ENDED, now.minusSeconds(86400), null);
+        var latest = seedStarted(channelId, LiveStatus.ENDED, now, "https://cdn/first.m3u8");
+
+        // when
+        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/second.m3u8", now);
+
+        // then
+        assertThat(updated).isZero();
+        assertThat(sessionRepository.findByPublicId(latest.getPublicId()).orElseThrow().getVodUrl())
+                .isEqualTo("https://cdn/first.m3u8");
+        assertThat(sessionRepository.findByPublicId(older.getPublicId()).orElseThrow().getVodUrl()).isNull();
     }
 }

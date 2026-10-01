@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -142,6 +143,25 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     @Modifying(clearAutomatically = true)
     @Query("update LiveSessionJpaEntity s set s.thumbnailUrl = :url where s.publicId = :publicId and s.thumbnailUrl is null")
     int fillThumbnailIfAbsent(@Param("publicId") UUID publicId, @Param("url") String url);
+
+    /**
+     * 녹화 완료 시 다시보기 URL을 채운다(#222). 대상은 그 채널에서 <b>가장 최근에 실제로 방송한 1건</b>이고,
+     * 이미 값이 있으면 건드리지 않는다 — 같은 이벤트가 두 번 와도 결과가 같고, 최신 방송에 값이 있다고
+     * 이전 방송으로 넘어가 엉뚱한 영상을 붙이지도 않는다. 엔티티 저장({@code applyFrom})은 vod 컬럼을
+     * 일부러 안 쓰므로 이 경로로만 쓴다. 세션에 IVS stream id가 없어 채널+최신 방송으로 찾는다.
+     *
+     * @return 채운 행 수(0 또는 1)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(value = """
+            UPDATE live_sessions SET vod_url = :url, vod_ready_at = :readyAt
+             WHERE id = (SELECT id FROM live_sessions
+                          WHERE channel_id = :channelId AND actual_start_at IS NOT NULL
+                          ORDER BY actual_start_at DESC LIMIT 1)
+               AND vod_url IS NULL
+            """, nativeQuery = true)
+    int fillVodIfAbsent(@Param("channelId") Long channelId, @Param("url") String url,
+                        @Param("readyAt") Instant readyAt);
 
     /** 채팅 적재에서 룸 ARN → 세션 변환. ARN이 세션 컬럼이라 조인 없이 단일 조회다. */
     Optional<LiveSessionJpaEntity> findByIvsChatRoomArn(String ivsChatRoomArn);
