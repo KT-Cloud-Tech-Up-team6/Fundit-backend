@@ -81,6 +81,26 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
                 .build();
     }
 
+    private ProjectDocumentJpaEntity projectWithGoalAmount(long id, long goalAmount) {
+        return ProjectDocumentJpaEntity.builder()
+                .projectId(id)
+                .projectPublicId(UUID.randomUUID())
+                .sellerId(UUID.randomUUID())
+                .title("목표금액 " + goalAmount)
+                .categoryMajor("테크·가전")
+                .categoryMinor("생활가전")
+                .status(ProjectDocumentStatus.ONGOING)
+                .goalAmount(goalAmount)
+                .fundingDeadline(Instant.now().plus(5, ChronoUnit.DAYS))
+                .projectCreatedAt(Instant.now())
+                .currentAmount(0L)
+                .achievementRate(0)
+                .participantCount(0)
+                .wishCount(0)
+                .indexedAt(Instant.now())
+                .build();
+    }
+
     @Test
     void 제목이_비슷하면_오탈자여도_검색된다() {
         // given — pg_trgm 유사도 매칭이므로 완전 일치가 아니어도 잡혀야 한다
@@ -194,5 +214,64 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
         // then
         assertThat(result.getContent()).extracting(ProjectCardProjection::getProjectId).containsExactly(23L);
+    }
+
+    @Test
+    void 펀딩_통계_갱신은_달성률을_목표금액으로_계산한다() {
+        // given — goal_amount 100만, 모금 185만
+        var saved = projectDocumentJpaRepository.save(project(31L, "달성률 계산", ProjectDocumentStatus.ONGOING, 0));
+
+        // when
+        int updated = projectDocumentJpaRepository.updateFundingStats(saved.getProjectPublicId(), 1_850_000L, 7);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        var document = projectDocumentJpaRepository.findById(31L).orElseThrow();
+        assertThat(updated).isEqualTo(1);
+        assertThat(document.getCurrentAmount()).isEqualTo(1_850_000L);
+        assertThat(document.getAchievementRate()).isEqualTo(185);
+        assertThat(document.getParticipantCount()).isEqualTo(7);
+        assertThat(document.getFundingStatsSyncedAt()).isNotNull();
+    }
+
+    @Test
+    void 목표금액이_0이면_달성률은_0이다() {
+        // given — 계산 근거가 없는 경우(project-service ProjectStatsService와 동일 규칙)
+        var saved = projectDocumentJpaRepository.save(projectWithGoalAmount(32L, 0L));
+
+        // when
+        projectDocumentJpaRepository.updateFundingStats(saved.getProjectPublicId(), 1_850_000L, 7);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(projectDocumentJpaRepository.findById(32L).orElseThrow().getAchievementRate()).isZero();
+    }
+
+    @Test
+    void 참여자수가_null이면_기존_값을_유지한다() {
+        // given — 필드가 없던 구버전 order 메시지
+        var saved = projectDocumentJpaRepository.save(project(33L, "구버전 메시지", ProjectDocumentStatus.ONGOING, 12));
+
+        // when
+        projectDocumentJpaRepository.updateFundingStats(saved.getProjectPublicId(), 500_000L, null);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(projectDocumentJpaRepository.findById(33L).orElseThrow().getParticipantCount()).isEqualTo(12);
+    }
+
+    @Test
+    void 색인에_없는_publicId면_영향_행이_0이다() {
+        // given — 색인에 존재하지 않는 프로젝트
+        UUID unknownPublicId = UUID.randomUUID();
+
+        // when
+        int updated = projectDocumentJpaRepository.updateFundingStats(unknownPublicId, 500_000L, 1);
+
+        // then
+        assertThat(updated).isZero();
     }
 }

@@ -28,7 +28,12 @@ public interface ProjectCardProjection {
 
     ProjectDocumentStatus getStatus();
 
+    /** SEARCH-013 스냅샷 — 모금액·달성률·참여자 수는 같은 이벤트에서 함께 갱신된다. */
+    Long getCurrentAmount();
+
     Integer getAchievementRate();
+
+    Integer getParticipantCount();
 
     String getSellerDisplayName();
 
