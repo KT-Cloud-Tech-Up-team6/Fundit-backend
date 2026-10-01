@@ -8,9 +8,15 @@ import java.util.UUID;
  * 판매자 id를 조회한다. 소유권 검증은 보안에 직결되므로 실패를 무시하지 않고 그대로 전파한다
  * (order-service {@code ProjectOwnershipClient}와 같은 판단).
  *
+ * <p>같은 응답의 대표 이미지는 LIVE 기본 썸네일로 쓴다 — 판매자가 썸네일을 넣을 경로가 없다(#228).
+ *
  * <p>프로젝트가 없으면 {@link Optional#empty()}다 — 호출 측이 404로 바꾼다.
  */
 public interface ProjectOwnershipClient {
 
-    Optional<UUID> findSellerId(UUID projectId);
+    Optional<ProjectOwner> find(UUID projectId);
+
+    /** {@code coverImageUrl}은 프로젝트에 대표 이미지가 없으면 null이다. */
+    record ProjectOwner(UUID sellerId, String coverImageUrl) {
+    }
 }

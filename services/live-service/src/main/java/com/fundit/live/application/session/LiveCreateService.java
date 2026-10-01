@@ -18,6 +18,9 @@ import java.util.UUID;
  * LIVE 생성(요구사항정의서 6.1.4). 본인 소유 프로젝트인지 project-service에 물어본 뒤
  * {@code DRAFT} 상태로 만든다.
  *
+ * <p>썸네일은 프로젝트 대표 이미지로 채운다(#228) — 판매자가 넣을 경로가 없다. 생성 시점 값이라
+ * 이후 프로젝트 커버를 바꿔도 따라 바뀌지 않는다.
+ *
  * <p>채널이 없으면 함께 프로비저닝한다 — 판매자당 1개라 최초 1회만 실제 호출이 일어난다.
  */
 @Service
@@ -31,16 +34,18 @@ public class LiveCreateService {
 
     @Transactional
     public LiveSession create(UUID sellerId, UUID projectId) {
-        UUID ownerId = projectOwnershipClient.findSellerId(projectId)
+        ProjectOwnershipClient.ProjectOwner owner = projectOwnershipClient.find(projectId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "존재하지 않는 프로젝트입니다."));
-        if (!ownerId.equals(sellerId)) {
+        if (!owner.sellerId().equals(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "본인 소유 프로젝트가 아닙니다.");
         }
 
         LiveChannelJpaEntity channel = channelRepository.findBySellerId(sellerId)
                 .orElseGet(() -> provisionChannel(sellerId));
 
-        return sessionRepository.save(LiveSession.create(channel.getId(), projectId));
+        return sessionRepository.save(LiveSession.create(channel.getId(), projectId).toBuilder()
+                .thumbnailUrl(owner.coverImageUrl())
+                .build());
     }
 
     private LiveChannelJpaEntity provisionChannel(UUID sellerId) {
