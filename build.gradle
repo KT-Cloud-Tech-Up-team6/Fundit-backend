@@ -32,6 +32,10 @@ subprojects {
     ext {
         set('springCloudVersion', '2025.1.2')
         set('springModulithVersion', "2.1.0")
+        // ponytail: 보안 패치(SAST 1·6, #220) — Boot BOM 속성 덮어쓰기. Boot 4.1.x GA가 이 버전 이상을 관리하면 두 줄 제거
+        // (mavenBom의 bomProperty는 Boot 플러그인이 같은 BOM을 따로 import해서 적용되지 않는다)
+        set('tomcat.version', '11.0.26')      // CVE-2026-65637, 11.0.20~11.0.24 영향
+        set('netty.version', '4.2.18.Final')  // CVE-2026-89044 (gateway 요청 스머글링)
     }
 
     // Spring Boot / Spring Cloud BOM으로 의존성 버전을 일괄 관리 (각 서비스에서 버전 명시 불필요)
