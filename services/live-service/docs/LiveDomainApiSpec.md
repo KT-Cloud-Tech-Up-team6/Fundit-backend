@@ -269,6 +269,8 @@ Validation / Business Rules
 - 생성 직후 상태는 **`DRAFT`** 다. 방송 예정일시는 다음 단계(요구사항정의서 6.2.4.1)에서 받으므로, 이 시점에 `SCHEDULED`로 두면 예정 시각 없는 예약 상태가 된다.
 - 채널(`live_channels`)이 없으면 함께 프로비저닝한다. **판매자당 채널 1개**이므로 동시에 두 방송을 송출할 수 없다 — 요구사항정의서 6.1.3의 "동일 프로젝트 반복 LIVE 개설"은 순차 진행이라 이 제약으로 충분하다.
 - `liveId`는 `live_sessions.public_id`이며 이후 모든 소비자 노출 경로(`/live/{liveId}`)에서 그대로 쓴다.
+- **썸네일은 프로젝트 대표 이미지로 채운다(#228).** 소유권 확인에 쓰는 project 공개 상세 응답의 `coverImageUrl`을 그대로 저장한다(추가 호출 없음). 프로젝트에 대표 이미지가 없으면 `null`이다. 요구사항정의서 6.2.4.1에 썸네일 입력 항목이 없어 판매자가 넣을 경로가 없기 때문이다. **생성 시점 값**이라 이후 프로젝트 대표 이미지를 바꿔도 따라 바뀌지 않는다.
+  - 이 규칙 이전에 만든 dev LIVE는 기동 시 `LiveThumbnailBackfill`이 같은 값으로 채운다(비어 있는 행만, dev 전용).
 
 ---
 
@@ -981,6 +983,7 @@ Validation / Business Rules
 - **`projectId`(프로젝트 필터)**: 프로젝트 상세 "LIVE 체크" 탭용이다 — 보통 `status=ENDED`와 함께 써서 그 프로젝트의
   지난 방송을 받는다. 다른 필터·정렬과 같이 쓸 수 있다.
 - **`actualStartAt`**: 실제 방송 시작 시각. 시작 전(`SCHEDULED`)이면 `null`이다.
+- **`thumbnailUrl`**: LIVE 생성 시 연결 프로젝트의 대표 이미지(`coverImageUrl`)로 채운 값이다(#228, "LIVE 생성" 참고). 프로젝트에 대표 이미지가 없으면 `null`이다. 홈 LIVE 카드(search-service)도 이 값을 그대로 쓴다.
 - **`sellerId`(응답)**: 판매자 회원 ID. 팔로잉 목록의 "방송 중 여부"를 FE가 이 값으로 맞춘다. 우리 DB(채널) 값이라
   `sellerNickname`과 달리 member 조회가 실패해도 채워진다. `/mine`에는 본인 ID가 들어간다.
 - **`sellerNickname`(판매자명, #154)**: 배너·소비자 목록(모든 정렬) 카드에 채운다. 페이지의 판매자들을 모아
