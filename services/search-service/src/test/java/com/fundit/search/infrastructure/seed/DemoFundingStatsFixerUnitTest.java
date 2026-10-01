@@ -49,14 +49,14 @@ class DemoFundingStatsFixerUnitTest {
     void 통계가_0인_색인은_시드값으로_보정하고_전부_끝나면_다시_안_본다() {
         // given — 시드 50건 전부 색인된 상태
         given(projectDocumentRepository.findByProjectPublicId(any())).willReturn(Optional.of(document(0L)));
-        given(projectDocumentRepository.updateFundingStats(any(), anyLong(), any())).willReturn(1);
+        given(projectDocumentRepository.updateFundingStatsIfUnset(any(), anyLong(), any())).willReturn(1);
 
         // when
         fixer.fix();
         fixer.fix();
 
         // then
-        verify(projectDocumentRepository).updateFundingStats(FIRST_MOCK_PROJECT, 190_000L, 9);
+        verify(projectDocumentRepository).updateFundingStatsIfUnset(FIRST_MOCK_PROJECT, 190_000L, 9);
         verify(projectDocumentRepository, times(MOCK_PROJECT_COUNT)).findByProjectPublicId(any());
     }
 
@@ -69,7 +69,7 @@ class DemoFundingStatsFixerUnitTest {
         fixer.fix();
 
         // then
-        verify(projectDocumentRepository, never()).updateFundingStats(any(), anyLong(), anyInt());
+        verify(projectDocumentRepository, never()).updateFundingStatsIfUnset(any(), anyLong(), anyInt());
     }
 
     @Test

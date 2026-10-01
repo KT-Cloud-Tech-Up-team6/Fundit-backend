@@ -265,8 +265,11 @@ class ProjectDocumentJpaRepositoryIntegrationTest {
 
     @Test
     void 색인에_없는_publicId면_영향_행이_0이다() {
+        // given — 색인에 존재하지 않는 프로젝트
+        UUID unknownPublicId = UUID.randomUUID();
+
         // when
-        int updated = projectDocumentJpaRepository.updateFundingStats(UUID.randomUUID(), 500_000L, 1);
+        int updated = projectDocumentJpaRepository.updateFundingStats(unknownPublicId, 500_000L, 1);
 
         // then
         assertThat(updated).isZero();

@@ -23,10 +23,12 @@ import java.util.UUID;
  * 그래서 SEARCH-013 구독을 붙여도 이벤트가 영영 오지 않는다. 색인 최초 적재는 통계를 0으로 넣으므로
  * 보정 없이는 카드만 "0% 달성"으로 남는다.
  *
- * <p>달성률은 쓰지 않는다 — {@code updateFundingStats}가 색인 행의 goal_amount로 계산하고, 그 값이
+ * <p>달성률은 쓰지 않는다 — {@code updateFundingStatsIfUnset}이 색인 행의 goal_amount로 계산하고, 그 값이
  * project 목업 스냅샷의 달성률과 같다(50건 전부 확인).
  *
- * <p>{@code current_amount}가 0인 행만 고친다 — 나중에 실제 이벤트가 오면 그 값을 덮지 않는다.
+ * <p>{@code current_amount}가 0인 행만 고친다 — 나중에 실제 이벤트가 오면 그 값을 덮지 않는다. 이 조건은
+ * {@code updateFundingStatsIfUnset}의 WHERE 절에 있다(아래 자바 검사는 불필요한 UPDATE를 줄이는 빠른 경로일 뿐) —
+ * 읽은 뒤 UPDATE 사이에 SEARCH-013 이벤트가 커밋되는 경우까지 막으려면 조건이 SQL에 있어야 한다.
  * 색인은 project 이벤트로 비동기로 들어오므로 기동 1회가 아니라 주기로 확인하고, 50건이 전부 색인된
  * 뒤로는 아무것도 하지 않는다({@code DemoProjectStatusFixer}와 같은 형태).
  *
@@ -78,7 +80,7 @@ public class DemoFundingStatsFixer {
                 }
                 indexed++;
                 if (document.getCurrentAmount() == 0
-                        && projectDocumentRepository.updateFundingStats(
+                        && projectDocumentRepository.updateFundingStatsIfUnset(
                                 stat.publicId(), stat.currentAmount(), stat.participantCount()) > 0) {
                     fixed++;
                 }

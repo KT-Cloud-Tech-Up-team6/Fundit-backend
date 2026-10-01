@@ -89,6 +89,26 @@ public interface ProjectDocumentJpaRepository extends JpaRepository<ProjectDocum
                            @Param("participantCount") Integer participantCount);
 
     /**
+     * dev 시연 데이터 보정용({@code DemoFundingStatsFixer}) — 아직 통계가 없는 행만 갱신한다.
+     *
+     * <p>{@code current_amount = 0} 조건이 자바가 아니라 WHERE 절에 있는 게 핵심이다. 보정은
+     * "읽어서 0인지 보고 → UPDATE"라 그 사이에 SEARCH-013 이벤트가 커밋되면(Postgres READ COMMITTED에서
+     * UPDATE는 잠금 해제 후 최신 행을 다시 본다) 실제 집계값을 목업 수치로 덮어쓴다. 조건을 SQL에 두면
+     * 그 경우 영향 행이 0이 되어 실제 값이 남는다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE project_documents SET
+                current_amount = :currentAmount,
+                achievement_rate = CASE WHEN goal_amount > 0 THEN (:currentAmount * 100 / goal_amount) ELSE 0 END,
+                participant_count = COALESCE(:participantCount, participant_count),
+                funding_stats_synced_at = now()
+            WHERE project_public_id = :publicId AND current_amount = 0
+            """, nativeQuery = true)
+    int updateFundingStatsIfUnset(@Param("publicId") UUID publicId, @Param("currentAmount") long currentAmount,
+                                  @Param("participantCount") Integer participantCount);
+
+    /**
      * SEARCH-014 멱등 가드. project-service {@code ProjectWishStatJpaRepository}와 동일하게, 이 리포지토리가
      * project_documents 애그리거트 하나만 다루더라도 그 위에 얹힌 보조 테이블(search_wish_stat_members)
      * 쿼리를 같이 둔다 — 별도 엔티티/리포지토리를 만들 필요가 없는 경우다.
