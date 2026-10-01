@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * project-service의 <b>공개</b> 상세 API({@code GET /api/v1/projects/{projectId}})를 쓴다.
- * 응답의 {@code seller.sellerId}가 소유자다.
+ * 응답의 {@code seller.sellerId}가 소유자고, {@code coverImageUrl}은 LIVE 기본 썸네일이 된다.
  *
  * <p>내부 API({@code /internal/projects/{projectId}})를 쓰지 않는 이유: 그쪽은 project-service의
  * 내부 PK(Long)만 받는데 live는 publicId(UUID)만 안다. UUID → 내부 id를 알려주는 경로가 없어
@@ -27,7 +27,7 @@ public class ProjectServiceProjectOwnershipClient implements ProjectOwnershipCli
     private final RestClient projectServiceRestClient;
 
     @Override
-    public Optional<UUID> findSellerId(UUID projectId) {
+    public Optional<ProjectOwner> find(UUID projectId) {
         try {
             ProjectDetail detail = projectServiceRestClient.get()
                     .uri("/api/v1/projects/{projectId}", projectId)
@@ -37,16 +37,16 @@ public class ProjectServiceProjectOwnershipClient implements ProjectOwnershipCli
                     // 원인을 찾을 수 없다. 나머지 4xx는 아래 RestClientException으로 떨어진다.
                     .onStatus(status -> status.value() == 404, (req, res) -> { })
                     .body(ProjectDetail.class);
-            if (detail == null || detail.seller() == null) {
+            if (detail == null || detail.seller() == null || detail.seller().sellerId() == null) {
                 return Optional.empty();
             }
-            return Optional.ofNullable(detail.seller().sellerId());
+            return Optional.of(new ProjectOwner(detail.seller().sellerId(), detail.coverImageUrl()));
         } catch (RestClientException e) {
             throw new DependencyFailureException(e);
         }
     }
 
-    private record ProjectDetail(UUID projectId, Seller seller) {
+    private record ProjectDetail(UUID projectId, String coverImageUrl, Seller seller) {
     }
 
     private record Seller(UUID sellerId) {

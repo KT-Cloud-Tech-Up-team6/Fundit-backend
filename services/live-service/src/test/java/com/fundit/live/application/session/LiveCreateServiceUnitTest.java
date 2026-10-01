@@ -2,6 +2,7 @@ package com.fundit.live.application.session;
 
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.application.project.ProjectOwnershipClient;
+import com.fundit.live.application.project.ProjectOwnershipClient.ProjectOwner;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.domain.session.LiveStatus;
@@ -39,7 +40,7 @@ class LiveCreateServiceUnitTest {
     @Test
     void 본인_소유_프로젝트면_DRAFT로_생성된다() {
         // given
-        given(projectOwnershipClient.findSellerId(projectId)).willReturn(Optional.of(sellerId));
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.of(new ProjectOwner(sellerId, null)));
         given(channelRepository.findBySellerId(sellerId))
                 .willReturn(Optional.of(LiveChannelJpaEntity.builder().id(7L).sellerId(sellerId).build()));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
@@ -56,7 +57,7 @@ class LiveCreateServiceUnitTest {
     @Test
     void 채널이_이미_있으면_다시_프로비저닝하지_않는다() {
         // given — 판매자당 채널 1개라 최초 1회만 IVS를 부른다
-        given(projectOwnershipClient.findSellerId(projectId)).willReturn(Optional.of(sellerId));
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.of(new ProjectOwner(sellerId, null)));
         given(channelRepository.findBySellerId(sellerId))
                 .willReturn(Optional.of(LiveChannelJpaEntity.builder().id(7L).sellerId(sellerId).build()));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
@@ -71,7 +72,7 @@ class LiveCreateServiceUnitTest {
     @Test
     void 채널이_없으면_프로비저닝해서_저장한다() {
         // given
-        given(projectOwnershipClient.findSellerId(projectId)).willReturn(Optional.of(sellerId));
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.of(new ProjectOwner(sellerId, null)));
         given(channelRepository.findBySellerId(sellerId)).willReturn(Optional.empty());
         given(ivsClient.createChannel(sellerId.toString()))
                 .willReturn(new IvsClient.Channel("arn", "rtmps://ingest", "https://play", "key-ref"));
@@ -85,5 +86,36 @@ class LiveCreateServiceUnitTest {
         // then
         assertThat(created.getChannelId()).isEqualTo(9L);
         verify(ivsClient).createChannel(sellerId.toString());
+    }
+
+    @Test
+    void 프로젝트_대표_이미지가_썸네일로_저장된다() {
+        // given — 판매자가 썸네일을 넣을 경로가 없어 프로젝트 커버를 기본값으로 쓴다(#228)
+        String cover = "https://infrastudy.store/media/projects/p/cover.png";
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.of(new ProjectOwner(sellerId, cover)));
+        given(channelRepository.findBySellerId(sellerId))
+                .willReturn(Optional.of(LiveChannelJpaEntity.builder().id(7L).sellerId(sellerId).build()));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        LiveSession created = liveCreateService.create(sellerId, projectId);
+
+        // then
+        assertThat(created.getThumbnailUrl()).isEqualTo(cover);
+    }
+
+    @Test
+    void 프로젝트에_대표_이미지가_없으면_썸네일도_비어_있다() {
+        // given
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.of(new ProjectOwner(sellerId, null)));
+        given(channelRepository.findBySellerId(sellerId))
+                .willReturn(Optional.of(LiveChannelJpaEntity.builder().id(7L).sellerId(sellerId).build()));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        LiveSession created = liveCreateService.create(sellerId, projectId);
+
+        // then
+        assertThat(created.getThumbnailUrl()).isNull();
     }
 }

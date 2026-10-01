@@ -1,5 +1,6 @@
 package com.fundit.live.infrastructure.project;
 
+import com.fundit.live.application.project.ProjectOwnershipClient.ProjectOwner;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -27,7 +28,7 @@ class ProjectServiceProjectOwnershipClientUnitTest {
     }
 
     @Test
-    void 공개_상세응답의_seller_sellerId를_소유자로_읽는다() {
+    void 공개_상세응답의_seller_sellerId를_소유자로_대표_이미지를_커버로_읽는다() {
         // given — 내부 API는 Long id만 받아 UUID로는 호출할 수 없다. 공개 API를 쓴다.
         UUID projectId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
@@ -35,14 +36,15 @@ class ProjectServiceProjectOwnershipClientUnitTest {
         f.server().expect(requestTo(BASE_URL + "/api/v1/projects/" + projectId))
                 .andRespond(withSuccess("""
                         { "projectId": "%s", "title": "무선 미니 가습기",
+                          "coverImageUrl": "https://infrastudy.store/media/projects/p/cover.png",
                           "seller": { "sellerId": "%s", "displayName": "메이커" } }
                         """.formatted(projectId, sellerId), MediaType.APPLICATION_JSON));
 
         // when
-        Optional<UUID> found = f.client().findSellerId(projectId);
+        Optional<ProjectOwner> found = f.client().find(projectId);
 
         // then
-        assertThat(found).contains(sellerId);
+        assertThat(found).contains(new ProjectOwner(sellerId, "https://infrastudy.store/media/projects/p/cover.png"));
         f.server().verify();
     }
 
@@ -55,7 +57,7 @@ class ProjectServiceProjectOwnershipClientUnitTest {
                 .andRespond(withResourceNotFound());
 
         // when & then
-        assertThat(f.client().findSellerId(projectId)).isEmpty();
+        assertThat(f.client().find(projectId)).isEmpty();
     }
 
     @Test
@@ -69,6 +71,6 @@ class ProjectServiceProjectOwnershipClientUnitTest {
                         """.formatted(projectId), MediaType.APPLICATION_JSON));
 
         // when & then
-        assertThat(f.client().findSellerId(projectId)).isEmpty();
+        assertThat(f.client().find(projectId)).isEmpty();
     }
 }

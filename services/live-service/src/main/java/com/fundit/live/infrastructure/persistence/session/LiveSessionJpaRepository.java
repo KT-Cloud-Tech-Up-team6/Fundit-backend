@@ -132,8 +132,11 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     /** 소유권 검증이 필요 없는 공개 조회(시청 정보·VOD·채팅 토큰). */
     Optional<LiveSessionJpaEntity> findByPublicId(UUID publicId);
 
+    /** dev 썸네일 보완 대상(#228) — 썸네일 입력 경로가 생기기 전에 만든 LIVE. */
+    List<LiveSessionJpaEntity> findByThumbnailUrlIsNull();
+
     /**
-     * dev 목업 시더 전용 — 썸네일이 <b>비어 있을 때만</b> 채운다. 판매자가 설정한 썸네일은 덮지 않아 재기동해도
+     * dev 목업 시더·썸네일 보완 전용 — 썸네일이 <b>비어 있을 때만</b> 채운다. 판매자가 설정한 썸네일은 덮지 않아 재기동해도
      * 결과가 같다. 도메인 {@code updateSettings}는 LIVE 상태면 409라(목업 절반이 LIVE) 조건부 UPDATE로 한다.
      * 시더에 트랜잭션이 없어 메서드가 직접 연다.
      *

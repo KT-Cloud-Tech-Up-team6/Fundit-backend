@@ -27,7 +27,7 @@ class ProjectServiceProjectOwnershipClientUnitExceptionTest {
                 .andRespond(withServerError());
 
         // when & then
-        assertThatThrownBy(() -> client.findSellerId(projectId))
+        assertThatThrownBy(() -> client.find(projectId))
                 .isInstanceOf(DependencyFailureException.class);
     }
 
@@ -44,7 +44,7 @@ class ProjectServiceProjectOwnershipClientUnitExceptionTest {
                         .withStatus(org.springframework.http.HttpStatus.FORBIDDEN));
 
         // when & then
-        assertThatThrownBy(() -> client.findSellerId(projectId))
+        assertThatThrownBy(() -> client.find(projectId))
                 .isInstanceOf(DependencyFailureException.class);
     }
 }

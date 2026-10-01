@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.application.project.ProjectOwnershipClient;
+import com.fundit.live.application.project.ProjectOwnershipClient.ProjectOwner;
 import com.fundit.live.domain.session.LiveSessionRepository;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,8 @@ class LiveCreateServiceUnitExceptionTest {
     @Test
     void 타인_소유_프로젝트면_403이고_아무것도_만들지_않는다() {
         // given — 식별자만으로 접근을 허용하지 않고 소유권을 검증한다(security.md S4)
-        given(projectOwnershipClient.findSellerId(projectId)).willReturn(Optional.of(UUID.randomUUID()));
+        given(projectOwnershipClient.find(projectId))
+                .willReturn(Optional.of(new ProjectOwner(UUID.randomUUID(), null)));
 
         // when & then
         assertThatThrownBy(() -> liveCreateService.create(sellerId, projectId))
@@ -49,7 +51,7 @@ class LiveCreateServiceUnitExceptionTest {
     @Test
     void 없는_프로젝트면_404다() {
         // given
-        given(projectOwnershipClient.findSellerId(projectId)).willReturn(Optional.empty());
+        given(projectOwnershipClient.find(projectId)).willReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> liveCreateService.create(sellerId, projectId))
