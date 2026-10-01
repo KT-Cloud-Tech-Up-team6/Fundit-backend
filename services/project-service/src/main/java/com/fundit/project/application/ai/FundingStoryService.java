@@ -21,6 +21,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResp
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SuccessfulImage;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTarget;
@@ -167,8 +168,19 @@ public class FundingStoryService {
                         contextFactory.create(project, rewards)));
         FundingStorySession existing = sessionRepository.findById(response.run_id()).orElse(null);
         if (existing == null) {
-            sessionRepository.save(FundingStorySession.trackRun(
-                    response.run_id(), project.getId(), sellerId, request.session_id()));
+            // run ID를 받기 전에 폐기한 경우(QA-189) — 선점 행이 키를 점유하므로 추적자는 키를 비우고 폐기 상태로 만든다.
+            boolean preempted = request.idempotency_key() != null
+                    && sessionRepository
+                            .findByProjectIdAndIdempotencyKey(project.getId(), request.idempotency_key())
+                            .filter(FundingStorySession::isDiscarded)
+                            .isPresent();
+            FundingStorySession tracker = FundingStorySession.trackRun(
+                    response.run_id(), project.getId(), sellerId, request.session_id(),
+                    preempted ? null : request.idempotency_key());
+            if (preempted) {
+                tracker.discard();
+            }
+            sessionRepository.save(tracker);
         } else if (!existing.isRunTracker()
                 || !existing.isOwnedBy(sellerId)
                 || !existing.getProjectId().equals(project.getId())) {
@@ -177,12 +189,47 @@ public class FundingStoryService {
         return response;
     }
 
+    /**
+     * 생성 중 창을 닫고 결과 폐기를 선택한 run을 폐기 상태로 둔다(QA-189). AI 작업은 취소할 수 없으므로
+     * 완료 callback이 와도 스토리·색인을 갱신하지 않는 것으로 처리한다. 이미 반영된 결과는 되돌리지 않는다.
+     */
+    @Transactional
+    public void discardRun(UUID sellerId, UUID projectPublicId, RunDiscardRequest request) {
+        if (request == null
+                || (request.run_id() == null
+                        && (request.idempotency_key() == null || request.idempotency_key().isBlank()))) {
+            throw invalidInput();
+        }
+        Project project = loadOwnedProject(sellerId, projectPublicId);
+        FundingStorySession run = request.run_id() != null
+                ? loadRunTracker(project, request.run_id())
+                : sessionRepository
+                        .findByProjectIdAndIdempotencyKey(project.getId(), request.idempotency_key())
+                        .orElse(null);
+        if (run == null) {
+            // createRun 응답(run ID)이 FE에 닿기 전에 닫은 경우 — 폐기를 선점해 두고 createRun이 보게 한다.
+            sessionRepository.save(FundingStorySession.preemptiveDiscard(
+                    UUID.randomUUID(), project.getId(), sellerId, request.idempotency_key()));
+            return;
+        }
+        if (!run.isOwnedBy(sellerId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        if (run.discard()) {
+            sessionRepository.save(run);
+        }
+    }
+
     @Transactional
     public PublicRunResponse getRun(UUID sellerId, UUID projectPublicId, UUID runId) {
         Project project = loadOwnedProject(sellerId, projectPublicId);
         FundingStorySession run = loadRunTracker(project, runId);
         if (!run.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);
+        }
+        if (run.isDiscarded()) {
+            // FE가 폴링을 끝낼 수 있게 폐기를 그대로 알린다.
+            return new PublicRunResponse(runId, "discarded", null, List.of(), null);
         }
         if (run.getStatus() == FundingStorySessionStatus.GENERATING) {
             if (run.getCreatedAt() != null
@@ -255,6 +302,10 @@ public class FundingStoryService {
             UUID projectPublicId, UUID runId, RunCompletionRequest request) {
         Project project = loadProject(projectPublicId);
         FundingStorySession run = loadRunTracker(project, runId);
+        if (run.isDiscarded()) {
+            // 폐기된 run — 스토리·색인·요약을 건드리지 않고 2xx로 끝낸다. 4xx면 AI가 재시도한다(QA-189).
+            return new RunCompletionResponse(runId, "discarded");
+        }
         validateCompletionShape(request);
 
         FundingStoryResult result = "failed".equals(request.status())

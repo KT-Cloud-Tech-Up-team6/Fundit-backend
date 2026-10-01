@@ -31,6 +31,19 @@ class FundingStorySessionUnitExceptionTest {
     }
 
     @Test
+    void run_추적자가_아닌_세션을_폐기하면_예외가_발생한다() {
+        // given
+        FundingStorySession session = FundingStorySession.trackSession(
+                UUID.randomUUID(), 1L, UUID.randomUUID(), "fingerprint");
+
+        // when & then
+        assertThatThrownBy(session::discard)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
     void COMPLETED_세션을_실패_처리하면_예외가_발생한다() {
         // given
         FundingStorySession session = completedSession();

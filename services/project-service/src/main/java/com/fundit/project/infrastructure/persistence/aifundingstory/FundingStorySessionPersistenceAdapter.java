@@ -24,4 +24,9 @@ public class FundingStorySessionPersistenceAdapter implements FundingStorySessio
     public Optional<FundingStorySession> findById(UUID id) {
         return jpaRepository.findById(id).map(mapper::toDomain);
     }
+
+    @Override
+    public Optional<FundingStorySession> findByProjectIdAndIdempotencyKey(Long projectId, String idempotencyKey) {
+        return jpaRepository.findByProjectIdAndIdempotencyKey(projectId, idempotencyKey).map(mapper::toDomain);
+    }
 }

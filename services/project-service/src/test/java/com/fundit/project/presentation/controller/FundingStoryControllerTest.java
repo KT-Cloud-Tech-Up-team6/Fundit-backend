@@ -3,6 +3,7 @@ package com.fundit.project.presentation.controller;
 import com.fundit.common.webmvc.auth.CommonWebConfig;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import com.fundit.project.application.ai.FundingStoryService;
 import com.fundit.project.presentation.GlobalExceptionHandler;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -78,5 +80,24 @@ class FundingStoryControllerTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.run_id").value(runId.toString()))
                 .andExpect(jsonPath("$.status").value("queued"));
+    }
+
+    @Test
+    void 생성중_폐기는_run_ID_없이_idempotency_key만으로도_204를_반환한다() throws Exception {
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/ai/runs/discard")
+                        .header("X-User-Id", sellerId)
+                        .header("X-Internal-Api-Key", "test-only-internal-api-key")
+                        .header("X-Project-Id", projectId)
+                        .contentType("application/json")
+                        .content("""
+                                { "idempotency_key": "client-run-key" }
+                                """))
+                .andExpect(status().isNoContent());
+
+        verify(fundingStoryService).discardRun(
+                sellerId, projectId, new RunDiscardRequest(null, "client-run-key"));
     }
 }

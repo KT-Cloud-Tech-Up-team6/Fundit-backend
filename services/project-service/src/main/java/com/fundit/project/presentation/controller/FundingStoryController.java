@@ -12,6 +12,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreate
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicSessionCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SessionResponse;
 import com.fundit.project.application.ai.FundingStoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -122,6 +123,16 @@ public class FundingStoryController {
             @RequestBody PublicRunCreateRequest request) {
         return ResponseEntity.accepted()
                 .body(fundingStoryService.createRun(user.id(), projectId, request));
+    }
+
+    @Operation(summary = "생성 중 run 폐기")
+    @PostMapping("/runs/discard")
+    public ResponseEntity<Void> discardRun(
+            @LoginUser CurrentUser user,
+            @RequestHeader(PROJECT_HEADER) UUID projectId,
+            @RequestBody RunDiscardRequest request) {
+        fundingStoryService.discardRun(user.id(), projectId, request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "BE가 소유한 생성 상태·결과 조회")

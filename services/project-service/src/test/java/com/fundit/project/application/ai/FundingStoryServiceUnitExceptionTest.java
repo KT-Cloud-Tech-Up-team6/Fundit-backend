@@ -5,6 +5,7 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiContracts.OutputDescriptor;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTargetsRequest;
 import com.fundit.project.application.media.MediaStorageClient;
 import com.fundit.project.application.project.ProjectIndexEventPublisher;
@@ -133,5 +134,36 @@ class FundingStoryServiceUnitExceptionTest {
         assertThatThrownBy(() -> fundingStoryService.createUploadTargets(projectId,
                 new UploadTargetsRequest(List.of(new OutputDescriptor("hero", "hero.jpg", "image/jpeg", 100L)))))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void 폐기_요청에_run_ID와_idempotency_key가_모두_없으면_거부한다() {
+        // when & then
+        assertThatThrownBy(() -> fundingStoryService.discardRun(
+                UUID.randomUUID(), UUID.randomUUID(), new RunDiscardRequest(null, " ")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void 타_판매자의_run은_폐기할_수_없다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = fixtures.project(sellerId, projectId, ProjectStatus.DRAFT);
+        FundingStorySession run = FundingStorySession.trackRun(
+                runId, project.getId(), UUID.randomUUID(), UUID.randomUUID(), "run-key");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.of(run));
+
+        // when & then
+        assertThatThrownBy(() -> fundingStoryService.discardRun(
+                sellerId, projectId, new RunDiscardRequest(runId, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.FORBIDDEN);
     }
 }
