@@ -65,6 +65,47 @@ class ExtendedSlicePersistenceIntegrationTest {
     }
 
     @Test
+    void 같은_프로젝트_같은_idempotency_key는_한_행만_저장된다() {
+        // given — 네이티브 ON CONFLICT 구문과 부분 유니크 인덱스(V21) 배선은 여기서만 확인된다(#226)
+        Long projectId = persistProjectId();
+        UUID firstId = UuidCreator.getTimeOrderedEpoch();
+        UUID secondId = UuidCreator.getTimeOrderedEpoch();
+
+        // when
+        int first = sessionJpaRepository.insertIfKeyFree(
+                firstId, projectId, UUID.randomUUID(), "RUN:" + UUID.randomUUID(), "GENERATING", "run-key");
+        int second = sessionJpaRepository.insertIfKeyFree(
+                secondId, projectId, UUID.randomUUID(), "RUN:discard-preempt", "DISCARDED", "run-key");
+
+        // then
+        assertThat(first).isEqualTo(1);
+        assertThat(second).isZero();
+        assertThat(sessionJpaRepository.findByProjectIdAndIdempotencyKey(projectId, "run-key"))
+                .get()
+                .extracting(FundingStorySessionJpaEntity::getId, FundingStorySessionJpaEntity::getStatus)
+                .containsExactly(firstId, "GENERATING");
+        assertThat(sessionJpaRepository.findById(secondId)).isEmpty();
+    }
+
+    @Test
+    void 키가_없는_행은_여러_건이어도_저장된다() {
+        // given — 부분 유니크 인덱스는 NULL 키를 제외한다(키 없는 생성 요청·선점에_진_추적자)
+        Long projectId = persistProjectId();
+
+        // when
+        int first = sessionJpaRepository.insertIfKeyFree(
+                UuidCreator.getTimeOrderedEpoch(), projectId, UUID.randomUUID(),
+                "RUN:" + UUID.randomUUID(), "GENERATING", null);
+        int second = sessionJpaRepository.insertIfKeyFree(
+                UuidCreator.getTimeOrderedEpoch(), projectId, UUID.randomUUID(),
+                "RUN:" + UUID.randomUUID(), "DISCARDED", null);
+
+        // then
+        assertThat(first).isEqualTo(1);
+        assertThat(second).isEqualTo(1);
+    }
+
+    @Test
     void LIVE검증_콘텐츠를_저장하고_다시_읽으면_그대로_복원된다() {
         // given
         Long projectId = persistProjectId();

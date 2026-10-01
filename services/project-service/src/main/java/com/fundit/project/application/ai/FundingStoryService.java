@@ -168,25 +168,37 @@ public class FundingStoryService {
                         contextFactory.create(project, rewards)));
         FundingStorySession existing = sessionRepository.findById(response.run_id()).orElse(null);
         if (existing == null) {
-            // run ID를 받기 전에 폐기한 경우(QA-189) — 선점 행이 키를 점유하므로 추적자는 키를 비우고 폐기 상태로 만든다.
-            boolean preempted = request.idempotency_key() != null
-                    && sessionRepository
-                            .findByProjectIdAndIdempotencyKey(project.getId(), request.idempotency_key())
-                            .filter(FundingStorySession::isDiscarded)
-                            .isPresent();
-            FundingStorySession tracker = FundingStorySession.trackRun(
-                    response.run_id(), project.getId(), sellerId, request.session_id(),
-                    preempted ? null : request.idempotency_key());
-            if (preempted) {
-                tracker.discard();
-            }
-            sessionRepository.save(tracker);
+            trackNewRun(project, sellerId, request, response.run_id());
         } else if (!existing.isRunTracker()
                 || !existing.isOwnedBy(sellerId)
                 || !existing.getProjectId().equals(project.getId())) {
             throw new BusinessException(CommonErrorCode.CONFLICT);
         }
         return response;
+    }
+
+    /**
+     * run 추적자를 저장한다. 키 저장은 원자적 INSERT로 시도해, run ID를 받기 전에 들어온 폐기(QA-189)가
+     * 키를 선점했으면 추적자를 키 없이 폐기 상태로 남긴다 — 완료 callback이 와도 스토리를 건드리지 않는다.
+     */
+    private void trackNewRun(
+            Project project, UUID sellerId, PublicRunCreateRequest request, UUID runId) {
+        FundingStorySession tracker = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, request.session_id(), request.idempotency_key());
+        if (sessionRepository.insertIfKeyFree(tracker)) {
+            return;
+        }
+        FundingStorySession holder = sessionRepository
+                .findByProjectIdAndIdempotencyKey(project.getId(), request.idempotency_key())
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.CONFLICT));
+        if (!holder.isDiscarded()) {
+            // 같은 키로 다른 run이 이미 진행 중이다 — 조용히 폐기하지 않고 드러낸다.
+            throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        FundingStorySession discarded = FundingStorySession.trackRun(
+                runId, project.getId(), sellerId, request.session_id(), null);
+        discarded.discard();
+        sessionRepository.save(discarded);
     }
 
     /**
@@ -208,9 +220,15 @@ public class FundingStoryService {
                         .orElse(null);
         if (run == null) {
             // createRun 응답(run ID)이 FE에 닿기 전에 닫은 경우 — 폐기를 선점해 두고 createRun이 보게 한다.
-            sessionRepository.save(FundingStorySession.preemptiveDiscard(
-                    UUID.randomUUID(), project.getId(), sellerId, request.idempotency_key()));
-            return;
+            FundingStorySession preempt = FundingStorySession.preemptiveDiscard(
+                    UUID.randomUUID(), project.getId(), sellerId, request.idempotency_key());
+            if (sessionRepository.insertIfKeyFree(preempt)) {
+                return;
+            }
+            // 선점에 지는 경우(동시 폐기, 또는 방금 커밋된 run 추적자) — 키를 쥔 행을 다시 읽어 폐기한다.
+            run = sessionRepository
+                    .findByProjectIdAndIdempotencyKey(project.getId(), request.idempotency_key())
+                    .orElseThrow(() -> new BusinessException(CommonErrorCode.CONFLICT));
         }
         if (!run.isOwnedBy(sellerId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN);

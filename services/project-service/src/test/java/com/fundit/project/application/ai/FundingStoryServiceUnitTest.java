@@ -286,7 +286,7 @@ class FundingStoryServiceUnitTest {
         when(contextFactory.create(project, List.of())).thenReturn(context);
         when(fundingStoryAiClient.createRun(eq(projectId), any())).thenReturn(response);
         when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
-        when(sessionRepository.save(any(FundingStorySession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(true);
 
         // when
         var actual = fundingStoryService.createRun(sellerId, projectId, request);
@@ -294,8 +294,10 @@ class FundingStoryServiceUnitTest {
         // then
         assertThat(actual).isEqualTo(response);
         ArgumentCaptor<FundingStorySession> saved = ArgumentCaptor.forClass(FundingStorySession.class);
-        verify(sessionRepository).save(saved.capture());
+        verify(sessionRepository).insertIfKeyFree(saved.capture());
         assertThat(saved.getValue().isRunTracker()).isTrue();
+        assertThat(saved.getValue().getIdempotencyKey()).isEqualTo("run-key");
+        verify(sessionRepository, never()).save(any());
         verify(fundingStoryAiClient).createRun(eq(projectId), any());
     }
 
@@ -517,16 +519,39 @@ class FundingStoryServiceUnitTest {
         when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
         when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
                 .thenReturn(Optional.empty());
-        when(sessionRepository.save(any(FundingStorySession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(true);
 
         // when
         fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(null, "run-key"));
 
         // then
-        ArgumentCaptor<FundingStorySession> saved = ArgumentCaptor.forClass(FundingStorySession.class);
-        verify(sessionRepository).save(saved.capture());
-        assertThat(saved.getValue().isDiscarded()).isTrue();
-        assertThat(saved.getValue().getIdempotencyKey()).isEqualTo("run-key");
+        ArgumentCaptor<FundingStorySession> inserted = ArgumentCaptor.forClass(FundingStorySession.class);
+        verify(sessionRepository).insertIfKeyFree(inserted.capture());
+        assertThat(inserted.getValue().isDiscarded()).isTrue();
+        assertThat(inserted.getValue().getIdempotencyKey()).isEqualTo("run-key");
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    void 선점_저장이_키_경합에_지면_키를_쥔_run_추적자를_폐기한다() {
+        // given — 폐기 조회 직후 createRun이 추적자를 커밋한 경우
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Project project = ownedProject(sellerId, projectId);
+        FundingStorySession raced = FundingStorySession.trackRun(
+                UUID.randomUUID(), project.getId(), sellerId, UUID.randomUUID(), "run-key");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
+                .thenReturn(Optional.empty(), Optional.of(raced));
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(false);
+
+        // when
+        fundingStoryService.discardRun(sellerId, projectId, new RunDiscardRequest(null, "run-key"));
+
+        // then
+        assertThat(raced.isDiscarded()).isTrue();
+        verify(sessionRepository).save(raced);
     }
 
     @Test
@@ -549,6 +574,7 @@ class FundingStoryServiceUnitTest {
         when(fundingStoryAiClient.createRun(eq(projectId), any()))
                 .thenReturn(new RunAcceptedResponse(runId, "queued"));
         when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(false);
         when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
                 .thenReturn(Optional.of(FundingStorySession.preemptiveDiscard(
                         UUID.randomUUID(), project.getId(), sellerId, "run-key")));

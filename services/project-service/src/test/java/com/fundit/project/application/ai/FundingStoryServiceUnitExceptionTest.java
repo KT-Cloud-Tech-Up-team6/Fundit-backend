@@ -4,6 +4,7 @@ import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiContracts.OutputDescriptor;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunDiscardRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.UploadTargetsRequest;
@@ -31,6 +32,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -165,5 +168,37 @@ class FundingStoryServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void 같은_키로_다른_run이_진행_중이면_생성_등록은_CONFLICT다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Project project = fixtures.project(sellerId, projectId, ProjectStatus.DRAFT);
+        FundingStorySession session = FundingStorySession.trackSession(
+                sessionId, project.getId(), sellerId, "fingerprint");
+        FundingStorySession other = FundingStorySession.trackRun(
+                UUID.randomUUID(), project.getId(), sellerId, sessionId, "run-key");
+
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of());
+        when(contextFactory.fingerprint(project, List.of())).thenReturn("fingerprint");
+        when(fundingStoryAiClient.createRun(eq(projectId), any()))
+                .thenReturn(new RunAcceptedResponse(runId, "queued"));
+        when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
+        when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(false);
+        when(sessionRepository.findByProjectIdAndIdempotencyKey(project.getId(), "run-key"))
+                .thenReturn(Optional.of(other));
+
+        // when & then
+        assertThatThrownBy(() -> fundingStoryService.createRun(
+                sellerId, projectId, new PublicRunCreateRequest(sessionId, 4, "run-key")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.CONFLICT);
     }
 }
