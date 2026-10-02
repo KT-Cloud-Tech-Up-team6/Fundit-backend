@@ -41,19 +41,27 @@ class DemoProjectStatusFixerUnitTest {
                 .projectId(51L).projectPublicId(DemoProjectStatusFixer.DEMO_PROJECT_ID).status(status).build();
     }
 
+    private void givenCloneDocument(ProjectDocumentStatus status) {
+        given(projectDocumentRepository.findByProjectPublicId(DemoProjectStatusFixer.CLINPOT_CLONE_PROJECT_ID))
+                .willReturn(Optional.of(ProjectDocumentJpaEntity.builder().projectId(52L)
+                        .projectPublicId(DemoProjectStatusFixer.CLINPOT_CLONE_PROJECT_ID).status(status).build()));
+    }
+
     @Test
     void 색인된_문서가_진행중이면_성립으로_맞추고_커밋_후엔_아무것도_안_한다() {
         // given — 최초 색인은 상태를 ONGOING으로 고정한다
         given(projectDocumentRepository.findByProjectPublicId(DemoProjectStatusFixer.DEMO_PROJECT_ID))
                 .willReturn(Optional.of(document(ProjectDocumentStatus.ONGOING)));
+        givenCloneDocument(ProjectDocumentStatus.ONGOING);
 
         // when
         fixer.fix();
         fixer.fix();
 
-        // then
+        // then — 바스켓·클린팟 클론 둘 다, 한 번씩만
         verify(projectDocumentRepository).updateStatus(51L, ProjectDocumentStatus.SUCCEEDED);
-        verify(projectDocumentRepository, times(1)).findByProjectPublicId(any());
+        verify(projectDocumentRepository).updateStatus(52L, ProjectDocumentStatus.SUCCEEDED);
+        verify(projectDocumentRepository, times(2)).findByProjectPublicId(any());
     }
 
     @Test
@@ -61,13 +69,15 @@ class DemoProjectStatusFixerUnitTest {
         // given — project 색인 이벤트는 비동기라 기동 직후엔 문서가 없을 수 있다
         given(projectDocumentRepository.findByProjectPublicId(DemoProjectStatusFixer.DEMO_PROJECT_ID))
                 .willReturn(Optional.empty());
+        givenCloneDocument(ProjectDocumentStatus.SUCCEEDED);
 
         // when
         fixer.fix();
         fixer.fix();
 
-        // then
+        // then — 색인된 클론은 첫 주기에 끝나고, 바스켓만 다시 본다
         verify(projectDocumentRepository, never()).updateStatus(anyLong(), any());
-        verify(projectDocumentRepository, times(2)).findByProjectPublicId(any());
+        verify(projectDocumentRepository, times(2)).findByProjectPublicId(DemoProjectStatusFixer.DEMO_PROJECT_ID);
+        verify(projectDocumentRepository, times(1)).findByProjectPublicId(DemoProjectStatusFixer.CLINPOT_CLONE_PROJECT_ID);
     }
 }
