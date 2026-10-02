@@ -111,4 +111,18 @@ class FundingStoryAiContractsUnitTest {
         assertThat(session.session_id()).isEqualTo(sessionId);
         assertThat(new PublicRunCreateRequest(sessionId, 2, "run-key").idempotency_key()).isEqualTo("run-key");
     }
+
+    @Test
+    void 첨부가_없는_메시지는_첨부_기능_이전과_같은_JSON이다() {
+        // given — AI 스키마가 additionalProperties:false라 #17 이전 AI는 새 키를 거부한다
+        tools.jackson.databind.json.JsonMapper mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+
+        // when
+        String request = mapper.writeValueAsString(new MessageRequest("m-1", 2, "답변"));
+        String message = mapper.writeValueAsString(new ChatMessage("user", "메시지"));
+
+        // then
+        assertThat(request).isEqualTo("{\"message_id\":\"m-1\",\"revision\":2,\"text\":\"답변\"}");
+        assertThat(message).isEqualTo("{\"role\":\"user\",\"text\":\"메시지\"}");
+    }
 }

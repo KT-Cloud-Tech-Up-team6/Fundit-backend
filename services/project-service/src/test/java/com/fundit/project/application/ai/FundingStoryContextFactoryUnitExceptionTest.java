@@ -2,6 +2,7 @@ package com.fundit.project.application.ai;
 
 import com.fundit.common.error.BusinessException;
 import com.fundit.project.application.media.MediaStorageClient;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
@@ -27,12 +28,15 @@ class FundingStoryContextFactoryUnitExceptionTest {
     @Mock
     private MediaStorageClient storageClient;
 
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
+
     private FundingStoryContextFactory factory;
     private final FundingStoryContextFactoryUnitTest fixtures = new FundingStoryContextFactoryUnitTest();
 
     @BeforeEach
     void setUp() {
-        factory = new FundingStoryContextFactory(storageClient, 15L, 60L);
+        factory = new FundingStoryContextFactory(storageClient, mediaUrlValidator, 15L, 60L);
     }
 
     @Test
@@ -80,5 +84,34 @@ class FundingStoryContextFactoryUnitExceptionTest {
         assertThatThrownBy(() -> factory.pageSummarySnapshot(project, List.of()))
                 .isInstanceOfSatisfying(BusinessException.class, error ->
                         assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.INVALID_PROJECT_DATA));
+    }
+
+    @Test
+    void 참조_이미지가_대표_리워드_포함_30개를_넘으면_입력_오류다() {
+        // given — 기존 1개 + 이전 첨부 28개 + 이번 첨부 2개 = 31개
+        FundingStoryAiContracts.FundingStoryContext base = new FundingStoryAiContracts.FundingStoryContext(
+                null, List.of(), List.of(new FundingStoryAiContracts.SourceImageRef(
+                        "project.cover", null, "https://signed", "image/png", 1L, java.time.Instant.now())));
+        List<FundingStoryAiContracts.ChatAttachment> previous = java.util.stream.IntStream.range(0, 28)
+                .mapToObj(i -> new FundingStoryAiContracts.ChatAttachment("chat." + i, "https://f/" + i, null, "image/png", 1L))
+                .toList();
+
+        // when & then
+        assertThatThrownBy(() -> factory.withChatImages(base, previous, 2))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.fundit.common.error.CommonErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    void 채팅_첨부의_실제_형식이_MIME과_다르면_검증_오류를_그대로_올린다() {
+        // given — #224: JPEG 바이트를 image/png로 올린 첨부
+        UUID projectId = UUID.randomUUID();
+        when(mediaUrlValidator.validateImage(projectId, "https://cdn/a.png"))
+                .thenThrow(new BusinessException(ProjectErrorCode.MEDIA_TYPE_MISMATCH));
+
+        // when & then
+        assertThatThrownBy(() -> factory.chatImage(projectId, "https://cdn/a.png", null))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.MEDIA_TYPE_MISMATCH));
     }
 }
