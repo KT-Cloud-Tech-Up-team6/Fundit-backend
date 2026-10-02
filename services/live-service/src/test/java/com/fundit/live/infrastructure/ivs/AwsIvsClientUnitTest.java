@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class AwsIvsClientUnitTest {
 
@@ -293,5 +294,22 @@ class AwsIvsClientUnitTest {
 
         // when & then
         assertThatCode(() -> client.stopStream("arn:channel")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 목업_채널은_IVS를_부르지_않고_시청자_0명_OFFLINE으로_답한다() {
+        // given (#232) — 시드의 가짜 ARN은 IVS가 권한 오류로 거절한다
+        String stubArn = "arn:aws:ivs:ap-northeast-2:000000000000:channel/stub-001";
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
+
+        // when
+        int viewerCount = client.getViewerCount(stubArn);
+        IvsClient.StreamStatus status = client.getStreamStatus(stubArn);
+        client.stopStream(stubArn);
+
+        // then
+        assertThat(viewerCount).isZero();
+        assertThat(status).isEqualTo(IvsClient.StreamStatus.OFFLINE);
+        verifyNoInteractions(ivs);
     }
 }
