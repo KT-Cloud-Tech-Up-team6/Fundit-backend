@@ -309,7 +309,7 @@ PATCH /api/v1/projects/{projectId}/story
 **Validation / Business Rules**
 
 - `title` 40자 제한(DB 컬럼 제약과 동일).
-- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
+- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)·이미지 실제 형식(앞 12바이트가 저장된 MIME과 같은지)을 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`/`400 MEDIA_TYPE_MISMATCH`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
 - `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
 - `type=TEXT`의 `value`는 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 아래 허용 목록만 남기고 나머지(스크립트, 이벤트 속성, `url()` 등 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다. AI Funding Story 완료 결과의 TEXT 블록도 같은 정제를 거친다(#153).
   - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
@@ -352,6 +352,7 @@ POST /api/v1/projects/{projectId}/media/upload-url
 - 소유권(S4): 요청자가 `projectId`의 `seller_id`와 일치해야 함(리워드 이미지도 이 프로젝트 네임스페이스를 사용하므로 별도 리워드 전용 엔드포인트는 두지 않음) — 불일치 시 `403 FORBIDDEN`.
 - 확장자·`contentType` 화이트리스트(S5): 이미지는 `jpg`/`jpeg`/`png`/`webp`(`image/jpeg`,`image/png`,`image/webp`), 영상은 `mp4`(`video/mp4`)만 허용 — 그 외 `400 UNSUPPORTED_MEDIA_TYPE`.
 - 용량 제한(S5): 이미지 10MB(10,485,760 bytes), 영상 100MB(104,857,600 bytes) 초과 시 `400 MEDIA_TOO_LARGE`.
+- 실제 형식(#224): 이 API는 선언값만 본다(바이트는 S3로 바로 간다). 저장 API가 이미지 앞 12바이트(JPEG `FF D8 FF`·PNG `89 50 4E 47 0D 0A 1A 0A`·WebP `RIFF....WEBP`)를 읽어 업로드 때의 `contentType`과 다르면 `400 MEDIA_TYPE_MISMATCH`로 거부한다 — 예: JPEG 파일을 `.png`/`image/png`로 올린 경우. 영상은 검사하지 않는다.
 - 저장 키는 `projects/{projectId}/{UUID}.{ext}` 형식으로 서버가 생성한다 — 클라이언트가 보낸 `fileName`은 키에 사용하지 않는다(추측 불가 파일명, S5).
 - `uploadUrl`은 발급 후 5분(TTL)간만 유효, PUT 요청 시 `Content-Type` 헤더가 발급 요청의 `contentType`과 일치해야 한다(서명에 포함).
 - 영상은 단일 PUT만 지원(멀티파트 업로드 미지원, 협의 완료).
@@ -416,7 +417,7 @@ POST /api/v1/projects/{projectId}/rewards
   `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~99 사이 정수만 허용(DB CHECK
   `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
   할인 적용가로, 얼리버드가 아니면 `null`이다.
-- `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).
+- `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기·실제 형식 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`/`400 MEDIA_TYPE_MISMATCH`) — 미전달 시 검증하지 않음(선택값).
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성. 등록 시 `optionGroupId`는 항상 `null`(또는 생략)이다 — 아직 존재하지 않는 그룹이라 재사용할 ID가 없다.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).
@@ -934,6 +935,38 @@ POST /api/v1/community/posts/{postId}/answer
 - 별도 Funding Story 테이블·자산 테이블·ERD 변경은 없다.
 - DTO 필드와 SSE/callback 형식은 DTO 계약, 호출 순서는 통합 인터페이스 명세를 따른다.
 - 세션 응답(`SessionResponse`)과 최신 세션 응답은 값이 없는 필드도 키를 유지한다 — `confirmed_revision`·`summary`·`active_chat_id`는 `null`로, 세션이 없으면 `{"session": null}`로 내려간다(서비스 기본값 `non_null`의 예외, #152).
+
+**채팅 이미지 첨부(#233)** — AI 계약 [chat-image-attachments.md](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/1a779ba/docs/chat-image-attachments.md)
+
+`POST /api/v1/ai/sessions/{sessionId}/messages` 요청에 선택 필드 `attachments`를 받는다. 파일은 #9 업로드 API로 먼저 올리고, 돌려받은 `fileUrl`을 그대로 보낸다.
+
+```json
+{
+  "message_id": "33333333-3333-4333-8333-333333333333",
+  "revision": 2,
+  "text": "이 제품 사진을 참고해 주세요.",
+  "attachments": [ { "file_url": "https://{cdn-domain}/media/projects/{projectId}/{fileId}.png", "reward_id": null } ]
+}
+```
+
+| 항목 | 규칙 |
+|---|---|
+| `attachments` | 생략하면 기존 텍스트 전송과 같다. 이미지가 있으면 `text`는 비거나 생략해도 된다. 둘 다 없으면 `400 INVALID_INPUT` |
+| `reward_id` | 리워드 사진일 때만. 이 프로젝트 리워드가 아니면 `400 INVALID_INPUT` |
+| 파일 검증 | 대표·리워드 이미지 저장과 같다 — 경로·실존 `400 INVALID_MEDIA_URL`, 10MiB 초과 `400 MEDIA_TOO_LARGE`, 실제 형식≠MIME `400 MEDIA_TYPE_MISMATCH`(#224). JPEG·PNG·WebP만 |
+| 개수 | 대표·리워드·지금까지의 첨부·이번 첨부를 합쳐 최대 30개, 넘으면 `400 INVALID_INPUT` |
+| FE가 보내지 않는 것 | 서명 읽기 URL·MIME·크기·만료 시각·`context` — BE가 구성한다 |
+
+BE → AI 처리:
+
+- 이번 첨부: `attachments[{slot_id: "chat.{fileId}", file_url, reward_id, read_url, content_type, file_size, expires_at}]`. `fileId`는 업로드 키의 파일 ID라 같은 파일이면 늘 같은 `slot_id`다.
+- 이전 첨부: AI 세션 조회의 user 메시지 `attachments`에서 복원한다. 메시지마다 읽기 URL을 다시 서명해 `context.source_images`에 넣는다(대표·리워드 이미지와 함께). AI는 만료된 이전 첨부를 갱신 없이 받지 않는다. 같은 `message_id` 재요청이면 이번 첨부는 이전 목록에서 뺀다.
+- 첨부가 한 번도 없는 세션의 메시지는 `attachments`·`context` 없이 기존과 같은 JSON으로 보낸다.
+- 전체 생성(`POST /api/v1/ai/runs`): `context.source_images`에 세션에서 접수한 **모든** 채팅 첨부를 다시 서명해 넣는다. AI가 첨부 누락·만료·미접수를 `422`로 거부하면 `422 NOT_READY_TO_GENERATE`, 같은 ID의 파일 변경을 `409`로 거부하면 `409 CONFLICT`로 전달한다.
+
+세션 조회(`GET /sessions/latest`, `GET /sessions/{sessionId}`)의 user 메시지에는 첨부가 있을 때 `attachments[{slot_id, file_url, reward_id, content_type, file_size}]`가 붙는다(미리보기·대화 복구용, 서명 URL 없음). 첨부가 없으면 기존 `{role, text}` 그대로다.
+
+**배포 순서**: AI(Fundit-AI-Funding-Story #17) → BE → FE 첨부 버튼. AI 메시지 스키마가 `additionalProperties:false`라 #17 이전 AI는 `attachments`·`context`를 거부한다(텍스트만 쓰는 대화는 영향 없음).
 
 ---
 

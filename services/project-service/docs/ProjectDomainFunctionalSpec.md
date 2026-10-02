@@ -627,5 +627,6 @@ DRAFT가 아닌 프로젝트 삭제 시도	ProjectErrorCode.PROJECT_NOT_DELETABL
 업로드 주소 발급 시 확장자/컨텐츠타입 화이트리스트 위반	ProjectErrorCode.UNSUPPORTED_MEDIA_TYPE (400)	PROJECT-007, PROJECT-006, PROJECT-011
 업로드 주소 발급 또는 fileUrl 저장 시 용량 제한 초과	ProjectErrorCode.MEDIA_TOO_LARGE (400)	PROJECT-007, PROJECT-006, PROJECT-011, PROJECT-012
 fileUrl 저장 시 경로 불일치/미업로드 확인 실패	ProjectErrorCode.INVALID_MEDIA_URL (400)	PROJECT-007, PROJECT-006, PROJECT-011, PROJECT-012
+이미지 fileUrl 저장 시 실제 바이트 형식이 업로드 MIME과 다름(#224)	ProjectErrorCode.MEDIA_TYPE_MISMATCH (400)	PROJECT-007, PROJECT-006, PROJECT-011, PROJECT-012
 품절 리워드 조회	에러 아님 — soldOut: true 필드로 표시(현재 Noop이면 항상 false)	PROJECT-028
 프로젝트/게시글 목록 결과 없음	에러 아님 — 빈 배열/빈 페이지로 응답	PROJECT-001, PROJECT-017, PROJECT-022, PROJECT-025

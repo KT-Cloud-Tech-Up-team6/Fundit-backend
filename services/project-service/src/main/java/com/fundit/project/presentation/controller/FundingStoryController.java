@@ -7,7 +7,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAcceptedRes
 import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
-import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicMessageRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicSessionCreateRequest;
@@ -84,7 +84,7 @@ public class FundingStoryController {
             @LoginUser CurrentUser user,
             @RequestHeader(PROJECT_HEADER) UUID projectId,
             @PathVariable UUID sessionId,
-            @RequestBody MessageRequest request) {
+            @RequestBody PublicMessageRequest request) {
         return ResponseEntity.accepted()
                 .body(fundingStoryService.addMessage(user.id(), projectId, sessionId, request));
     }

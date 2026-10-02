@@ -7,9 +7,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -176,5 +180,36 @@ class S3MediaStorageClientUnitTest {
         assertThat(storageClient.extractKey("https://other-bucket.s3.ap-northeast-2.amazonaws.com/" + KEY)).isEmpty();
         assertThat(storageClient.extractKey("https://infrastudy.store/other/" + LEGACY_KEY)).isEmpty();
         assertThat(storageClient.extractKey(null)).isEmpty();
+    }
+
+    @Test
+    void 형식_판별용_읽기는_앞부분만_Range로_요청한다() {
+        // given
+        byte[] head = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), head));
+
+        // when
+        byte[] read = storageClient.readPrefix(KEY, 12);
+
+        // then — 이미지 전체(최대 10MB)를 받지 않고 12바이트만
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(s3Client).getObjectAsBytes(captor.capture());
+        assertThat(captor.getValue().key()).isEqualTo(KEY);
+        assertThat(captor.getValue().range()).isEqualTo("bytes=0-11");
+        assertThat(read).isEqualTo(head);
+    }
+
+    @Test
+    void 객체가_없으면_형식_판별용_읽기는_빈_배열이다() {
+        // given
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenThrow(S3Exception.builder().statusCode(404).build());
+
+        // when
+        byte[] read = storageClient.readPrefix(KEY, 12);
+
+        // then
+        assertThat(read).isEmpty();
     }
 }

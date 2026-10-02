@@ -197,7 +197,10 @@ public final class FundingStoryAiStubServer implements AutoCloseable {
         boolean initial = request == null;
         String text = initial ? "[STUB] 제품을 어떤 상황에서 사용하나요?"
                 : "[STUB] 제품 소개와 사용 장면을 정리했습니다. 요약을 확인해 주세요.";
-        if (!initial) session.messages.add(new ChatMessage("user", request.text()));
+        if (!initial) session.messages.add(new ChatMessage("user", request.text() == null ? "" : request.text(),
+                request.attachments() == null ? null : request.attachments().stream()
+                        .map(a -> new ChatAttachment(a.slot_id(), a.file_url(), a.reward_id(), a.content_type(), a.file_size()))
+                        .toList()));
         session.messages.add(new ChatMessage("assistant", text));
         session.revision++;
         session.confirmed = null;

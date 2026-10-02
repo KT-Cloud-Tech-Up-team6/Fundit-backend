@@ -11,6 +11,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.GeneratedBody;
 import com.fundit.project.application.ai.FundingStoryAiContracts.GeneratedContentBlock;
 import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicMessageRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.OutputDescriptor;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectFact;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
@@ -40,6 +41,13 @@ import com.fundit.project.domain.project.ProjectStatus;
 import com.fundit.project.domain.reward.RewardRepository;
 import com.fundit.project.infrastructure.content.RichTextSanitizer;
 import org.junit.jupiter.api.Test;
+import com.fundit.project.domain.reward.Reward;
+import com.fundit.project.application.ai.FundingStoryAiContracts.RunCreateRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicAttachment;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatMessage;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatImageRef;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAttachment;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -231,7 +239,7 @@ class FundingStoryServiceUnitTest {
         assertThat(fundingStoryService.getSession(sellerId, projectId, sessionId)).isEqualTo(sessionResponse);
         assertThat(fundingStoryService.startSession(sellerId, projectId, sessionId)).isEqualTo(accepted);
         assertThat(fundingStoryService.addMessage(sellerId, projectId, sessionId,
-                new MessageRequest("message-1", 1, "답변"))).isEqualTo(accepted);
+                new PublicMessageRequest("message-1", 1, "답변", null))).isEqualTo(accepted);
 
         try (ChatEventStream stream = fundingStoryService.openChatEvents(sellerId, projectId, chatId)) {
             assertThat(stream.body().readAllBytes()).containsExactly("data: ready\n\n".getBytes(StandardCharsets.UTF_8));
@@ -590,6 +598,150 @@ class FundingStoryServiceUnitTest {
         assertThat(saved.getValue().isDiscarded()).isTrue();
         // 선점행이 키를 점유하므로 추적자는 키를 비운다(부분 유니크 인덱스 충돌 방지)
         assertThat(saved.getValue().getIdempotencyKey()).isNull();
+    }
+
+    /** #233 채팅 이미지 첨부 — 이번 첨부는 attachments, 이전 첨부는 재서명해 context.source_images로. */
+    @Nested
+    class 채팅_첨부 {
+
+        final UUID sellerId = UUID.randomUUID();
+        final UUID projectId = UUID.randomUUID();
+        final UUID sessionId = UUID.randomUUID();
+        final Project project = project(sellerId, projectId, ProjectStatus.DRAFT);
+        final Reward reward = Reward.builder().id(7L).projectId(1L).name("리워드").description("설명").price(10_000L)
+                .isLimited(false).isEarlyBird(false).build();
+        final FundingStoryContext base = new FundingStoryContext(
+                new ProjectFact("SOLE", new CategoryFact("테크", "가전"), "프로젝트", 1_000_000L), List.of(), List.of());
+        final ChatAcceptedResponse accepted = new ChatAcceptedResponse(UUID.randomUUID(), "queued");
+
+        void givenSession(ChatMessage... messages) {
+            when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+            when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(
+                    FundingStorySession.trackSession(sessionId, project.getId(), sellerId, "fingerprint")));
+            when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of(reward));
+            when(fundingStoryAiClient.getSession(projectId, sessionId)).thenReturn(new SessionResponse(
+                    sessionId, 1, null, List.of(messages), List.of(), null, null));
+            when(fundingStoryAiClient.addMessage(eq(projectId), eq(sessionId), any())).thenReturn(accepted);
+        }
+
+        ChatImageRef ref(String slot) {
+            return new ChatImageRef(slot, "https://cdn/" + slot, null, "https://signed/" + slot, "image/png", 10L,
+                    Instant.now());
+        }
+
+        ChatAttachment attachment(String slot) {
+            return new ChatAttachment(slot, "https://cdn/" + slot, null, "image/png", 10L);
+        }
+
+        MessageRequest sent() {
+            ArgumentCaptor<MessageRequest> captor = ArgumentCaptor.forClass(MessageRequest.class);
+            verify(fundingStoryAiClient).addMessage(eq(projectId), eq(sessionId), captor.capture());
+            return captor.getValue();
+        }
+
+        @Test
+        void 첨부가_한_번도_없으면_attachments와_context_없이_기존_요청을_보낸다() {
+            // given — 첨부 기능 이전 AI도 받는 모양이어야 배포 순서가 틀어져도 텍스트 대화가 깨지지 않는다
+            givenSession(new ChatMessage("user", "안녕하세요"));
+
+            // when
+            fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                    new PublicMessageRequest("m-1", 2, "답변", null));
+
+            // then
+            MessageRequest sent = sent();
+            assertThat(sent.text()).isEqualTo("답변");
+            assertThat(sent.attachments()).isNull();
+            assertThat(sent.context()).isNull();
+            verify(contextFactory, never()).create(any(), any());
+        }
+
+        @Test
+        void 첨부가_있으면_검증한_참조를_보내고_이전_첨부는_재서명해_context에_넣는다() {
+            // given — 같은 message_id 재요청이라 이번 첨부(chat.a)가 이미 세션에 있다
+            givenSession(
+                    new ChatMessage("user", "이전", List.of(attachment("chat.b"))),
+                    new ChatMessage("user", "이번", List.of(attachment("chat.a"))));
+            FundingStoryContext withImages = new FundingStoryContext(base.project(), base.rewards(), List.of());
+            when(contextFactory.chatImage(projectId, "https://cdn/a.png", 7L)).thenReturn(ref("chat.a"));
+            when(contextFactory.create(project, List.of(reward))).thenReturn(base);
+            when(contextFactory.withChatImages(base, List.of(attachment("chat.b")), 1)).thenReturn(withImages);
+
+            // when
+            fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                    new PublicMessageRequest("m-1", 2, "이 사진 참고", List.of(new PublicAttachment("https://cdn/a.png", 7L))));
+
+            // then — chat.a는 이번 attachments에만, 이전 첨부(context)에는 chat.b만
+            MessageRequest sent = sent();
+            assertThat(sent.attachments()).extracting(ChatImageRef::slot_id).containsExactly("chat.a");
+            assertThat(sent.context()).isSameAs(withImages);
+        }
+
+        @Test
+        void 텍스트가_없어도_이미지가_있으면_접수한다() {
+            // given
+            givenSession();
+            when(contextFactory.chatImage(projectId, "https://cdn/a.png", null)).thenReturn(ref("chat.a"));
+            when(contextFactory.create(project, List.of(reward))).thenReturn(base);
+            when(contextFactory.withChatImages(base, List.of(), 1)).thenReturn(base);
+
+            // when
+            ChatAcceptedResponse response = fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                    new PublicMessageRequest("m-1", 2, null, List.of(new PublicAttachment("https://cdn/a.png", null))));
+
+            // then
+            assertThat(response).isEqualTo(accepted);
+            assertThat(sent().attachments()).hasSize(1);
+        }
+
+        @Test
+        void 이번_첨부가_없어도_이전_첨부가_있으면_재서명한_context를_보낸다() {
+            // given — AI는 만료된 이전 첨부를 갱신 없이 받지 않는다
+            givenSession(new ChatMessage("user", "이전", List.of(attachment("chat.b"))));
+            when(contextFactory.create(project, List.of(reward))).thenReturn(base);
+            when(contextFactory.withChatImages(base, List.of(attachment("chat.b")), 0)).thenReturn(base);
+
+            // when
+            fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                    new PublicMessageRequest("m-2", 3, "다음 질문", null));
+
+            // then
+            MessageRequest sent = sent();
+            assertThat(sent.attachments()).isNull();
+            assertThat(sent.context()).isSameAs(base);
+        }
+
+        @Test
+        void 전체생성은_세션의_모든_채팅_첨부를_context에_넣는다() {
+            // given
+            UUID runId = UUID.randomUUID();
+            when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+            when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(
+                    FundingStorySession.trackSession(sessionId, project.getId(), sellerId, "fingerprint")));
+            when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of(reward));
+            when(contextFactory.fingerprint(project, List.of(reward))).thenReturn("fingerprint");
+            when(contextFactory.create(project, List.of(reward))).thenReturn(base);
+            when(fundingStoryAiClient.getSession(projectId, sessionId)).thenReturn(new SessionResponse(
+                    sessionId, 4, 4, List.of(
+                            new ChatMessage("user", "1", List.of(attachment("chat.a"))),
+                            new ChatMessage("assistant", "응답"),
+                            new ChatMessage("user", "2", List.of(attachment("chat.a"), attachment("chat.b")))),
+                    List.of(), null, null));
+            FundingStoryContext withImages = new FundingStoryContext(base.project(), base.rewards(), List.of());
+            when(contextFactory.withChatImages(base, List.of(attachment("chat.a"), attachment("chat.b")), 0))
+                    .thenReturn(withImages);
+            when(fundingStoryAiClient.createRun(eq(projectId), any())).thenReturn(new RunAcceptedResponse(runId, "queued"));
+            when(sessionRepository.findById(runId)).thenReturn(Optional.empty());
+            when(sessionRepository.insertIfKeyFree(any(FundingStorySession.class))).thenReturn(true);
+
+            // when
+            fundingStoryService.createRun(sellerId, projectId, new PublicRunCreateRequest(sessionId, 4, "run-key"));
+
+            // then — 첨부는 slot_id 기준 중복 없이 한 번씩
+            ArgumentCaptor<RunCreateRequest> captor = ArgumentCaptor.forClass(RunCreateRequest.class);
+            verify(fundingStoryAiClient).createRun(eq(projectId), captor.capture());
+            assertThat(captor.getValue().context()).isSameAs(withImages);
+        }
     }
 
     Project ownedProject(UUID sellerId, UUID publicId) {

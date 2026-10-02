@@ -53,7 +53,41 @@ public final class FundingStoryAiContracts {
     public record PublicSessionCreateRequest() {
     }
 
-    public record ChatMessage(String role, String text) {
+    /**
+     * 세션 메시지. 사용자 메시지에 채팅 첨부가 있으면 {@code attachments}가 붙는다(#233) — 첨부가 없으면 null이라
+     * 빠져서 기존 {@code {role, text}} 모양이 유지된다(전역 설정에 기대지 않고 여기서 고정).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ChatMessage(String role, String text, List<ChatAttachment> attachments) {
+
+        public ChatMessage(String role, String text) {
+            this(role, text, null);
+        }
+    }
+
+    /** 세션 응답의 첨부 메타데이터 — 서명 읽기 URL은 AI도 내려주지 않는다(FE 미리보기·대화 복구용). */
+    public record ChatAttachment(
+            String slot_id, String file_url, Long reward_id, String content_type, long file_size) {
+    }
+
+    /** BE → AI 채팅 첨부. {@code slot_id}는 {@code chat.{업로드 파일 ID}}, 읽기 URL은 BE가 매번 새로 서명한다. */
+    public record ChatImageRef(
+            String slot_id,
+            String file_url,
+            Long reward_id,
+            String read_url,
+            String content_type,
+            long file_size,
+            Instant expires_at) {
+    }
+
+    /** FE → BE 메시지(#233). 이미지가 있으면 {@code text}가 비어도 된다. 서명 URL·MIME·크기는 FE가 보내지 않는다. */
+    public record PublicMessageRequest(
+            String message_id, int revision, String text, List<PublicAttachment> attachments) {
+    }
+
+    /** 기존 업로드 API가 돌려준 {@code fileUrl} 그대로. {@code reward_id}는 리워드 사진일 때만. */
+    public record PublicAttachment(String file_url, Long reward_id) {
     }
 
     public record StrengthSummary(String title, String description) {
@@ -81,7 +115,17 @@ public final class FundingStoryAiContracts {
     public record ChatAcceptedResponse(UUID chat_id, String status) {
     }
 
-    public record MessageRequest(String message_id, int revision, String text) {
+    /**
+     * BE → AI 메시지. {@code attachments}·{@code context}는 채팅 첨부가 있을 때만 채운다 — 없으면 null이라 빠져서
+     * 첨부 기능 이전 AI({@code additionalProperties:false})에도 텍스트 대화가 그대로 통한다.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record MessageRequest(
+            String message_id, int revision, String text, List<ChatImageRef> attachments, FundingStoryContext context) {
+
+        public MessageRequest(String message_id, int revision, String text) {
+            this(message_id, revision, text, null, null);
+        }
     }
 
     public record ConfirmRequest(int revision) {
