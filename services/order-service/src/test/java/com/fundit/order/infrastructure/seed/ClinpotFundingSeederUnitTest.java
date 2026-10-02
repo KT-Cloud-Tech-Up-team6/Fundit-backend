@@ -89,10 +89,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 서로_다른_구매자로_펀딩_30건을_만든다() {
+        // given
         givenSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         ArgumentCaptor<FundingJpaEntity> captor = ArgumentCaptor.forClass(FundingJpaEntity.class);
         verify(fundingRepository, times(30)).save(captor.capture());
         List<FundingJpaEntity> saved = captor.getAllValues();
@@ -105,10 +108,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 얼리버드_10건_기본_20건으로_9_070_000원이_된다() {
+        // given
         givenSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         ArgumentCaptor<FundingLineItemJpaEntity> captor = ArgumentCaptor.forClass(FundingLineItemJpaEntity.class);
         verify(lineItemRepository, times(30)).save(captor.capture());
         List<FundingLineItemJpaEntity> items = captor.getAllValues();
@@ -120,10 +126,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 한정_리워드만_재고를_차감한다() {
+        // given
         givenSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         verify(inventoryRepository).decreaseStock(26L, 10);
         verify(inventoryRepository, org.mockito.Mockito.never())
                 .decreaseStock(eq(27L), org.mockito.ArgumentMatchers.anyInt());
@@ -131,10 +140,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 옵션_행을_함께_저장하고_저장_뒤에_집계를_부른다() {
+        // given
         givenSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         ArgumentCaptor<FundingLineItemOptionJpaEntity> captor =
                 ArgumentCaptor.forClass(FundingLineItemOptionJpaEntity.class);
         verify(optionRepository, times(30)).save(captor.capture());
@@ -148,27 +160,33 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 이미_넣었으면_아무것도_하지_않는다() {
+        // given
         given(fundingRepository.findByPublicId(ClinpotFundingSeeder.fundingId(ClinpotFundingSeeder.ORIGINAL, 0)))
                 .willReturn(Optional.of(EXISTING));
         givenCloneAlreadySeeded();
 
+        // when
         seeder().seed();
 
+        // then
         verifyNoInteractions(rewardCatalogClient, lineItemRepository, optionRepository, inventoryRepository,
                 rewardStatsBatchService);
     }
 
     @Test
     void 리워드를_아직_못_받으면_다음_주기에_다시_시도한다() {
+        // given
         givenCloneAlreadySeeded();
         given(fundingRepository.findByPublicId(ClinpotFundingSeeder.fundingId(ClinpotFundingSeeder.ORIGINAL, 0))).willReturn(Optional.empty());
         given(rewardCatalogClient.getRewards(ClinpotFundingSeeder.PROJECT_ID))
                 .willThrow(new IllegalStateException("project-service down"));
 
+        // when
         ClinpotFundingSeeder seeder = seeder();
         seeder.seed();
         seeder.seed();
 
+        // then
         verify(rewardCatalogClient, times(2)).getRewards(ClinpotFundingSeeder.PROJECT_ID);
         verifyNoInteractions(lineItemRepository, optionRepository, inventoryRepository, rewardStatsBatchService);
     }
@@ -186,10 +204,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 원본이_이미_있어도_클론은_성립_펀딩_31건으로_넣는다() {
+        // given
         givenCloneSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         ArgumentCaptor<FundingJpaEntity> captor = ArgumentCaptor.forClass(FundingJpaEntity.class);
         verify(fundingRepository, times(31)).save(captor.capture());
         List<FundingJpaEntity> saved = captor.getAllValues();
@@ -206,10 +227,13 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 클론은_재고를_차감하지_않고_저장_뒤에_클론을_집계한다() {
+        // given
         givenCloneSeedable();
 
+        // when
         seeder().seed();
 
+        // then
         verifyNoInteractions(inventoryRepository);
         var order = org.mockito.Mockito.inOrder(lineItemRepository, rewardStatsBatchService);
         order.verify(lineItemRepository, times(31)).save(any());
@@ -218,16 +242,19 @@ class ClinpotFundingSeederUnitTest {
 
     @Test
     void 클론_리워드가_아직_없으면_다음_주기에_다시_시도한다() {
+        // given
         given(fundingRepository.findByPublicId(ClinpotFundingSeeder.fundingId(ClinpotFundingSeeder.ORIGINAL, 0)))
                 .willReturn(Optional.of(EXISTING));
         given(fundingRepository.findByPublicId(ClinpotFundingSeeder.fundingId(ClinpotFundingSeeder.CLONE, 0)))
                 .willReturn(Optional.empty());
         given(rewardCatalogClient.getRewards(ClinpotFundingSeeder.CLONE_PROJECT_ID)).willReturn(List.of());
 
+        // when
         ClinpotFundingSeeder seeder = seeder();
         seeder.seed();
         seeder.seed();
 
+        // then
         verify(rewardCatalogClient, times(2)).getRewards(ClinpotFundingSeeder.CLONE_PROJECT_ID);
         verifyNoInteractions(transactionTemplate);
     }

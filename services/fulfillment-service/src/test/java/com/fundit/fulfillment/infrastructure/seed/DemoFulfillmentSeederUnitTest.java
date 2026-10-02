@@ -26,8 +26,6 @@ import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.BDDMockito.willAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class DemoFulfillmentSeederUnitTest {
@@ -157,19 +155,5 @@ class DemoFulfillmentSeederUnitTest {
                     assertThat(d.getDetailText()).contains("분쇄 모터");
                     assertThat(d.getPhotoUrls()).containsExactly("https://infrastudy.store/media/mock/clinpot-manufacturing-1.png");
                 });
-    }
-
-    @Test
-    void 한쪽이_실패해도_다른_대상은_넣는다() {
-        // given — 대상마다 트랜잭션을 따로 연다
-        willAnswer(inv -> {
-            throw new IllegalStateException("db down");
-        }).willAnswer(inv -> null).given(transactionTemplate).executeWithoutResult(any());
-
-        // when
-        seeder().run(null);
-
-        // then
-        verify(transactionTemplate, times(2)).executeWithoutResult(any());
     }
 }

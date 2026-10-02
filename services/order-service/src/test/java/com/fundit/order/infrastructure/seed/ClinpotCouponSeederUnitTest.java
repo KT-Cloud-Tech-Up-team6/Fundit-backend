@@ -35,15 +35,18 @@ class ClinpotCouponSeederUnitTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void 클린팟_전용_10퍼센트_쿠폰을_만들고_시연_계정에_발급한다() {
+    void 쿠폰_코드가_없으면_클린팟_전용_10퍼센트_쿠폰을_만들고_시연_계정에_발급한다() {
+        // given
         given(couponRepository.findByCouponCode(ClinpotCouponSeeder.COUPON_CODE)).willReturn(Optional.empty());
         willAnswer(inv -> {
             ((Consumer<TransactionStatus>) inv.getArgument(0)).accept(null);
             return null;
         }).given(transactionTemplate).executeWithoutResult(any());
 
+        // when
         seeder().seed();
 
+        // then
         ArgumentCaptor<CouponJpaEntity> coupon = ArgumentCaptor.forClass(CouponJpaEntity.class);
         verify(couponRepository).save(coupon.capture());
         CouponJpaEntity saved = coupon.getValue();
@@ -64,11 +67,14 @@ class ClinpotCouponSeederUnitTest {
 
     @Test
     void 이미_있으면_아무것도_하지_않는다() {
+        // given
         given(couponRepository.findByCouponCode(ClinpotCouponSeeder.COUPON_CODE))
                 .willReturn(Optional.of(CouponJpaEntity.builder().build()));
 
+        // when
         seeder().seed();
 
+        // then
         verifyNoInteractions(transactionTemplate, issuanceRepository);
     }
 }
