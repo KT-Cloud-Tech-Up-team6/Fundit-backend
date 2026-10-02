@@ -213,6 +213,10 @@ AI가 주는 코드를 그대로 흘려보내지 않는다
 > 없고 종료 시점엔 녹화도 안 끝나 있어, AI가 `GET /api/v1/lives/{liveId}/vod`를 폴링해 준비를 확인한 뒤
 > 생성하고(약 6분 30초) 결과를 우리 내부 엔드포인트(`/internal/v1/lives/{liveId}/highlights`)로 밀어준다.
 > 수동·재생성 요청(`POST /api/v1/lives/{liveId}/highlights`)은 그대로 둔다.
+>
+> - 하이라이트도 Q&A 코파일럿과 **다른 AI 서버**다 — 수동·재생성 요청은
+>   `LIVE_HIGHLIGHT_AI_BASE_URL`(`.../api/v1/ai`까지)로 보낸다. 토큰(`LIVE_HIGHLIGHT_AI_TOKEN`)은 선택이고,
+>   비우면 `Authorization` 헤더를 붙이지 않는다.
 > `vod_url`은 IVS 녹화 완료 이벤트(SQS)를 받아 채운다(#222) — 아래 "다시보기 준비(녹화 완료 수신)" 참고.
 >
 > **Q&A/FAQ는 이 문제가 없다** — 애초에 비동기 결과가 없다. BE가 채팅 배치를 넘기면 그 HTTP

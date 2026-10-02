@@ -49,6 +49,11 @@ live:
     # base-url·토큰을 공유하면 안 된다. live.ai.mode(위)가 http면 이 서버도 같이 실연동된다.
     base-url: ${LIVE_CUESHEET_AI_BASE_URL}
     token: ${LIVE_CUESHEET_AI_TOKEN}
+  highlight-ai:
+    # 하이라이트(판매자 생성·재생성 요청)도 Q&A 코파일럿과 다른 AI 서버다 — 코파일럿 주소를
+    # 쓰면 요청이 처리되지 않는다. live.ai.mode가 http면 필수, 토큰은 서버가 인증을 볼 때만 채운다.
+    base-url: ${LIVE_HIGHLIGHT_AI_BASE_URL}
+    token: ${LIVE_HIGHLIGHT_AI_TOKEN:}
 
 # 스펙은 공격자에게 좋은 지도라 운영에서는 닫는다. dev는 켜 둔다(프론트 전달용).
 springdoc:
