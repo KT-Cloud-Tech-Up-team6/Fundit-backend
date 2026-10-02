@@ -185,6 +185,15 @@ docker compose -f services/{service}/docker-compose.yml up -d
 | [event-convention](./.claude/rules/event-convention.md) | Kafka 토픽, 이벤트 형식 |
 | [test-convention](./.claude/rules/test-convention.md) | 테스트 작성 규칙 |
 
+## 팀원·담당
+
+| <img src="https://github.com/semolu99.png" width="100"> | <img src="https://github.com/sangwookkhu.png" width="100"> |
+| :---: | :---: |
+| [@semolu99](https://github.com/semolu99) | [@sangwookkhu](https://github.com/sangwookkhu) |
+| auth, member, live,<br>notification, gateway·공통 모듈 | project, order, payment,<br>fulfillment, search |
+
+- 펀딩스토리 AI 연동(project)은 두 사람이 함께 작업했고, AI 연동 흐름과 로컬 스텁은 [@pakyeon](https://github.com/pakyeon)이 작업했습니다.
+
 ## 협업 규칙
 
 - `main`(배포)과 `develop`(통합)에는 PR로만 머지합니다.
