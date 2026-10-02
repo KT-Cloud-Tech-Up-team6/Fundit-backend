@@ -1,6 +1,7 @@
 package com.fundit.project.application.ai;
 
 import com.fundit.project.application.media.MediaStorageClient;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.project.BusinessType;
 import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
@@ -29,11 +30,14 @@ class FundingStoryContextFactoryUnitTest {
     @Mock
     private MediaStorageClient storageClient;
 
+    @Mock
+    private MediaUrlValidator mediaUrlValidator;
+
     private FundingStoryContextFactory factory;
 
     @BeforeEach
     void setUp() {
-        factory = new FundingStoryContextFactory(storageClient, 15L, 60L);
+        factory = new FundingStoryContextFactory(storageClient, mediaUrlValidator, 15L, 60L);
     }
 
     @Test
@@ -139,6 +143,51 @@ class FundingStoryContextFactoryUnitTest {
         assertThat(hash).hasSize(64)
                 .isEqualTo(factory.pageSummaryHash(goalChanged, List.of(reward(1L, null))))
                 .isNotEqualTo(factory.pageSummaryHash(edited, List.of(reward(1L, null))));
+    }
+
+    @Test
+    void 채팅_첨부는_검증한_파일_ID로_slot을_만들고_읽기_URL을_새로_서명한다() {
+        // given
+        UUID projectId = UUID.randomUUID();
+        String key = "media/projects/" + projectId + "/0190a7c2-aaaa-7bbb-8ccc-1234567890ab.png";
+        String fileUrl = "https://infrastudy.store/" + key;
+        when(mediaUrlValidator.validateImage(projectId, fileUrl)).thenReturn(
+                new MediaUrlValidator.ValidatedMedia(key, new MediaStorageClient.StoredObject(256L, "image/png")));
+        when(storageClient.presignGet(eq(key), any())).thenReturn("https://signed.example/chat");
+
+        // when
+        FundingStoryAiContracts.ChatImageRef ref = factory.chatImage(projectId, fileUrl, 7L);
+
+        // then — AI 계약: slot_id는 chat.{fileId}, file_url은 서명 없는 원래 주소
+        assertThat(ref.slot_id()).isEqualTo("chat.0190a7c2-aaaa-7bbb-8ccc-1234567890ab");
+        assertThat(ref.file_url()).isEqualTo(fileUrl);
+        assertThat(ref.reward_id()).isEqualTo(7L);
+        assertThat(ref.read_url()).isEqualTo("https://signed.example/chat");
+        assertThat(ref.content_type()).isEqualTo("image/png");
+        assertThat(ref.file_size()).isEqualTo(256L);
+    }
+
+    @Test
+    void 이전_채팅_첨부는_기존_이미지_뒤에_재서명해_붙인다() {
+        // given
+        FundingStoryAiContracts.SourceImageRef cover = new FundingStoryAiContracts.SourceImageRef(
+                "project.cover", null, "https://signed.example/cover", "image/png", 256L, java.time.Instant.now());
+        FundingStoryAiContracts.FundingStoryContext base = new FundingStoryAiContracts.FundingStoryContext(
+                null, List.of(), List.of(cover));
+        FundingStoryAiContracts.ChatAttachment previous = new FundingStoryAiContracts.ChatAttachment(
+                "chat.b", "https://bucket.example/media/b.webp", 3L, "image/webp", 256L);
+        when(storageClient.extractKey("https://bucket.example/media/b.webp")).thenReturn(Optional.of("media/b.webp"));
+        when(storageClient.headObject("media/b.webp"))
+                .thenReturn(Optional.of(new MediaStorageClient.StoredObject(256L, "image/webp")));
+        when(storageClient.presignGet(eq("media/b.webp"), any())).thenReturn("https://signed.example/b");
+
+        // when
+        FundingStoryAiContracts.FundingStoryContext context = factory.withChatImages(base, List.of(previous), 1);
+
+        // then
+        assertThat(context.source_images()).extracting("slot_id").containsExactly("project.cover", "chat.b");
+        assertThat(context.source_images().get(1).reward_id()).isEqualTo(3L);
+        assertThat(context.source_images().get(1).read_url()).isEqualTo("https://signed.example/b");
     }
 
     Project validProject(UUID publicId, String coverImageUrl) {

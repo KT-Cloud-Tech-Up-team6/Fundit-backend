@@ -3,6 +3,9 @@ package com.fundit.project.application.ai;
 import com.fundit.common.error.BusinessException;
 import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiContracts.OutputDescriptor;
+import com.fundit.project.domain.reward.Reward;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicMessageRequest;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicAttachment;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunAcceptedResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.RunCompletionRequest;
@@ -200,5 +203,42 @@ class FundingStoryServiceUnitExceptionTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.CONFLICT);
+    }
+
+    @Test
+    void 텍스트와_이미지가_모두_없으면_메시지를_거부한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Project project = fixtures.project(sellerId, projectId, ProjectStatus.DRAFT);
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(
+                FundingStorySession.trackSession(sessionId, project.getId(), sellerId, "fingerprint")));
+
+        // when & then
+        assertThatThrownBy(() -> fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                new PublicMessageRequest("m-1", 1, "  ", List.of())))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    void 첨부의_리워드가_이_프로젝트_리워드가_아니면_거부한다() {
+        // given
+        UUID sellerId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Project project = fixtures.project(sellerId, projectId, ProjectStatus.DRAFT);
+        when(projectRepository.findByPublicId(projectId)).thenReturn(Optional.of(project));
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(
+                FundingStorySession.trackSession(sessionId, project.getId(), sellerId, "fingerprint")));
+        when(rewardRepository.findByProjectId(project.getId())).thenReturn(List.of(Reward.builder().id(7L).build()));
+
+        // when & then — 다른 프로젝트의 리워드 99
+        assertThatThrownBy(() -> fundingStoryService.addMessage(sellerId, projectId, sessionId,
+                new PublicMessageRequest("m-1", 1, "사진", List.of(new PublicAttachment("https://cdn/a.png", 99L)))))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT));
     }
 }

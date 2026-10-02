@@ -1,7 +1,10 @@
 package com.fundit.project.application.ai;
 
 import com.fundit.common.error.BusinessException;
+import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiContracts.CategoryFact;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAttachment;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatImageRef;
 import com.fundit.project.application.ai.FundingStoryAiContracts.FundingStoryContext;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PageSummaryReward;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ProjectSnapshot;
@@ -11,6 +14,7 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.RewardOption;
 import com.fundit.project.application.ai.FundingStoryAiContracts.SourceImageRef;
 import com.fundit.project.application.ai.FundingStoryAiContracts.StoryContentBlock;
 import com.fundit.project.application.media.MediaStorageClient;
+import com.fundit.project.application.media.MediaUrlValidator;
 import com.fundit.project.domain.ProjectErrorCode;
 import com.fundit.project.domain.project.IntroContentBlock;
 import com.fundit.project.domain.project.IntroContentType;
@@ -28,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Builds the BE-owned Core DTO and a stable fingerprint that excludes expiring signed URLs.
@@ -39,19 +44,25 @@ public class FundingStoryContextFactory {
     private static final int MAX_REWARDS = 3;
     private static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    /** 대표·리워드·채팅 첨부를 합친 세션 전체 참조 이미지 상한(AI 계약). */
+    static final int MAX_SOURCE_IMAGES = 30;
+    static final String CHAT_SLOT_PREFIX = "chat.";
 
     /** AI 입력 계약의 TEXT 블록 최대 길이. */
     private static final int MAX_TEXT_LENGTH = 20_000;
 
     private final MediaStorageClient storageClient;
+    private final MediaUrlValidator mediaUrlValidator;
     private final Duration readTtl;
     private final Duration pageSummaryReadTtl;
 
     public FundingStoryContextFactory(
             MediaStorageClient storageClient,
+            MediaUrlValidator mediaUrlValidator,
             @Value("${funding-story.ai.read-url-ttl-minutes:15}") long readTtlMinutes,
             @Value("${page-summary.read-url-ttl-minutes:60}") long pageSummaryReadTtlMinutes) {
         this.storageClient = storageClient;
+        this.mediaUrlValidator = mediaUrlValidator;
         this.readTtl = Duration.ofMinutes(readTtlMinutes);
         this.pageSummaryReadTtl = Duration.ofMinutes(pageSummaryReadTtlMinutes);
     }
@@ -73,6 +84,49 @@ public class FundingStoryContextFactory {
                         project.getGoalAmount()),
                 rewardFacts,
                 images);
+    }
+
+    /**
+     * 이번 메시지의 채팅 첨부(#233). 기존 이미지 저장과 같은 검증(경로·실존·10MiB·실제 형식 #224)을 거친 뒤
+     * 읽기 URL을 새로 서명한다. {@code slot_id}는 업로드 키의 파일 ID라 같은 파일이면 늘 같은 값이다.
+     */
+    public ChatImageRef chatImage(UUID projectPublicId, String fileUrl, Long rewardId) {
+        MediaUrlValidator.ValidatedMedia media = mediaUrlValidator.validateImage(projectPublicId, fileUrl);
+        requireImageType(media.stored());
+        requireReadableSize(media.stored());
+        return new ChatImageRef(
+                chatSlotId(media.key()),
+                fileUrl,
+                rewardId,
+                storageClient.presignGet(media.key(), readTtl),
+                media.stored().contentType(),
+                media.stored().contentLength(),
+                Instant.now().plus(readTtl));
+    }
+
+    /**
+     * 이전 메시지에서 이미 접수된 첨부를 {@code source_images}에 다시 서명해 넣는다 — AI는 만료된 이전 첨부를
+     * 갱신 없이 받지 않는다. 형식은 접수 때 확인했으므로 대표·리워드 이미지와 같은 head 검사만 한다.
+     * 대표·리워드·채팅 첨부와 이번 메시지 첨부({@code additional})를 합쳐 30개를 넘으면 거부한다.
+     */
+    public FundingStoryContext withChatImages(
+            FundingStoryContext base, List<ChatAttachment> previous, int additional) {
+        List<SourceImageRef> images = new ArrayList<>(base.source_images());
+        if (images.size() + previous.size() + additional > MAX_SOURCE_IMAGES) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "참조 이미지는 대표·리워드 이미지를 포함해 최대 " + MAX_SOURCE_IMAGES + "개입니다.");
+        }
+        for (ChatAttachment attachment : previous) {
+            addImage(images, attachment.slot_id(), attachment.reward_id(), attachment.file_url());
+        }
+        return new FundingStoryContext(base.project(), base.rewards(), images);
+    }
+
+    /** {@code media/projects/{projectId}/{fileId}.{ext}} → {@code chat.{fileId}}. */
+    static String chatSlotId(String key) {
+        String fileName = key.substring(key.lastIndexOf('/') + 1);
+        int dot = fileName.lastIndexOf('.');
+        return CHAT_SLOT_PREFIX + (dot < 0 ? fileName : fileName.substring(0, dot));
     }
 
     public String fingerprint(Project project, List<Reward> allRewards) {

@@ -1,5 +1,6 @@
 package com.fundit.project.infrastructure.media;
 
+import com.fundit.common.error.DependencyFailureException;
 import com.fundit.project.application.media.MediaStorageClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -121,6 +122,23 @@ public class S3MediaStorageClient implements MediaStorageClient {
                 return Optional.empty();
             }
             throw e;
+        }
+    }
+
+    @Override
+    public byte[] readPrefix(String key, int length) {
+        try {
+            return s3Client.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .range("bytes=0-" + (length - 1))
+                    .build()).asByteArray();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return new byte[0];
+            }
+            // 권한·스로틀링 등 S3 장애는 입력 오류가 아니다 — 500 대신 503으로(error-handling 규칙).
+            throw new DependencyFailureException(e);
         }
     }
 }

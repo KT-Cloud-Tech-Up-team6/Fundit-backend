@@ -5,6 +5,9 @@ import com.fundit.common.error.CommonErrorCode;
 import com.fundit.project.application.ai.FundingStoryAiClient.ChatEventStream;
 import com.fundit.project.application.ai.FundingStoryAiContracts.AsyncError;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAcceptedResponse;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatAttachment;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatImageRef;
+import com.fundit.project.application.ai.FundingStoryAiContracts.ChatMessage;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.ConfirmResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.FailedSlot;
@@ -13,7 +16,9 @@ import com.fundit.project.application.ai.FundingStoryAiContracts.GeneratedConten
 import com.fundit.project.application.ai.FundingStoryAiContracts.LatestSessionResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.MessageRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.OutputDescriptor;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicAttachment;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicContentBlock;
+import com.fundit.project.application.ai.FundingStoryAiContracts.PublicMessageRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunCreateRequest;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicRunResponse;
 import com.fundit.project.application.ai.FundingStoryAiContracts.PublicStoryResult;
@@ -121,12 +126,41 @@ public class FundingStoryService {
         return fundingStoryAiClient.startSession(projectPublicId, sessionId);
     }
 
+    /**
+     * 사용자 메시지 전달. 채팅 첨부(#233)가 있으면 검증·서명해 {@code attachments}로, 이전 메시지의 첨부는 다시 서명해
+     * {@code context.source_images}로 넣는다(AI는 만료된 이전 첨부를 갱신 없이 받지 않는다). 이번 첨부도 이전 첨부도
+     * 없으면 {@code attachments}·{@code context}를 비워 첨부 기능 이전과 같은 요청을 보낸다.
+     */
     @Transactional(readOnly = true)
     public ChatAcceptedResponse addMessage(
-            UUID sellerId, UUID projectPublicId, UUID sessionId, MessageRequest request) {
+            UUID sellerId, UUID projectPublicId, UUID sessionId, PublicMessageRequest request) {
         Project project = loadOwnedProject(sellerId, projectPublicId);
         loadSessionTracker(sellerId, project, sessionId);
-        return fundingStoryAiClient.addMessage(projectPublicId, sessionId, request);
+        List<PublicAttachment> requested = request.attachments() == null ? List.of() : request.attachments();
+        if ((request.text() == null || request.text().isBlank()) && requested.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "메시지나 이미지를 입력해 주세요.");
+        }
+        List<Reward> rewards = rewardRepository.findByProjectId(project.getId());
+        List<ChatImageRef> attachments = new ArrayList<>();
+        for (PublicAttachment attachment : requested) {
+            requireOwnReward(rewards, attachment.reward_id());
+            attachments.add(contextFactory.chatImage(projectPublicId, attachment.file_url(), attachment.reward_id()));
+        }
+        // 같은 message_id 재요청이면 이번 첨부가 이미 세션에 있다 — 이전 첨부에서 빼야 두 번 넘어가지 않는다.
+        Set<String> current = new LinkedHashSet<>();
+        attachments.forEach(attachment -> current.add(attachment.slot_id()));
+        List<ChatAttachment> previous = chatAttachments(projectPublicId, sessionId).stream()
+                .filter(attachment -> !current.contains(attachment.slot_id()))
+                .toList();
+        if (attachments.isEmpty() && previous.isEmpty()) {
+            return fundingStoryAiClient.addMessage(projectPublicId, sessionId,
+                    new MessageRequest(request.message_id(), request.revision(), request.text()));
+        }
+        FundingStoryContext context = contextFactory.withChatImages(
+                contextFactory.create(project, rewards), previous, attachments.size());
+        return fundingStoryAiClient.addMessage(projectPublicId, sessionId, new MessageRequest(
+                request.message_id(), request.revision(), request.text(),
+                attachments.isEmpty() ? null : attachments, context));
     }
 
     @Transactional(readOnly = true)
@@ -161,11 +195,16 @@ public class FundingStoryService {
                     Map.of("action", "reconfirm_summary"));
         }
 
+        // 세션에서 접수한 채팅 첨부(#233)를 빠짐없이 다시 서명해 넣는다 — 빠지거나 만료되면 AI가 422로 거부한다.
+        FundingStoryContext context = contextFactory.create(project, rewards);
+        List<ChatAttachment> chatImages = chatAttachments(projectPublicId, request.session_id());
+        if (!chatImages.isEmpty()) {
+            context = contextFactory.withChatImages(context, chatImages, 0);
+        }
         RunAcceptedResponse response = fundingStoryAiClient.createRun(
                 projectPublicId,
                 new RunCreateRequest(
-                        request.session_id(), request.confirmed_revision(), request.idempotency_key(),
-                        contextFactory.create(project, rewards)));
+                        request.session_id(), request.confirmed_revision(), request.idempotency_key(), context));
         FundingStorySession existing = sessionRepository.findById(response.run_id()).orElse(null);
         if (existing == null) {
             trackNewRun(project, sellerId, request, response.run_id());
@@ -502,6 +541,28 @@ public class FundingStoryService {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
         return run;
+    }
+
+    /** AI 세션의 사용자 메시지에 붙은 채팅 첨부 — slot_id 기준 중복 없이, 처음 접수된 순서대로. */
+    private List<ChatAttachment> chatAttachments(UUID projectPublicId, UUID sessionId) {
+        SessionResponse session = fundingStoryAiClient.getSession(projectPublicId, sessionId);
+        if (session == null || session.messages() == null) {
+            return List.of();
+        }
+        Map<String, ChatAttachment> bySlot = new LinkedHashMap<>();
+        for (ChatMessage message : session.messages()) {
+            if ("user".equals(message.role()) && message.attachments() != null) {
+                message.attachments().forEach(attachment -> bySlot.putIfAbsent(attachment.slot_id(), attachment));
+            }
+        }
+        return List.copyOf(bySlot.values());
+    }
+
+    /** 첨부의 {@code reward_id}는 이 프로젝트 리워드여야 한다 — 남의 리워드 ID로 레퍼런스를 엮지 못하게. */
+    private static void requireOwnReward(List<Reward> rewards, Long rewardId) {
+        if (rewardId != null && rewards.stream().noneMatch(reward -> rewardId.equals(reward.getId()))) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT, "이 프로젝트의 리워드가 아닙니다.");
+        }
     }
 
     private Project loadOwnedProject(UUID sellerId, UUID projectPublicId) {

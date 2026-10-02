@@ -84,4 +84,38 @@ class MediaUrlValidatorUnitExceptionTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ProjectErrorCode.MEDIA_TOO_LARGE);
     }
+
+    @Test
+    void JPEG_바이트를_PNG로_올렸으면_형식_불일치_예외가_발생한다() {
+        // given — #224 dev 실측: Content-Type=image/png, 바이트 형식 JPEG
+        UUID projectId = UUID.randomUUID();
+        String key = MediaStorageClient.KEY_PREFIX + "projects/" + projectId + "/a.png";
+        String fileUrl = "https://infrastudy.store/" + key;
+        when(storageClient.extractKey(fileUrl)).thenReturn(Optional.of(key));
+        when(storageClient.headObject(key)).thenReturn(Optional.of(new MediaStorageClient.StoredObject(280_203L, "image/png")));
+        when(storageClient.readPrefix(key, 12)).thenReturn(MediaUrlValidatorUnitTest.JPEG);
+
+        // when & then
+        assertThatThrownBy(() -> mediaUrlValidator.validate(projectId, fileUrl, MediaCategory.IMAGE))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.MEDIA_TYPE_MISMATCH);
+    }
+
+    @Test
+    void 이미지_형식으로_판별되지_않으면_형식_불일치_예외가_발생한다() {
+        // given — 이미지가 아닌 파일(예: 텍스트)을 image/jpeg로 올린 경우
+        UUID projectId = UUID.randomUUID();
+        String key = MediaStorageClient.KEY_PREFIX + "projects/" + projectId + "/a.jpg";
+        String fileUrl = "https://infrastudy.store/" + key;
+        when(storageClient.extractKey(fileUrl)).thenReturn(Optional.of(key));
+        when(storageClient.headObject(key)).thenReturn(Optional.of(new MediaStorageClient.StoredObject(12L, "image/jpeg")));
+        when(storageClient.readPrefix(key, 12)).thenReturn("hello world!".getBytes());
+
+        // when & then
+        assertThatThrownBy(() -> mediaUrlValidator.validateImage(projectId, fileUrl))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ProjectErrorCode.MEDIA_TYPE_MISMATCH);
+    }
 }
