@@ -189,7 +189,7 @@ docker compose -f services/{service}/docker-compose.yml up -d
 
 | <img src="https://github.com/semolu99.png" width="100"> | <img src="https://github.com/sangwookkhu.png" width="100"> |
 | :---: | :---: |
-| [@semolu99](https://github.com/semolu99) | [@sangwookkhu](https://github.com/sangwookkhu) |
+| **김재성**<br>[@semolu99](https://github.com/semolu99) | **강상욱**<br>[@sangwookkhu](https://github.com/sangwookkhu) |
 | auth, member, live,<br>notification, gateway·공통 모듈 | project, order, payment,<br>fulfillment, search |
 
 - 펀딩스토리 AI 연동(project)은 두 사람이 함께 작업했고, AI 연동 흐름과 로컬 스텁은 [@pakyeon](https://github.com/pakyeon)이 작업했습니다.
