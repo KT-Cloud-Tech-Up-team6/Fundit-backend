@@ -21,8 +21,8 @@ import java.util.UUID;
  * AI 서버(`/api/v1/ai`) 실연동. {@code live.ai.mode=http}일 때만 뜬다.
  *
  * <p>큐시트는 Q&A 코파일럿과 <b>다른 AI 서버</b>다(별도 base-url·토큰,
- * {@code cuesheetRestClient} — {@link AiClientConfig} 참고). 하이라이트는 Q&A와 같은 서버를 쓰되
- * 타임아웃만 분리했다({@code highlightsRestClient}) — 계약이 2026-09-23 확정됐다.
+ * {@code cuesheetRestClient} — {@link AiClientConfig} 참고). 하이라이트도 별도 서버다
+ * ({@code highlightsRestClient}, {@code live.highlight-ai.*}).
  *
  * <p>응답은 신뢰하지 않고 구조 확인 후 사용한다(security.md S7). 댓글 배치 응답에서 빠진
  * 컬렉션은 {@link AiClient.CommentBatchResult}가 빈 리스트로 바꾼다.

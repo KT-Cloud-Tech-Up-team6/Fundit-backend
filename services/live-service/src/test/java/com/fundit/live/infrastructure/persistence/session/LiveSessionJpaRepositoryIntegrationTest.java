@@ -291,38 +291,59 @@ class LiveSessionJpaRepositoryIntegrationTest {
     }
 
     @Test
-    void 녹화_완료_다시보기는_채널의_최신_방송에만_채운다() {
-        // given (#222) — 같은 채널에 이전 방송·최신 방송·미송출 방송이 있다
-        Instant now = Instant.parse("2026-10-01T10:00:00Z");
-        var older = seedStarted(channelId, LiveStatus.ENDED, now.minusSeconds(86400), null);
-        var latest = seedStarted(channelId, LiveStatus.ENDED, now, null);
+    void 녹화_구간_안에서_가장_먼저_시작한_방송에_채운다() {
+        // given (#232) — OBS를 켠 채 A→B를 이어 해 녹화 하나에 두 방송이 담겼다. 전날 방송은 구간 밖이다
+        Instant from = Instant.parse("2026-10-01T13:36:00Z");
+        Instant to = Instant.parse("2026-10-01T14:09:29Z");
+        var yesterday = seedStarted(channelId, LiveStatus.ENDED, from.minusSeconds(86400), null);
+        var first = seedStarted(channelId, LiveStatus.ENDED, Instant.parse("2026-10-01T13:37:56Z"), null);
+        var second = seedStarted(channelId, LiveStatus.ENDED, Instant.parse("2026-10-01T13:59:56Z"), null);
         var neverStarted = seedSession(channelId, LiveStatus.SCHEDULED);
 
         // when
-        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/latest.m3u8", now);
+        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/13-37.m3u8", from, to);
 
         // then
         assertThat(updated).isEqualTo(1);
-        assertThat(sessionRepository.findByPublicId(latest.getPublicId()).orElseThrow().getVodUrl())
-                .isEqualTo("https://cdn/latest.m3u8");
-        assertThat(sessionRepository.findByPublicId(older.getPublicId()).orElseThrow().getVodUrl()).isNull();
-        assertThat(sessionRepository.findByPublicId(neverStarted.getPublicId()).orElseThrow().getVodUrl()).isNull();
+        assertThat(vodOf(first)).isEqualTo("https://cdn/13-37.m3u8");
+        assertThat(vodOf(second)).isNull();
+        assertThat(vodOf(yesterday)).isNull();
+        assertThat(vodOf(neverStarted)).isNull();
     }
 
     @Test
-    void 최신_방송에_이미_다시보기가_있으면_덮지도_이전_방송으로_넘어가지도_않는다() {
-        // given (#222) — 같은 이벤트 재전송, 또는 한 방송에 녹화가 두 번 끝난 경우
-        Instant now = Instant.parse("2026-10-01T10:00:00Z");
-        var older = seedStarted(channelId, LiveStatus.ENDED, now.minusSeconds(86400), null);
-        var latest = seedStarted(channelId, LiveStatus.ENDED, now, "https://cdn/first.m3u8");
+    void 같은_이벤트가_다시_와도_뒤_방송으로_넘어가지_않는다() {
+        // given (#232) — 앞 방송에 이미 저장됨. vod 빈 방송만 후보로 삼으면 뒤 방송에 같은 URL이 붙는다
+        Instant from = Instant.parse("2026-10-01T13:36:00Z");
+        Instant to = Instant.parse("2026-10-01T14:09:29Z");
+        var first = seedStarted(channelId, LiveStatus.ENDED, Instant.parse("2026-10-01T13:37:56Z"), "https://cdn/13-37.m3u8");
+        var second = seedStarted(channelId, LiveStatus.ENDED, Instant.parse("2026-10-01T13:59:56Z"), null);
 
         // when
-        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/second.m3u8", now);
+        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/13-37.m3u8", from, to);
 
         // then
         assertThat(updated).isZero();
-        assertThat(sessionRepository.findByPublicId(latest.getPublicId()).orElseThrow().getVodUrl())
-                .isEqualTo("https://cdn/first.m3u8");
-        assertThat(sessionRepository.findByPublicId(older.getPublicId()).orElseThrow().getVodUrl()).isNull();
+        assertThat(vodOf(first)).isEqualTo("https://cdn/13-37.m3u8");
+        assertThat(vodOf(second)).isNull();
+    }
+
+    @Test
+    void 녹화_구간_안에_시작한_방송이_없으면_채우지_않는다() {
+        // given (#232) — 녹화 시작 전에 시작한 방송뿐이다
+        Instant from = Instant.parse("2026-10-01T14:40:00Z");
+        var earlier = seedStarted(channelId, LiveStatus.ENDED, Instant.parse("2026-10-01T14:26:12Z"), null);
+
+        // when
+        int updated = sessionRepository.fillVodIfAbsent(channelId, "https://cdn/14-41.m3u8", from,
+                Instant.parse("2026-10-01T14:48:00Z"));
+
+        // then
+        assertThat(updated).isZero();
+        assertThat(vodOf(earlier)).isNull();
+    }
+
+    private String vodOf(LiveSessionJpaEntity session) {
+        return sessionRepository.findByPublicId(session.getPublicId()).orElseThrow().getVodUrl();
     }
 }

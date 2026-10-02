@@ -9,11 +9,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -49,13 +51,13 @@ class LiveVodServiceUnitTest {
     void 녹화_완료면_CDN_마스터_플레이리스트_주소로_다시보기를_채운다() {
         // given
         givenChannel(7L);
-        given(sessionRepository.fillVodIfAbsent(anyLong(), anyString(), any())).willReturn(1);
+        given(sessionRepository.fillVodIfAbsent(anyLong(), anyString(), any(), any())).willReturn(1);
 
         // when
         service.recordingEnded(CHANNEL_ARN, "Recording End", PREFIX);
 
         // then
-        verify(sessionRepository).fillVodIfAbsent(eq(7L), eq(EXPECTED_URL), any());
+        verify(sessionRepository).fillVodIfAbsent(eq(7L), eq(EXPECTED_URL), any(), any());
     }
 
     @Test
@@ -67,6 +69,20 @@ class LiveVodServiceUnitTest {
         service.recordingEnded(CHANNEL_ARN, "Recording End", "/" + PREFIX + "/");
 
         // then
-        verify(sessionRepository).fillVodIfAbsent(eq(7L), eq(EXPECTED_URL), any());
+        verify(sessionRepository).fillVodIfAbsent(eq(7L), eq(EXPECTED_URL), any(), any());
+    }
+
+    @Test
+    void 녹화_시작_1분_전부터_지금까지_시작한_방송을_대상으로_한다() {
+        // given (#232) — prefix의 2026/10/1/6/0 = 녹화 시작 06:00 UTC
+        givenChannel(7L);
+        Instant before = Instant.now();
+
+        // when
+        service.recordingEnded(CHANNEL_ARN, "Recording End", PREFIX);
+
+        // then
+        verify(sessionRepository).fillVodIfAbsent(eq(7L), eq(EXPECTED_URL),
+                eq(Instant.parse("2026-10-01T05:59:00Z")), argThat(to -> !to.isBefore(before)));
     }
 }

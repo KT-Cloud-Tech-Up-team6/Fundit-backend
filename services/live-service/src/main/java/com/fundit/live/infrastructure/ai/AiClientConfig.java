@@ -46,15 +46,17 @@ public class AiClientConfig {
     }
 
     /**
-     * 하이라이트는 Q&A 코파일럿과 같은 서버다(큐시트와 다름) — base-url·토큰은 공유하고
-     * 타임아웃만 분리한다. 결과는 콜백(push)으로 오므로 이 호출은 202 접수 응답만 기다리면
-     * 되지만, 기본 3초는 접수 자체도 촉박할 수 있어 여유를 둔다(AI팀 요청).
+     * 하이라이트도 Q&A 코파일럿과 <b>다른 AI 서버</b>다 — 처음엔 같은 서버로 가정해 base-url을
+     * 공유했다가 판매자 생성 요청이 코파일럿으로 가서 처리되지 않았다(인프라 제보, 2026-10-02).
+     * 토큰은 선택이다 — 비우면 {@link #builder}가 인증 헤더를 붙이지 않는다.
+     * 결과는 콜백(push)으로 오므로 이 호출은 202 접수 응답만 기다리면 되지만, 기본 3초는
+     * 접수 자체도 촉박할 수 있어 여유를 둔다(AI팀 요청).
      */
     @Bean
     @Qualifier("aiHighlightsRestClient")
     public RestClient aiHighlightsRestClient(
-            @Value("${live.ai.base-url}") String baseUrl,
-            @Value("${live.ai.token}") String token,
+            @Value("${live.highlight-ai.base-url}") String baseUrl,
+            @Value("${live.highlight-ai.token:}") String token,
             @Value("${live.ai.connect-timeout-ms:3000}") int connectTimeoutMs,
             @Value("${live.ai.highlights-read-timeout-ms:10000}") int highlightsReadTimeoutMs) {
         return build(baseUrl, token, connectTimeoutMs, highlightsReadTimeoutMs);

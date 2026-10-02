@@ -24,8 +24,8 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 >   2026-09-17 E2E 검증 완료)으로 연동 완료됐다** — `prepare`/`updateContext`/`submitComments`/
 >   `faq`/`faqComments`/`unanswered`/`unansweredDetail`/`registerSellerAnswer`/`summary`.
 >   **큐시트도 실계약(2026-09-22 확정)으로 연동 완료됐다** — 아래 참고.
->   **하이라이트는 여전히 미확정**이라 `HttpAiClient.requestHighlights`는
->   `UnsupportedOperationException`을 던진다 — 그 계약이 나오면 채운다.
+>   **하이라이트도 연동됐다** — 판매자 생성·재생성 요청(`requestHighlights`)만 BE가 부르고,
+>   방송 종료 후 자동 생성은 AI가 `live.ended.v1`을 직접 구독한다.
 >
 > **큐시트는 BE→AI 동기 호출로 확정됐다** — Q&A 코파일럿과 다른 AI 서버다(별도 base-url·토큰,
 > `live.cuesheet-ai.*`). AI 응답이 최대 3분+ 걸릴 수 있어 판매자 요청 스레드가 아니라
@@ -33,10 +33,9 @@ API 계약은 `LiveDomainApiSpec.md`, DDL 정본은 `V1__init_schema.sql`입니�
 > (`CueSheetService.onCueSheetGenerationRequested`). 콜백 수신 엔드포인트
 > (`POST /internal/v1/lives/{liveId}/cue-sheet`)는 삭제됐다.
 >
-> **하이라이트는 여전히 콜백(push) 가정이다** — AI가 live의 내부 엔드포인트로 밀어주는 구조로
-> 만들었다(`POST /internal/v1/lives/{liveId}/highlights`). 확인요청 회신이 "BE가 폴링"으로 오면
-> 내부 엔드포인트를 빼고 AI job 식별자 컬럼과 폴링 스케줄러를 넣는다 —
-> **도메인·서비스·컨트롤러는 그대로다.**
+> **하이라이트도 코파일럿과 다른 AI 서버다**(별도 base-url·토큰, `live.highlight-ai.*`) — 같은
+> 서버로 가정했다가 판매자 생성 요청이 코파일럿으로 가 처리되지 않았다(2026-10-02). 결과는
+> 콜백(push)으로 받는다(`POST /internal/v1/lives/{liveId}/highlights`).
 >
 > **Q&A/FAQ는 이 문제가 없다** — 비동기 결과 자체가 없다. `ChatCommentBatchSender`가 3초 주기로
 > 채팅을 배치 전송하면 그 HTTP 응답으로 바로 답변이 오고, 나머지 조회는 화면을 그릴 때마다

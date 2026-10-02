@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.StopStreamRequest;
 import software.amazon.awssdk.services.ivs.model.Stream;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
@@ -254,6 +255,9 @@ public class AwsIvsClient implements IvsClient {
      */
     @Override
     public int getViewerCount(String channelArn) {
+        if (isStub(channelArn)) {
+            return 0;
+        }
         try {
             return call(() -> ivs.getStream(GetStreamRequest.builder().channelArn(channelArn).build()))
                     .stream().viewerCount().intValue();
@@ -266,6 +270,9 @@ public class AwsIvsClient implements IvsClient {
     /** 방송이 안 들어오는 것은 IVS가 예외로 알려준다 — 그것만 OFFLINE으로 바꾸고 나머지는 던진다. */
     @Override
     public StreamStatus getStreamStatus(String channelArn) {
+        if (isStub(channelArn)) {
+            return StreamStatus.OFFLINE;
+        }
         return call(() -> {
             try {
                 Stream stream = ivs.getStream(GetStreamRequest.builder().channelArn(channelArn).build()).stream();
@@ -273,6 +280,21 @@ public class AwsIvsClient implements IvsClient {
                         stream.viewerCount() == null ? 0 : stream.viewerCount().intValue(), stream.startTime());
             } catch (ChannelNotBroadcastingException e) {
                 return StreamStatus.OFFLINE;
+            }
+        });
+    }
+
+    /** 이미 송출이 없으면 IVS가 예외로 알려준다 — 끊을 것이 없다는 뜻이라 성공으로 본다. */
+    @Override
+    public void stopStream(String channelArn) {
+        if (isStub(channelArn)) {
+            return;
+        }
+        call(() -> {
+            try {
+                return ivs.stopStream(StopStreamRequest.builder().channelArn(channelArn).build());
+            } catch (ChannelNotBroadcastingException e) {
+                return null;
             }
         });
     }
@@ -287,6 +309,14 @@ public class AwsIvsClient implements IvsClient {
     public void sendChatEvent(String roomArn, String eventName, Map<String, String> attributes) {
         call(() -> ivschat.sendEvent(SendEventRequest.builder()
                 .roomIdentifier(roomArn).eventName(eventName).attributes(attributes).build()));
+    }
+
+    /**
+     * 목업 시드(seed/mock-lives.json)와 stub 모드 시절 채널은 가짜 ARN이라 IVS가 권한 오류로 거절한다.
+     * 실시간 순위가 목업 LIVE마다 조회해 요청당 AWS 호출·WARN이 수십 건 쌓이므로 부르지 않는다(#232).
+     */
+    private static boolean isStub(String channelArn) {
+        return channelArn != null && channelArn.contains(":channel/stub-");
     }
 
     private static <T> T call(Supplier<T> request) {

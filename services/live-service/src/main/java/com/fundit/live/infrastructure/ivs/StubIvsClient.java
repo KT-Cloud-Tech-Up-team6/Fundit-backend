@@ -86,6 +86,10 @@ public class StubIvsClient implements IvsClient {
         return new StreamStatus("LIVE", "HEALTHY", getViewerCount(channelArn), java.time.Instant.now());
     }
 
+    @Override
+    public void stopStream(String channelArn) {
+    }
+
     /** 진짜 키처럼 보이면 FE가 OBS 송출 실패를 늦게 발견한다 — 채팅 토큰과 같은 원칙. */
     @Override
     public String getStreamKeyValue(String streamKeyRef) {

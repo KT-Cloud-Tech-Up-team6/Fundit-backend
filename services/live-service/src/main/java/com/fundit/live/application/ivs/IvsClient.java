@@ -48,6 +48,12 @@ public interface IvsClient {
      */
     StreamStatus getStreamStatus(String channelArn);
 
+    /**
+     * 채널로 들어오는 송출을 끊는다(방송 종료 시). 이미 송출이 없으면 아무 일도 하지 않는다.
+     * 그 밖의 실패는 던진다 — 종료를 막을지는 호출부가 정한다.
+     */
+    void stopStream(String channelArn);
+
     /** ARN(참조)으로 실제 스트림 키 값을 조회한다. 요청 시점에만 쓰고 저장하지 않는다(S9). */
     String getStreamKeyValue(String streamKeyRef);
 

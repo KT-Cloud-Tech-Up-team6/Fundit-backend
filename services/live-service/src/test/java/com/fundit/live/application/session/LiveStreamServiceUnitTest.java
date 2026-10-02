@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -166,19 +167,29 @@ class LiveStreamServiceUnitTest {
     }
 
     @Test
-    void 종료하면_ENDED로_전이한다() {
-        // given
+    void 종료하면_ENDED로_전이하고_커밋_후에_IVS_송출을_끊는다() {
+        // given — 송출을 안 끊으면 OBS를 켠 채 다음 방송이 같은 녹화로 이어진다(#232).
+        // 커밋 전에 끊으면 종료가 롤백돼도 송출은 이미 끊겨 있다(PR #237 리뷰).
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
         session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        given(channelRepository.findById(1L)).willReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            // when
+            LiveSession ended = liveStreamService.end(sellerId, liveId);
 
-        // when
-        LiveSession ended = liveStreamService.end(sellerId, liveId);
-
-        // then
-        assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
-        assertThat(ended.getActualEndAt()).isNotNull();
+            // then — 커밋 전에는 끊지 않고, 커밋 후 첫 동기화(송출 중지)에서 끊는다
+            assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
+            assertThat(ended.getActualEndAt()).isNotNull();
+            verify(ivsClient, never()).stopStream(anyString());
+            TransactionSynchronizationManager.getSynchronizations().get(0).afterCommit();
+            verify(ivsClient).stopStream("arn:channel");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
