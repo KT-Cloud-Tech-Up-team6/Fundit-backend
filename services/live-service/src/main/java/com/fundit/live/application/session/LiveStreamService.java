@@ -138,7 +138,8 @@ public class LiveStreamService {
         Instant now = Instant.now();
         session.end(now);
         LiveSession saved = sessionRepository.save(session);
-        stopStream(saved);
+        // 질문요약보다 먼저 등록한다 — 커밋 후 느린 AI 집계를 기다리지 않고 송출부터 끊는다.
+        scheduleStopStream(saved);
         // live.ended.v1은 방송 후 자산(질문요약·하이라이트) 두 종류의 유일한 트리거다.
         // 유실되면 방송이 이미 끝나서 재생성할 방법이 없다.
         appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED, now, null);
@@ -262,12 +263,27 @@ public class LiveStreamService {
         return ivsClient.getStreamStatus(channel.getIvsChannelArn());
     }
 
-    /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */
     /**
      * BE 종료만으로는 IVS 송출이 끊기지 않아, OBS를 켜 둔 채 다음 방송을 시작하면 녹화가 하나로 합쳐진다(#232).
      * 보조 수단이다 — OBS가 60초(reconnect window) 안에 자동 재연결하면 다시 합쳐지고, 그 경우는
      * 녹화 구간 매칭({@code LiveVodService})이 앞 방송에 붙여 처리한다. 실패해도 종료는 진행한다.
+     *
+     * <p>커밋 후에 끊는다 — 트랜잭션 안에서 끊으면 종료 이벤트 적재·커밋이 실패해 방송이 LIVE로
+     * 롤백돼도 송출은 이미 끊겨 있고, IVS 응답을 기다리는 동안 행 락도 잡고 있다(PR #237 리뷰).
+     * 읽기만 하므로 {@code REQUIRES_NEW}는 필요 없다.
      */
+    private void scheduleStopStream(LiveSession session) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                stopStream(session);
+            }
+        });
+    }
+
     private void stopStream(LiveSession session) {
         try {
             channelRepository.findById(session.getChannelId())
@@ -277,6 +293,7 @@ public class LiveStreamService {
         }
     }
 
+    /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {
         return sessionRepository.findOwnedForUpdate(liveId, sellerId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

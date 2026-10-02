@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -159,11 +161,38 @@ class LiveStreamServiceUnitExceptionTest {
                 .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
         willThrow(new DependencyFailureException(new RuntimeException("AccessDenied")))
                 .given(ivsClient).stopStream("arn:channel");
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            // when
+            LiveSession ended = liveStreamService.end(sellerId, liveId);
+            TransactionSynchronizationManager.getSynchronizations().get(0).afterCommit();
 
-        // when
-        LiveSession ended = liveStreamService.end(sellerId, liveId);
+            // then — 커밋 후 실패는 로그만 남기고 삼킨다
+            assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
+            verify(ivsClient).stopStream("arn:channel");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
 
-        // then
-        assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
+    @Test
+    void 종료_이벤트_적재가_실패하면_IVS_송출을_끊지_않는다() {
+        // given — 종료가 롤백되면 방송은 LIVE로 남으므로 송출도 그대로여야 한다(PR #237 리뷰)
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+        session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        // lenient — 고친 뒤엔 조회조차 안 해야 맞다. 이 스텁이 있어야 커밋 전에 끊던 예전 코드가 걸린다.
+        lenient().when(channelRepository.findById(1L)).thenReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
+        given(outboxRepository.save(any())).willThrow(new RuntimeException("db down"));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            // when & then — 커밋되지 않으므로 afterCommit도 돌지 않는다
+            assertThatThrownBy(() -> liveStreamService.end(sellerId, liveId)).hasMessage("db down");
+            verify(ivsClient, never()).stopStream(anyString());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }
