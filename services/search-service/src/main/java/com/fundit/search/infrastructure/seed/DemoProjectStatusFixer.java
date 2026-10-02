@@ -9,6 +9,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -22,7 +25,8 @@ import java.util.UUID;
  * <p>완료 플래그는 트랜잭션이 <b>커밋된 뒤에만</b> 세운다 — {@link TransactionTemplate#execute}는 커밋까지 끝내고
  * 돌아오므로, 커밋이 실패하면 예외가 나고 플래그가 안 서서 다음 주기에 다시 시도한다(PR 리뷰 지적).
  *
- * <p>{@link #DEMO_PROJECT_ID}는 project·order·fulfillment 시연 시더와 같은 값이다(4곳 동일).
+ * <p>대상은 #202 바스켓({@link #DEMO_PROJECT_ID})과 #234 클린팟 완료 클론({@link #CLINPOT_CLONE_PROJECT_ID}) 두 건이다.
+ * 둘 다 project·order·fulfillment 시연 시더와 같은 값이다(4곳 동일). 건별로 맞추고, 맞춘 건은 다시 보지 않는다.
  *
  * <p>ponytail: dev 전용 보정. 시연 데이터가 성립 이벤트 경로로 만들어지게 되면 삭제한다.
  */
@@ -33,24 +37,27 @@ import java.util.UUID;
 public class DemoProjectStatusFixer {
 
     static final UUID DEMO_PROJECT_ID = UUID.fromString("f8c82570-d800-3d07-9dbf-82b091690ce5");
+    static final UUID CLINPOT_CLONE_PROJECT_ID = UUID.fromString("ad5565eb-ffb1-316a-bc4c-d4cc6e9b89ea");
 
     private final ProjectDocumentJpaRepository projectDocumentRepository;
     private final TransactionTemplate transactionTemplate;
-    private volatile boolean done;
+    /** 아직 SUCCEEDED로 맞추지 못한 대상 — 스케줄러 스레드 하나만 만진다. */
+    private final Set<UUID> pending = new HashSet<>(List.of(DEMO_PROJECT_ID, CLINPOT_CLONE_PROJECT_ID));
 
     @Scheduled(initialDelay = 30_000, fixedDelay = 60_000)
     public void fix() {
-        if (done) {
-            return;
+        for (UUID projectPublicId : List.copyOf(pending)) {
+            Boolean indexed = transactionTemplate.execute(status ->
+                    projectDocumentRepository.findByProjectPublicId(projectPublicId).map(document -> {
+                        if (document.getStatus() != ProjectDocumentStatus.SUCCEEDED) {
+                            projectDocumentRepository.updateStatus(document.getProjectId(), ProjectDocumentStatus.SUCCEEDED);
+                            log.info("시연 프로젝트 색인 상태를 SUCCEEDED로 맞췄다 publicId={}", projectPublicId);
+                        }
+                        return true;
+                    }).orElse(false));
+            if (Boolean.TRUE.equals(indexed)) {
+                pending.remove(projectPublicId);
+            }
         }
-        Boolean indexed = transactionTemplate.execute(status ->
-                projectDocumentRepository.findByProjectPublicId(DEMO_PROJECT_ID).map(document -> {
-                    if (document.getStatus() != ProjectDocumentStatus.SUCCEEDED) {
-                        projectDocumentRepository.updateStatus(document.getProjectId(), ProjectDocumentStatus.SUCCEEDED);
-                        log.info("시연 프로젝트 색인 상태를 SUCCEEDED로 맞췄다 publicId={}", DEMO_PROJECT_ID);
-                    }
-                    return true;
-                }).orElse(false));
-        done = Boolean.TRUE.equals(indexed);
     }
 }

@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +26,8 @@ import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.BDDMockito.willAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class DemoFulfillmentSeederUnitTest {
@@ -43,7 +46,7 @@ class DemoFulfillmentSeederUnitTest {
 
     private static FulfillmentTrackerJpaEntity tracker(String stage) {
         return FulfillmentTrackerJpaEntity.builder()
-                .id(3L).projectPublicId(DemoFulfillmentSeeder.DEMO_PROJECT_ID).currentStage(stage)
+                .id(3L).projectPublicId(DemoFulfillmentSeeder.BASKET.projectPublicId()).currentStage(stage)
                 .lastUpdatedAt(BASE.minus(Duration.ofDays(20))).createdAt(BASE.minus(Duration.ofDays(30))).build();
     }
 
@@ -61,11 +64,11 @@ class DemoFulfillmentSeederUnitTest {
     @Test
     void 처음이면_생산_중_트래커와_단계별_기록_일정_변경을_기준_시각으로_만든다() {
         // given
-        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.DEMO_PROJECT_ID)).willReturn(Optional.empty());
+        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.BASKET.projectPublicId())).willReturn(Optional.empty());
         given(trackerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         // when
-        seeder().seed(BASE);
+        seeder().seed(DemoFulfillmentSeeder.BASKET, BASE);
 
         // then — 마지막 기록이 7일 안이어야 미갱신 경고가 뜨지 않는다
         ArgumentCaptor<FulfillmentTrackerJpaEntity> tracker = ArgumentCaptor.forClass(FulfillmentTrackerJpaEntity.class);
@@ -93,7 +96,7 @@ class DemoFulfillmentSeederUnitTest {
     @Test
     void 시드_그대로면_날짜를_기동_시각_기준으로_다시_계산한다() {
         // given — 오래전에 넣은 시드. 그대로 두면 7일 경고·발송 지연이 뜬다
-        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.DEMO_PROJECT_ID))
+        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.BASKET.projectPublicId()))
                 .willReturn(Optional.of(tracker("MANUFACTURING")));
         given(stageDetailRepository.findByTrackerIdOrderByUpdatedAtDesc(3L))
                 .willReturn(Collections.nCopies(5, FulfillmentStageDetailJpaEntity.builder().build()));
@@ -101,7 +104,7 @@ class DemoFulfillmentSeederUnitTest {
                 .willReturn(List.of(FulfillmentScheduleChangeJpaEntity.builder().build()));
 
         // when
-        seeder().seed(BASE);
+        seeder().seed(DemoFulfillmentSeeder.BASKET, BASE);
 
         // then
         verify(stageDetailRepository).deleteAll(anyIterable());
@@ -116,7 +119,7 @@ class DemoFulfillmentSeederUnitTest {
     @Test
     void 시연_중_판매자가_바꿨으면_건드리지_않는다() {
         // given — 판매자가 검수 단계로 넘기고 기록을 하나 더 올렸다
-        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.DEMO_PROJECT_ID))
+        given(trackerRepository.findByProjectPublicId(DemoFulfillmentSeeder.BASKET.projectPublicId()))
                 .willReturn(Optional.of(tracker("INSPECTION")));
         given(stageDetailRepository.findByTrackerIdOrderByUpdatedAtDesc(3L))
                 .willReturn(Collections.nCopies(6, FulfillmentStageDetailJpaEntity.builder().build()));
@@ -124,11 +127,49 @@ class DemoFulfillmentSeederUnitTest {
                 .willReturn(List.of(FulfillmentScheduleChangeJpaEntity.builder().build()));
 
         // when
-        seeder().seed(BASE);
+        seeder().seed(DemoFulfillmentSeeder.BASKET, BASE);
 
         // then
         verify(stageDetailRepository, never()).deleteAll(anyIterable());
         verify(stageDetailRepository, never()).saveAll(any());
         verify(trackerRepository, never()).save(any());
+    }
+
+    @Test
+    void 클린팟_클론은_음식물처리기_문구와_PM_사진으로_만든다() {
+        // given
+        UUID clone = DemoFulfillmentSeeder.CLINPOT_CLONE.projectPublicId();
+        given(trackerRepository.findByProjectPublicId(clone)).willReturn(Optional.empty());
+        given(trackerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        seeder().seed(DemoFulfillmentSeeder.CLINPOT_CLONE, BASE);
+
+        // then
+        ArgumentCaptor<FulfillmentTrackerJpaEntity> tracker = ArgumentCaptor.forClass(FulfillmentTrackerJpaEntity.class);
+        verify(trackerRepository).save(tracker.capture());
+        assertThat(tracker.getValue().getProjectPublicId()).isEqualTo(clone);
+        assertThat(tracker.getValue().getCurrentStage()).isEqualTo("MANUFACTURING");
+        List<FulfillmentStageDetailJpaEntity> details = capturedDetails();
+        assertThat(details).hasSize(5);
+        assertThat(details).filteredOn(d -> d.getStage().equals("MANUFACTURING"))
+                .singleElement().satisfies(d -> {
+                    assertThat(d.getDetailText()).contains("분쇄 모터");
+                    assertThat(d.getPhotoUrls()).containsExactly("https://infrastudy.store/media/mock/clinpot-manufacturing-1.png");
+                });
+    }
+
+    @Test
+    void 한쪽이_실패해도_다른_대상은_넣는다() {
+        // given — 대상마다 트랜잭션을 따로 연다
+        willAnswer(inv -> {
+            throw new IllegalStateException("db down");
+        }).willAnswer(inv -> null).given(transactionTemplate).executeWithoutResult(any());
+
+        // when
+        seeder().run(null);
+
+        // then
+        verify(transactionTemplate, times(2)).executeWithoutResult(any());
     }
 }

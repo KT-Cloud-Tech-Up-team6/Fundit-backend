@@ -29,14 +29,15 @@ import java.util.UUID;
  * 출고 계획 종료일이 지나면 "발송 지연"이 뜬다. 단 판매자가 시연 중 기록·단계를 바꿨으면(시드 모양이 아니면)
  * 그 데이터를 지우지 않도록 건드리지 않는다. 되돌리려면 dev에서 시연 트래커와 그 기록·일정 변경을 지우고 재기동한다.
  *
- * <p>{@link #DEMO_PROJECT_ID}는 project·search·order 시연 시더와 같은 값이다(4곳 동일).
+ * <p>대상은 #202 바스켓({@link #BASKET})과 #234 클린팟 완료 클론({@link #CLINPOT_CLONE}) 두 건이다 — 단계·날짜 규칙은
+ * 같고 문구·사진만 다르다. 건마다 트랜잭션을 나눠 한쪽이 실패해도 다른 쪽은 들어간다.
+ * 각 publicId는 project·search·order 시연 시더와 같은 값이다(4곳 동일).
  */
 @Slf4j
 @Component
 @Profile("dev")
 public class DemoFulfillmentSeeder implements ApplicationRunner {
 
-    static final UUID DEMO_PROJECT_ID = UUID.fromString("f8c82570-d800-3d07-9dbf-82b091690ce5");
     static final String CURRENT_STAGE = "MANUFACTURING";
     private static final String PHOTO_BASE = "https://infrastudy.store/media/mock/";
 
@@ -44,7 +45,11 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
     record SeedDetail(String stage, int plannedStartDays, int plannedEndDays, String text, String photo, int updatedDays) {
     }
 
-    static final List<SeedDetail> DETAILS = List.of(
+    /** 시드 대상 하나 — 프로젝트별로 다른 건 기록 문구·사진과 일정 변경 사유뿐이다. */
+    record Scenario(UUID projectPublicId, List<SeedDetail> details, String reasonType, String reasonDetail) {
+    }
+
+    static final Scenario BASKET = new Scenario(UUID.fromString("f8c82570-d800-3d07-9dbf-82b091690ce5"), List.of(
             new SeedDetail("PRODUCTION_START", -14, -11,
                     "최종 샘플의 크기와 봉제 사양을 확정하고 원단 재단 준비를 마쳤습니다. 협력 작업장에 총 150개 제작을 발주했습니다.",
                     "demo-production-start-1.png", -11),
@@ -53,7 +58,29 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
                     "demo-manufacturing-1.png", -2),
             new SeedDetail("INSPECTION", 8, 10, "검수 예정입니다.", null, -4),
             new SeedDetail("SHIPPING_OUT", 11, 13, "출고 예정입니다.", null, -4),
-            new SeedDetail("DELIVERY", 14, 17, "배송 예정입니다.", null, -4));
+            new SeedDetail("DELIVERY", 14, 17, "배송 예정입니다.", null, -4)),
+            "STOCK_SHORTAGE",
+            "손잡이 자재 입고가 지연되어 생산 완료 예정일을 5일 연장했습니다. "
+                    + "변경된 생산 일정에 맞춰 검수·출고·배송 계획도 조정했습니다.");
+
+    /** 사진은 PM이 준 1장(S3 media/mock/에 업로드됨)을 착수·생산 두 단계에 같이 쓴다. */
+    static final Scenario CLINPOT_CLONE = new Scenario(UUID.fromString("ad5565eb-ffb1-316a-bc4c-d4cc6e9b89ea"), List.of(
+            new SeedDetail("PRODUCTION_START", -14, -11,
+                    "양산 샘플 최종 테스트를 마치고 금형과 핵심 부품(분쇄 모터·건조 히터·탈취 필터) 발주를 완료했습니다. "
+                            + "협력 공장에 총 300대 생산을 의뢰했습니다.",
+                    "clinpot-manufacturing-1.png", -11),
+            new SeedDetail("MANUFACTURING", -10, 7,
+                    "분쇄 모터 부품이 입고되어 조립 라인을 다시 가동하고 있습니다. 총 300대 중 180대 조립을 마쳤으며, "
+                            + "나머지 120대를 조립하고 있습니다.",
+                    "clinpot-manufacturing-1.png", -2),
+            new SeedDetail("INSPECTION", 8, 10, "검수 예정입니다.", null, -4),
+            new SeedDetail("SHIPPING_OUT", 11, 13, "출고 예정입니다.", null, -4),
+            new SeedDetail("DELIVERY", 14, 17, "배송 예정입니다.", null, -4)),
+            "STOCK_SHORTAGE",
+            "분쇄 모터 부품 입고가 지연되어 생산 완료 예정일을 5일 연장했습니다. "
+                    + "변경된 생산 일정에 맞춰 검수·출고·배송 계획도 조정했습니다.");
+
+    static final List<Scenario> SCENARIOS = List.of(BASKET, CLINPOT_CLONE);
 
     /** 트래커 last_updated_at — 생산 기록일. 7일 안이라 미갱신 경고가 뜨지 않는다. */
     static final int LAST_UPDATED_DAYS = -2;
@@ -75,42 +102,45 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        try {
-            transactionTemplate.executeWithoutResult(status -> seed(Instant.now()));
-        } catch (RuntimeException e) {
-            log.warn("시연 제작·배송 시드 실패", e);
+        Instant base = Instant.now();
+        for (Scenario scenario : SCENARIOS) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> seed(scenario, base));
+            } catch (RuntimeException e) {
+                log.warn("시연 제작·배송 시드 실패 projectPublicId={}", scenario.projectPublicId(), e);
+            }
         }
     }
 
-    void seed(Instant base) {
-        trackerRepository.findByProjectPublicId(DEMO_PROJECT_ID).ifPresentOrElse(
-                tracker -> refreshIfUntouched(tracker, base),
-                () -> create(base));
+    void seed(Scenario scenario, Instant base) {
+        trackerRepository.findByProjectPublicId(scenario.projectPublicId()).ifPresentOrElse(
+                tracker -> refreshIfUntouched(scenario, tracker, base),
+                () -> create(scenario, base));
     }
 
-    private void create(Instant base) {
+    private void create(Scenario scenario, Instant base) {
         FulfillmentTrackerJpaEntity tracker = trackerRepository.save(FulfillmentTrackerJpaEntity.builder()
-                .projectPublicId(DEMO_PROJECT_ID)
+                .projectPublicId(scenario.projectPublicId())
                 .currentStage(CURRENT_STAGE)
                 .lastUpdatedAt(days(base, LAST_UPDATED_DAYS))
                 .createdAt(days(base, -15))
                 .build());
-        insertRows(tracker.getId(), base);
-        log.info("시연 제작·배송 시드 완료 projectPublicId={}", DEMO_PROJECT_ID);
+        insertRows(scenario, tracker.getId(), base);
+        log.info("시연 제작·배송 시드 완료 projectPublicId={}", scenario.projectPublicId());
     }
 
     /** 시드 모양 그대로(생산 단계, 기록 5건, 일정 변경 1건)일 때만 날짜를 다시 계산한다 — 판매자가 넣은 데이터는 지우지 않는다. */
-    private void refreshIfUntouched(FulfillmentTrackerJpaEntity tracker, Instant base) {
+    private void refreshIfUntouched(Scenario scenario, FulfillmentTrackerJpaEntity tracker, Instant base) {
         List<FulfillmentStageDetailJpaEntity> details = stageDetailRepository.findByTrackerIdOrderByUpdatedAtDesc(tracker.getId());
         List<FulfillmentScheduleChangeJpaEntity> changes = scheduleChangeRepository.findByTrackerIdOrderByChangedAtDesc(tracker.getId());
-        if (!CURRENT_STAGE.equals(tracker.getCurrentStage()) || details.size() != DETAILS.size() || changes.size() != 1) {
-            log.info("시연 제작·배송 데이터가 시연 중 변경돼 날짜를 갱신하지 않는다 stage={} details={} changes={}",
-                    tracker.getCurrentStage(), details.size(), changes.size());
+        if (!CURRENT_STAGE.equals(tracker.getCurrentStage()) || details.size() != scenario.details().size() || changes.size() != 1) {
+            log.info("시연 제작·배송 데이터가 시연 중 변경돼 날짜를 갱신하지 않는다 projectPublicId={} stage={} details={} changes={}",
+                    scenario.projectPublicId(), tracker.getCurrentStage(), details.size(), changes.size());
             return;
         }
         stageDetailRepository.deleteAll(details);
         scheduleChangeRepository.deleteAll(changes);
-        insertRows(tracker.getId(), base);
+        insertRows(scenario, tracker.getId(), base);
         trackerRepository.save(FulfillmentTrackerJpaEntity.builder()
                 .id(tracker.getId())
                 .projectId(tracker.getProjectId())
@@ -119,11 +149,11 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
                 .lastUpdatedAt(days(base, LAST_UPDATED_DAYS))
                 .createdAt(tracker.getCreatedAt())
                 .build());
-        log.info("시연 제작·배송 날짜를 기동 시각 기준으로 갱신했다");
+        log.info("시연 제작·배송 날짜를 기동 시각 기준으로 갱신했다 projectPublicId={}", scenario.projectPublicId());
     }
 
-    private void insertRows(Long trackerId, Instant base) {
-        stageDetailRepository.saveAll(DETAILS.stream()
+    private void insertRows(Scenario scenario, Long trackerId, Instant base) {
+        stageDetailRepository.saveAll(scenario.details().stream()
                 .map(d -> FulfillmentStageDetailJpaEntity.builder()
                         .trackerId(trackerId)
                         .stage(d.stage())
@@ -137,9 +167,8 @@ public class DemoFulfillmentSeeder implements ApplicationRunner {
         scheduleChangeRepository.save(FulfillmentScheduleChangeJpaEntity.builder()
                 .trackerId(trackerId)
                 .stage(CURRENT_STAGE)
-                .reasonType("STOCK_SHORTAGE")
-                .reasonDetail("손잡이 자재 입고가 지연되어 생산 완료 예정일을 5일 연장했습니다. "
-                        + "변경된 생산 일정에 맞춰 검수·출고·배송 계획도 조정했습니다.")
+                .reasonType(scenario.reasonType())
+                .reasonDetail(scenario.reasonDetail())
                 .oldPlannedDate(days(base, 2))
                 .newPlannedDate(days(base, 7))
                 .changedAt(days(base, -4))
