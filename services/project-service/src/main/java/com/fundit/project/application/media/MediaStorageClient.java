@@ -34,6 +34,9 @@ public interface MediaStorageClient {
     /** 실제 업로드 여부·크기 확인(HeadObject). 객체가 없으면 빈 값. */
     Optional<StoredObject> headObject(String key);
 
+    /** 객체 앞부분 {@code length}바이트(실제 형식 판별용, #224). 객체가 없으면 빈 배열. */
+    byte[] readPrefix(String key, int length);
+
     record PresignedUpload(String uploadUrl, String fileUrl) {
     }
 

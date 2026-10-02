@@ -309,7 +309,7 @@ PATCH /api/v1/projects/{projectId}/story
 **Validation / Business Rules**
 
 - `title` 40자 제한(DB 컬럼 제약과 동일).
-- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)를 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
+- `coverImageUrl`과 `introContent`의 `type=IMAGE` 항목 `value`는 반드시 #9 업로드 주소 발급 API로 발급받아 실제 업로드까지 마친 `fileUrl`이어야 한다 — 저장 시 경로(`projects/{projectId}/`로 시작)·S3 실존 여부(HeadObject)·크기(10MB 이하)·이미지 실제 형식(앞 12바이트가 저장된 MIME과 같은지)을 검증하고, 하나라도 실패하면 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`/`400 MEDIA_TYPE_MISMATCH`로 거부한다. 직접 만든 URL 문자열은 저장되지 않는다.
 - `type=VIDEO_URL`은 유튜브 등 외부 영상 링크 용도로, 위 S3 검증 대상이 아니다.
 - `type=TEXT`의 `value`는 서식을 담은 HTML을 그대로 보낼 수 있다. 서버가 `RichTextSanitizer`로 아래 허용 목록만 남기고 나머지(스크립트, 이벤트 속성, `url()` 등 그 외 스타일)는 제거한 뒤 저장한다(XSS 방지, S2) — 재조회 시 정제된 HTML이 그대로 내려간다. AI Funding Story 완료 결과의 TEXT 블록도 같은 정제를 거친다(#153).
   - 허용 태그: `b/strong/i/em/u/p/br/span/div/ul/ol/li/section/h2/h3/hr` (`style`은 `span/p/div/section/h2/h3/hr`에만)
@@ -352,6 +352,7 @@ POST /api/v1/projects/{projectId}/media/upload-url
 - 소유권(S4): 요청자가 `projectId`의 `seller_id`와 일치해야 함(리워드 이미지도 이 프로젝트 네임스페이스를 사용하므로 별도 리워드 전용 엔드포인트는 두지 않음) — 불일치 시 `403 FORBIDDEN`.
 - 확장자·`contentType` 화이트리스트(S5): 이미지는 `jpg`/`jpeg`/`png`/`webp`(`image/jpeg`,`image/png`,`image/webp`), 영상은 `mp4`(`video/mp4`)만 허용 — 그 외 `400 UNSUPPORTED_MEDIA_TYPE`.
 - 용량 제한(S5): 이미지 10MB(10,485,760 bytes), 영상 100MB(104,857,600 bytes) 초과 시 `400 MEDIA_TOO_LARGE`.
+- 실제 형식(#224): 이 API는 선언값만 본다(바이트는 S3로 바로 간다). 저장 API가 이미지 앞 12바이트(JPEG `FF D8 FF`·PNG `89 50 4E 47 0D 0A 1A 0A`·WebP `RIFF....WEBP`)를 읽어 업로드 때의 `contentType`과 다르면 `400 MEDIA_TYPE_MISMATCH`로 거부한다 — 예: JPEG 파일을 `.png`/`image/png`로 올린 경우. 영상은 검사하지 않는다.
 - 저장 키는 `projects/{projectId}/{UUID}.{ext}` 형식으로 서버가 생성한다 — 클라이언트가 보낸 `fileName`은 키에 사용하지 않는다(추측 불가 파일명, S5).
 - `uploadUrl`은 발급 후 5분(TTL)간만 유효, PUT 요청 시 `Content-Type` 헤더가 발급 요청의 `contentType`과 일치해야 한다(서명에 포함).
 - 영상은 단일 PUT만 지원(멀티파트 업로드 미지원, 협의 완료).
@@ -416,7 +417,7 @@ POST /api/v1/projects/{projectId}/rewards
   `AMOUNT`는 `price`보다 작은 양수, `RATE`는 0~99 사이 정수만 허용(DB CHECK
   `chk_rewards_early_bird_discount`) — 위반 시 `400 INVALID_EARLY_BIRD_DISCOUNT`. `earlyBirdDiscountedPrice`는
   할인 적용가로, 얼리버드가 아니면 `null`이다.
-- `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`) — 미전달 시 검증하지 않음(선택값).
+- `imageUrl`은 #9로 발급받아 업로드까지 마친 `fileUrl`만 허용(경로·실존·크기·실제 형식 검증, 실패 시 `400 INVALID_MEDIA_URL`/`400 MEDIA_TOO_LARGE`/`400 MEDIA_TYPE_MISMATCH`) — 미전달 시 검증하지 않음(선택값).
 - `options` 전달 시 `has_option=true`로 저장하고 `reward_option_groups`/`reward_option_values` 2단 구조로 생성. 등록 시 `optionGroupId`는 항상 `null`(또는 생략)이다 — 아직 존재하지 않는 그룹이라 재사용할 ID가 없다.
 - 생성 시 `reward.created.v1`을 아웃박스로 발행한다(ORDER-012, 파티션 키 `rewardId`). payload의 `projectId`는 외부 UUID가 아니라 **내부 Long PK**다.
 - 소유권(`seller_id`) 검증(S4), `name`/`description`은 출력 인코딩 적용(S2).

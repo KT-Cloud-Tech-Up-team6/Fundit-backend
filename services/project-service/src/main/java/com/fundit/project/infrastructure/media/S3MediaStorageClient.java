@@ -123,4 +123,20 @@ public class S3MediaStorageClient implements MediaStorageClient {
             throw e;
         }
     }
+
+    @Override
+    public byte[] readPrefix(String key, int length) {
+        try {
+            return s3Client.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .range("bytes=0-" + (length - 1))
+                    .build()).asByteArray();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return new byte[0];
+            }
+            throw e;
+        }
+    }
 }
