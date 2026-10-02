@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,6 +40,10 @@ import java.util.UUID;
  * ({@link DemoFulfillmentProjectSeeder}와 같은 이유). 완료 프로젝트라 재고가 화면에 의미가 없다.
  * 스냅샷은 0으로 만든다 — 실제 수치는 order {@code ClinpotFundingSeeder}가 펀딩을 넣고 부르는 집계 이벤트가 채운다.
  *
+ * <p>목표액만 원본과 다르다({@link #CLONE_GOAL_AMOUNT}) — 원본 목표(2,000만원)를 그대로 두면 시드 펀딩 31건(약 940만원)으로는
+ * "성공했는데 달성률 46%"가 된다. 원본 리워드가 없으면 클론을 만들지 않는다 — 만들면 다음 기동에 "이미 있음"으로 건너뛰어
+ * 리워드가 영영 안 채워진다.
+ *
  * <p>{@link #CLONE_PROJECT_ID}는 order·search·fulfillment 시연 시더와 같은 값이어야 한다(4곳 동일).
  */
 @Slf4j
@@ -49,6 +54,8 @@ public class ClinpotCloneProjectSeeder implements ApplicationRunner {
 
     static final UUID SOURCE_PROJECT_ID = UUID.fromString("01a0fa1e-074a-7d87-a43b-4e0a947bfd13");
     static final UUID CLONE_PROJECT_ID = UUID.fromString("ad5565eb-ffb1-316a-bc4c-d4cc6e9b89ea");
+    /** 시드 펀딩 31건이면 약 180% — DB 하한(50만원) 이상. */
+    static final long CLONE_GOAL_AMOUNT = 5_000_000L;
 
     private final ProjectJpaRepository projectRepository;
     private final FundingStatusSnapshotJpaRepository snapshotRepository;
@@ -78,15 +85,20 @@ public class ClinpotCloneProjectSeeder implements ApplicationRunner {
             log.warn("클린팟 원본이 없어 클론 시드를 건너뛴다 publicId={}", SOURCE_PROJECT_ID);
             return false;
         }
+        List<RewardJpaEntity> rewards = rewardRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(source.get().getId());
+        if (rewards.isEmpty()) {
+            log.warn("클린팟 원본 리워드가 없어 클론 시드를 건너뛴다 publicId={}", SOURCE_PROJECT_ID);
+            return false;
+        }
         // 회원 조회(외부 호출)는 트랜잭션 밖에서 끝낸다.
         String sellerDisplayName = sellerProfileClient.getDisplayName(source.get().getSellerId()).orElse(null);
         // 프로젝트·스냅샷·리워드·색인 이벤트를 한 트랜잭션으로 — 나뉘면 다음 기동에 "이미 있음"으로 건너뛰어 빠진 게 영영 안 채워진다.
-        transactionTemplate.executeWithoutResult(status -> save(source.get(), sellerDisplayName, base));
+        transactionTemplate.executeWithoutResult(status -> save(source.get(), rewards, sellerDisplayName, base));
         log.info("클린팟 클론 시드 완료 publicId={}", CLONE_PROJECT_ID);
         return true;
     }
 
-    private void save(ProjectJpaEntity source, String sellerDisplayName, Instant base) {
+    private void save(ProjectJpaEntity source, List<RewardJpaEntity> rewards, String sellerDisplayName, Instant base) {
         Instant deadline = base.minus(Duration.ofDays(15));
         ProjectJpaEntity clone = projectRepository.save(ProjectJpaEntity.builder()
                 .publicId(CLONE_PROJECT_ID)
@@ -95,7 +107,7 @@ public class ClinpotCloneProjectSeeder implements ApplicationRunner {
                 .categoryMajor(source.getCategoryMajor())
                 .categoryMinor(source.getCategoryMinor())
                 .title(source.getTitle())
-                .goalAmount(source.getGoalAmount())
+                .goalAmount(CLONE_GOAL_AMOUNT)
                 .fundingStartAt(base.minus(Duration.ofDays(45)))
                 .fundingDeadline(deadline)
                 .coverImageUrl(source.getCoverImageUrl())
@@ -111,7 +123,7 @@ public class ClinpotCloneProjectSeeder implements ApplicationRunner {
                 .participantCount(0)
                 .lastSyncedAt(base)
                 .build());
-        for (RewardJpaEntity reward : rewardRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(source.getId())) {
+        for (RewardJpaEntity reward : rewards) {
             copyReward(reward, clone.getId());
         }
         indexEventPublisher.publishProjectApproved(new ProjectIndexedEvent(

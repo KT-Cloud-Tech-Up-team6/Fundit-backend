@@ -80,16 +80,22 @@ class ClinpotCloneProjectSeederUnitTest {
     }
 
     @Test
-    void 원본을_복제해_성립된_프로젝트로_넣는다() {
+    void 클론이_없고_원본이_있으면_원본을_복제해_성립된_프로젝트로_넣는다() {
+        // given
         given(projectRepository.existsByPublicId(ClinpotCloneProjectSeeder.CLONE_PROJECT_ID)).willReturn(false);
         given(projectRepository.findByPublicIdAndDeletedAtIsNull(ClinpotCloneProjectSeeder.SOURCE_PROJECT_ID))
                 .willReturn(Optional.of(source()));
+        given(rewardRepository.findByProjectIdAndDeletedAtIsNullOrderBySortOrderAsc(1L)).willReturn(List.of(
+                RewardJpaEntity.builder().id(27L).name("기본 패키지").price(350_000L).isLimited(false).build()));
+        given(optionGroupRepository.findByRewardIdAndDeletedAtIsNullOrderBySortOrderAsc(27L)).willReturn(List.of());
         given(sellerProfileClient.getDisplayName(SELLER_ID)).willReturn(Optional.of("클린팟"));
         given(projectRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         givenTransactionRuns();
 
+        // when
         boolean created = seeder().seed(BASE);
 
+        // then
         assertThat(created).isTrue();
         ArgumentCaptor<ProjectJpaEntity> project = ArgumentCaptor.forClass(ProjectJpaEntity.class);
         verify(projectRepository).save(project.capture());
@@ -98,6 +104,8 @@ class ClinpotCloneProjectSeederUnitTest {
         assertThat(clone.getSellerId()).isEqualTo(SELLER_ID);
         assertThat(clone.getTitle()).isEqualTo(source().getTitle());
         assertThat(clone.getCoverImageUrl()).isEqualTo(source().getCoverImageUrl());
+        // 원본 목표(2,000만원)를 쓰면 시드 펀딩 31건으로 "성공인데 46%"가 된다
+        assertThat(clone.getGoalAmount()).isEqualTo(ClinpotCloneProjectSeeder.CLONE_GOAL_AMOUNT);
         // SUCCEEDED + 마감 통보 시각이 있어야 마감 감시(ONGOING만)에 다시 걸리지 않는다
         assertThat(clone.getStatus()).isEqualTo("SUCCEEDED");
         assertThat(clone.getFundingDeadline()).isEqualTo(BASE.minus(Duration.ofDays(15)));
@@ -110,7 +118,8 @@ class ClinpotCloneProjectSeederUnitTest {
     }
 
     @Test
-    void 리워드와_옵션을_무제한으로_복제한다() {
+    void 원본에_한정_리워드와_옵션이_있으면_무제한으로_복제한다() {
+        // given
         given(projectRepository.existsByPublicId(ClinpotCloneProjectSeeder.CLONE_PROJECT_ID)).willReturn(false);
         given(projectRepository.findByPublicIdAndDeletedAtIsNull(ClinpotCloneProjectSeeder.SOURCE_PROJECT_ID))
                 .willReturn(Optional.of(source()));
@@ -130,8 +139,10 @@ class ClinpotCloneProjectSeederUnitTest {
                 RewardOptionValueJpaEntity.builder().value("단종 색상").sortOrder(1).deletedAt(BASE).build()));
         givenTransactionRuns();
 
+        // when
         seeder().seed(BASE);
 
+        // then
         ArgumentCaptor<RewardJpaEntity> rewards = ArgumentCaptor.forClass(RewardJpaEntity.class);
         verify(rewardRepository, times(2)).save(rewards.capture());
         assertThat(rewards.getAllValues()).extracting(RewardJpaEntity::getName).containsExactly("얼리버드", "기본 패키지");
@@ -147,23 +158,16 @@ class ClinpotCloneProjectSeederUnitTest {
     }
 
     @Test
-    void 이미_있으면_건너뛴다() {
+    void 클론이_이미_있으면_건너뛴다() {
+        // given
         given(projectRepository.existsByPublicId(ClinpotCloneProjectSeeder.CLONE_PROJECT_ID)).willReturn(true);
 
-        assertThat(seeder().seed(BASE)).isFalse();
+        // when
+        boolean created = seeder().seed(BASE);
 
+        // then
+        assertThat(created).isFalse();
         verify(projectRepository, never()).save(any());
         verifyNoInteractions(transactionTemplate, indexEventPublisher);
-    }
-
-    @Test
-    void 원본이_없으면_건너뛴다() {
-        given(projectRepository.existsByPublicId(ClinpotCloneProjectSeeder.CLONE_PROJECT_ID)).willReturn(false);
-        given(projectRepository.findByPublicIdAndDeletedAtIsNull(ClinpotCloneProjectSeeder.SOURCE_PROJECT_ID))
-                .willReturn(Optional.empty());
-
-        assertThat(seeder().seed(BASE)).isFalse();
-
-        verifyNoInteractions(transactionTemplate, indexEventPublisher, sellerProfileClient);
     }
 }
