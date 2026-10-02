@@ -1192,9 +1192,17 @@ Response Body
 - **읽는 필드**(EventBridge 원문): `resources[0]`(채널 ARN), `detail.recording_status`, `detail.recording_s3_key_prefix`.
 - **저장 URL**: `{live.vod.cdn-base-url}/{recording_s3_key_prefix}/media/hls/master.m3u8` — CloudFront `/ivs/*`가 VOD 버킷으로
   보낸다. S3 presign이 아닌 이유: HLS는 하위 `.ts` 청크까지 서명이 필요해 m3u8만 서명하면 403이 난다.
-- **대상 방송**: 채널 ARN → `live_channels` → 그 채널에서 **가장 최근에 실제 방송한(`actual_start_at`) 1건**.
-  이미 `vod_url`이 있으면 덮지 않는다 — 같은 이벤트 재수신에도 결과가 같고, 이전 방송으로 넘어가 붙지도 않는다.
-- **무시**(메시지는 삭제): `Recording End`가 아닌 이벤트(시작·실패), 모르는 채널, 녹화 경로 없음, 이미 저장됨.
+- **대상 방송**(#232): 채널 ARN → `live_channels` → 그 채널에서 **녹화 구간 안에 실제 방송을 시작한(`actual_start_at`) 가장 이른 1건**.
+  - 녹화 구간 = prefix 끝 `…/yyyy/M/d/H/m/{recordingId}`의 녹화 시작 시각(UTC) **−1분** ~ 이벤트 수신 시각.
+    prefix가 분 단위라 녹화 시작이 방송 시작보다 늦게 찍힐 수 있어 1분 여유를 둔다.
+  - 채널·스트림 키가 판매자당 1개라, OBS를 켜 둔 채 방송을 이어 하면 녹화 하나에 여러 방송이 담긴다. 이 녹화는 앞 방송에 붙는다.
+  - 후보는 `vod_url` 유무와 상관없이 고르고, 이미 값이 있으면 덮지 않는다 — 같은 이벤트를 다시 받아도 뒤 방송으로 넘어가지 않는다.
+- **무시**(메시지는 삭제): `Recording End`가 아닌 이벤트(시작·실패), 모르는 채널, 녹화 경로 없음, 녹화 시각 파싱 실패, 구간 안 방송 없음, 이미 저장됨.
+- **종료 시 송출 중지**: `POST /end`가 IVS `StopStream`을 부른다(이미 오프라인이거나 실패해도 종료는 진행). OBS가 60초
+  (`recordingReconnectWindowSeconds`) 안에 자동 재연결하면 같은 녹화로 다시 합쳐질 수 있어 보조 수단이다.
+- **한계**: 녹화 하나에 두 방송이 담기면 **뒤 방송은 다시보기·하이라이트가 없다**(`/vod` 409). 방송별 재생 시작 지점(offset)으로 나누는 방식은 범위 밖이다.
+- **판매자 운영 안내**: OBS 송출 시작 → LIVE 시작, LIVE 종료 → OBS 송출 중지. 다음 방송 전에 송출을 한 번 끄고 다시 켠다.
+  LIVE를 먼저 누르고 1분 넘게 지나 OBS를 켜면 녹화 구간 밖이라 그 방송은 다시보기가 저장되지 않는다.
 - **재시도**: 처리 중 예외(깨진 JSON·DB 오류)면 메시지를 지우지 않는다 → visibility timeout 뒤 재수신, 계속 실패하면 DLQ.
 - 주기는 5초 짧은 폴링이다(롱 폴링은 단일 스케줄러 스레드를 붙잡아 채팅 배치 전송을 늦춘다).
 
