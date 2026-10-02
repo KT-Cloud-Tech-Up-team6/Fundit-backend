@@ -148,23 +148,26 @@ public interface LiveSessionJpaRepository extends JpaRepository<LiveSessionJpaEn
     int fillThumbnailIfAbsent(@Param("publicId") UUID publicId, @Param("url") String url);
 
     /**
-     * 녹화 완료 시 다시보기 URL을 채운다(#222). 대상은 그 채널에서 <b>가장 최근에 실제로 방송한 1건</b>이고,
-     * 이미 값이 있으면 건드리지 않는다 — 같은 이벤트가 두 번 와도 결과가 같고, 최신 방송에 값이 있다고
-     * 이전 방송으로 넘어가 엉뚱한 영상을 붙이지도 않는다. 엔티티 저장({@code applyFrom})은 vod 컬럼을
-     * 일부러 안 쓰므로 이 경로로만 쓴다. 세션에 IVS stream id가 없어 채널+최신 방송으로 찾는다.
+     * 녹화 완료 시 다시보기 URL을 채운다(#222, #232). 대상은 그 채널에서 <b>녹화 구간({@code from}~{@code to})
+     * 안에 실제로 방송을 시작한 가장 이른 1건</b>이다. 판매자가 OBS를 켜 둔 채 방송을 이어 하면 녹화 하나에
+     * 여러 방송이 담기는데, 녹화는 앞 방송부터 시작하므로 앞 방송에 붙인다(뒤 방송은 다시보기 없음 — 한계).
+     *
+     * <p>후보는 vod 유무와 상관없이 고르고, 이미 값이 있으면 건드리지 않는다 — vod가 빈 방송만 후보로 삼으면
+     * 같은 이벤트가 재전송될 때 뒤 방송에 같은 URL이 붙는다. 엔티티 저장({@code applyFrom})은 vod 컬럼을
+     * 일부러 안 쓰므로 이 경로로만 쓴다. 세션에 IVS stream id가 없어 채널+시각으로 찾는다.
      *
      * @return 채운 행 수(0 또는 1)
      */
     @Modifying(clearAutomatically = true)
     @Query(value = """
-            UPDATE live_sessions SET vod_url = :url, vod_ready_at = :readyAt
+            UPDATE live_sessions SET vod_url = :url, vod_ready_at = :to
              WHERE id = (SELECT id FROM live_sessions
-                          WHERE channel_id = :channelId AND actual_start_at IS NOT NULL
-                          ORDER BY actual_start_at DESC LIMIT 1)
+                          WHERE channel_id = :channelId AND actual_start_at BETWEEN :from AND :to
+                          ORDER BY actual_start_at ASC LIMIT 1)
                AND vod_url IS NULL
             """, nativeQuery = true)
     int fillVodIfAbsent(@Param("channelId") Long channelId, @Param("url") String url,
-                        @Param("readyAt") Instant readyAt);
+                        @Param("from") Instant from, @Param("to") Instant to);
 
     /** 채팅 적재에서 룸 ARN → 세션 변환. ARN이 세션 컬럼이라 조인 없이 단일 조회다. */
     Optional<LiveSessionJpaEntity> findByIvsChatRoomArn(String ivsChatRoomArn);

@@ -45,7 +45,7 @@ class LiveVodServiceUnitExceptionTest {
 
         // then
         verify(channelRepository, never()).findByIvsChannelArn(anyString());
-        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any());
+        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -57,7 +57,7 @@ class LiveVodServiceUnitExceptionTest {
         service.recordingEnded(CHANNEL_ARN, "Recording End", PREFIX);
 
         // then
-        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any());
+        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any(), any());
     }
 
     @Test
@@ -68,6 +68,18 @@ class LiveVodServiceUnitExceptionTest {
         service.recordingEnded(null, "Recording End", PREFIX);
 
         // then
-        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any());
+        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ivs/v1/899957568205/fundit-dev-channel-1/st-1234567890abcdef",
+            "ivs/v1/899957568205/fundit-dev-channel-1/2026/13/1/6/0/st-1234567890abcdef"})
+    void 녹화_시각을_읽을_수_없으면_저장하지_않는다(String prefix) {
+        // when (#232) — 시각 없이 붙이면 엉뚱한 방송에 붙을 수 있다
+        service.recordingEnded(CHANNEL_ARN, "Recording End", prefix);
+
+        // then
+        verify(channelRepository, never()).findByIvsChannelArn(anyString());
+        verify(sessionRepository, never()).fillVodIfAbsent(anyLong(), anyString(), any(), any());
     }
 }
