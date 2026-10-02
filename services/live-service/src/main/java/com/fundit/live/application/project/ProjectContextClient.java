@@ -13,6 +13,11 @@ public interface ProjectContextClient {
 
     Optional<ProjectContext> find(UUID projectId);
 
+    /**
+     * {@code introTexts}는 <b>평문</b>이다. project-service는 스토리 TEXT 블록을 서식이 든 HTML로
+     * 내려주므로 어댑터가 태그를 걷어내고 채운다 — 그대로 AI knowledge로 넘기면 근거와 답변 본문에
+     * 태그가 섞인다(#240). 다른 구현을 넣을 때도 이 계약을 지킬 것.
+     */
     record ProjectContext(String title, String categoryMajor, String categoryMinor,
                           List<String> introTexts, Integer achievementRate, Integer remainingDays,
                           Instant fundingDeadline) {
