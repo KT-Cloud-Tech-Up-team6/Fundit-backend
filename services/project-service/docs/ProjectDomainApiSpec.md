@@ -936,6 +936,38 @@ POST /api/v1/community/posts/{postId}/answer
 - DTO 필드와 SSE/callback 형식은 DTO 계약, 호출 순서는 통합 인터페이스 명세를 따른다.
 - 세션 응답(`SessionResponse`)과 최신 세션 응답은 값이 없는 필드도 키를 유지한다 — `confirmed_revision`·`summary`·`active_chat_id`는 `null`로, 세션이 없으면 `{"session": null}`로 내려간다(서비스 기본값 `non_null`의 예외, #152).
 
+**채팅 이미지 첨부(#233)** — AI 계약 [chat-image-attachments.md](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/1a779ba/docs/chat-image-attachments.md)
+
+`POST /api/v1/ai/sessions/{sessionId}/messages` 요청에 선택 필드 `attachments`를 받는다. 파일은 #9 업로드 API로 먼저 올리고, 돌려받은 `fileUrl`을 그대로 보낸다.
+
+```json
+{
+  "message_id": "33333333-3333-4333-8333-333333333333",
+  "revision": 2,
+  "text": "이 제품 사진을 참고해 주세요.",
+  "attachments": [ { "file_url": "https://{cdn-domain}/media/projects/{projectId}/{fileId}.png", "reward_id": null } ]
+}
+```
+
+| 항목 | 규칙 |
+|---|---|
+| `attachments` | 생략하면 기존 텍스트 전송과 같다. 이미지가 있으면 `text`는 비거나 생략해도 된다. 둘 다 없으면 `400 INVALID_INPUT` |
+| `reward_id` | 리워드 사진일 때만. 이 프로젝트 리워드가 아니면 `400 INVALID_INPUT` |
+| 파일 검증 | 대표·리워드 이미지 저장과 같다 — 경로·실존 `400 INVALID_MEDIA_URL`, 10MiB 초과 `400 MEDIA_TOO_LARGE`, 실제 형식≠MIME `400 MEDIA_TYPE_MISMATCH`(#224). JPEG·PNG·WebP만 |
+| 개수 | 대표·리워드·지금까지의 첨부·이번 첨부를 합쳐 최대 30개, 넘으면 `400 INVALID_INPUT` |
+| FE가 보내지 않는 것 | 서명 읽기 URL·MIME·크기·만료 시각·`context` — BE가 구성한다 |
+
+BE → AI 처리:
+
+- 이번 첨부: `attachments[{slot_id: "chat.{fileId}", file_url, reward_id, read_url, content_type, file_size, expires_at}]`. `fileId`는 업로드 키의 파일 ID라 같은 파일이면 늘 같은 `slot_id`다.
+- 이전 첨부: AI 세션 조회의 user 메시지 `attachments`에서 복원한다. 메시지마다 읽기 URL을 다시 서명해 `context.source_images`에 넣는다(대표·리워드 이미지와 함께). AI는 만료된 이전 첨부를 갱신 없이 받지 않는다. 같은 `message_id` 재요청이면 이번 첨부는 이전 목록에서 뺀다.
+- 첨부가 한 번도 없는 세션의 메시지는 `attachments`·`context` 없이 기존과 같은 JSON으로 보낸다.
+- 전체 생성(`POST /api/v1/ai/runs`): `context.source_images`에 세션에서 접수한 **모든** 채팅 첨부를 다시 서명해 넣는다. AI가 첨부 누락·만료·미접수를 `422`로 거부하면 `422 NOT_READY_TO_GENERATE`, 같은 ID의 파일 변경을 `409`로 거부하면 `409 CONFLICT`로 전달한다.
+
+세션 조회(`GET /sessions/latest`, `GET /sessions/{sessionId}`)의 user 메시지에는 첨부가 있을 때 `attachments[{slot_id, file_url, reward_id, content_type, file_size}]`가 붙는다(미리보기·대화 복구용, 서명 URL 없음). 첨부가 없으면 기존 `{role, text}` 그대로다.
+
+**배포 순서**: AI(Fundit-AI-Funding-Story #17) → BE → FE 첨부 버튼. AI 메시지 스키마가 `additionalProperties:false`라 #17 이전 AI는 `attachments`·`context`를 거부한다(텍스트만 쓰는 대화는 영향 없음).
+
 ---
 
 ### 25. 프로젝트 미리보기 조회(판매자)
