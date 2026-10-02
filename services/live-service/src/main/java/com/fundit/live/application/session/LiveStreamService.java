@@ -138,6 +138,7 @@ public class LiveStreamService {
         Instant now = Instant.now();
         session.end(now);
         LiveSession saved = sessionRepository.save(session);
+        stopStream(saved);
         // live.ended.v1은 방송 후 자산(질문요약·하이라이트) 두 종류의 유일한 트리거다.
         // 유실되면 방송이 이미 끝나서 재생성할 방법이 없다.
         appendOutbox(saved, LiveEventOutboxJpaEntity.TYPE_LIVE_ENDED, now, null);
@@ -262,6 +263,20 @@ public class LiveStreamService {
     }
 
     /** 시작·종료는 상태를 바꾸므로 행을 잠그고 읽는다 — 동시 요청을 직렬화한다. */
+    /**
+     * BE 종료만으로는 IVS 송출이 끊기지 않아, OBS를 켜 둔 채 다음 방송을 시작하면 녹화가 하나로 합쳐진다(#232).
+     * 보조 수단이다 — OBS가 60초(reconnect window) 안에 자동 재연결하면 다시 합쳐지고, 그 경우는
+     * 녹화 구간 매칭({@code LiveVodService})이 앞 방송에 붙여 처리한다. 실패해도 종료는 진행한다.
+     */
+    private void stopStream(LiveSession session) {
+        try {
+            channelRepository.findById(session.getChannelId())
+                    .ifPresent(channel -> ivsClient.stopStream(channel.getIvsChannelArn()));
+        } catch (RuntimeException e) {
+            log.warn("IVS 송출 중지 실패(종료는 진행), liveId={}", session.getPublicId(), e);
+        }
+    }
+
     private LiveSession loadOwned(UUID sellerId, UUID liveId) {
         return sessionRepository.findOwnedForUpdate(liveId, sellerId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

@@ -166,12 +166,14 @@ class LiveStreamServiceUnitTest {
     }
 
     @Test
-    void 종료하면_ENDED로_전이한다() {
-        // given
+    void 종료하면_ENDED로_전이하고_IVS_송출을_끊는다() {
+        // given — 송출을 안 끊으면 OBS를 켠 채 다음 방송이 같은 녹화로 이어진다(#232)
         LiveSession session = LiveSession.create(1L, UUID.randomUUID());
         session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
         given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
         given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        given(channelRepository.findById(1L)).willReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
 
         // when
         LiveSession ended = liveStreamService.end(sellerId, liveId);
@@ -179,6 +181,7 @@ class LiveStreamServiceUnitTest {
         // then
         assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
         assertThat(ended.getActualEndAt()).isNotNull();
+        verify(ivsClient).stopStream("arn:channel");
     }
 
     @Test

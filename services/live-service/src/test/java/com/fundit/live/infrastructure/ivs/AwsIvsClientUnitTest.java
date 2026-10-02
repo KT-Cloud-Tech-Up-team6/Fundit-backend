@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.ivs.model.Channel;
 import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
+import software.amazon.awssdk.services.ivs.model.StopStreamRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -266,5 +268,30 @@ class AwsIvsClientUnitTest {
         // then
         verify(ivschat).createRoom(captor.capture());
         assertThat(captor.getValue().tags()).isEqualTo(Map.of("Environment", "dev"));
+    }
+
+    @Test
+    void 송출_중지는_채널_ARN으로_요청한다() {
+        // given
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
+
+        // when
+        client.stopStream("arn:channel");
+
+        // then
+        ArgumentCaptor<StopStreamRequest> captor = ArgumentCaptor.forClass(StopStreamRequest.class);
+        verify(ivs).stopStream(captor.capture());
+        assertThat(captor.getValue().channelArn()).isEqualTo("arn:channel");
+    }
+
+    @Test
+    void 이미_송출이_없으면_송출_중지는_성공으로_본다() {
+        // given
+        given(ivs.stopStream(any(StopStreamRequest.class)))
+                .willThrow(ChannelNotBroadcastingException.builder().message("not broadcasting").build());
+        AwsIvsClient client = new AwsIvsClient(ivs, ivschat, "", "", "dev", "ap-northeast-2", 3000);
+
+        // when & then
+        assertThatCode(() -> client.stopStream("arn:channel")).doesNotThrowAnyException();
     }
 }

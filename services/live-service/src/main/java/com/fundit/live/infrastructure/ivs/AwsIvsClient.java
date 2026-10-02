@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.CreateChannelResponse;
 import software.amazon.awssdk.services.ivs.model.GetStreamKeyRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.StopStreamRequest;
 import software.amazon.awssdk.services.ivs.model.Stream;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 import software.amazon.awssdk.services.ivschat.model.CreateChatTokenRequest;
@@ -273,6 +274,18 @@ public class AwsIvsClient implements IvsClient {
                         stream.viewerCount() == null ? 0 : stream.viewerCount().intValue(), stream.startTime());
             } catch (ChannelNotBroadcastingException e) {
                 return StreamStatus.OFFLINE;
+            }
+        });
+    }
+
+    /** 이미 송출이 없으면 IVS가 예외로 알려준다 — 끊을 것이 없다는 뜻이라 성공으로 본다. */
+    @Override
+    public void stopStream(String channelArn) {
+        call(() -> {
+            try {
+                return ivs.stopStream(StopStreamRequest.builder().channelArn(channelArn).build());
+            } catch (ChannelNotBroadcastingException e) {
+                return null;
             }
         });
     }

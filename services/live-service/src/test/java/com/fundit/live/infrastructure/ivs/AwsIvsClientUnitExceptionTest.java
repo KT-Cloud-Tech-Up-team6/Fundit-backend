@@ -6,6 +6,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.ivs.model.ChannelNotBroadcastingException;
 import software.amazon.awssdk.services.ivs.model.CreateChannelRequest;
 import software.amazon.awssdk.services.ivs.model.GetStreamRequest;
+import software.amazon.awssdk.services.ivs.model.StopStreamRequest;
 import software.amazon.awssdk.services.ivschat.IvschatClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -92,5 +93,18 @@ class AwsIvsClientUnitExceptionTest {
         assertThatThrownBy(() -> new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", " ", "ap-northeast-2", 3000))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("LIVE_IVS_ENVIRONMENT");
+    }
+
+    @Test
+    void 송출_중지는_방송_중_아님_외의_실패를_던진다() {
+        // given — 권한 부족 등은 호출부가 로그로 드러내야 한다(인프라 권한 누락 확인용)
+        software.amazon.awssdk.services.ivs.IvsClient ivs = mock(software.amazon.awssdk.services.ivs.IvsClient.class);
+        given(ivs.stopStream(any(StopStreamRequest.class)))
+                .willThrow(SdkClientException.create("AccessDenied"));
+        AwsIvsClient client = new AwsIvsClient(ivs, mock(IvschatClient.class), "", "", "dev", "ap-northeast-2", 3000);
+
+        // when & then
+        assertThatThrownBy(() -> client.stopStream("arn:channel"))
+                .isInstanceOf(DependencyFailureException.class);
     }
 }

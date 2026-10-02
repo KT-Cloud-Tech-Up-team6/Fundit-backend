@@ -6,6 +6,7 @@ import com.fundit.common.error.DependencyFailureException;
 import com.fundit.live.application.ivs.IvsClient;
 import com.fundit.live.domain.session.LiveSession;
 import com.fundit.live.domain.session.LiveSessionRepository;
+import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaEntity;
 import com.fundit.live.infrastructure.persistence.channel.LiveChannelJpaRepository;
 import com.fundit.live.infrastructure.persistence.event.LiveEventOutboxJpaRepository;
 import com.fundit.live.domain.session.LiveStatus;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -144,5 +146,24 @@ class LiveStreamServiceUnitExceptionTest {
         // then
         assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
         verify(sessionRepository, never()).save(any(LiveSession.class));
+    }
+
+    @Test
+    void IVS_송출_중지가_실패해도_종료된다() {
+        // given (#232) — 송출 중지는 보조 수단이라 IVS 장애가 종료를 막으면 안 된다
+        LiveSession session = LiveSession.create(1L, UUID.randomUUID());
+        session.start(Instant.parse("2026-09-10T11:00:00Z"), "arn:chat");
+        given(sessionRepository.findOwnedForUpdate(liveId, sellerId)).willReturn(Optional.of(session));
+        given(sessionRepository.save(any(LiveSession.class))).willAnswer(inv -> inv.getArgument(0));
+        given(channelRepository.findById(1L)).willReturn(Optional.of(LiveChannelJpaEntity.builder()
+                .sellerId(sellerId).ivsChannelArn("arn:channel").active(true).build()));
+        willThrow(new DependencyFailureException(new RuntimeException("AccessDenied")))
+                .given(ivsClient).stopStream("arn:channel");
+
+        // when
+        LiveSession ended = liveStreamService.end(sellerId, liveId);
+
+        // then
+        assertThat(ended.getStatus()).isEqualTo(LiveStatus.ENDED);
     }
 }
