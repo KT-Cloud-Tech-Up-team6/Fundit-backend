@@ -60,3 +60,9 @@ mail:
   # 기본값을 두지 않는다 — 미설정이면 기동이 실패해야 한다. 스텁으로 흘러가면
   # 재설정 메일이 로그에만 찍히고 사용자는 영영 못 받는다.
   mode: ${MAIL_MODE}
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081

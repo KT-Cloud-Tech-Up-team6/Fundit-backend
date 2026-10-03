@@ -23,3 +23,9 @@ internal-api:
 springdoc:
   api-docs:
     enabled: false
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081
