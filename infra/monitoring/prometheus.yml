@@ -1,0 +1,21 @@
+# 로컬 전용 수집 설정(#242). dev/prod는 인프라팀 PodMonitor가 관리 포트 8081을 수집한다.
+# 로컬은 관리 포트를 분리하지 않으므로 서비스별 로컬 앱 포트(config-convention.md 포트표)를 그대로 긁는다.
+# 띄우지 않은 서비스는 targets 화면에 DOWN으로 보일 뿐이다.
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: fundit
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8080  # gateway
+          - host.docker.internal:8081  # auth
+          - host.docker.internal:8082  # member
+          - host.docker.internal:8083  # project
+          - host.docker.internal:8084  # order
+          - host.docker.internal:8085  # payment
+          - host.docker.internal:8086  # live
+          - host.docker.internal:8087  # fulfillment
+          - host.docker.internal:8088  # notification
+          - host.docker.internal:8089  # search
