@@ -5,7 +5,7 @@ spring:
   application:
     name: project-service
   profiles:
-    active: dev
+    active: local
   jackson:
     default-property-inclusion: non_null
 
