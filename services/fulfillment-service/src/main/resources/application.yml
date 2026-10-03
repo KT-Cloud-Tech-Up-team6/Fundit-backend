@@ -19,3 +19,18 @@ fulfillment:
   stale-update-threshold-days: 7      # FULFILLMENT-003/004 — last_updated_at 미갱신 기준
   shipped-to-delivered-days: 3        # FULFILLMENT-007 — 발송완료 목업 처리 기준(영업일 단순화, 코드 주석 참고)
   auto-confirm-threshold-days: 7      # FULFILLMENT-010 — 수령 미확인 자동확정 기준
+
+# 메트릭(#242). 관리 포트는 application-dev/prod.yml에서만 8081로 분리한다 — 로컬은 앱 포트를 같이 쓴다.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      # Grafana Spring Boot 대시보드가 이 라벨로 서비스를 구분한다
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        # p95·p99 응답 시간을 보려면 히스토그램 버킷이 필요하다
+        "[http.server.requests]": true

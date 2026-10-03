@@ -44,3 +44,9 @@ media:
   # 공개(CDN) 주소 — 환경마다 도메인이 달라 주입만 받는다(기본값 없음: 미주입이면 기동 실패로 드러난다).
   public-base-url: ${MEDIA_PUBLIC_BASE_URL}
 
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081

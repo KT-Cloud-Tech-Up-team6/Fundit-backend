@@ -54,3 +54,18 @@ live:
 springdoc:
   api-docs:
     path: /api/v1/lives/api-docs
+
+# 메트릭(#242). 관리 포트는 application-dev/prod.yml에서만 8081로 분리한다 — 로컬은 앱 포트를 같이 쓴다.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      # Grafana Spring Boot 대시보드가 이 라벨로 서비스를 구분한다
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        # p95·p99 응답 시간을 보려면 히스토그램 버킷이 필요하다
+        "[http.server.requests]": true

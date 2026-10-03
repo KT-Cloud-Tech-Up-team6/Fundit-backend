@@ -31,3 +31,9 @@ live:
     chat-review-handler-arn: ${LIVE_IVS_CHAT_REVIEW_HANDLER_ARN:}
     # IVS 채널·채팅방 생성 요청의 Environment 태그(인프라 IAM 조건). aws 모드에서만 읽는다.
     environment: ${LIVE_IVS_ENVIRONMENT:dev}
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081

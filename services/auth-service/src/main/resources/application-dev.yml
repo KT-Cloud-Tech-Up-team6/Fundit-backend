@@ -57,3 +57,9 @@ test-accounts:
   # QA 테스트 계정 2개(QaTestAccountSeeder) 공용 비밀번호. 비어 있으면 생성하지 않는다.
   # dev 전용 — local·prod yml에는 두지 않는다.
   password: ${TEST_ACCOUNT_PASSWORD:}
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081

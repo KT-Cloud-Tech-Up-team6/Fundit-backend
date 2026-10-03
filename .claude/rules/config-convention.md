@@ -49,6 +49,13 @@ server:
   port: 8081
 ```
 
+## 관리 포트(actuator) — dev/prod만 8081로 분리
+메트릭(`/actuator/prometheus`)과 헬스체크(`/actuator/health`)는 dev/prod에서 관리 포트 `8081`로 분리한다. 인프라 PodMonitor와 probe가 이 포트를 본다.
+- `management.server.port: 8081`은 `application-dev.yml`·`application-prod.yml`에만 둔다. `application.yml`에 두면 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+- 로컬은 관리 포트를 분리하지 않는다. actuator가 위 표의 앱 포트로 같이 뜬다.
+- 노출 범위(`health,prometheus`)와 메트릭 태그는 `application.yml`에 둔다.
+- **새 서비스를 추가하면 dev/prod yml에 같은 블록을 반드시 넣는다.** 빠뜨리면 8081에서 아무것도 응답하지 않아 probe가 실패하고 파드가 재시작을 반복한다.
+
 멀티스테이지 빌드로 작성한다. 빌드 단계와 실행 단계의 이미지를 분리해서, 최종 이미지에 Gradle·소스코드가 남지 않게 한다.
 
 ```dockerfile

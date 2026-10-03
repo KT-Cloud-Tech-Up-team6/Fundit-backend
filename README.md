@@ -150,6 +150,9 @@ docker compose -f services/{service}/docker-compose.yml up -d
 ```
 
 - 서비스마다 로컬 앱 포트와 DB 포트가 정해져 있어서 여러 서비스를 함께 띄워도 충돌하지 않습니다(앱 8080~8089, DB 5432~5440). 기준은 [설정 규칙](./.claude/rules/config-convention.md)입니다.
+- 메트릭은 각 서비스의 로컬 앱 포트 `/actuator/prometheus`에 노출됩니다. dev·prod에서는 관리 포트 `8081`로 분리됩니다.
+  - 로컬 확인: `docker compose up -d prometheus grafana`를 실행하고 Prometheus `localhost:9090/targets`, Grafana `localhost:3000`(admin/admin)에 접속합니다.
+  - Grafana 대시보드는 ID로 import합니다: JVM `4701`, Spring Boot `19004`.
 - OpenAPI 문서는 `GET /api/v1/{도메인}/api-docs.yaml`에서 받을 수 있습니다(예: `/api/v1/members/api-docs.yaml`). 운영 프로필에서는 닫혀 있습니다.
 
 ## 빌드·테스트
