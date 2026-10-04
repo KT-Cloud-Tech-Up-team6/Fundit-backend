@@ -28,3 +28,9 @@ order:
 # GET /api/v1/members/me로 다시 확인해 바꾼다(비면 시연 펀딩 시드만 건너뛴다).
 demo:
   buyer-member-id: 01a0ec1e-e96e-7740-b178-e1e530d21aa6
+
+# 메트릭·헬스체크 전용 포트(#242). 인프라 PodMonitor·probe가 이 포트를 본다.
+# application.yml에 두지 않는다 — 로컬에서 auth-service 앱 포트(8081)와 충돌한다.
+management:
+  server:
+    port: 8081

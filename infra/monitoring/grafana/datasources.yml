@@ -1,0 +1,8 @@
+# 로컬 Grafana에 Prometheus 데이터소스를 자동 등록한다. 대시보드는 README의 ID로 직접 import한다.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
